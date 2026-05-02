@@ -1,7 +1,7 @@
 # 📄 Dokumentacja Projektowa: NiX (v1.0)
 
-**Status:** In Progress — Sprint 1  
-**Lead PM:** Gemini (AI Expert)  
+**Status:** W toku — stabilizacja MVP  
+**Lead PM:** Gemini (ekspert AI)  
 **Stack:** React Native Expo + Supabase  
 **Ostatnia aktualizacja:** 2026-04-29
 
@@ -9,24 +9,24 @@
 
 > [!WARNING]
 > **Apple Developer Account — OCZEKUJE**
-> Sign in with Apple (SWA) jest **wstrzymane** do momentu utworzenia konta Apple Developer.
-> W międzyczasie auth będzie realizowany przez **Supabase Email Magic Link** (tymczasowo) lub **anonimowe sesje**.
+> Logowanie przez Apple (SWA) jest **wstrzymane** do momentu utworzenia konta Apple Developer.
+> W międzyczasie uwierzytelnianie będzie realizowane przez **Supabase Email Magic Link** (tymczasowo) lub **anonimowe sesje**.
 > Po uzyskaniu konta — wdrożyć `expo-apple-authentication` zgodnie z sekcją 2.5.
 
 ---
 
-## 1. Product Requirements Document (PRD)
+## 1. Dokument wymagań produktowych (PRD)
 
 ### 1.1 Wizja i Cel
 
 NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: dostarczenie doświadczenia efemerycznych wiadomości (Snapów) bez algorytmów, reklam, zbędnych funkcjonalności i gromadzenia danych.
 
-### 1.2 Kluczowe Filary (Guiding Principles)
+### 1.2 Kluczowe filary (zasady przewodnie)
 
-1. **Privacy-Only:** Docelowa metoda logowania to Sign in with Apple (SWA) — *wstrzymana, patrz ostrzeżenie powyżej*. Brak zbierania numerów telefonów czy e-maili.
+1. **Prywatność przede wszystkim:** Docelowa metoda logowania to Logowanie przez Apple (SWA) — *wstrzymana, patrz ostrzeżenie powyżej*. Brak zbierania numerów telefonów czy e-maili.
 2. **Speed-to-Camera:** Aplikacja musi być gotowa do zrobienia zdjęcia w mniej niż 1.5 sekundy od uruchomienia.
 3. **True Ephemeral:** Co zostało zobaczone, musi zostać fizycznie usunięte z infrastruktury w czasie rzeczywistym.
-4. **Native-First:** Maksymalne wykorzystanie natywnych komponentów iOS/Android. Zero zbędnych abstrakcji JS tam, gdzie dostępny jest odpowiednik natywny.
+4. **Native-First:** Maksymalne wykorzystanie natywnych komponentów iOS. Zero zbędnych abstrakcji JS tam, gdzie dostępny jest odpowiednik natywny.
 5. **Budget-First:** Architektura zoptymalizowana pod najniższy możliwy koszt operacyjny (Supabase Free Tier → Pro dopiero przy wzroście).
 
 ### 1.3 User Stories (Priorytet: P0)
@@ -40,7 +40,7 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: dostarczenie doś
 
 ### 1.4 Wymagania Funkcjonalne
 
-- **Auth:** *(tymczasowo)* Supabase Magic Link / OTP → *(docelowo)* Sign in with Apple.
+- **Uwierzytelnianie:** *(tymczasowo)* Supabase Magic Link / OTP → *(docelowo)* Logowanie przez Apple.
 - **Kamera:** Natywna obsługa front/back, flash, zdjęcia (v1) i wideo (v2).
 - **UI:** Wyłącznie natywne komponenty — `View`, `Text`, `Pressable`, `FlatList`, `Image`. Zero zewnętrznych UI-kitów.
 - **Animacje:** 144fps — patrz sekcja 2.6.
@@ -49,18 +49,18 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: dostarczenie doś
 
 ---
 
-## 2. Technical Design Document (TDD)
+## 2. Dokument projektu technicznego (TDD)
 
 ### 2.1 Architektura Systemu
 
 | Warstwa | Technologia | Uwagi |
 | :--- | :--- | :--- |
-| **Frontend** | React Native (Expo SDK 52+) | Najnowszy stabilny SDK |
-| **Nawigacja** | Expo Router v4 (File-based) | Native Stack — zero JS animations |
-| **Stylizacja** | NativeWind v5 + Tailwind CSS v4 | Utility classes kompilowane natywnie |
+| **Frontend** | React Native (Expo SDK 55) | Najnowszy stabilny SDK |
+| **Nawigacja** | Expo Router (SDK 55) | Native Stack — zero JS animations |
+| **Stylizacja** | `StyleSheet` / inline styles (React Native) | Bez Tailwind/NativeWind (brak web-targetu) |
 | **Backend** | Supabase Free Tier | PostgreSQL, Auth, Storage, Edge Functions |
 | **Powiadomienia** | Expo Notifications (EAS) | Push tylko przy nowym Snapie |
-| **Animacje** | React Native Reanimated v3 | UI Thread — 144fps |
+| **Animacje** | React Native Reanimated v4 | UI Thread — 120/144fps |
 
 ### 2.2 Filozofia: Native-First
 
@@ -133,36 +133,38 @@ CREATE TABLE public.friendships (
 
 #### Etap 1 — AKTYWNY (bez Apple Dev Account)
 ```
-Użytkownik → Supabase OTP (email/magic link) → Sesja JWT → Onboarding (username)
+Użytkownik → Rejestracja (email + hasło) → Potwierdzenie e-mail → Sesja JWT → Onboarding (username)
 ```
-- Używamy `supabase.auth.signInWithOtp({ email })` 
-- Minimalne dane — tylko email do weryfikacji tożsamości
-- Email **nie jest przechowywany** w tabeli `profiles`
+- Logowanie: `supabase.auth.signInWithPassword({ email, password })`
+- Rejestracja: `supabase.auth.signUp({ email, password })`
+- Reset hasła: `supabase.auth.resetPasswordForEmail(email, { redirectTo })`
+- Deep link `nix://auth/callback` ustawia sesję (`supabase.auth.setSession`) po potwierdzeniu/resecie
+- Minimalne dane — email służy wyłącznie do auth, nie trzymamy go w `profiles`
 
 #### Etap 2 — PO UZYSKANIU APPLE DEV ACCOUNT ⏳
 ```
-Użytkownik → Sign in with Apple → identityToken → supabase.auth.signInWithIdToken() → Sesja JWT
+Użytkownik → Logowanie przez Apple → identityToken → supabase.auth.signInWithIdToken() → Sesja JWT
 ```
 - Instalacja: `npx expo install expo-apple-authentication`
 - Konfiguracja `app.json`: `"usesAppleSignIn": true`
-- Bundle ID: `com.nix.app`
+- Bundle ID: `com.damianmotylinski.nixapp`
 - Migracja: dodanie kolumny `apple_id` w `profiles` (już uwzględnione w schemacie)
 
 ### 2.6 Animacje — Strategia 144fps
 
 > [!IMPORTANT]
-> **Cel:** Wszystkie animacje muszą działać na wątku UI (nie JS thread), zapewniając płynność 120/144fps na ProMotion iPhone i Android 144Hz.
+> **Cel:** Wszystkie animacje muszą działać na wątku UI (nie JS thread), zapewniając płynność 120/144fps na ProMotion iPhone.
 
-#### Główna biblioteka: React Native Reanimated v3
+#### Główna biblioteka: React Native Reanimated v4
 
 ```bash
 npx expo install react-native-reanimated
 ```
 
-**Dlaczego Reanimated v3:**
+**Dlaczego Reanimated v4:**
 - Działa w pełni na UI Thread (Worklet architecture)
-- Pełna kompatybilność z Expo SDK 52+
-- Obsługuje 120/144fps na ProMotion (iPhone 13 Pro+) i Android 144Hz
+- Pełna kompatybilność z Expo SDK 55
+- Obsługuje 120/144fps na ProMotion (iPhone 13 Pro+)
 - Natywne interpolacje bez bridge'a
 
 #### Zasady animacji w NiX:
@@ -225,14 +227,12 @@ Klient (Odbiorca)
 
 ```
 /src
-  /api             # Supabase hooks (React Query / SWR)
   /app             # Expo Router (nawigacja)
     /(auth)        # login.tsx, onboarding.tsx
     /(tabs)        # kamera (index), wiadomości, profil
-  /components      # Wyłącznie natywne komponenty
-  /hooks           # useAuth, useCamera, useMediaUpload
+  /hooks           # useAuth, useMediaUpload
   /lib             # supabase.ts (klient)
-  /services        # notificationService, storageService
+  /services        # authService, profileService, snapService
   /types           # database.types.ts
 ```
 
@@ -241,14 +241,13 @@ Klient (Odbiorca)
 | Plik | Odpowiedzialność |
 | :--- | :--- |
 | `src/lib/supabase.ts` | Inicjalizacja klienta Supabase + konfiguracja sesji |
-| `src/app/(auth)/login.tsx` | *(Etap 1)* OTP login / *(Etap 2)* Sign in with Apple |
-| `src/app/(auth)/onboarding.tsx` | Wybór unikalnego username (tylko przy pierwszym logowaniu) |
+| `src/app/(auth)/login.tsx` | *(Etap 1)* logowanie OTP / *(Etap 2)* Logowanie przez Apple |
+| `src/app/(auth)/onboarding.tsx` | Wybór unikalnej nazwy użytkownika (tylko przy pierwszym logowaniu) |
 | `src/app/(tabs)/index.tsx` | Widok kamery (full-screen, domyślny ekran) |
 | `src/hooks/useAuth.ts` | Logika auth — OTP teraz, Apple Auth po uzyskaniu konta |
-| `src/hooks/useCamera.ts` | Obsługa permisji i funkcji kamery |
 | `src/hooks/useMediaUpload.ts` | Upload plików do Supabase Storage |
-| `src/services/storageService.ts` | Abstrakcja operacji na Supabase Storage |
-| `src/services/notificationService.ts` | Obsługa push tokenów i powiadomień EAS |
+| `src/services/profileService.ts` | Odczyt profilu, lista odbiorców, walidacja nazwy użytkownika |
+| `src/services/snapService.ts` | Odczyt inbox, signed URL, status viewed i cleanup |
 | `src/types/database.types.ts` | Auto-generowane typy TypeScript ze schematu Supabase |
 
 ---
@@ -257,32 +256,32 @@ Klient (Odbiorca)
 
 ### Sprint 1: Foundation *(Current)*
 
-- [ ] Inicjalizacja projektu Expo Router (TypeScript)
-- [ ] Konfiguracja NativeWind v5 + Tailwind CSS v4
-- [ ] Konfiguracja Reanimated v3 + Gesture Handler
-- [ ] Implementacja auth — Supabase OTP (etap tymczasowy)
-- [ ] Ekran `login.tsx` (OTP flow)
-- [ ] Ekran `onboarding.tsx` (wybór username)
-- [ ] Inicjalizacja klienta Supabase (`src/lib/supabase.ts`)
+- [x] Inicjalizacja projektu Expo Router (TypeScript)
+- [x] Ustalenie konwencji stylowania w RN (`StyleSheet` / inline)
+- [x] Konfiguracja Reanimated + Gesture Handler
+- [x] Implementacja auth — Supabase OTP (etap tymczasowy)
+- [x] Ekran `login.tsx` (OTP flow)
+- [x] Ekran `onboarding.tsx` (wybór nazwy użytkownika)
+- [x] Inicjalizacja klienta Supabase (`src/lib/supabase.ts`)
 
 ### Sprint 2: Media Engine
 
-- [ ] UI Kamery (Full screen, native)
-- [ ] Logika zapisu zdjęcia i uploadu do Supabase Storage
-- [ ] Wybór odbiorcy z listy kontaktów
-- [ ] Animacje przejść (Reanimated v3)
+- [x] UI Kamery (Full screen, native)
+- [x] Logika zapisu zdjęcia i uploadu do Supabase Storage
+- [x] Wybór odbiorcy z listy kontaktów
+- [x] Animacje przejść
 
 ### Sprint 3: Delivery & Destruction
 
-- [ ] Ekran listy wiadomości (`FlashList`)
-- [ ] Full-screen media viewer
-- [ ] Implementacja Edge Function do usuwania danych
+- [x] Ekran listy wiadomości (`FlashList`)
+- [x] Full-screen media viewer
+- [~] Implementacja Edge Function do usuwania danych (klient wysyła żądanie cleanup, funkcja do wdrożenia po stronie Supabase)
 
 ### Sprint 4: Apple Auth *(blokowane — oczekuje na Apple Dev Account)* ⏳
 
 - [ ] Rejestracja Apple Developer Account
 - [ ] Konfiguracja `expo-apple-authentication`
-- [ ] Migracja flow auth z OTP → Sign in with Apple
+- [ ] Migracja przepływu uwierzytelniania z OTP → Logowanie przez Apple
 - [ ] Testy na fizycznym urządzeniu iOS
 - [ ] Przygotowanie do App Store Review
 
@@ -305,11 +304,7 @@ npx expo install react-native-gesture-handler
 npm install @shopify/flash-list
 
 # Stylizacja
-npm install nativewind
-npm install --save-dev tailwindcss
-
-# Powiadomienia
-npx expo install expo-notifications
+# Stylowanie realizowane natywnie przez `StyleSheet` / inline styles (bez Tailwind/NativeWind).
 
 # Apple Auth (WSTRZYMANE — dodać po uzyskaniu konta)
 # npx expo install expo-apple-authentication
@@ -319,16 +314,15 @@ npx expo install expo-notifications
 
 | Pakiet | Wersja | Cel |
 | :--- | :--- | :--- |
-| `expo` | `~52.0.0` | Bazowy framework |
-| `expo-router` | `~4.x` | File-based navigation (Native Stack) |
-| `react-native-reanimated` | `^3.x` | Animacje 144fps (UI Thread) |
-| `react-native-gesture-handler` | `^2.x` | Gesty natywne |
-| `@shopify/flash-list` | `^1.x` | Listy wysokiej wydajności |
-| `expo-camera` | `~15.x` | Dostęp do kamery |
-| `expo-image` | `~2.x` | Natywna obsługa obrazów + cache |
+| `expo` | `~55.x` | Bazowy framework |
+| `expo-router` | `~55.x` | File-based navigation (Native Stack) |
+| `react-native-reanimated` | `4.x` | Animacje UI Thread |
+| `react-native-gesture-handler` | `~2.30.x` | Gesty natywne |
+| `@shopify/flash-list` | `2.x` | Listy wysokiej wydajności |
+| `expo-camera` | `~55.x` | Dostęp do kamery |
+| `expo-image` | `~55.x` | Natywna obsługa obrazów + cache |
 | `@supabase/supabase-js` | `^2.x` | Klient Supabase |
-| `nativewind` | `^5.x` | Tailwind CSS v4 dla RN |
-| ~~`expo-apple-authentication`~~ | ~~`~6.x`~~ | ~~Sign in with Apple~~ *(wstrzymane)* |
+| ~~`expo-apple-authentication`~~ | ~~`~6.x`~~ | ~~Logowanie przez Apple~~ *(wstrzymane)* |
 
 ---
 
@@ -341,31 +335,29 @@ npx expo install expo-notifications
     "slug": "nix-app",
     "version": "1.0.0",
     "ios": {
-      "bundleIdentifier": "com.nix.app",
-      "usesAppleSignIn": false
+      "bundleIdentifier": "com.damianmotylinski.nixapp",
+      "usesAppleSignIn": true
     },
     "plugins": [
       "expo-router",
       [
         "expo-camera",
         {
-          "cameraPermission": "NiX needs camera access to let you capture and send Snaps."
+          "cameraPermission": "NiX potrzebuje dostępu do kamery, aby przechwytywać i wysyłać wiadomości."
         }
       ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png"
-        }
-      ],
-      "react-native-reanimated"
+      "react-native-reanimated",
+      "expo-apple-authentication"
     ]
   }
 }
 ```
 
 > [!NOTE]
-> Po uzyskaniu Apple Developer Account zmienić `"usesAppleSignIn": false` na `true` i dodać plugin `"expo-apple-authentication"`.
+> Zakres platformy: aplikacja tylko na iOS (bez web-build).
+
+> [!NOTE]
+> Po uzyskaniu Apple Developer Account trzeba jeszcze skonfigurować provider Apple w Supabase (`Service ID`, `Team ID`, `Key ID`, `Private Key`), aby logowanie działało produkcyjnie.
 
 ---
 
@@ -373,9 +365,9 @@ npx expo install expo-notifications
 
 | Termin | Definicja |
 | :--- | :--- |
-| **Snap** | Efemeryczna wiadomość multimedialna (zdjęcie/wideo) |
-| **SWA** | Sign in with Apple — docelowa metoda autoryzacji *(wstrzymana)* |
-| **OTP** | One-Time Password — tymczasowa metoda auth przez Supabase |
+| **Wiadomość** | Efemeryczna wiadomość multimedialna (zdjęcie/wideo) |
+| **SWA** | Logowanie przez Apple — docelowa metoda autoryzacji *(wstrzymana)* |
+| **OTP** | Historyczna metoda logowania zastąpiona przez e-mail + hasło |
 | **RLS** | Row Level Security — polityki dostępu na poziomie wiersza w PostgreSQL |
 | **EAS** | Expo Application Services — usługi budowania i powiadomień |
 | **Edge Function** | Bezserwerowa funkcja wykonywana po stronie Supabase |
@@ -385,4 +377,22 @@ npx expo install expo-notifications
 
 ---
 
-*Dokumentacja wygenerowana: 2026-04-29 | Wersja: 1.1 | Status: In Progress — Sprint 1*
+## 8. Baseline jakości (release readiness)
+
+Minimalny gate jakości dla każdego PR:
+
+```bash
+npm run lint
+npm run typecheck
+```
+
+Smoke testy P0 przed mergem:
+- Logowanie OTP -> weryfikacja -> poprawny redirect (`onboarding` dla nowych, `(tabs)` dla istniejących)
+- Onboarding zapisuje nazwę użytkownika jednokrotnie (brak możliwości późniejszej zmiany)
+- Kamera -> podgląd -> wybór odbiorcy -> wysyłka wiadomości do realnego odbiorcy
+- Skrzynka pokazuje nową wiadomość, podgląd uruchamia timer i oznacza `is_viewed`
+- Po oznaczeniu viewed klient wysyła żądanie cleanup do Edge Function `cleanup-snap`
+
+---
+
+*Dokumentacja wygenerowana: 2026-04-29 | Wersja: 1.1 | Status: W toku — Sprint 1*

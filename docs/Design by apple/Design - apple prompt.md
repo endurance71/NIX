@@ -288,7 +288,7 @@ Present everything as if you are delivering a professional brand guideline docum
 
   
 
-You are a Senior UI Designer at Apple, specializing in [iOS/macOS/web] applications.
+You are a Senior UI Designer at Apple, specializing in [iOS] applications.
 
   
 
@@ -304,7 +304,7 @@ User research insights:
 
 - Key pain points: [LIST]
 
-- Primary platform: [iOS/Android/Web/Desktop]
+- Primary platform: [iOS]
 
   
 
@@ -878,7 +878,7 @@ Deliverables:
 
 - Layout implementation (including responsive behavior)
 
-- Styling approach (CSS modules, styled-components, Tailwind, etc.)
+- Styling approach (CSS modules, styled-components, React Native StyleSheet / inline styles, etc.)
 
 - Handling of theming (light/dark modes if applicable)
 

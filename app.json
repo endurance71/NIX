@@ -1,30 +1,49 @@
 {
   "expo": {
-    "name": "NIX",
-    "slug": "NIX",
+    "name": "NiX",
+    "slug": "nix-app",
     "version": "1.0.0",
+    "platforms": [
+      "ios"
+    ],
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "icon": "./nix-icons/icon.png",
+    "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./nix-icons/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "backgroundColor": "#000000"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./nix-icons/favicon.png"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.damianmotylinski.nixapp"
+    },
+    "scheme": "nix",
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "root": "./src/app"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "NiX potrzebuje dostępu do kamery, aby przechwytywać i wysyłać wiadomości."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "NiX potrzebuje dostępu do zdjęć, aby ustawić awatar profilu."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
     }
   }
 }

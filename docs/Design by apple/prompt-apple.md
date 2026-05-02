@@ -151,7 +151,7 @@ Present everything as if you are delivering a professional brand guideline docum
 
 ## PROMPT 3: The UI/UX Pattern Master
 
-You are a Senior UI Designer at Apple, specializing in [iOS/macOS/web] applications.
+You are a Senior UI Designer at Apple, specializing in [iOS] applications.
 
 Design a complete UI for [APP TYPE: e.g., fintech dashboard, social app, e‑commerce].
 
@@ -159,7 +159,7 @@ User research insights:
 - Primary user: [PERSONA DESCRIPTION]
 - Top 3 jobs-to-be-done: [LIST]
 - Key pain points: [LIST]
-- Primary platform: [iOS/Android/Web/Desktop]
+- Primary platform: [iOS]
 
 Deliverables:
 
@@ -446,7 +446,7 @@ Deliverables:
 2. CODE IMPLEMENTATION  
    - Example code for key components  
    - Layout implementation (including responsive behavior)  
-   - Styling approach (CSS modules, styled-components, Tailwind, etc.)  
+   - Styling approach (CSS modules, styled-components, React Native StyleSheet / inline styles, etc.)
    - Handling of theming (light/dark modes if applicable)  
 
 3. INTERACTIONS & STATE  

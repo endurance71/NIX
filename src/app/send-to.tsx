@@ -1,0 +1,294 @@
+import { memo, useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { FlashList } from '@shopify/flash-list';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { listAcceptedFriends, type FriendProfile } from '../services/friendService';
+import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../services/avatarService';
+import { uploadImageAndCreateSnap } from '../services/mediaService';
+import { toDomainError } from '../services/errors';
+import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
+import { useAppTheme } from '../hooks/useAppTheme';
+import { ThemeColors } from '../theme/colors';
+import { typography } from '../theme/typography';
+import { SFSymbol } from '../components/ui/sf-symbol';
+import { AvatarCircle } from '../components/ui/avatar-circle';
+import { normalizeSnapViewDurationSec } from '../lib/snapViewDuration';
+import { toggleSetValue } from '../lib/selection';
+
+const SEND_CONCURRENCY = 3;
+
+type FriendRecipientRowProps = {
+  avatarUrl: string | null;
+  item: FriendProfile;
+  onToggle: (id: string) => void;
+  selected: boolean;
+  tintColor: string;
+};
+
+const FriendRecipientRow = memo(function FriendRecipientRow({
+  avatarUrl,
+  item,
+  onToggle,
+  selected,
+  tintColor,
+}: FriendRecipientRowProps) {
+  const { colors } = useAppTheme();
+  return (
+    <Pressable
+      accessibilityLabel={`${selected ? 'Odznacz' : 'Zaznacz'} @${item.username}`}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      style={({ pressed }) => [
+        styles.profileRow,
+        { borderBottomColor: colors.separator },
+        selected && { backgroundColor: colors.systemFill },
+        pressed && styles.profileRowPressed,
+      ]}
+      onPress={() => onToggle(item.id)}
+    >
+      <View style={styles.avatarWrap}>
+        <AvatarCircle
+          size={40}
+          url={avatarUrl}
+          storagePath={item.avatar_storage_path}
+          emoji={item.avatar_emoji}
+          fallbackInitial={item.username?.charAt(0)}
+        />
+      </View>
+      <Text numberOfLines={1} style={[styles.username, { color: colors.label }]}>
+        {item.username ?? 'Nieznany'}
+      </Text>
+      {selected ? <SFSymbol name="checkmark.circle.fill" size={24} tintColor={tintColor} /> : null}
+    </Pressable>
+  );
+});
+
+async function runWithConcurrency<T>(
+  items: readonly T[],
+  limit: number,
+  worker: (item: T) => Promise<string | null>
+): Promise<string[]> {
+  const failures: string[] = [];
+  for (let index = 0; index < items.length; index += limit) {
+    const batch = items.slice(index, index + limit);
+    const results = await Promise.all(batch.map((item) => worker(item)));
+    failures.push(...results.filter((message): message is string => Boolean(message)));
+  }
+  return failures;
+}
+
+export default function SendToSheet() {
+  const queryClient = useQueryClient();
+  const { colors } = useAppTheme();
+  const stylesForTheme = useMemo(() => createStyles(colors), [colors]);
+  const { uri, viewDurationSec: viewDurationParam } = useLocalSearchParams<{
+    uri: string;
+    viewDurationSec?: string;
+  }>();
+  const viewDurationSec = useMemo(() => normalizeSnapViewDurationSec(viewDurationParam), [viewDurationParam]);
+  const { data: profiles = [], isPending: loading } = useQuery({
+    queryKey: queryKeys.acceptedFriends,
+    queryFn: listAcceptedFriends,
+    staleTime: 1000 * 60 * 2,
+  });
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [isSending, setIsSending] = useState(false);
+
+  const selectedCount = selectedIds.size;
+  const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds]);
+
+  const sortedFriendAvatarPaths = useMemo(() => {
+    const paths = profiles.map((p) => p.avatar_storage_path).filter((path): path is string => Boolean(path));
+    return Array.from(new Set(paths)).sort();
+  }, [profiles]);
+
+  const { data: avatarUrls = {} } = useQuery({
+    queryKey: avatarSignedUrlsQueryKey(sortedFriendAvatarPaths),
+    queryFn: () => createSignedAvatarUrls(sortedFriendAvatarPaths),
+    enabled: sortedFriendAvatarPaths.length > 0,
+    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
+  });
+
+  const handleSend = async () => {
+    if (!uri || selectedCount === 0 || isSending) return;
+
+    setIsSending(true);
+    const failures = await runWithConcurrency(selectedIdList, SEND_CONCURRENCY, async (receiverId) => {
+      try {
+        await uploadImageAndCreateSnap(uri, receiverId, viewDurationSec);
+        return null;
+      } catch (err) {
+        return toDomainError(err, 'Spróbuj ponownie za chwilę.').message;
+      }
+    });
+    setIsSending(false);
+
+    if (failures.length === 0) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle });
+      router.dismissAll();
+      return;
+    }
+
+    Alert.alert('Nie udało się wysłać do wszystkich', `${failures.length} z ${selectedCount} wysyłek nie powiodło się.`);
+  };
+
+  const toggleSelection = useCallback((id: string) => {
+    setSelectedIds((prev) => toggleSetValue(prev, id));
+  }, []);
+
+  const renderItem = useCallback(
+    ({ item }: { item: FriendProfile }) => (
+      <FriendRecipientRow
+        item={item}
+        selected={selectedIds.has(item.id)}
+        onToggle={toggleSelection}
+        tintColor={colors.systemBlue}
+        avatarUrl={item.avatar_storage_path ? avatarUrls[item.avatar_storage_path] ?? null : null}
+      />
+    ),
+    [avatarUrls, colors.systemBlue, selectedIds, toggleSelection]
+  );
+
+  return (
+    <View style={stylesForTheme.container}>
+      <Text style={stylesForTheme.title}>Wyślij do</Text>
+      <Text style={stylesForTheme.subtitle}>Wybierz jednego lub wielu znajomych</Text>
+
+      {loading ? (
+        <ActivityIndicator color={colors.label} style={styles.loading} />
+      ) : (
+        <View style={stylesForTheme.listWrap}>
+          <FlashList
+            data={profiles}
+            extraData={{ avatarUrls, selectedIds }}
+            getItemType={() => 'friend-recipient'}
+            estimatedItemSize={64}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            ListEmptyComponent={
+              <View style={stylesForTheme.emptyState}>
+                <Text style={stylesForTheme.emptyStateText}>Nie masz jeszcze zaakceptowanych znajomych.</Text>
+              </View>
+            }
+          />
+        </View>
+      )}
+
+      <View style={stylesForTheme.footer}>
+        <Text style={stylesForTheme.selectionCount}>Zaznaczeni: {selectedCount}</Text>
+        <Pressable
+          accessibilityLabel="Wyślij wiadomość"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: selectedCount === 0 || isSending }}
+          style={[
+            stylesForTheme.sendButton,
+            (selectedCount === 0 || isSending) && styles.sendButtonDisabled,
+          ]}
+          onPress={handleSend}
+          disabled={selectedCount === 0 || isSending}
+        >
+          {isSending ? (
+            <ActivityIndicator color={colors.buttonPrimaryText} />
+          ) : (
+            <>
+              <Text style={stylesForTheme.sendButtonText}>
+                {selectedCount > 1 ? `Wyślij do ${selectedCount} znajomych` : 'Wyślij wiadomość'}
+              </Text>
+              <SFSymbol name="paperplane.fill" size={20} tintColor={colors.buttonPrimaryText} />
+            </>
+          )}
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  profileRow: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  profileRowPressed: {
+    opacity: 0.72,
+  },
+  avatarWrap: {
+    marginRight: 16,
+  },
+  username: {
+    ...typography.callout,
+    flex: 1,
+    fontWeight: '500',
+  },
+  loading: {
+    marginTop: 20,
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
+  },
+});
+
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.secondarySystemBackground,
+      paddingTop: 20,
+    },
+    title: {
+      ...typography.title2,
+      color: colors.label,
+      textAlign: 'center',
+    },
+    subtitle: {
+      ...typography.footnote,
+      marginTop: 6,
+      marginBottom: 12,
+      textAlign: 'center',
+      color: colors.tertiaryLabel,
+    },
+    listWrap: {
+      flex: 1,
+      width: '100%',
+      marginTop: 10,
+    },
+    footer: {
+      padding: 24,
+      paddingBottom: 28,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.separator,
+      backgroundColor: colors.systemBackground,
+    },
+    selectionCount: {
+      ...typography.footnote,
+      color: colors.tertiaryLabel,
+      marginBottom: 10,
+      fontVariant: ['tabular-nums'],
+    },
+    sendButton: {
+      minHeight: 56,
+      flexDirection: 'row',
+      backgroundColor: colors.buttonPrimaryBg,
+      borderRadius: 28,
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 16,
+    },
+    sendButtonText: {
+      ...typography.headline,
+      color: colors.buttonPrimaryText,
+    },
+    emptyState: {
+      paddingHorizontal: 24,
+      paddingTop: 24,
+    },
+    emptyStateText: {
+      ...typography.callout,
+      color: colors.tertiaryLabel,
+    },
+  });
