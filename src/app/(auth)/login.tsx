@@ -20,6 +20,7 @@ import { NativeButton } from '../../components/ui/native-button';
 import { NativeInput } from '../../components/ui/native-input';
 import { Host, Text as SUIText, VStack, Spacer } from '@expo/ui/swift-ui';
 import { font, foregroundStyle, frame, multilineTextAlignment } from '@expo/ui/swift-ui/modifiers';
+import { notifyError } from '../../lib/appNotify';
 
 const GAP_MD = 16;
 const GAP_SM = 12;
@@ -138,7 +139,7 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (error) {
-      setError(getAuthErrorMessage(error.message));
+      notifyError(getAuthErrorMessage(error.message));
     }
   };
 

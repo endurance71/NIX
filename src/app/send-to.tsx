@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,6 +7,8 @@ import { listAcceptedFriends, type FriendProfile } from '../services/friendServi
 import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../services/avatarService';
 import { uploadImageAndCreateSnap } from '../services/mediaService';
 import { toDomainError } from '../services/errors';
+import { useMediaUpload } from '../hooks/useMediaUpload';
+import { useVideoDraft } from '../context/VideoDraftContext';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
@@ -15,8 +17,15 @@ import { SFSymbol } from '../components/ui/sf-symbol';
 import { AvatarCircle } from '../components/ui/avatar-circle';
 import { normalizeSnapViewDurationSec } from '../lib/snapViewDuration';
 import { toggleSetValue } from '../lib/selection';
+import { SHEET_CONTENT_PADDING_TOP } from '../theme/sheetLayout';
+import { notifyError, notifySuccess } from '../lib/appNotify';
 
 const SEND_CONCURRENCY = 3;
+
+function paramFirst(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
 
 type FriendRecipientRowProps = {
   avatarUrl: string | null;
@@ -82,11 +91,16 @@ export default function SendToSheet() {
   const queryClient = useQueryClient();
   const { colors } = useAppTheme();
   const stylesForTheme = useMemo(() => createStyles(colors), [colors]);
-  const { uri, viewDurationSec: viewDurationParam } = useLocalSearchParams<{
-    uri: string;
-    viewDurationSec?: string;
-  }>();
-  const viewDurationSec = useMemo(() => normalizeSnapViewDurationSec(viewDurationParam), [viewDurationParam]);
+  const rawParams = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string }>();
+  const uri = paramFirst(rawParams.uri);
+  const mode = paramFirst(rawParams.mode);
+  const viewDurationSec = useMemo(
+    () => normalizeSnapViewDurationSec(paramFirst(rawParams.viewDurationSec)),
+    [rawParams.viewDurationSec]
+  );
+  const isVideo = mode === 'video';
+  const { segments, clearSegments } = useVideoDraft();
+  const { uploadVideoSegments } = useMediaUpload();
   const { data: profiles = [], isPending: loading } = useQuery({
     queryKey: queryKeys.acceptedFriends,
     queryFn: listAcceptedFriends,
@@ -111,12 +125,18 @@ export default function SendToSheet() {
   });
 
   const handleSend = async () => {
-    if (!uri || selectedCount === 0 || isSending) return;
+    if (selectedCount === 0 || isSending) return;
+    if (!isVideo && !uri) return;
+    if (isVideo && (!segments?.length || segments.length === 0)) return;
 
     setIsSending(true);
     const failures = await runWithConcurrency(selectedIdList, SEND_CONCURRENCY, async (receiverId) => {
       try {
-        await uploadImageAndCreateSnap(uri, receiverId, viewDurationSec);
+        if (isVideo) {
+          const res = await uploadVideoSegments(segments!, receiverId, viewDurationSec);
+          return res.success ? null : res.error ?? 'Spróbuj ponownie za chwilę.';
+        }
+        await uploadImageAndCreateSnap(uri!, receiverId, viewDurationSec);
         return null;
       } catch (err) {
         return toDomainError(err, 'Spróbuj ponownie za chwilę.').message;
@@ -125,12 +145,18 @@ export default function SendToSheet() {
     setIsSending(false);
 
     if (failures.length === 0) {
+      if (isVideo) clearSegments();
       void queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle });
+      notifySuccess('Wysłano NiXa.', {
+        message: selectedCount > 1 ? `Do ${selectedCount} znajomych.` : undefined,
+      });
       router.dismissAll();
       return;
     }
 
-    Alert.alert('Nie udało się wysłać do wszystkich', `${failures.length} z ${selectedCount} wysyłek nie powiodło się.`);
+    notifyError('Nie udało się wysłać do wszystkich', {
+      message: `${failures.length} z ${selectedCount} wysyłek nie powiodło się.`,
+    });
   };
 
   const toggleSelection = useCallback((id: string) => {
@@ -163,7 +189,6 @@ export default function SendToSheet() {
             data={profiles}
             extraData={{ avatarUrls, selectedIds }}
             getItemType={() => 'friend-recipient'}
-            estimatedItemSize={64}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
             ListEmptyComponent={
@@ -236,8 +261,8 @@ const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.secondarySystemBackground,
-      paddingTop: 20,
+      backgroundColor: 'transparent',
+      paddingTop: SHEET_CONTENT_PADDING_TOP,
     },
     title: {
       ...typography.title2,
@@ -261,7 +286,7 @@ const createStyles = (colors: ThemeColors) =>
       paddingBottom: 28,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.separator,
-      backgroundColor: colors.systemBackground,
+      backgroundColor: 'transparent',
     },
     selectionCount: {
       ...typography.footnote,
@@ -285,7 +310,7 @@ const createStyles = (colors: ThemeColors) =>
     },
     emptyState: {
       paddingHorizontal: 24,
-      paddingTop: 24,
+      paddingTop: SHEET_CONTENT_PADDING_TOP,
     },
     emptyStateText: {
       ...typography.callout,

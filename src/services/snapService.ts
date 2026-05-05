@@ -8,6 +8,10 @@ export type InboxSnap = {
   media_path: string;
   created_at: string;
   is_viewed: boolean;
+  /** Domyślnie `image`; klipy wideo mają `video`. */
+  media_type: string;
+  /** Długość klipu wideo (ms); przy zdjęciach zwykle null. */
+  playback_duration_ms: number | null;
   /** Sekundy wyświetlania u odbiorcy (5, 15, 30, 60, 180). */
   view_duration_sec: number;
   status: 'sent' | 'viewed' | 'cleaned' | 'cleanup_failed';
@@ -58,6 +62,19 @@ function isMissingViewDurationColumnError(error: unknown) {
   );
 }
 
+function isMissingPlaybackDurationColumnError(error: unknown) {
+  const message = dbErrorMessage(error);
+  return (
+    message.includes('column snaps.playback_duration_ms does not exist') ||
+    message.includes("Could not find the 'playback_duration_ms' column")
+  );
+}
+
+export type InsertSnapMediaOptions = {
+  mediaType?: 'image' | 'video';
+  playbackDurationMs?: number | null;
+};
+
 function mapDatabaseError(error: unknown): DomainError {
   const message =
     typeof error === 'object' && error && 'message' in error && typeof error.message === 'string'
@@ -81,7 +98,12 @@ function mapDatabaseError(error: unknown): DomainError {
 
 const ALLOWED_VIEW_DURATIONS = new Set([5, 15, 30, 60, 180]);
 
-export async function insertSnap(receiverId: string, mediaPath: string, viewDurationSec = 5) {
+export async function insertSnap(
+  receiverId: string,
+  mediaPath: string,
+  viewDurationSec = 5,
+  mediaOptions?: InsertSnapMediaOptions
+) {
   const user = await getCurrentUser();
   if (!user) throw new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
 
@@ -90,33 +112,46 @@ export async function insertSnap(receiverId: string, mediaPath: string, viewDura
       ? viewDurationSec
       : 5;
 
+  const mediaType = mediaOptions?.mediaType ?? 'image';
+  const playbackMsRaw = mediaOptions?.playbackDurationMs;
+  const playbackMs =
+    typeof playbackMsRaw === 'number' && Number.isFinite(playbackMsRaw)
+      ? Math.max(1, Math.round(playbackMsRaw))
+      : null;
+
   const minimalBase = {
     sender_id: user.id,
     receiver_id: receiverId,
     media_path: mediaPath,
-    media_type: 'image' as const,
+    media_type: mediaType,
   };
 
-  let skippedViewDurationColumn = false;
-  let { error } = await supabase.from('snaps').insert({
+  let payload: Record<string, unknown> = {
     ...minimalBase,
     view_duration_sec: duration,
     status: 'sent',
-  });
+  };
+  if (playbackMs !== null && mediaType === 'video') {
+    payload.playback_duration_ms = playbackMs;
+  }
+
+  let { error } = await supabase.from('snaps').insert(payload);
+
+  if (error && isMissingPlaybackDurationColumnError(error)) {
+    const { playback_duration_ms: _pb, ...rest } = payload;
+    payload = rest;
+    ({ error } = await supabase.from('snaps').insert(payload));
+  }
 
   if (error && isMissingViewDurationColumnError(error)) {
-    skippedViewDurationColumn = true;
-    ({ error } = await supabase.from('snaps').insert({
-      ...minimalBase,
-      status: 'sent',
-    }));
+    const { view_duration_sec: _vd, ...rest } = payload;
+    payload = rest;
+    ({ error } = await supabase.from('snaps').insert(payload));
   }
 
   if (error && isMissingStatusColumnError(error)) {
-    const withoutStatus = skippedViewDurationColumn
-      ? minimalBase
-      : { ...minimalBase, view_duration_sec: duration };
-    ({ error } = await supabase.from('snaps').insert(withoutStatus));
+    const { status: _st, ...rest } = payload;
+    ({ error } = await supabase.from('snaps').insert(rest));
   }
 
   if (error) throw mapDatabaseError(error);
@@ -130,6 +165,19 @@ export async function fetchInboxSnaps() {
       id,
       sender_id,
       media_path,
+      media_type,
+      playback_duration_ms,
+      created_at,
+      is_viewed,
+      status,
+      view_duration_sec
+    `;
+
+  const inboxSelectNoPlayback = `
+      id,
+      sender_id,
+      media_path,
+      media_type,
       created_at,
       is_viewed,
       status,
@@ -140,6 +188,7 @@ export async function fetchInboxSnaps() {
       id,
       sender_id,
       media_path,
+      media_type,
       created_at,
       is_viewed,
       status
@@ -150,6 +199,16 @@ export async function fetchInboxSnaps() {
     .select(inboxSelectFull)
     .eq('receiver_id', user.id)
     .order('created_at', { ascending: false });
+
+  if (error && isMissingPlaybackDurationColumnError(error)) {
+    const retry = await supabase
+      .from('snaps')
+      .select(inboxSelectNoPlayback)
+      .eq('receiver_id', user.id)
+      .order('created_at', { ascending: false });
+    data = retry.data as typeof data;
+    error = retry.error;
+  }
 
   if (error && isMissingViewDurationColumnError(error)) {
     const retry = await supabase
@@ -166,6 +225,9 @@ export async function fetchInboxSnaps() {
   if (!error && Array.isArray(data)) {
     inboxRows = data.map((snap: Record<string, unknown>) => ({
       ...snap,
+      media_type: typeof snap.media_type === 'string' ? snap.media_type : 'image',
+      playback_duration_ms:
+        typeof snap.playback_duration_ms === 'number' ? snap.playback_duration_ms : null,
       view_duration_sec: typeof snap.view_duration_sec === 'number' ? snap.view_duration_sec : 5,
     }));
   }
@@ -186,6 +248,8 @@ export async function fetchInboxSnaps() {
     if (fallbackError) throw mapDatabaseError(fallbackError);
     inboxRows = (fallbackData ?? []).map((snap: any) => ({
       ...snap,
+      media_type: 'image',
+      playback_duration_ms: null,
       status: snap.is_viewed ? 'viewed' : 'sent',
       view_duration_sec: typeof snap.view_duration_sec === 'number' ? snap.view_duration_sec : 5,
     }));
@@ -213,6 +277,9 @@ export async function fetchInboxSnaps() {
 
   return ((inboxRows ?? []).map((snap: any) => ({
     ...snap,
+    media_type: typeof snap.media_type === 'string' ? snap.media_type : 'image',
+    playback_duration_ms:
+      typeof snap.playback_duration_ms === 'number' ? snap.playback_duration_ms : null,
     view_duration_sec: typeof snap.view_duration_sec === 'number' ? snap.view_duration_sec : 5,
     sender: senderMap.get(snap.sender_id)
       ? {

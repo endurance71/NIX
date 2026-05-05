@@ -1,7 +1,7 @@
 PODS:
   - EXConstants (55.0.15):
     - ExpoModulesCore
-  - Expo (55.0.19):
+  - Expo (55.0.20):
     - ExpoModulesCore
     - hermes-engine
     - RCTRequired
@@ -30,9 +30,9 @@ PODS:
     - ExpoModulesCore
   - ExpoBlur (55.0.14):
     - ExpoModulesCore
-  - ExpoCamera (55.0.16):
+  - ExpoCamera (55.0.17):
     - ExpoModulesCore
-  - ExpoCameraBarcodeScanning (55.0.16):
+  - ExpoCameraBarcodeScanning (55.0.17):
     - ExpoCamera
     - ZXingObjC/OneD
     - ZXingObjC/PDF417
@@ -98,9 +98,11 @@ PODS:
     - RNScreens
   - ExpoSymbols (55.0.7):
     - ExpoModulesCore
-  - ExpoUI (55.0.13):
+  - ExpoUI (55.0.14):
     - ExpoModulesCore
     - React-RCTFabric
+  - ExpoVideo (55.0.15):
+    - ExpoModulesCore
   - FBLazyVector (0.83.6)
   - hermes-engine (0.14.1):
     - hermes-engine/Pre-built (= 0.14.1)
@@ -2332,6 +2334,28 @@ PODS:
   - SDWebImageWebPCoder (0.14.6):
     - libwebp (~> 1.0)
     - SDWebImage/Core (~> 5.17)
+  - Toast (1.0.1):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - TOCropViewController (2.8.0)
   - Yoga (0.0.0)
   - ZXingObjC/Core (3.6.9)
@@ -2363,6 +2387,7 @@ DEPENDENCIES:
   - ExpoRouter (from `../node_modules/expo-router/ios`)
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
   - "ExpoUI (from `../node_modules/@expo/ui/ios`)"
+  - ExpoVideo (from `../node_modules/expo-video/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
@@ -2445,6 +2470,7 @@ DEPENDENCIES:
   - RNScreens (from `../node_modules/react-native-screens`)
   - RNSVG (from `../node_modules/react-native-svg`)
   - RNWorklets (from `../node_modules/react-native-worklets`)
+  - Toast (from `../node_modules/react-native-pretty-toast`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 SPEC REPOS:
@@ -2504,6 +2530,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-symbols/ios"
   ExpoUI:
     :path: "../node_modules/@expo/ui/ios"
+  ExpoVideo:
+    :path: "../node_modules/expo-video/ios"
   FBLazyVector:
     :path: "../node_modules/react-native/Libraries/FBLazyVector"
   hermes-engine:
@@ -2667,16 +2695,18 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-svg"
   RNWorklets:
     :path: "../node_modules/react-native-worklets"
+  Toast:
+    :path: "../node_modules/react-native-pretty-toast"
   Yoga:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
   EXConstants: 5caf448ff399f60be9d1053e77aed32e39411900
-  Expo: 8d901a968aee7a848334798753b63c4a8bf08bd4
+  Expo: 1bf84a82787de952fb2fb1270214e3f15d166f05
   ExpoAsset: f56ed740b6a127da2bfd90832cf688ae309d4410
   ExpoBlur: 7a86e84e7728108fa6908d7103fa527705a3dbbf
-  ExpoCamera: 0ed88db61b7dc54712a98b8baaf415a3be88b76b
-  ExpoCameraBarcodeScanning: 1a003bdf373e94e82164b054f440efb2d10f2f38
+  ExpoCamera: 1f783af198ebb299f430758c86af8339cf7d63a9
+  ExpoCameraBarcodeScanning: 76e0fe3e7d5b17c3c73f1cae8a3ffe76df9e971f
   ExpoDomWebView: 2b2fbd9a07de8790569257cbf9dfdaa31cf95c70
   ExpoFileSystem: a0e4a5a09c9c4f84338289b273a172609452dec9
   ExpoFont: cdd7a1d574a376fa003c713eff49e0a4df8672c7
@@ -2692,7 +2722,8 @@ SPEC CHECKSUMS:
   ExpoModulesJSI: 9b60671a31c30bc8e24b25632e7cb475a84b9016
   ExpoRouter: e2c56f80102b153c5f8c887b38094ef936c266a2
   ExpoSymbols: 8b63e859ba013df1f2fc666f535fddb3d5270569
-  ExpoUI: 8620210ed7d67c6b3b4515554e16c37b3a95b7a8
+  ExpoUI: 5825d414046cee7780560fe8379a1c34835d5fe7
+  ExpoVideo: 434d1e32486309359b8eff4880d636fd8c0c0ba1
   FBLazyVector: 427fa1856a481856091061293ce865a75aa4f20f
   hermes-engine: 6d18c66eab23c0085fc5ce59afcf7a7be5a541a8
   libavif: 5f8e715bea24debec477006f21ef9e95432e254d
@@ -2781,6 +2812,7 @@ SPEC CHECKSUMS:
   SDWebImageAVIFCoder: afe194a084e851f70228e4be35ef651df0fc5c57
   SDWebImageSVGCoder: 15a300a97ec1c8ac958f009c02220ac0402e936c
   SDWebImageWebPCoder: e38c0a70396191361d60c092933e22c20d5b1380
+  Toast: 7257597ff82d0f08f10bf28184070eaf8c616f6a
   TOCropViewController: 797deaf39c90e6e9ddd848d88817f6b9a8a09888
   Yoga: e41d64347f52d634dd8c2f6bac33f95081959fd3
   ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5

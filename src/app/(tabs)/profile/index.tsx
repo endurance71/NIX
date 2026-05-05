@@ -26,6 +26,7 @@ import { useAppTheme } from '../../../hooks/useAppTheme';
 import { useProfileQrPayload } from '../../../hooks/useProfileQrPayload';
 import { MyProfileQrCard } from '../../../components/friend/my-profile-qr-card';
 import { typography } from '../../../theme/typography';
+import { SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING } from '../../../theme/swiftUiEmbeddedLayout';
 import { Host, List, Section, Text, TextField, Button, RNHostView } from '@expo/ui/swift-ui';
 import {
   foregroundStyle,
@@ -38,8 +39,8 @@ import {
   listRowSeparator,
   refreshable,
 } from '@expo/ui/swift-ui/modifiers';
-import { toDomainError } from '../../../services/errors';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../../../lib/queryKeys';
+import { notifyDomainError, notifyError, notifyInfo, notifySuccess } from '../../../lib/appNotify';
 
 type NativeCropResult = { path: string };
 type NativeCropPickerModule = {
@@ -77,7 +78,6 @@ export default function ProfileScreen() {
     staleTime: 1000 * 60 * 2,
   });
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
 
   const profileUsername = profileRow?.username ?? null;
@@ -115,7 +115,7 @@ export default function ProfileScreen() {
       ]);
     } catch (err) {
       console.error('Nie udało się odświeżyć danych społecznościowych profilu', err);
-      setFeedback('Odświeżenie nie powiodło się. Spróbuj ponownie.');
+      notifyError('Odświeżenie nie powiodło się.', { message: 'Spróbuj ponownie.' });
     }
   }, [queryClient]);
 
@@ -139,12 +139,13 @@ export default function ProfileScreen() {
   );
 
   const handlePickAvatarPhoto = async () => {
-    setFeedback(null);
     setAvatarBusy(true);
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        setFeedback('Brak dostępu do zdjęć. Zezwól w ustawieniach systemowych.');
+        notifyError('Brak dostępu do zdjęć.', {
+          message: 'Zezwól w ustawieniach systemowych.',
+        });
         return;
       }
       let pickedUri: string | null = null;
@@ -186,22 +187,21 @@ export default function ProfileScreen() {
       if (!pickedUri) return;
       await uploadProfileAvatarFromUri(pickedUri);
       await invalidateSocialQueries();
-      setFeedback('Awatar zapisany.');
+      notifySuccess('Awatar zapisany.');
     } catch (err: unknown) {
       if ((err as { code?: string })?.code === 'E_PICKER_CANCELLED') {
         return;
       }
-      setFeedback(toDomainError(err, 'Nie udało się zapisać zdjęcia.').message);
+      notifyDomainError(err, 'Nie udało się zapisać zdjęcia.');
     } finally {
       setAvatarBusy(false);
     }
   };
 
   const handleSendInvite = async () => {
-    setFeedback(null);
     const normalized = searchUsername.trim();
     if (!normalized) {
-      setFeedback('Podaj nazwę użytkownika, np. @nix_friend.');
+      notifyInfo('Podaj nazwę użytkownika.', { message: 'Np. @nix_friend.' });
       return;
     }
 
@@ -209,25 +209,25 @@ export default function ProfileScreen() {
     try {
       const profile = await findProfileByUsername(normalized);
       if (!profile) {
-        setFeedback('Nie znaleziono użytkownika o takiej nazwie.');
+        notifyError('Nie znaleziono użytkownika o takiej nazwie.');
         return;
       }
 
       const result = await sendFriendRequest(profile.id);
       if (result === 'request_sent') {
-        setFeedback(`Zaproszenie do @${profile.username} zostało wysłane.`);
+        notifySuccess('Zaproszenie wysłane.', { message: `Do @${profile.username}.` });
       } else if (result === 'already_requested') {
-        setFeedback('To zaproszenie jest już wysłane i oczekuje na akceptację.');
+        notifyInfo('Zaproszenie już wysłane.', { message: 'Oczekuje na akceptację.' });
       } else if (result === 'already_friends') {
-        setFeedback(`Jesteście już znajomymi z @${profile.username}.`);
+        notifyInfo('Już znajomi.', { message: `Z @${profile.username}.` });
       } else if (result === 'accepted_reverse_request') {
-        setFeedback(`Zaakceptowano zaproszenie od @${profile.username}.`);
+        notifySuccess('Zaproszenie zaakceptowane.', { message: `Od @${profile.username}.` });
       }
 
       setSearchUsername('');
       await invalidateSocialQueries();
     } catch (err: any) {
-      setFeedback(err?.message ?? 'Nie udało się wysłać zaproszenia.');
+      notifyError(err?.message ?? 'Nie udało się wysłać zaproszenia.');
     } finally {
       setActionLoadingId(null);
     }
@@ -235,13 +235,12 @@ export default function ProfileScreen() {
 
   const handleAccept = async (requestId: string) => {
     setActionLoadingId(requestId);
-    setFeedback(null);
     try {
       await acceptFriendRequest(requestId);
       await invalidateSocialQueries();
-      setFeedback('Zaproszenie zaakceptowane.');
+      notifySuccess('Zaproszenie zaakceptowane.');
     } catch (err: any) {
-      setFeedback(err?.message ?? 'Nie udało się zaakceptować zaproszenia.');
+      notifyError(err?.message ?? 'Nie udało się zaakceptować zaproszenia.');
     } finally {
       setActionLoadingId(null);
     }
@@ -249,13 +248,12 @@ export default function ProfileScreen() {
 
   const handleReject = async (requestId: string) => {
     setActionLoadingId(requestId);
-    setFeedback(null);
     try {
       await rejectFriendRequest(requestId);
       await invalidateSocialQueries();
-      setFeedback('Zaproszenie usunięte.');
+      notifyInfo('Zaproszenie usunięte.');
     } catch (err: any) {
-      setFeedback(err?.message ?? 'Nie udało się odrzucić zaproszenia.');
+      notifyError(err?.message ?? 'Nie udało się odrzucić zaproszenia.');
     } finally {
       setActionLoadingId(null);
     }
@@ -287,7 +285,7 @@ export default function ProfileScreen() {
               @{profileUsername ?? 'brak_nazwy_uzytkownika'}
             </Text>
             <Text modifiers={[foregroundStyle({ type: 'hierarchical', style: 'secondary' }), font({ size: 14, design: 'rounded' })]}>
-              {user?.email ?? '—'} ({user?.id?.slice(0, 8)}...)
+              {user?.email ?? '—'}
             </Text>
           </Section>
           <Section title="Mój kod QR">
@@ -359,8 +357,12 @@ export default function ProfileScreen() {
                       @{request.requester.username}
                     </RNText>
                     <View style={styles.socialActions}>
-                      <Button label="Przyjmij" onPress={() => handleAccept(request.id)} />
-                      <Button label="Usuń" onPress={() => handleReject(request.id)} role="destructive" />
+                      <Pressable onPress={() => handleAccept(request.id)} hitSlop={8}>
+                        <RNText style={[styles.socialActionLabel, { color: colors.accent }]}>Przyjmij</RNText>
+                      </Pressable>
+                      <Pressable onPress={() => handleReject(request.id)} hitSlop={8}>
+                        <RNText style={[styles.socialActionLabel, { color: colors.destructive }]}>Usuń</RNText>
+                      </Pressable>
                     </View>
                   </View>
                 </RNHostView>
@@ -383,8 +385,8 @@ export default function ProfileScreen() {
                     <RNText numberOfLines={1} style={[styles.socialTitle, { color: colors.label }]}>
                       @{friend.username}
                     </RNText>
-                    <Button
-                      label={actionLoadingId === `friend-${friend.id}` ? 'Usuwanie...' : 'Usuń znajomego'}
+                    <Pressable
+                      disabled={actionLoadingId === `friend-${friend.id}`}
                       onPress={() =>
                         router.push({
                           pathname: '/(tabs)/profile/remove-friend',
@@ -397,19 +399,25 @@ export default function ProfileScreen() {
                           },
                         })
                       }
-                      role="destructive"
-                    />
+                      hitSlop={8}>
+                      <RNText
+                        style={[
+                          styles.socialActionLabel,
+                          {
+                            color: colors.destructive,
+                            opacity: actionLoadingId === `friend-${friend.id}` ? 0.45 : 1,
+                          },
+                        ]}>
+                        {actionLoadingId === `friend-${friend.id}` ? 'Usuwanie…' : 'Usuń znajomego'}
+                      </RNText>
+                    </Pressable>
                   </View>
                 </RNHostView>
               ))
             )}
           </Section>
-          {feedback ? (
-            <Text modifiers={[foregroundStyle({ type: 'hierarchical', style: 'secondary' }), font({ size: 13, design: 'rounded' })]}>
-              {feedback}
-            </Text>
-          ) : null}
           <Section title="Konto">
+            <Button label="Zmień hasło" onPress={() => router.push('/(tabs)/profile/change-password')} />
             <Button label="Wyloguj" onPress={handleSignOut} />
           </Section>
         </List>
@@ -446,6 +454,7 @@ const styles = StyleSheet.create({
   socialRow: {
     gap: 8,
     paddingVertical: 6,
+    ...SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING,
   },
   socialTitle: {
     ...typography.headline,
@@ -454,5 +463,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    alignItems: 'center',
+  },
+  socialActionLabel: {
+    ...typography.headline,
+    fontWeight: '600',
   },
 });

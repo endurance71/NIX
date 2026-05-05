@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { CameraView, BarcodeScanningResult, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -10,6 +10,7 @@ import { previewProfileQr } from '../services/friendService';
 import { trackEvent } from '../lib/telemetry';
 import { NativeButton } from '../components/ui/native-button';
 import { NativeSectionCard } from '../components/ui/native-section-card';
+import { notifyError, notifyInfo } from '../lib/appNotify';
 
 export default function FriendScanQrScreen() {
   const { colors } = useAppTheme();
@@ -19,7 +20,6 @@ export default function FriendScanQrScreen() {
   const [loading, setLoading] = useState(false);
   const scanInFlightRef = useRef(false);
   const handledSuccessRef = useRef(false);
-  const sheetOpenedRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -27,15 +27,8 @@ export default function FriendScanQrScreen() {
       setLoading(false);
       scanInFlightRef.current = false;
       handledSuccessRef.current = false;
-      sheetOpenedRef.current = false;
     }, [])
   );
-
-  useEffect(() => {
-    if (sheetOpenedRef.current) return;
-    sheetOpenedRef.current = true;
-    router.push('/friend-scan-qr-sheet');
-  }, []);
 
   const handleScan = async (event: BarcodeScanningResult) => {
     if (scanInFlightRef.current || scanningLocked || loading) return;
@@ -46,8 +39,9 @@ export default function FriendScanQrScreen() {
     try {
       const profileId = extractProfileQrProfileId(event.data);
       if (!profileId) {
-        Alert.alert('Niepoprawny kod', 'To nie jest poprawny kod QR profilu NiX.');
+        notifyError('Niepoprawny kod', { message: 'To nie jest poprawny kod QR profilu NiX.' });
         scanInFlightRef.current = false;
+        setScanningLocked(false);
         trackEvent('friend_qr_scan', {
           channel: 'qr',
           status: 'fail',
@@ -58,8 +52,9 @@ export default function FriendScanQrScreen() {
 
       const preview = await previewProfileQr(profileId);
       if (preview.status === 'invalid_profile' || !preview.profile) {
-        Alert.alert('Nie znaleziono profilu', 'Nie znaleziono profilu dla tego kodu QR.');
+        notifyError('Nie znaleziono profilu', { message: 'Nie znaleziono profilu dla tego kodu QR.' });
         scanInFlightRef.current = false;
+        setScanningLocked(false);
         trackEvent('friend_qr_scan', {
           channel: 'qr',
           status: 'fail',
@@ -68,8 +63,9 @@ export default function FriendScanQrScreen() {
         return;
       }
       if (preview.status === 'own_profile') {
-        Alert.alert('To Twój kod', 'To jest Twój własny kod QR.');
+        notifyInfo('To Twój kod', { message: 'To jest Twój własny kod QR.' });
         scanInFlightRef.current = false;
+        setScanningLocked(false);
         trackEvent('friend_qr_scan', {
           channel: 'qr',
           status: 'fail',
@@ -93,8 +89,9 @@ export default function FriendScanQrScreen() {
         },
       });
     } catch (err: any) {
-      Alert.alert('Błąd skanowania', err?.message ?? 'Nie udało się odczytać zaproszenia.');
+      notifyError('Błąd skanowania', { message: err?.message ?? 'Nie udało się odczytać zaproszenia.' });
       scanInFlightRef.current = false;
+      setScanningLocked(false);
       trackEvent('friend_qr_scan', {
         channel: 'qr',
         status: 'fail',

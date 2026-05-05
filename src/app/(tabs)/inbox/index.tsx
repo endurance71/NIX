@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text as RNText, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -11,6 +11,7 @@ import { useAppTheme } from '../../../hooks/useAppTheme';
 import { setInboxBadgeCount } from '../../../lib/inboxBadgeStore';
 import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../../../services/avatarService';
 import { typography } from '../../../theme/typography';
+import { SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING } from '../../../theme/swiftUiEmbeddedLayout';
 import { buildInboxThreads, type InboxThreadItem } from '../../../lib/inboxThreads';
 import {
   acceptFriendRequest,
@@ -19,15 +20,15 @@ import {
 } from '../../../services/friendService';
 import { SFSymbol } from '../../../components/ui/sf-symbol';
 import { AvatarCircle } from '../../../components/ui/avatar-circle';
-import { Host, List, Section, Text, Button, RNHostView } from '@expo/ui/swift-ui';
+import { Host, List, Section, Text, RNHostView } from '@expo/ui/swift-ui';
 import {
   foregroundStyle,
-  font,
   listStyle,
   padding,
   refreshable,
   listRowSeparator,
 } from '@expo/ui/swift-ui/modifiers';
+import { notifyError, notifyInfo, notifySuccess } from '../../../lib/appNotify';
 
 async function fetchInboxSnapsBundle() {
   void flushCleanupQueue().catch(() => {});
@@ -141,7 +142,6 @@ export default function InboxScreen() {
   const snaps = useMemo(() => snapsBundle?.inboxData ?? [], [snapsBundle?.inboxData]);
   const sentSnaps = useMemo(() => snapsBundle?.sentData ?? [], [snapsBundle?.sentData]);
   const loading = snapsPending || requestsPending;
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   const feed = useMemo(() => buildInboxThreads(snaps, sentSnaps), [snaps, sentSnaps]);
 
@@ -210,25 +210,23 @@ export default function InboxScreen() {
   }, []);
 
   const handleAccept = async (requestId: string) => {
-    setFeedback(null);
     try {
       await acceptFriendRequest(requestId);
       await queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
       await invalidateInboxQueries();
-      setFeedback('Zaproszenie zaakceptowane.');
+      notifySuccess('Zaproszenie zaakceptowane.');
     } catch (err: any) {
-      setFeedback(err?.message ?? 'Nie udało się zaakceptować zaproszenia.');
+      notifyError(err?.message ?? 'Nie udało się zaakceptować zaproszenia.');
     }
   };
 
   const handleReject = async (requestId: string) => {
-    setFeedback(null);
     try {
       await rejectFriendRequest(requestId);
       await invalidateInboxQueries();
-      setFeedback('Zaproszenie usunięte.');
+      notifyInfo('Zaproszenie usunięte.');
     } catch (err: any) {
-      setFeedback(err?.message ?? 'Nie udało się usunąć zaproszenia.');
+      notifyError(err?.message ?? 'Nie udało się usunąć zaproszenia.');
     }
   };
 
@@ -253,8 +251,12 @@ export default function InboxScreen() {
                     @{request.requester.username}
                   </RNText>
                   <View style={styles.requestActions}>
-                    <Button label="Przyjmij" onPress={() => handleAccept(request.id)} />
-                    <Button label="Usuń" onPress={() => handleReject(request.id)} role="destructive" />
+                    <Pressable onPress={() => handleAccept(request.id)} hitSlop={8}>
+                      <RNText style={[styles.requestActionLabel, { color: colors.accent }]}>Przyjmij</RNText>
+                    </Pressable>
+                    <Pressable onPress={() => handleReject(request.id)} hitSlop={8}>
+                      <RNText style={[styles.requestActionLabel, { color: colors.destructive }]}>Usuń</RNText>
+                    </Pressable>
                   </View>
                 </View>
               </RNHostView>
@@ -279,14 +281,6 @@ export default function InboxScreen() {
             ))
           )}
         </Section>
-
-        {feedback ? (
-          <Section>
-            <Text modifiers={[foregroundStyle({ type: 'hierarchical', style: 'secondary' }), font({ size: 13, design: 'rounded' })]}>
-              {feedback}
-            </Text>
-          </Section>
-        ) : null}
       </List>
       <Stack.Screen.Title large>Skrzynka</Stack.Screen.Title>
     </Host>
@@ -304,11 +298,17 @@ const styles = StyleSheet.create({
   requestRow: {
     gap: 8,
     paddingVertical: 6,
+    ...SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING,
   },
   requestActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    alignItems: 'center',
+  },
+  requestActionLabel: {
+    ...typography.headline,
+    fontWeight: '600',
   },
   rowInner: {
     minHeight: 52,
@@ -316,6 +316,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
     paddingVertical: 8,
+    ...SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING,
   },
   rowPressed: {
     opacity: 0.6,

@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS public.snaps (
 ALTER TABLE public.snaps
   ADD COLUMN IF NOT EXISTS view_duration_sec INT NOT NULL DEFAULT 5;
 
+ALTER TABLE public.snaps
+  ADD COLUMN IF NOT EXISTS playback_duration_ms INTEGER;
+
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -578,10 +581,15 @@ VALUES (
   'media-vault',
   'media-vault',
   FALSE,                                    -- PRYWATNY — wymagana autoryzacja
-  10485760,                                 -- Max 10MB na plik
+  419430400,                                -- Max 400MB na plik (wideo do 180 s)
   ARRAY['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime']
 )
 ON CONFLICT (id) DO NOTHING;
+
+-- Aktualizacja limitu dla istniejącego bucketa.
+UPDATE storage.buckets
+SET file_size_limit = 419430400
+WHERE id = 'media-vault';
 
 -- Polityki Storage: nadawca może wgrywać
 CREATE POLICY "storage_insert"

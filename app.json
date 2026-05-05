@@ -32,7 +32,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "NiX potrzebuje dostępu do kamery, aby przechwytywać i wysyłać wiadomości."
+          "cameraPermission": "NiX potrzebuje dostępu do kamery, aby przechwytywać i wysyłać wiadomości.",
+          "microphonePermission": "NiX potrzebuje dostępu do mikrofonu, aby nagrywać wiadomości wideo."
         }
       ],
       [
@@ -40,7 +41,8 @@
         {
           "photosPermission": "NiX potrzebuje dostępu do zdjęć, aby ustawić awatar profilu."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

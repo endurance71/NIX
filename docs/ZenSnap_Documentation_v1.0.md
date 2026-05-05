@@ -371,7 +371,7 @@ npm install @shopify/flash-list
 | **RLS** | Row Level Security — polityki dostępu na poziomie wiersza w PostgreSQL |
 | **EAS** | Expo Application Services — usługi budowania i powiadomień |
 | **Edge Function** | Bezserwerowa funkcja wykonywana po stronie Supabase |
-| **media-vault** | Prywatny bucket Supabase Storage przechowujący media Snapów |
+| **media-vault** | Prywatny bucket Supabase Storage przechowujący media Snapów (limit pliku: 400 MB dla klipów do 180 s) |
 | **Worklet** | Funkcja Reanimated wykonywana na UI Thread (nie JS Thread) |
 | **ProMotion** | Technologia Apple 120Hz/144Hz w iPhone 13 Pro+ |
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { uploadImageAndCreateSnap } from './mediaService';
+import { MAX_VIDEO_FILE_SIZE_BYTES, uploadImageAndCreateSnap, uploadVideoAndCreateSnap } from './mediaService';
 
 const { mockUpload, mockGetCurrentUser, mockInsertSnap } = vi.hoisted(() => ({
   mockUpload: vi.fn(),
@@ -88,7 +88,66 @@ describe('mediaService', () => {
     );
 
     await expect(uploadImageAndCreateSnap('file:///tmp/image.jpg', 'receiver-1')).rejects.toThrow(
-      'Nie udało się odczytać zdjęcia do wysyłki.'
+      'Nie udało się odczytać pliku do wysyłki.'
+    );
+  });
+
+  it('wgrywa wideo i tworzy rekord snapa', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
+    mockUpload.mockResolvedValue({ error: null, data: { path: 'snaps/user-1/file.mp4' } });
+    mockInsertSnap.mockResolvedValue(undefined);
+
+    const videoBuffer = new Uint8Array([1, 2, 3, 4]);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        arrayBuffer: async () => videoBuffer.buffer,
+      })
+    );
+
+    await uploadVideoAndCreateSnap('file:///tmp/video.mp4', 'receiver-1', 12_000, 15);
+
+    expect(mockUpload).toHaveBeenCalledTimes(1);
+    expect(mockInsertSnap).toHaveBeenCalledWith('receiver-1', 'snaps/user-1/file.mp4', 15, {
+      mediaType: 'video',
+      playbackDurationMs: 12_000,
+    });
+  });
+
+  it('rzuca czytelny błąd, gdy plik wideo przekracza limit', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
+
+    const tooLarge = new Uint8Array(MAX_VIDEO_FILE_SIZE_BYTES + 1);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        arrayBuffer: async () => tooLarge.buffer,
+      })
+    );
+
+    await expect(uploadVideoAndCreateSnap('file:///tmp/video.mp4', 'receiver-1', 8_000)).rejects.toThrow(
+      'Plik wideo jest za duży. Maksymalny rozmiar to 400 MB.'
+    );
+    expect(mockUpload).not.toHaveBeenCalled();
+  });
+
+  it('mapuje błąd Supabase o przekroczeniu rozmiaru na komunikat domenowy', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
+    mockUpload.mockResolvedValue({
+      error: { message: 'The object exceeded the maximum allowed size' },
+      data: null,
+    });
+
+    const videoBuffer = new Uint8Array([1, 2, 3, 4]);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        arrayBuffer: async () => videoBuffer.buffer,
+      })
+    );
+
+    await expect(uploadVideoAndCreateSnap('file:///tmp/video.mp4', 'receiver-1', 5_000)).rejects.toThrow(
+      'Plik wideo przekracza limit 400 MB.'
     );
   });
 });

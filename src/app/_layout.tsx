@@ -13,6 +13,8 @@ import { AppThemeProvider } from '../theme/theme-context';
 import { APP_FONT_FAMILY } from '../theme/typography';
 import { createAppQueryClient } from '../lib/queryClient';
 import { bindReactQueryAppLifecycle } from '../lib/reactQueryNetwork';
+import { ToastProvider } from 'react-native-pretty-toast';
+import { VideoDraftProvider } from '../context/VideoDraftContext';
 
 export default function RootLayout() {
   const [queryClient] = useState(() => createAppQueryClient());
@@ -21,12 +23,16 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <AppThemeProvider>
-          <DeepLinkHandler />
-          <RootNavigator />
-        </AppThemeProvider>
-      </QueryClientProvider>
+      <ToastProvider maxQueue={3} defaultConfig={{ duration: 4000 }}>
+        <QueryClientProvider client={queryClient}>
+          <AppThemeProvider>
+            <VideoDraftProvider>
+              <DeepLinkHandler />
+              <RootNavigator />
+            </VideoDraftProvider>
+          </AppThemeProvider>
+        </QueryClientProvider>
+      </ToastProvider>
     </SafeAreaProvider>
   );
 }
@@ -175,16 +181,6 @@ function RootNavigator() {
         }}
       />
       <Stack.Screen
-        name="friend-scan-qr-sheet"
-        options={{
-          presentation: 'formSheet',
-          headerShown: false,
-          sheetAllowedDetents: 'fitToContents',
-          sheetGrabberVisible: false,
-          contentStyle: { backgroundColor: 'transparent' },
-        }}
-      />
-      <Stack.Screen
         name="friend-invite"
         options={{ presentation: 'card', headerShown: true, title: 'Zaproszenie' }}
       />
@@ -195,7 +191,7 @@ function RootNavigator() {
           headerShown: false,
           sheetGrabberVisible: false,
           sheetAllowedDetents: 'fitToContents',
-          contentStyle: { backgroundColor: 'transparent' },
+          contentStyle: { backgroundColor: colors.systemBackground },
         }}
       />
       <Stack.Screen
@@ -205,6 +201,7 @@ function RootNavigator() {
           sheetGrabberVisible: true,
           sheetInitialDetentIndex: 0,
           sheetAllowedDetents: [0.55, 0.9],
+          contentStyle: { backgroundColor: 'transparent' },
         }}
       />
       </Stack>

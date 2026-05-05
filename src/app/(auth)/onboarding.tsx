@@ -15,6 +15,7 @@ import {
   autocorrectionDisabled,
   padding,
 } from '@expo/ui/swift-ui/modifiers';
+import { notifyDomainError, notifyError } from '../../lib/appNotify';
 
 export default function OnboardingScreen() {
   const { statusBarStyle } = useAppTheme();
@@ -35,14 +36,14 @@ export default function OnboardingScreen() {
     try {
       const taken = await isUsernameTaken(cleaned);
       if (taken) {
-        setError('Ta nazwa jest już zajęta. Wybierz inną.');
+        notifyError('Ta nazwa jest już zajęta. Wybierz inną.');
         return;
       }
 
       await saveUsernameForCurrentUser(cleaned);
       router.replace('/(tabs)');
-    } catch (err: any) {
-      setError(err?.message ?? 'Nie udało się zapisać nazwy użytkownika.');
+    } catch (err: unknown) {
+      notifyDomainError(err, 'Nie udało się zapisać nazwy użytkownika.');
     } finally {
       setLoading(false);
     }

@@ -28,10 +28,3 @@ project.xcworkspace
 
 # CocoaPods
 /Pods/
-
-# Przypadkowe lokalne duplikaty (Finder)
-/Pods 2/
-/build 2/
-/NiX 2/
-* 2.xcodeproj/
-* 2.xcworkspace/

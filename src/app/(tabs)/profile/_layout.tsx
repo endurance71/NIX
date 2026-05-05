@@ -15,6 +15,13 @@ export default function ProfileTabLayout() {
       }}>
       <Stack.Screen name="index" />
       <Stack.Screen
+        name="change-password"
+        options={{
+          title: 'Zmień hasło',
+          headerLargeTitle: false,
+        }}
+      />
+      <Stack.Screen
         name="remove-friend"
         options={{
           title: 'Usuń znajomego',

@@ -19,6 +19,7 @@ import {
   controlSize,
   disabled,
 } from '@expo/ui/swift-ui/modifiers';
+import { notifyError } from '../../lib/appNotify';
 
 function isEmailValid(email: string) {
   return /\S+@\S+\.\S+/.test(email);
@@ -55,11 +56,11 @@ export default function RegisterScreen() {
 
     if (error) {
       if (error.message.includes('User already registered')) {
-        setError('To konto już istnieje. Zaloguj się.');
+        notifyError('To konto już istnieje. Zaloguj się.');
       } else if (error.message.includes('Password should be at least')) {
-        setError('Hasło musi mieć minimum 8 znaków.');
+        notifyError('Hasło musi mieć minimum 8 znaków.');
       } else {
-        setError(error.message);
+        notifyError(error.message);
       }
       return;
     }

@@ -9,6 +9,7 @@ import { getCurrentUserProfile } from '../../services/profileService';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { Host, Form, Section, Text, SecureField, Button } from '@expo/ui/swift-ui';
 import { font, foregroundStyle, textFieldStyle, padding } from '@expo/ui/swift-ui/modifiers';
+import { notifyError } from '../../lib/appNotify';
 
 export default function ResetPasswordScreen() {
   const { statusBarStyle } = useAppTheme();
@@ -40,7 +41,7 @@ export default function ResetPasswordScreen() {
     setLoading(false);
 
     if (error) {
-      setError(error.message);
+      notifyError(error.message);
       return;
     }
 

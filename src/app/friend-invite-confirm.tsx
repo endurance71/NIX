@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { AvatarCircle } from '../components/ui/avatar-circle';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -16,7 +16,9 @@ import { createSignedAvatarUrl } from '../services/avatarService';
 import { trackEvent } from '../lib/telemetry';
 import { queryKeys } from '../lib/queryKeys';
 import { NativeButton } from '../components/ui/native-button';
+import { SHEET_CONTENT_PADDING_TOP } from '../theme/sheetLayout';
 import { SFSymbol } from '../components/ui/sf-symbol';
+import { notifyError, notifyInfo, notifyShow, notifySuccess } from '../lib/appNotify';
 
 function mapConfirmationMessage(result: string, username?: string) {
   if (result === 'request_sent') return `Zaproszenie do @${username ?? 'użytkownika'} zostało wysłane.`;
@@ -41,7 +43,7 @@ export default function FriendInviteConfirmScreen() {
     username?: string;
   }>();
   const { colors } = useAppTheme();
-  const styles = useMemo(() => createStyles(), []);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [friendProfile, setFriendProfile] = useState<FriendProfile | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -125,7 +127,7 @@ export default function FriendInviteConfirmScreen() {
 
   const handleSend = async () => {
     if (!profileId) {
-      Alert.alert('Brak danych', 'Nie udało się odczytać profilu z kodu QR.');
+      notifyError('Brak danych', { message: 'Nie udało się odczytać profilu z kodu QR.' });
       return;
     }
 
@@ -143,18 +145,34 @@ export default function FriendInviteConfirmScreen() {
       });
       void queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
       void queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests });
-      Alert.alert(
-        'Potwierdzenie',
-        mapConfirmationMessage(result.result, result.profile?.username ?? displayUsername),
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      const message = mapConfirmationMessage(result.result, result.profile?.username ?? displayUsername);
+      const persistOk = {
+        autoDismiss: false as const,
+        action: { label: 'OK', onPress: () => router.back() },
+      };
+      switch (result.result) {
+        case 'request_sent':
+        case 'already_friends':
+        case 'accepted_reverse_request':
+          notifySuccess('Potwierdzenie', { message, ...persistOk });
+          break;
+        case 'already_requested':
+          notifyInfo('Potwierdzenie', { message, ...persistOk });
+          break;
+        case 'own_profile':
+        case 'invalid_profile':
+          notifyError('Potwierdzenie', { message, ...persistOk });
+          break;
+        default:
+          notifyShow({ title: 'Potwierdzenie', message, ...persistOk });
+      }
     } catch (err: any) {
       trackEvent('friend_invite_redeem', {
         channel: 'qr',
         status: 'fail',
         errorCode: err?.message ?? 'unknown',
       });
-      Alert.alert('Błąd', err?.message ?? 'Nie udało się wysłać zaproszenia.');
+      notifyError('Błąd', { message: err?.message ?? 'Nie udało się wysłać zaproszenia.' });
     } finally {
       setActionLoading(false);
     }
@@ -167,7 +185,7 @@ export default function FriendInviteConfirmScreen() {
   return (
     <View style={rootFillHeight ? styles.screenRootFill : styles.screenRootHug}>
       {profileLoading ? (
-        <View style={[styles.loaderWrap, { paddingBottom: bottomPad }]}>
+        <View style={[styles.loaderWrap, styles.loaderWrapWithInsets, { paddingBottom: bottomPad + 8 }]}>
           <ActivityIndicator color={colors.textPrimary} />
           <Text style={[styles.loaderLabel, { color: colors.textSecondary }]}>Ładowanie profilu…</Text>
         </View>
@@ -247,7 +265,7 @@ export default function FriendInviteConfirmScreen() {
   );
 }
 
-const createStyles = () =>
+const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
   StyleSheet.create({
     /** Ładowanie / błąd — wyśrodkowanie na dostępnej wysokości */
     screenRootFill: {
@@ -268,6 +286,9 @@ const createStyles = () =>
       gap: 16,
       backgroundColor: 'transparent',
     },
+    loaderWrapWithInsets: {
+      paddingTop: SHEET_CONTENT_PADDING_TOP,
+    },
     loaderLabel: {
       fontSize: 15,
       fontFamily: APP_FONT_FAMILY,
@@ -283,9 +304,9 @@ const createStyles = () =>
       width: '96%',
       alignSelf: 'center',
       paddingHorizontal: 22,
-      paddingTop: 18,
+      paddingTop: SHEET_CONTENT_PADDING_TOP,
+      paddingBottom: 14,
       backgroundColor: 'transparent',
-      borderRadius: 34,
       gap: 12,
     },
     title: {
@@ -315,11 +336,12 @@ const createStyles = () =>
     statusBlock: {
       alignItems: 'center',
       gap: 8,
-      paddingVertical: 4,
-      paddingHorizontal: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
       marginTop: 2,
       marginBottom: 2,
-      backgroundColor: 'transparent',
+      borderRadius: 14,
+      backgroundColor: colors.secondarySystemFill,
     },
     statusLineText: {
       fontSize: 15,
@@ -327,7 +349,7 @@ const createStyles = () =>
       fontFamily: APP_FONT_FAMILY,
       fontWeight: '500',
       textAlign: 'center',
-      paddingHorizontal: 8,
+      paddingHorizontal: 10,
     },
     primaryButton: {
       borderRadius: 16,

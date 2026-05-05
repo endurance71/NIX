@@ -51,6 +51,7 @@ export interface Database {
           viewed_at: string | null;
           cleaned_at: string | null;
           view_duration_sec: number;
+          playback_duration_ms: number | null;
         };
         Insert: {
           id?: string;
@@ -64,6 +65,7 @@ export interface Database {
           viewed_at?: string | null;
           cleaned_at?: string | null;
           view_duration_sec?: number;
+          playback_duration_ms?: number | null;
         };
         Update: {
           id?: string;
@@ -77,6 +79,7 @@ export interface Database {
           viewed_at?: string | null;
           cleaned_at?: string | null;
           view_duration_sec?: number;
+          playback_duration_ms?: number | null;
         };
       };
       friendships: {

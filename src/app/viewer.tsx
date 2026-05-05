@@ -1,7 +1,18 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, Pressable, Image as RNImage } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  ActivityIndicator,
+  Text,
+  Pressable,
+  Image as RNImage,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Image as ExpoImage } from 'expo-image';
+import { useEventListener } from 'expo';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { StatusBar } from 'expo-status-bar';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -27,11 +38,49 @@ import { ThemeColors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { refreshInboxBadgeCount } from '../lib/inboxBadgeStore';
 
-type SnapQueueItem = { id: string; media_path: string; view_duration_sec: number };
+type SnapQueueItem = {
+  id: string;
+  media_path: string;
+  view_duration_sec: number;
+  media_type: string;
+  playback_duration_ms: number | null;
+};
 
 function paramFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
+}
+
+function ViewerSnapVideo({
+  uri,
+  onReady,
+  onError,
+  onPlayToEnd,
+  style,
+}: {
+  uri: string;
+  onReady: () => void;
+  onError: () => void;
+  onPlayToEnd: () => void;
+  style: StyleProp<ViewStyle>;
+}) {
+  const player = useVideoPlayer({ uri }, (p) => {
+    p.loop = false;
+    p.play();
+  });
+
+  useEventListener(player, 'playToEnd', onPlayToEnd);
+
+  useEventListener(player, 'statusChange', ({ status }) => {
+    if (status === 'readyToPlay') {
+      onReady();
+    }
+    if (status === 'error') {
+      onError();
+    }
+  });
+
+  return <VideoView style={style} player={player} contentFit="cover" nativeControls={false} />;
 }
 
 export default function ViewerScreen() {
@@ -72,7 +121,12 @@ export default function ViewerScreen() {
   useEffect(() => { closingRef.current = closing; }, [closing]);
 
   const signedUrlTtlSec = useMemo(() => {
-    const totalViewSec = queue.reduce((acc, s) => acc + (s.view_duration_sec ?? 5), 0);
+    const totalViewSec = queue.reduce((acc, s) => {
+      if (s.media_type === 'video' && typeof s.playback_duration_ms === 'number') {
+        return acc + s.playback_duration_ms / 1000;
+      }
+      return acc + (s.view_duration_sec ?? 5);
+    }, 0);
     return Math.min(600, 90 + totalViewSec);
   }, [queue]);
 
@@ -94,6 +148,9 @@ export default function ViewerScreen() {
               id: s.id,
               media_path: s.media_path,
               view_duration_sec: s.view_duration_sec ?? 5,
+              media_type: s.media_type ?? 'image',
+              playback_duration_ms:
+                typeof s.playback_duration_ms === 'number' ? s.playback_duration_ms : null,
             }))
           );
         } catch (err) {
@@ -106,7 +163,15 @@ export default function ViewerScreen() {
       }
 
       if (paramId && paramPath) {
-        setQueue([{ id: paramId, media_path: paramPath, view_duration_sec: paramViewDurationSec }]);
+        setQueue([
+          {
+            id: paramId,
+            media_path: paramPath,
+            view_duration_sec: paramViewDurationSec,
+            media_type: 'image',
+            playback_duration_ms: null,
+          },
+        ]);
         setQueueLoading(false);
         return;
       }
@@ -160,6 +225,7 @@ export default function ViewerScreen() {
 
   useEffect(() => {
     const path = currentSnap?.media_path;
+    const skipImagePrefetch = currentSnap?.media_type === 'video';
     if (!path || queueLoading || closing) return;
 
     let cancelled = false;
@@ -172,8 +238,10 @@ export default function ViewerScreen() {
       try {
         const signedUrl = await createSignedSnapUrl(path, signedUrlTtlSec);
         if (cancelled) return;
-        await ExpoImage.prefetch(signedUrl, 'memory-disk');
-        if (cancelled) return;
+        if (!skipImagePrefetch) {
+          await ExpoImage.prefetch(signedUrl, 'memory-disk');
+          if (cancelled) return;
+        }
         setImageUrl(signedUrl);
       } catch (err) {
         console.error('Nie udało się załadować wiadomości', err);
@@ -188,7 +256,14 @@ export default function ViewerScreen() {
     return () => {
       cancelled = true;
     };
-  }, [currentSnap?.media_path, queueLoading, closing, signedUrlTtlSec, finishCurrentSlide]);
+  }, [
+    currentSnap?.media_path,
+    currentSnap?.media_type,
+    queueLoading,
+    closing,
+    signedUrlTtlSec,
+    finishCurrentSlide,
+  ]);
 
   const nextSnap = queue[slideIndex + 1] ?? null;
   useEffect(() => {
@@ -199,7 +274,7 @@ export default function ViewerScreen() {
     void (async () => {
       try {
         const signedUrl = await createSignedSnapUrl(path, signedUrlTtlSec);
-        if (!cancelled) await ExpoImage.prefetch(signedUrl, 'memory-disk');
+        if (!cancelled && nextSnap.media_type !== 'video') await ExpoImage.prefetch(signedUrl, 'memory-disk');
       } catch {
         // Prefetch opcjonalny — ignorujemy błędy sieci.
       }
@@ -208,7 +283,7 @@ export default function ViewerScreen() {
     return () => {
       cancelled = true;
     };
-  }, [nextSnap?.media_path, signedUrlTtlSec, queueLoading, closing]);
+  }, [nextSnap?.media_path, nextSnap?.media_type, signedUrlTtlSec, queueLoading, closing]);
 
   useEffect(() => {
     if (!imageLoadError || closing || queueLoading) return;
@@ -217,9 +292,13 @@ export default function ViewerScreen() {
 
   useEffect(() => {
     if (queueLoading || closing || !queue.length) return;
-    if (!currentSnap?.media_path) return;
+    const snap = queue[slideIndex];
+    if (!snap?.media_path) return;
     if (!loading && imageUrl && imageReady && !imageLoadError) {
-      const slideMs = Math.max(1000, (currentSnap.view_duration_sec ?? 5) * 1000);
+      const slideMs =
+        snap.media_type === 'video' && typeof snap.playback_duration_ms === 'number'
+          ? Math.max(400, snap.playback_duration_ms)
+          : Math.max(1000, (snap.view_duration_sec ?? 5) * 1000);
       segmentProgress.value = 1;
       segmentProgress.value = withTiming(
         0,
@@ -240,9 +319,8 @@ export default function ViewerScreen() {
   }, [
     queueLoading,
     closing,
-    queue.length,
-    currentSnap?.media_path,
-    currentSnap?.view_duration_sec,
+    queue,
+    slideIndex,
     loading,
     imageUrl,
     imageReady,
@@ -298,7 +376,22 @@ export default function ViewerScreen() {
 
       {imageUrl ? (
         <View style={styles.imageContainer}>
-          {!useNativeFallback ? (
+          {currentSnap?.media_type === 'video' ? (
+            <ViewerSnapVideo
+              key={`${slideIndex}-${currentSnap.id}`}
+              uri={imageUrl}
+              onReady={() => {
+                setImageReady(true);
+                setImageLoadError(null);
+              }}
+              onError={() => {
+                setImageReady(false);
+                setImageLoadError('Nie udało się wczytać wideo.');
+              }}
+              onPlayToEnd={finishCurrentSlide}
+              style={styles.image}
+            />
+          ) : !useNativeFallback ? (
             <ExpoImage
               source={{
                 uri: imageUrl,
@@ -341,7 +434,7 @@ export default function ViewerScreen() {
           style={styles.dismissArea}
           onPress={finishCurrentSlide}
           disabled={closing}
-          accessibilityLabel="Przejdź do następnego snapa"
+          accessibilityLabel="Przejdź do następnego fragmentu"
           accessibilityRole="button"
         />
       ) : null}

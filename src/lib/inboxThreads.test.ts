@@ -6,6 +6,8 @@ function inbox(partial: Partial<InboxSnap> & Pick<InboxSnap, 'id' | 'sender_id' 
   return {
     media_path: 'snap.jpg',
     is_viewed: false,
+    media_type: 'image',
+    playback_duration_ms: null,
     view_duration_sec: 5,
     status: 'sent',
     sender: null,

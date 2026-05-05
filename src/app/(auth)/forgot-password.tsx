@@ -16,6 +16,7 @@ import {
   autocorrectionDisabled,
   padding,
 } from '@expo/ui/swift-ui/modifiers';
+import { notifyError } from '../../lib/appNotify';
 
 export default function ForgotPasswordScreen() {
   const { statusBarStyle } = useAppTheme();
@@ -33,8 +34,13 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     setError(null);
-    await requestPasswordReset(cleanedEmail);
+    const { error } = await requestPasswordReset(cleanedEmail);
     setLoading(false);
+
+    if (error) {
+      notifyError(error.message);
+      return;
+    }
 
     router.replace({ pathname: '/(auth)/check-email', params: { email: cleanedEmail, mode: 'recovery' } });
   };

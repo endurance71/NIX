@@ -48,7 +48,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>NiX potrzebuje dostępu do kamery, aby przechwytywać i wysyłać wiadomości.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Allow $(PRODUCT_NAME) to access your microphone</string>
+	<string>NiX potrzebuje dostępu do mikrofonu, aby nagrywać wiadomości wideo.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>NiX potrzebuje dostępu do zdjęć, aby ustawić awatar profilu.</string>
 	<key>NSUserActivityTypes</key>

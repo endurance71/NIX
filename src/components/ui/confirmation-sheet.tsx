@@ -5,6 +5,7 @@ import { AvatarCircle } from './avatar-circle';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { APP_FONT_FAMILY } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/colors';
+import { SHEET_CONTENT_PADDING_TOP } from '../../theme/sheetLayout';
 
 type ConfirmationSheetProps = {
   title: string;
@@ -82,7 +83,7 @@ const createStyles = (colors: ThemeColors) =>
       width: '96%',
       alignSelf: 'center',
       paddingHorizontal: 22,
-      paddingTop: 12,
+      paddingTop: SHEET_CONTENT_PADDING_TOP,
       paddingBottom: 16,
       backgroundColor: 'transparent',
       borderRadius: 34,
