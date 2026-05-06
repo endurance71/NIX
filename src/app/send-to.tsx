@@ -1,11 +1,10 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { listAcceptedFriends, type FriendProfile } from '../services/friendService';
 import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../services/avatarService';
-import { uploadImageAndCreateSnap } from '../services/mediaService';
 import { toDomainError } from '../services/errors';
 import { useMediaUpload } from '../hooks/useMediaUpload';
 import { useVideoDraft } from '../context/VideoDraftContext';
@@ -20,7 +19,7 @@ import { toggleSetValue } from '../lib/selection';
 import { SHEET_CONTENT_PADDING_TOP } from '../theme/sheetLayout';
 import { notifyError, notifySuccess } from '../lib/appNotify';
 
-const SEND_CONCURRENCY = 3;
+const SEND_CONCURRENCY = 2;
 
 function paramFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
@@ -73,20 +72,6 @@ const FriendRecipientRow = memo(function FriendRecipientRow({
   );
 });
 
-async function runWithConcurrency<T>(
-  items: readonly T[],
-  limit: number,
-  worker: (item: T) => Promise<string | null>
-): Promise<string[]> {
-  const failures: string[] = [];
-  for (let index = 0; index < items.length; index += limit) {
-    const batch = items.slice(index, index + limit);
-    const results = await Promise.all(batch.map((item) => worker(item)));
-    failures.push(...results.filter((message): message is string => Boolean(message)));
-  }
-  return failures;
-}
-
 export default function SendToSheet() {
   const queryClient = useQueryClient();
   const { colors } = useAppTheme();
@@ -98,16 +83,17 @@ export default function SendToSheet() {
     () => normalizeSnapViewDurationSec(paramFirst(rawParams.viewDurationSec)),
     [rawParams.viewDurationSec]
   );
-  const isVideo = mode === 'video';
+  const isVideo = mode === 'video' && !uri;
   const { segments, clearSegments } = useVideoDraft();
-  const { uploadVideoSegments } = useMediaUpload();
+  const { uploadSnap, uploadVideoSegments } = useMediaUpload();
   const { data: profiles = [], isPending: loading } = useQuery({
     queryKey: queryKeys.acceptedFriends,
-    queryFn: listAcceptedFriends,
+    queryFn: () => listAcceptedFriends({ limit: 50 }),
     staleTime: 1000 * 60 * 2,
   });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [isSending, setIsSending] = useState(false);
+  const sendLockRef = useRef(false);
 
   const selectedCount = selectedIds.size;
   const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds]);
@@ -125,38 +111,63 @@ export default function SendToSheet() {
   });
 
   const handleSend = async () => {
-    if (selectedCount === 0 || isSending) return;
+    if (selectedCount === 0 || isSending || sendLockRef.current) return;
     if (!isVideo && !uri) return;
     if (isVideo && (!segments?.length || segments.length === 0)) return;
 
+    sendLockRef.current = true;
     setIsSending(true);
-    const failures = await runWithConcurrency(selectedIdList, SEND_CONCURRENCY, async (receiverId) => {
-      try {
-        if (isVideo) {
-          const res = await uploadVideoSegments(segments!, receiverId, viewDurationSec);
-          return res.success ? null : res.error ?? 'Spróbuj ponownie za chwilę.';
-        }
-        await uploadImageAndCreateSnap(uri!, receiverId, viewDurationSec);
-        return null;
-      } catch (err) {
-        return toDomainError(err, 'Spróbuj ponownie za chwilę.').message;
-      }
-    });
-    setIsSending(false);
 
-    if (failures.length === 0) {
-      if (isVideo) clearSegments();
-      void queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle });
-      notifySuccess('Wysłano NiXa.', {
-        message: selectedCount > 1 ? `Do ${selectedCount} znajomych.` : undefined,
+    let successCount = 0;
+    let failureCount = 0;
+    for (let index = 0; index < selectedIdList.length; index += SEND_CONCURRENCY) {
+      const batch = selectedIdList.slice(index, index + SEND_CONCURRENCY);
+      const results = await Promise.all(
+        batch.map(async (receiverId) => {
+          try {
+            if (isVideo) {
+              return await uploadVideoSegments(segments!, receiverId, viewDurationSec, {
+                awaitCompletion: true,
+              });
+            } else {
+              return await uploadSnap(uri!, receiverId, viewDurationSec, {
+                awaitCompletion: true,
+              });
+            }
+          } catch (err) {
+            const message = toDomainError(err, 'Spróbuj ponownie za chwilę.').message;
+            return { success: false as const, error: message };
+          }
+        })
+      );
+
+      results.forEach((result) => {
+        if (result.success) {
+          successCount += 1;
+        } else {
+          failureCount += 1;
+        }
       });
-      router.dismissAll();
-      return;
     }
 
-    notifyError('Nie udało się wysłać do wszystkich', {
-      message: `${failures.length} z ${selectedCount} wysyłek nie powiodło się.`,
-    });
+    if (isVideo) clearSegments();
+    void queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle });
+
+    if (successCount > 0) {
+      notifySuccess(
+        'Wysyłka zakończona',
+        failureCount > 0 ? { message: `Błędy: ${failureCount}/${selectedCount}.` } : undefined
+      );
+    }
+    if (failureCount > 0) {
+      notifyError('Część wiadomości nie została wysłana', {
+        message: `Niepowodzenia: ${failureCount}/${selectedCount}.`,
+      });
+    }
+
+    setIsSending(false);
+    sendLockRef.current = false;
+    router.dismissAll();
   };
 
   const toggleSelection = useCallback((id: string) => {

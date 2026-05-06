@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text as RNText, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -8,7 +8,7 @@ import { sentLifecycleSegments } from '../../../lib/snapInboxLabels';
 import { fetchInboxSnaps, fetchSentSnaps, flushCleanupQueue, type InboxSnap } from '../../../services/snapService';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../../../lib/queryKeys';
 import { useAppTheme } from '../../../hooks/useAppTheme';
-import { setInboxBadgeCount } from '../../../lib/inboxBadgeStore';
+import { refreshInboxBadgeCount, setInboxBadgeCount } from '../../../lib/inboxBadgeStore';
 import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../../../services/avatarService';
 import { typography } from '../../../theme/typography';
 import { SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING } from '../../../theme/swiftUiEmbeddedLayout';
@@ -83,7 +83,7 @@ const ThreadRow = memo(function ThreadRow({ avatarUrls, colors, item, onOpenSnap
             <RNText
               numberOfLines={1}
               style={[styles.peerSubtitle, { color: isNew ? colors.destructive : colors.tertiaryLabel }]}>
-              {isNew ? 'Nowy snap' : 'Otwarto'} •{' '}
+              {isNew ? 'Nowy NiX' : 'Otwarto'} •{' '}
               {new Date(snap.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </RNText>
           </View>
@@ -129,14 +129,20 @@ export default function InboxScreen() {
   const queryClient = useQueryClient();
   const { colors, statusBarStyle } = useAppTheme();
 
+  const lastFocusRefreshAtRef = useRef(0);
+
   const { data: snapsBundle, isPending: snapsPending } = useQuery({
     queryKey: queryKeys.inboxSnapsBundle,
     queryFn: fetchInboxSnapsBundle,
+    staleTime: 10_000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: requests = [], isPending: requestsPending } = useQuery({
     queryKey: queryKeys.incomingFriendRequests,
     queryFn: listIncomingFriendRequests,
+    staleTime: 10_000,
+    refetchOnWindowFocus: false,
   });
 
   const snaps = useMemo(() => snapsBundle?.inboxData ?? [], [snapsBundle?.inboxData]);
@@ -174,6 +180,9 @@ export default function InboxScreen() {
   }, [queryClient]);
 
   const refetchInboxIfStale = useCallback(() => {
+    const now = Date.now();
+    if (now - lastFocusRefreshAtRef.current < 2_500) return;
+    lastFocusRefreshAtRef.current = now;
     void queryClient.refetchQueries({
       type: 'active',
       predicate: (query) => {
@@ -190,6 +199,7 @@ export default function InboxScreen() {
         queryClient.refetchQueries({ queryKey: queryKeys.inboxSnapsBundle, type: 'active' }),
         queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
       ]);
+      await refreshInboxBadgeCount(queryClient);
     } catch (err) {
       console.error('Failed to refresh inbox', err);
     }

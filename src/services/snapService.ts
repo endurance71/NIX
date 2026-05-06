@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { getCurrentUser } from './profileService';
 import { DomainError } from './errors';
+import { nowMs, trackDuration } from '../lib/telemetry';
 
 export type InboxSnap = {
   id: string;
@@ -43,6 +44,17 @@ type CleanupQueueRow = {
   attempt_count: number;
 };
 
+type SnapPageOptions = {
+  limit?: number;
+  beforeCreatedAt?: string;
+};
+
+const DEFAULT_SNAP_PAGE_LIMIT = 100;
+
+function normalizePageLimit(limit: number | undefined) {
+  return Math.max(1, Math.min(limit ?? DEFAULT_SNAP_PAGE_LIMIT, 100));
+}
+
 function dbErrorMessage(error: unknown) {
   return typeof error === 'object' && error && 'message' in error && typeof error.message === 'string'
     ? error.message
@@ -70,9 +82,18 @@ function isMissingPlaybackDurationColumnError(error: unknown) {
   );
 }
 
+function isMissingClientUploadColumnError(error: unknown) {
+  const message = dbErrorMessage(error);
+  return (
+    message.includes('column snaps.client_upload_id does not exist') ||
+    message.includes("Could not find the 'client_upload_id' column")
+  );
+}
+
 export type InsertSnapMediaOptions = {
   mediaType?: 'image' | 'video';
   playbackDurationMs?: number | null;
+  clientUploadId?: string;
 };
 
 function mapDatabaseError(error: unknown): DomainError {
@@ -97,6 +118,7 @@ function mapDatabaseError(error: unknown): DomainError {
 }
 
 const ALLOWED_VIEW_DURATIONS = new Set([5, 15, 30, 60, 180]);
+let supportsClientUploadId: boolean | null = null;
 
 export async function insertSnap(
   receiverId: string,
@@ -124,6 +146,7 @@ export async function insertSnap(
     receiver_id: receiverId,
     media_path: mediaPath,
     media_type: mediaType,
+    client_upload_id: mediaOptions?.clientUploadId ?? null,
   };
 
   let payload: Record<string, unknown> = {
@@ -135,31 +158,53 @@ export async function insertSnap(
     payload.playback_duration_ms = playbackMs;
   }
 
-  let { error } = await supabase.from('snaps').insert(payload);
+  let useLegacyInsert = supportsClientUploadId === false;
+  const persistSnap = async (nextPayload: Record<string, unknown>, legacyMode: boolean) => {
+    if (legacyMode) {
+      const { client_upload_id: _idempotencyKey, ...legacyPayload } = nextPayload;
+      return await supabase.from('snaps').insert(legacyPayload);
+    }
+    return await supabase
+      .from('snaps')
+      .upsert(nextPayload, { onConflict: 'sender_id,receiver_id,client_upload_id', ignoreDuplicates: true });
+  };
+
+  let { error } = await persistSnap(payload, useLegacyInsert);
+  if (error && isMissingClientUploadColumnError(error)) {
+    useLegacyInsert = true;
+    supportsClientUploadId = false;
+    ({ error } = await persistSnap(payload, true));
+  }
 
   if (error && isMissingPlaybackDurationColumnError(error)) {
     const { playback_duration_ms: _pb, ...rest } = payload;
     payload = rest;
-    ({ error } = await supabase.from('snaps').insert(payload));
+    ({ error } = await persistSnap(payload, useLegacyInsert));
   }
 
   if (error && isMissingViewDurationColumnError(error)) {
     const { view_duration_sec: _vd, ...rest } = payload;
     payload = rest;
-    ({ error } = await supabase.from('snaps').insert(payload));
+    ({ error } = await persistSnap(payload, useLegacyInsert));
   }
 
   if (error && isMissingStatusColumnError(error)) {
     const { status: _st, ...rest } = payload;
-    ({ error } = await supabase.from('snaps').insert(rest));
+    ({ error } = await persistSnap(rest, useLegacyInsert));
+  }
+
+  if (!error && supportsClientUploadId === null && !useLegacyInsert) {
+    supportsClientUploadId = true;
   }
 
   if (error) throw mapDatabaseError(error);
 }
 
-export async function fetchInboxSnaps() {
+export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
   const user = await getCurrentUser();
   if (!user) return [];
+  const startedAt = nowMs();
+  const limit = normalizePageLimit(options.limit);
 
   const inboxSelectFull = `
       id,
@@ -194,28 +239,37 @@ export async function fetchInboxSnaps() {
       status
     `;
 
-  let { data, error } = await supabase
+  let inboxQuery = supabase
     .from('snaps')
     .select(inboxSelectFull)
-    .eq('receiver_id', user.id)
-    .order('created_at', { ascending: false });
+    .eq('receiver_id', user.id);
+  if (options.beforeCreatedAt) {
+    inboxQuery = inboxQuery.lt('created_at', options.beforeCreatedAt);
+  }
+  let { data, error } = await inboxQuery.order('created_at', { ascending: false }).limit(limit);
 
   if (error && isMissingPlaybackDurationColumnError(error)) {
-    const retry = await supabase
+    let retryQuery = supabase
       .from('snaps')
       .select(inboxSelectNoPlayback)
-      .eq('receiver_id', user.id)
-      .order('created_at', { ascending: false });
+      .eq('receiver_id', user.id);
+    if (options.beforeCreatedAt) {
+      retryQuery = retryQuery.lt('created_at', options.beforeCreatedAt);
+    }
+    const retry = await retryQuery.order('created_at', { ascending: false }).limit(limit);
     data = retry.data as typeof data;
     error = retry.error;
   }
 
   if (error && isMissingViewDurationColumnError(error)) {
-    const retry = await supabase
+    let retryQuery = supabase
       .from('snaps')
       .select(inboxSelectNoViewDuration)
-      .eq('receiver_id', user.id)
-      .order('created_at', { ascending: false });
+      .eq('receiver_id', user.id);
+    if (options.beforeCreatedAt) {
+      retryQuery = retryQuery.lt('created_at', options.beforeCreatedAt);
+    }
+    const retry = await retryQuery.order('created_at', { ascending: false }).limit(limit);
     data = retry.data as typeof data;
     error = retry.error;
   }
@@ -232,7 +286,7 @@ export async function fetchInboxSnaps() {
     }));
   }
   if (error && isMissingStatusColumnError(error)) {
-    const { data: fallbackData, error: fallbackError } = await supabase
+    let fallbackQuery = supabase
       .from('snaps')
       .select(
         `
@@ -243,8 +297,13 @@ export async function fetchInboxSnaps() {
         is_viewed
       `
       )
-      .eq('receiver_id', user.id)
-      .order('created_at', { ascending: false });
+      .eq('receiver_id', user.id);
+    if (options.beforeCreatedAt) {
+      fallbackQuery = fallbackQuery.lt('created_at', options.beforeCreatedAt);
+    }
+    const { data: fallbackData, error: fallbackError } = await fallbackQuery
+      .order('created_at', { ascending: false })
+      .limit(limit);
     if (fallbackError) throw mapDatabaseError(fallbackError);
     inboxRows = (fallbackData ?? []).map((snap: any) => ({
       ...snap,
@@ -275,7 +334,7 @@ export async function fetchInboxSnaps() {
     ])
   );
 
-  return ((inboxRows ?? []).map((snap: any) => ({
+  const result = ((inboxRows ?? []).map((snap: any) => ({
     ...snap,
     media_type: typeof snap.media_type === 'string' ? snap.media_type : 'image',
     playback_duration_ms:
@@ -289,6 +348,13 @@ export async function fetchInboxSnaps() {
         }
       : null,
   })) ?? []) as InboxSnap[];
+
+  trackDuration('inbox_fetch_ms', startedAt, {
+    status: 'success',
+    row_count: result.length,
+    limit,
+  });
+  return result;
 }
 
 /** Nieobejrzane snapy od jednego nadawcy, od najstarszego (FIFO przy odtwarzaniu). */
@@ -299,15 +365,77 @@ export function filterUnreadInboxSnapsFromSender(snaps: InboxSnap[], senderId: s
 }
 
 export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise<InboxSnap[]> {
-  const inbox = await fetchInboxSnaps();
-  return filterUnreadInboxSnapsFromSender(inbox, senderId);
-}
-
-export async function fetchSentSnaps() {
   const user = await getCurrentUser();
   if (!user) return [];
 
-  const { data, error } = await supabase
+  const selectCols = `
+    id, sender_id, media_path, media_type, playback_duration_ms,
+    created_at, is_viewed, status, view_duration_sec
+  `;
+
+  let { data, error } = await supabase
+    .from('snaps')
+    .select(selectCols)
+    .eq('receiver_id', user.id)
+    .eq('sender_id', senderId)
+    .eq('is_viewed', false)
+    .order('created_at', { ascending: true });
+
+  if (error && isMissingPlaybackDurationColumnError(error)) {
+    const retry = await supabase
+      .from('snaps')
+      .select('id, sender_id, media_path, media_type, created_at, is_viewed, status, view_duration_sec')
+      .eq('receiver_id', user.id)
+      .eq('sender_id', senderId)
+      .eq('is_viewed', false)
+      .order('created_at', { ascending: true });
+    data = retry.data as typeof data;
+    error = retry.error;
+  }
+
+  if (error && isMissingViewDurationColumnError(error)) {
+    const retry = await supabase
+      .from('snaps')
+      .select('id, sender_id, media_path, media_type, created_at, is_viewed, status')
+      .eq('receiver_id', user.id)
+      .eq('sender_id', senderId)
+      .eq('is_viewed', false)
+      .order('created_at', { ascending: true });
+    data = retry.data as typeof data;
+    error = retry.error;
+  }
+
+  if (error && isMissingStatusColumnError(error)) {
+    const retry = await supabase
+      .from('snaps')
+      .select('id, sender_id, media_path, created_at, is_viewed')
+      .eq('receiver_id', user.id)
+      .eq('sender_id', senderId)
+      .eq('is_viewed', false)
+      .order('created_at', { ascending: true });
+    data = retry.data as typeof data;
+    error = retry.error;
+  }
+
+  if (error) throw mapDatabaseError(error);
+
+  return ((data ?? []) as any[]).map((snap) => ({
+    ...snap,
+    media_type: typeof snap.media_type === 'string' ? snap.media_type : 'image',
+    playback_duration_ms: typeof snap.playback_duration_ms === 'number' ? snap.playback_duration_ms : null,
+    view_duration_sec: typeof snap.view_duration_sec === 'number' ? snap.view_duration_sec : 5,
+    status: snap.status ?? (snap.is_viewed ? 'viewed' : 'sent'),
+    sender: null,
+  })) as InboxSnap[];
+}
+
+export async function fetchSentSnaps(options: SnapPageOptions = {}) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const startedAt = nowMs();
+  const limit = normalizePageLimit(options.limit);
+
+  let sentQuery = supabase
     .from('snaps')
     .select(
       `
@@ -319,12 +447,15 @@ export async function fetchSentSnaps() {
       cleaned_at
     `
     )
-    .eq('sender_id', user.id)
-    .order('created_at', { ascending: false });
+    .eq('sender_id', user.id);
+  if (options.beforeCreatedAt) {
+    sentQuery = sentQuery.lt('created_at', options.beforeCreatedAt);
+  }
+  const { data, error } = await sentQuery.order('created_at', { ascending: false }).limit(limit);
 
   let sentRows = data;
   if (error && isMissingStatusColumnError(error)) {
-    const { data: fallbackData, error: fallbackError } = await supabase
+    let fallbackQuery = supabase
       .from('snaps')
       .select(
         `
@@ -335,8 +466,13 @@ export async function fetchSentSnaps() {
         viewed_at
       `
       )
-      .eq('sender_id', user.id)
-      .order('created_at', { ascending: false });
+      .eq('sender_id', user.id);
+    if (options.beforeCreatedAt) {
+      fallbackQuery = fallbackQuery.lt('created_at', options.beforeCreatedAt);
+    }
+    const { data: fallbackData, error: fallbackError } = await fallbackQuery
+      .order('created_at', { ascending: false })
+      .limit(limit);
     if (fallbackError) throw mapDatabaseError(fallbackError);
     sentRows = (fallbackData ?? []).map((snap: any) => ({
       ...snap,
@@ -365,7 +501,7 @@ export async function fetchSentSnaps() {
     ])
   );
 
-  return ((sentRows ?? []).map((snap: any) => ({
+  const result = ((sentRows ?? []).map((snap: any) => ({
     ...snap,
     receiver: receiverMap.get(snap.receiver_id)
       ? {
@@ -375,6 +511,13 @@ export async function fetchSentSnaps() {
         }
       : null,
   })) ?? []) as SentSnap[];
+
+  trackDuration('sent_fetch_ms', startedAt, {
+    status: 'success',
+    row_count: result.length,
+    limit,
+  });
+  return result;
 }
 
 export async function createSignedSnapUrl(path: string, expiresInSec = 60) {

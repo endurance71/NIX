@@ -37,6 +37,9 @@ import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { refreshInboxBadgeCount } from '../lib/inboxBadgeStore';
+import { clearMediaMemoryCache } from '../lib/mediaCache';
+import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
+import { queryKeys } from '../lib/queryKeys';
 
 type SnapQueueItem = {
   id: string;
@@ -45,6 +48,8 @@ type SnapQueueItem = {
   media_type: string;
   playback_duration_ms: number | null;
 };
+
+const SNAP_IMAGE_PLACEHOLDER = 'L00000fQfQfQfQfQfQfQfQfQfQfQ';
 
 function paramFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
@@ -102,14 +107,17 @@ export default function ViewerScreen() {
   const [queueLoading, setQueueLoading] = useState(true);
   const [queue, setQueue] = useState<SnapQueueItem[]>([]);
   const [slideIndex, setSlideIndex] = useState(0);
+  const [renderSnap, setRenderSnap] = useState<SnapQueueItem | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [imageReady, setImageReady] = useState(false);
   const [imageLoadError, setImageLoadError] = useState<string | null>(null);
   const [useNativeFallback, setUseNativeFallback] = useState(false);
+  const [videoThumbnailUri, setVideoThumbnailUri] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const segmentProgress = useSharedValue(1);
   const lastFinishedSlideIdRef = useRef<string | null>(null);
+  const viewedCountRef = useRef(0);
 
   // Refs for stable callback
   const queueRef = useRef<SnapQueueItem[]>(queue);
@@ -143,8 +151,17 @@ export default function ViewerScreen() {
             router.back();
             return;
           }
+          const mappedQueue = snaps.map((s) => ({
+            id: s.id,
+            media_path: s.media_path,
+            view_duration_sec: s.view_duration_sec ?? 5,
+            media_type: s.media_type ?? 'image',
+            playback_duration_ms:
+              typeof s.playback_duration_ms === 'number' ? s.playback_duration_ms : null,
+          }));
+
           setQueue(
-            snaps.map((s) => ({
+            mappedQueue.map((s) => ({
               id: s.id,
               media_path: s.media_path,
               view_duration_sec: s.view_duration_sec ?? 5,
@@ -189,9 +206,18 @@ export default function ViewerScreen() {
     flushCleanupQueue().catch((err) => {
       console.warn('Nie udało się zsynchronizować kolejki cleanup', err);
     });
-  }, []);
+
+    return () => {
+      if (viewedCountRef.current > 0) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle });
+        void refreshInboxBadgeCount(queryClient);
+      }
+      void clearMediaMemoryCache();
+    };
+  }, [queryClient]);
 
   const currentSnap = queue[slideIndex] ?? null;
+  const displayedSnap = renderSnap ?? currentSnap;
 
   const finishCurrentSlide = useCallback(() => {
     if (closingRef.current) return;
@@ -209,7 +235,7 @@ export default function ViewerScreen() {
       } catch (err) {
         console.error('Nie udało się zaktualizować statusu', err);
       } finally {
-        await refreshInboxBadgeCount(queryClient);
+        viewedCountRef.current += 1;
       }
     })();
 
@@ -233,18 +259,44 @@ export default function ViewerScreen() {
     setImageReady(false);
     setImageLoadError(null);
     setUseNativeFallback(false);
+    setVideoThumbnailUri(null);
 
     (async () => {
       try {
+        const signedUrlStartedAt = nowMs();
         const signedUrl = await createSignedSnapUrl(path, signedUrlTtlSec);
+        trackDuration('viewer_signed_url_ms', signedUrlStartedAt, {
+          media_type: currentSnap?.media_type ?? 'image',
+          status: 'success',
+        });
         if (cancelled) return;
+        if (currentSnap?.media_type === 'video') {
+          try {
+            const { getThumbnailAsync } = await import('expo-video-thumbnails');
+            const thumb = await getThumbnailAsync(signedUrl, { time: 0, quality: 0.65 });
+            if (!cancelled) setVideoThumbnailUri(thumb.uri);
+          } catch {
+            // Thumbnail is optional; we still proceed with video load.
+          }
+        }
         if (!skipImagePrefetch) {
+          const prefetchStartedAt = nowMs();
           await ExpoImage.prefetch(signedUrl, 'memory-disk');
+          trackDuration('viewer_prefetch_ms', prefetchStartedAt, {
+            media_type: 'image',
+            status: 'success',
+          });
           if (cancelled) return;
         }
         setImageUrl(signedUrl);
+        setRenderSnap(currentSnap ?? null);
       } catch (err) {
         console.error('Nie udało się załadować wiadomości', err);
+        trackEvent('viewer_signed_url_ms', {
+          media_type: currentSnap?.media_type ?? 'image',
+          status: 'failure',
+          error_message: err instanceof Error ? err.message : 'Unknown viewer load error',
+        });
         if (!cancelled) {
           finishCurrentSlide();
         }
@@ -292,7 +344,7 @@ export default function ViewerScreen() {
 
   useEffect(() => {
     if (queueLoading || closing || !queue.length) return;
-    const snap = queue[slideIndex];
+    const snap = displayedSnap;
     if (!snap?.media_path) return;
     if (!loading && imageUrl && imageReady && !imageLoadError) {
       const slideMs =
@@ -319,8 +371,7 @@ export default function ViewerScreen() {
   }, [
     queueLoading,
     closing,
-    queue,
-    slideIndex,
+    displayedSnap,
     loading,
     imageUrl,
     imageReady,
@@ -376,32 +427,47 @@ export default function ViewerScreen() {
 
       {imageUrl ? (
         <View style={styles.imageContainer}>
-          {currentSnap?.media_type === 'video' ? (
-            <ViewerSnapVideo
-              key={`${slideIndex}-${currentSnap.id}`}
-              uri={imageUrl}
-              onReady={() => {
-                setImageReady(true);
-                setImageLoadError(null);
-              }}
-              onError={() => {
-                setImageReady(false);
-                setImageLoadError('Nie udało się wczytać wideo.');
-              }}
-              onPlayToEnd={finishCurrentSlide}
-              style={styles.image}
-            />
+          {displayedSnap?.media_type === 'video' ? (
+            <View style={styles.imageContainer}>
+              <ViewerSnapVideo
+                key={`${displayedSnap.id}-${imageUrl}`}
+                uri={imageUrl}
+                onReady={() => {
+                  trackEvent('viewer_media_ready_ms', {
+                    media_type: 'video',
+                    status: 'success',
+                  });
+                  setImageReady(true);
+                  setImageLoadError(null);
+                }}
+                onError={() => {
+                  setImageReady(false);
+                  setImageLoadError('Nie udało się wczytać wideo.');
+                }}
+                onPlayToEnd={finishCurrentSlide}
+                style={styles.image}
+              />
+              {!imageReady && videoThumbnailUri ? (
+                <ExpoImage source={{ uri: videoThumbnailUri }} style={styles.image} contentFit="cover" />
+              ) : null}
+            </View>
           ) : !useNativeFallback ? (
             <ExpoImage
               source={{
                 uri: imageUrl,
-                cacheKey: currentSnap?.media_path ?? imageUrl,
+                cacheKey: displayedSnap?.media_path ?? imageUrl,
               }}
+              placeholder={SNAP_IMAGE_PLACEHOLDER}
+              placeholderContentFit="cover"
               style={styles.image}
               contentFit="cover"
               transition={380}
               cachePolicy="memory-disk"
               onLoad={() => {
+                trackEvent('viewer_media_ready_ms', {
+                  media_type: 'image',
+                  status: 'success',
+                });
                 setImageReady(true);
                 setImageLoadError(null);
               }}
@@ -438,7 +504,7 @@ export default function ViewerScreen() {
           accessibilityRole="button"
         />
       ) : null}
-      {!imageUrl && !imageLoadError ? (
+      {loading && !imageLoadError ? (
         <View style={styles.loadingOverlaySolid}>
           <ActivityIndicator color={colors.label} />
         </View>
@@ -526,6 +592,7 @@ const createStyles = (colors: ThemeColors) => {
     imageContainer: {
       width: '100%',
       height: '100%',
+      backgroundColor: colors.systemBackground,
     },
     dismissArea: {
       ...StyleSheet.absoluteFillObject,
@@ -535,7 +602,7 @@ const createStyles = (colors: ThemeColors) => {
       ...StyleSheet.absoluteFillObject,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.systemBackground,
+      backgroundColor: 'transparent',
       zIndex: 6,
     },
     errorOverlay: {

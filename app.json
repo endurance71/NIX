@@ -19,7 +19,16 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.damianmotylinski.nixapp"
+      "bundleIdentifier": "com.damianmotylinski.nixapp",
+      "infoPlist": {
+        "NSCameraUsageDescription": "NiX potrzebuje dostępu do kamery, aby przechwytywać i wysyłać wiadomości.",
+        "NSMicrophoneUsageDescription": "NiX potrzebuje dostępu do mikrofonu, aby nagrywać wiadomości wideo.",
+        "NSPhotoLibraryUsageDescription": "NiX potrzebuje dostępu do zdjęć i filmów, aby korzystać z multimediów.",
+        "UIBackgroundModes": [
+          "fetch",
+          "processing"
+        ]
+      }
     },
     "scheme": "nix",
     "plugins": [
@@ -42,7 +51,10 @@
           "photosPermission": "NiX potrzebuje dostępu do zdjęć, aby ustawić awatar profilu."
         }
       ],
-      "expo-video"
+      "expo-video",
+      "expo-secure-store",
+      "react-native-compressor",
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true

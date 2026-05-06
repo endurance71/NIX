@@ -15,6 +15,7 @@ const {
   mockRpc,
   mockSnapsSelectEq,
   mockSnapsSelectOrder,
+  mockSnapsSelectLimit,
   mockSnapsSelectEqValue,
   mockSnapsUpdateEq,
   mockQueueUpsert,
@@ -33,6 +34,7 @@ const {
   const queueSelectOrder = vi.fn();
   const queueSelectLimit = vi.fn();
   const snapsSelectOrder = vi.fn();
+  const snapsSelectLimit = vi.fn();
   const snapsSelectEq = vi.fn();
 
   return {
@@ -42,6 +44,7 @@ const {
     mockSnapsSelectEqValue: { order: snapsSelectOrder },
     mockSnapsSelectEq: snapsSelectEq,
     mockSnapsSelectOrder: snapsSelectOrder,
+    mockSnapsSelectLimit: snapsSelectLimit,
     mockSnapsUpdateEq: vi.fn(),
     mockQueueUpsert: vi.fn(),
     mockQueueDeleteEq: queueDeleteEq,
@@ -140,7 +143,8 @@ describe('snapService cleanup flow', () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'receiver-1' });
     mockSnapsUpdateEq.mockResolvedValue({ error: null });
     mockSnapsSelectEq.mockReturnValue(mockSnapsSelectEqValue);
-    mockSnapsSelectOrder.mockResolvedValue({ error: null, data: [] });
+    mockSnapsSelectOrder.mockReturnValue({ limit: mockSnapsSelectLimit });
+    mockSnapsSelectLimit.mockResolvedValue({ error: null, data: [] });
     mockRpc.mockResolvedValue({ error: null, data: [] });
     mockQueueUpsert.mockResolvedValue({ error: null });
     mockQueueDeleteEq.mockResolvedValue({ error: null });
@@ -196,6 +200,35 @@ describe('snapService cleanup flow', () => {
     });
   });
 
+  it('flushCleanupQueue zwiększa attempt_count po błędzie cleanup', async () => {
+    mockInvoke.mockResolvedValue({ data: null, error: new Error('cleanup failed') });
+    mockQueueSelectEq.mockReturnValue({
+      lte: mockQueueSelectLte,
+    });
+    mockQueueSelectLte.mockReturnValue({
+      order: mockQueueSelectOrder,
+    });
+    mockQueueSelectOrder.mockReturnValue({
+      limit: mockQueueSelectLimit,
+    });
+    mockQueueSelectLimit.mockResolvedValue({
+      error: null,
+      data: [
+        {
+          snap_id: 'snap-retry',
+          media_path: 'snaps/receiver-1/retry.jpg',
+          receiver_id: 'receiver-1',
+          attempt_count: 2,
+        },
+      ],
+    });
+
+    await flushCleanupQueue();
+
+    expect(mockQueueUpdate).toHaveBeenCalled();
+    expect(mockQueueUpdateEq).toHaveBeenCalledWith('snap_id', 'snap-retry');
+  });
+
   it('enqueueCleanupJob dodaje pozycję do kolejki', async () => {
     await enqueueCleanupJob('snap-3', 'snaps/receiver-1/queued2.jpg');
     expect(mockQueueUpsert).toHaveBeenCalled();
@@ -209,7 +242,8 @@ describe('snapService cleanup flow', () => {
   it('fetchSentSnaps zwraca historię wysłanych z mapowaniem odbiorcy', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
     mockSnapsSelectEq.mockReturnValue({ order: mockSnapsSelectOrder });
-    mockSnapsSelectOrder.mockResolvedValue({
+    mockSnapsSelectOrder.mockReturnValue({ limit: mockSnapsSelectLimit });
+    mockSnapsSelectLimit.mockResolvedValue({
       error: null,
       data: [
         {

@@ -74,7 +74,7 @@ export default function ProfileScreen() {
   });
   const { data: friends = [] } = useQuery({
     queryKey: queryKeys.acceptedFriends,
-    queryFn: listAcceptedFriends,
+    queryFn: () => listAcceptedFriends({ limit: 50 }),
     staleTime: 1000 * 60 * 2,
   });
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);

@@ -15,25 +15,36 @@ import { createAppQueryClient } from '../lib/queryClient';
 import { bindReactQueryAppLifecycle } from '../lib/reactQueryNetwork';
 import { ToastProvider } from 'react-native-pretty-toast';
 import { VideoDraftProvider } from '../context/VideoDraftContext';
+import { initMonitoring } from '../lib/monitoring';
+import { configureMediaCache } from '../lib/mediaCache';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { initBackgroundTaskService } from '../services/backgroundTaskService';
+
+// Initialize monitoring at module load (runs once).
+initMonitoring();
 
 export default function RootLayout() {
   const [queryClient] = useState(() => createAppQueryClient());
 
   useEffect(() => bindReactQueryAppLifecycle(), []);
+  useEffect(() => configureMediaCache(), []);
+  useEffect(() => initBackgroundTaskService(() => {}), []);
 
   return (
-    <SafeAreaProvider>
-      <ToastProvider maxQueue={3} defaultConfig={{ duration: 4000 }}>
-        <QueryClientProvider client={queryClient}>
-          <AppThemeProvider>
-            <VideoDraftProvider>
-              <DeepLinkHandler />
-              <RootNavigator />
-            </VideoDraftProvider>
-          </AppThemeProvider>
-        </QueryClientProvider>
-      </ToastProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ToastProvider maxQueue={3} defaultConfig={{ duration: 4000 }}>
+          <QueryClientProvider client={queryClient}>
+            <AppThemeProvider>
+              <VideoDraftProvider>
+                <DeepLinkHandler />
+                <RootNavigator />
+              </VideoDraftProvider>
+            </AppThemeProvider>
+          </QueryClientProvider>
+        </ToastProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

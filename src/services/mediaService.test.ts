@@ -17,6 +17,11 @@ vi.mock('../lib/supabase', () => ({
   },
 }));
 
+vi.mock('expo-file-system/legacy', () => ({
+  getInfoAsync: vi.fn().mockResolvedValue({ exists: true, size: 4 }),
+  deleteAsync: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('./profileService', () => ({
   getCurrentUser: mockGetCurrentUser,
 }));
@@ -126,7 +131,7 @@ describe('mediaService', () => {
     );
 
     await expect(uploadVideoAndCreateSnap('file:///tmp/video.mp4', 'receiver-1', 8_000)).rejects.toThrow(
-      'Plik wideo jest za duży. Maksymalny rozmiar to 400 MB.'
+      'Plik wideo jest za duży. Maksymalny rozmiar to 48 MB.'
     );
     expect(mockUpload).not.toHaveBeenCalled();
   });
@@ -147,7 +152,7 @@ describe('mediaService', () => {
     );
 
     await expect(uploadVideoAndCreateSnap('file:///tmp/video.mp4', 'receiver-1', 5_000)).rejects.toThrow(
-      'Plik wideo przekracza limit 400 MB.'
+      'Plik wideo przekracza limit uploadu serwera. Utrzymaj plik poniżej 48 MB.'
     );
   });
 });

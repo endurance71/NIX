@@ -8,6 +8,11 @@ export type FriendProfile = {
   avatar_emoji?: string | null;
 };
 
+export type FriendListOptions = {
+  limit?: number;
+  beforeCreatedAt?: string;
+};
+
 export type IncomingFriendRequest = {
   id: string;
   requester: FriendProfile;
@@ -20,6 +25,12 @@ type FriendshipRow = {
   friend_id: string;
   status: 'pending' | 'accepted';
 };
+
+const DEFAULT_FRIEND_PAGE_LIMIT = 50;
+
+function normalizeFriendPageLimit(limit: number | undefined) {
+  return Math.max(1, Math.min(limit ?? DEFAULT_FRIEND_PAGE_LIMIT, 100));
+}
 
 export type SendFriendRequestResult =
   | 'request_sent'
@@ -268,15 +279,22 @@ export async function rejectFriendRequest(requestId: string) {
   if (error) throw toFriendlyError(error);
 }
 
-export async function listAcceptedFriends(): Promise<FriendProfile[]> {
+export async function listAcceptedFriends(options: FriendListOptions = {}): Promise<FriendProfile[]> {
   const user = await getCurrentUser();
   if (!user) return [];
+  const limit = normalizeFriendPageLimit(options.limit);
 
-  const { data: relations, error: relationsError } = await supabase
+  let relationQuery = supabase
     .from('friendships')
-    .select('user_id, friend_id')
+    .select('user_id, friend_id, created_at')
     .eq('status', 'accepted')
     .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+  if (options.beforeCreatedAt) {
+    relationQuery = relationQuery.lt('created_at', options.beforeCreatedAt);
+  }
+  const { data: relations, error: relationsError } = await relationQuery
+    .order('created_at', { ascending: false })
+    .limit(limit);
 
   if (relationsError) throw toFriendlyError(relationsError);
 

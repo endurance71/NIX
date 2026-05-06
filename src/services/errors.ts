@@ -6,6 +6,7 @@ export type DomainErrorCode =
   | 'RATE_LIMITED'
   | 'INVALID_MEDIA'
   | 'CLEANUP_FAILED'
+  | 'CANCELLED'
   | 'UNKNOWN';
 
 export class DomainError extends Error {

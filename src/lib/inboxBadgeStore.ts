@@ -42,7 +42,10 @@ function countUnreadSnaps(snaps: { is_viewed?: boolean }[]) {
 type InboxBundleCached = { inboxData: { is_viewed?: boolean }[] };
 
 /** Jeśli podasz `queryClient`, badge aktualizuje się po jednym refetch bundle — bez osobnego `fetchInboxSnaps`. */
-export async function refreshInboxBadgeCount(queryClient?: QueryClient) {
+export async function refreshInboxBadgeCount(
+  queryClient?: QueryClient,
+  options?: { forceNetwork?: boolean }
+) {
   if (inFlightRefresh) return inFlightRefresh;
 
   state.loading = true;
@@ -51,7 +54,9 @@ export async function refreshInboxBadgeCount(queryClient?: QueryClient) {
   inFlightRefresh = (async () => {
     try {
       if (queryClient) {
-        await queryClient.refetchQueries({ queryKey: queryKeys.inboxSnapsBundle });
+        if (options?.forceNetwork) {
+          await queryClient.refetchQueries({ queryKey: queryKeys.inboxSnapsBundle, type: 'active' });
+        }
         const bundle = queryClient.getQueryData<InboxBundleCached>(queryKeys.inboxSnapsBundle);
         const unreadCount = countUnreadSnaps(bundle?.inboxData ?? []);
         setInboxBadgeCount(unreadCount);

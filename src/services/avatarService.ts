@@ -70,7 +70,7 @@ export async function uploadProfileAvatarFromUri(fileUri: string): Promise<void>
   const objectPath = `${user.id}/${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${ext}`;
   const { error: uploadError, data: uploadData } = await supabase.storage
     .from(AVATAR_BUCKET)
-    .upload(objectPath, bytes, { contentType, upsert: false });
+    .upload(objectPath, bytes, { contentType, cacheControl: '86400', upsert: false });
 
   if (uploadError) throw new DomainError('INVALID_MEDIA', uploadError.message);
 

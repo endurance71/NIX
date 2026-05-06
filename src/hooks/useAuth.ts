@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { clearUserCache } from '../services/profileService';
 import {
   signInWithPassword as requestPasswordSignIn,
   signUpWithPassword as requestPasswordSignUp,
@@ -65,6 +66,7 @@ export function useAuth() {
   }, []);
 
   const logout = useCallback(async () => {
+    clearUserCache();
     const { error } = await requestSignOut();
     return { error };
   }, []);

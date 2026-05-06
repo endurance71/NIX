@@ -11,6 +11,8 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   cancelAnimation,
+  withTiming,
+  Easing,
   type SharedValue,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
@@ -63,19 +65,28 @@ function PreviewSegmentVideo({
 }) {
   const player = useVideoPlayer({ uri }, (p) => {
     p.loop = true;
-    p.timeUpdateEventInterval = 0.05;
+    p.timeUpdateEventInterval = 1 / 60;
+    p.muted = false;
+    p.volume = 1;
+    // Autoplay attempt on initialization (some iOS devices are more reliable this way).
     p.play();
   });
 
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
     const dur = player.duration;
     if (dur > 0) {
-      segmentProgress.value = 1 - currentTime / dur;
+      const nextProgress = Math.max(0, Math.min(1, 1 - currentTime / dur));
+      segmentProgress.value = withTiming(nextProgress, {
+        duration: 90,
+        easing: Easing.linear,
+      });
     }
   });
 
   useEventListener(player, 'statusChange', ({ status }) => {
     if (status === 'readyToPlay') {
+      // Safety replay in case initial autoplay was ignored during buffering.
+      player.play();
       onReady();
     }
     if (status === 'error') {
@@ -300,7 +311,7 @@ export default function PreviewScreen() {
   const handleSendTo = () => {
     router.push({
       pathname: '/send-to',
-      params: { uri, viewDurationSec: String(viewDurationSec) },
+      params: { uri, mode: 'image', viewDurationSec: String(viewDurationSec) },
     });
   };
 

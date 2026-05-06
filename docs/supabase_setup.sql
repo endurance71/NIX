@@ -60,6 +60,9 @@ ALTER TABLE public.snaps
 ALTER TABLE public.snaps
   ADD COLUMN IF NOT EXISTS playback_duration_ms INTEGER;
 
+ALTER TABLE public.snaps
+  ADD COLUMN IF NOT EXISTS client_upload_id TEXT;
+
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -136,6 +139,28 @@ CREATE TABLE IF NOT EXISTS public.snap_cleanup_audit (
   media_path TEXT,
   status TEXT NOT NULL CHECK (status IN ('queued', 'success', 'failed', 'not_found', 'forbidden')),
   error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 1.6 Upload logs (metryki jakości i SLA uploadu)
+CREATE TABLE IF NOT EXISTS public.upload_logs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  task_id TEXT NOT NULL,
+  upload_flow_id TEXT,
+  sender_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  receiver_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  media_type TEXT NOT NULL CHECK (media_type IN ('image', 'video')),
+  status TEXT NOT NULL CHECK (status IN ('queued', 'success', 'failed', 'retrying')),
+  retry_count INT NOT NULL DEFAULT 0,
+  failure_stage TEXT,
+  error_message TEXT,
+  connection_type TEXT,
+  original_size_bytes BIGINT,
+  final_size_bytes BIGINT,
+  compression_ratio NUMERIC(5,2),
+  compression_duration_ms INT,
+  upload_duration_ms INT,
+  end_to_end_duration_ms INT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -270,6 +295,21 @@ CREATE POLICY "snap_cleanup_audit_select"
 CREATE POLICY "snap_cleanup_audit_insert"
   ON public.snap_cleanup_audit FOR INSERT
   WITH CHECK (auth.role() = 'service_role');
+
+-- 2.7 Upload logs
+ALTER TABLE public.upload_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "upload_logs_select"
+  ON public.upload_logs FOR SELECT
+  USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+
+CREATE POLICY "upload_logs_insert"
+  ON public.upload_logs FOR INSERT
+  WITH CHECK (auth.uid() = sender_id);
+
+CREATE POLICY "upload_logs_delete"
+  ON public.upload_logs FOR DELETE
+  USING (auth.role() = 'service_role');
 
 
 -- ============================================================
@@ -521,6 +561,61 @@ AS $$
   ORDER BY p.username ASC;
 $$;
 
+CREATE OR REPLACE FUNCTION public.list_accepted_friends_paginated(page_limit INT DEFAULT 50, before_created_at TIMESTAMPTZ DEFAULT NULL)
+RETURNS TABLE(id UUID, username TEXT, avatar_storage_path TEXT, avatar_emoji TEXT, friendship_created_at TIMESTAMPTZ)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH relations AS (
+    SELECT
+      CASE WHEN f.user_id = auth.uid() THEN f.friend_id ELSE f.user_id END AS friend_profile_id,
+      f.created_at
+    FROM public.friendships f
+    WHERE f.status = 'accepted'
+      AND (f.user_id = auth.uid() OR f.friend_id = auth.uid())
+      AND (before_created_at IS NULL OR f.created_at < before_created_at)
+    ORDER BY f.created_at DESC
+    LIMIT LEAST(GREATEST(page_limit, 1), 100)
+  )
+  SELECT p.id, p.username, p.avatar_storage_path, p.avatar_emoji, r.created_at
+  FROM relations r
+  JOIN public.profiles p ON p.id = r.friend_profile_id
+  WHERE p.username IS NOT NULL
+  ORDER BY r.created_at DESC;
+$$;
+
+CREATE OR REPLACE FUNCTION public.fetch_inbox_snaps_paginated(page_limit INT DEFAULT 50, before_created_at TIMESTAMPTZ DEFAULT NULL)
+RETURNS SETOF public.snaps
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT s.*
+  FROM public.snaps s
+  WHERE s.receiver_id = auth.uid()
+    AND (before_created_at IS NULL OR s.created_at < before_created_at)
+  ORDER BY s.created_at DESC
+  LIMIT LEAST(GREATEST(page_limit, 1), 100);
+$$;
+
+CREATE OR REPLACE FUNCTION public.fetch_sent_snaps_paginated(page_limit INT DEFAULT 50, before_created_at TIMESTAMPTZ DEFAULT NULL)
+RETURNS SETOF public.snaps
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT s.*
+  FROM public.snaps s
+  WHERE s.sender_id = auth.uid()
+    AND (before_created_at IS NULL OR s.created_at < before_created_at)
+  ORDER BY s.created_at DESC
+  LIMIT LEAST(GREATEST(page_limit, 1), 100);
+$$;
+
 CREATE OR REPLACE FUNCTION public.log_cleanup_audit(
   p_snap_id UUID,
   p_receiver_id UUID,
@@ -542,6 +637,9 @@ REVOKE ALL ON FUNCTION public.get_public_profiles_by_ids(UUID[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.create_friend_invite(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.redeem_friend_invite(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.list_public_profiles() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.list_accepted_friends_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.fetch_inbox_snaps_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.fetch_sent_snaps_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.can_send_snap(UUID, UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.log_cleanup_audit(UUID, UUID, TEXT, TEXT, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_public_profile_by_username(TEXT) TO authenticated;
@@ -549,6 +647,9 @@ GRANT EXECUTE ON FUNCTION public.get_public_profiles_by_ids(UUID[]) TO authentic
 GRANT EXECUTE ON FUNCTION public.create_friend_invite(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.redeem_friend_invite(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.list_public_profiles() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.list_accepted_friends_paginated(INT, TIMESTAMPTZ) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.fetch_inbox_snaps_paginated(INT, TIMESTAMPTZ) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.fetch_sent_snaps_paginated(INT, TIMESTAMPTZ) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.can_send_snap(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.log_cleanup_audit(UUID, UUID, TEXT, TEXT, TEXT) TO service_role;
 
@@ -682,12 +783,25 @@ CREATE INDEX IF NOT EXISTS idx_snaps_receiver_id ON public.snaps(receiver_id);
 CREATE INDEX IF NOT EXISTS idx_snaps_sender_id   ON public.snaps(sender_id);
 CREATE INDEX IF NOT EXISTS idx_snaps_is_viewed   ON public.snaps(is_viewed);
 CREATE INDEX IF NOT EXISTS idx_snaps_sender_created_at ON public.snaps(sender_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_snaps_sender_receiver_upload_id_unique
+  ON public.snaps(sender_id, receiver_id, client_upload_id)
+  WHERE client_upload_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_friendships_user  ON public.friendships(user_id);
 CREATE INDEX IF NOT EXISTS idx_friendships_friend ON public.friendships(friend_id);
 CREATE INDEX IF NOT EXISTS idx_friend_invites_created_by ON public.friend_invites(created_by);
 CREATE INDEX IF NOT EXISTS idx_friend_invites_expires_at ON public.friend_invites(expires_at);
 CREATE INDEX IF NOT EXISTS idx_snap_cleanup_queue_receiver_next_attempt
   ON public.snap_cleanup_queue(receiver_id, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_upload_logs_sender_created_at
+  ON public.upload_logs(sender_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_upload_logs_status_created_at
+  ON public.upload_logs(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_upload_logs_upload_flow_id
+  ON public.upload_logs(upload_flow_id)
+  WHERE upload_flow_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_upload_logs_failure_stage
+  ON public.upload_logs(failure_stage)
+  WHERE failure_stage IS NOT NULL;
 
 
 -- ============================================================
