@@ -1,17 +1,23 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text as RNText, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
+import * as Haptics from 'expo-haptics';
 import { sentLifecycleSegments } from '../../../lib/snapInboxLabels';
-import { fetchInboxSnaps, fetchSentSnaps, flushCleanupQueue, type InboxSnap } from '../../../services/snapService';
+import {
+  deleteConversationWithPeer,
+  fetchInboxSnaps,
+  fetchSentSnaps,
+  flushCleanupQueue,
+  type InboxSnap,
+} from '../../../services/snapService';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../../../lib/queryKeys';
 import { useAppTheme } from '../../../hooks/useAppTheme';
 import { refreshInboxBadgeCount, setInboxBadgeCount } from '../../../lib/inboxBadgeStore';
 import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../../../services/avatarService';
 import { typography } from '../../../theme/typography';
-import { SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING } from '../../../theme/swiftUiEmbeddedLayout';
 import { buildInboxThreads, type InboxThreadItem } from '../../../lib/inboxThreads';
 import {
   acceptFriendRequest,
@@ -29,6 +35,10 @@ import {
   listRowSeparator,
 } from '@expo/ui/swift-ui/modifiers';
 import { notifyError, notifyInfo, notifySuccess } from '../../../lib/appNotify';
+import { useTranslation } from 'react-i18next';
+import { formatShortTime } from '../../../lib/formatters';
+import { getCurrentLocale } from '../../../lib/i18n';
+import { SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING } from '../../../theme/swiftUiEmbeddedLayout';
 
 async function fetchInboxSnapsBundle() {
   void flushCleanupQueue().catch(() => {});
@@ -41,95 +51,114 @@ type ThreadRowProps = {
   colors: ReturnType<typeof useAppTheme>['colors'];
   item: InboxThreadItem;
   onOpenSnap: (snap: InboxSnap) => void;
+  isDeleting: boolean;
+  t: (key: string, params?: Record<string, unknown>) => string;
+  locale: string;
 };
 
-const ThreadRow = memo(function ThreadRow({ avatarUrls, colors, item, onOpenSnap }: ThreadRowProps) {
-  if (item.direction === 'received') {
-    const snap = item.snap;
-    const isNew = !snap.is_viewed;
-    const avatarPath = snap.sender?.avatar_storage_path ?? null;
-    const avatarUrl = avatarPath ? avatarUrls[avatarPath] : null;
-    const fallback = snap.sender?.username?.charAt(0).toUpperCase() || '?';
-
-    return (
-      <RNHostView matchContents>
-        <Pressable
-          accessibilityLabel={`Otwórz snap od @${snap.sender?.username || 'nieznanego użytkownika'}`}
-          accessibilityRole="button"
-          disabled={!isNew}
-          onPress={() => onOpenSnap(snap)}
-          style={({ pressed }) => [
-            styles.rowInner,
-            pressed && styles.rowPressed,
-            !isNew && styles.rowDisabled,
-          ]}>
-          <AvatarCircle
-            size={44}
-            url={avatarUrl}
-            storagePath={avatarPath}
-            emoji={snap.sender?.avatar_emoji}
-            fallbackInitial={fallback}
-          />
-          <View style={styles.rowTextBlock}>
-            <RNText
-              numberOfLines={1}
-              style={[
-                styles.peerTitle,
-                { color: colors.label },
-                !isNew && { color: colors.secondaryLabel, fontWeight: '400' },
-              ]}>
-              @{snap.sender?.username || 'Nieznany'}
-            </RNText>
-            <RNText
-              numberOfLines={1}
-              style={[styles.peerSubtitle, { color: isNew ? colors.destructive : colors.tertiaryLabel }]}>
-              {isNew ? 'Nowy NiX' : 'Otwarto'} •{' '}
-              {new Date(snap.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </RNText>
-          </View>
-          {isNew ? <SFSymbol name="chevron.right" size={14} tintColor={colors.tertiaryLabel} /> : null}
-        </Pressable>
-      </RNHostView>
-    );
-  }
-
-  const sent = item.snap;
-  const avatarPath = sent.receiver?.avatar_storage_path ?? null;
-  const avatarUrl = avatarPath ? avatarUrls[avatarPath] : null;
-  const timeStr = new Date(sent.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const sentSubtitle = ['Wysłane', ...sentLifecycleSegments(sent), timeStr].join(' • ');
-  const fallback = sent.receiver?.username?.charAt(0).toUpperCase() || '?';
-
+const ThreadRow = memo(function ThreadRow({
+  avatarUrls,
+  colors,
+  item,
+  onOpenSnap,
+  isDeleting,
+  t,
+  locale,
+}: ThreadRowProps) {
   return (
     <RNHostView matchContents>
-      <View
-        style={styles.rowInner}
-        accessibilityLabel={`Wysłano do @${sent.receiver?.username || 'nieznanego użytkownika'}`}>
-        <AvatarCircle
-          size={44}
-          url={avatarUrl}
-          storagePath={avatarPath}
-          emoji={sent.receiver?.avatar_emoji}
-          fallbackInitial={fallback}
-        />
-        <View style={styles.rowTextBlock}>
-          <RNText numberOfLines={1} style={[styles.peerTitle, { color: colors.label }]}>
-            @{sent.receiver?.username || 'Nieznany'}
-          </RNText>
-          <RNText numberOfLines={1} style={[styles.peerSubtitle, { color: colors.tertiaryLabel }]}>
-            {sentSubtitle}
-          </RNText>
-        </View>
-      </View>
+      {item.direction === 'received' ? (
+        (() => {
+          const snap = item.snap;
+          const isNew = !snap.is_viewed;
+          const avatarPath = snap.sender?.avatar_storage_path ?? null;
+          const avatarUrl = avatarPath ? avatarUrls[avatarPath] : null;
+          const fallback = snap.sender?.username?.charAt(0).toUpperCase() || '?';
+
+          return (
+            <Pressable
+              accessibilityLabel={t('inbox.openSnapA11y', { username: snap.sender?.username || t('common.unknownUser') })}
+              accessibilityRole="button"
+              disabled={!isNew || isDeleting}
+              onPress={() => onOpenSnap(snap)}
+              style={({ pressed }) => [
+                styles.rowInner,
+                pressed && styles.rowPressed,
+                (!isNew || isDeleting) && styles.rowDisabled,
+              ]}>
+              <AvatarCircle
+                size={44}
+                url={avatarUrl}
+                storagePath={avatarPath}
+                emoji={snap.sender?.avatar_emoji}
+                fallbackInitial={fallback}
+              />
+              <View style={styles.rowTextBlock}>
+                <RNText
+                  numberOfLines={1}
+                  style={[
+                    styles.peerTitle,
+                    { color: colors.label },
+                    !isNew && { color: colors.secondaryLabel, fontWeight: '400' },
+                  ]}>
+                  @{snap.sender?.username || t('common.unknown')}
+                </RNText>
+                <RNText
+                  numberOfLines={1}
+                  style={[styles.peerSubtitle, { color: isNew ? colors.destructive : colors.tertiaryLabel }]}>
+                  {isNew ? t('inbox.newSnap') : t('inbox.opened')} • {formatShortTime(snap.created_at, locale)}
+                </RNText>
+              </View>
+              {isNew ? <SFSymbol name="chevron.right" size={14} tintColor={colors.tertiaryLabel} /> : null}
+            </Pressable>
+          );
+        })()
+      ) : (
+        (() => {
+          const sent = item.snap;
+          const avatarPath = sent.receiver?.avatar_storage_path ?? null;
+          const avatarUrl = avatarPath ? avatarUrls[avatarPath] : null;
+          const timeStr = formatShortTime(sent.created_at, locale);
+          const sentSubtitle = [t('inbox.sent'), ...sentLifecycleSegments(sent, (key) => t(key)), timeStr].join(' • ');
+          const fallback = sent.receiver?.username?.charAt(0).toUpperCase() || '?';
+
+          return (
+            <View
+              style={[styles.rowInner, isDeleting && styles.rowDisabled]}
+              accessibilityLabel={t('inbox.sentToA11y', {
+                username: sent.receiver?.username || t('common.unknownUser'),
+              })}>
+              <AvatarCircle
+                size={44}
+                url={avatarUrl}
+                storagePath={avatarPath}
+                emoji={sent.receiver?.avatar_emoji}
+                fallbackInitial={fallback}
+              />
+              <View style={styles.rowTextBlock}>
+                <RNText numberOfLines={1} style={[styles.peerTitle, { color: colors.label }]}>
+                  @{sent.receiver?.username || t('common.unknown')}
+                </RNText>
+                <RNText numberOfLines={1} style={[styles.peerSubtitle, { color: colors.tertiaryLabel }]}>
+                  {sentSubtitle}
+                </RNText>
+              </View>
+            </View>
+          );
+        })()
+      )}
     </RNHostView>
   );
 });
 
 export default function InboxScreen() {
+  const { t } = useTranslation();
+  const locale = getCurrentLocale();
   const queryClient = useQueryClient();
   const { colors, statusBarStyle } = useAppTheme();
 
   const lastFocusRefreshAtRef = useRef(0);
+  const [deletingPeerId, setDeletingPeerId] = useState<string | null>(null);
 
   const { data: snapsBundle, isPending: snapsPending } = useQuery({
     queryKey: queryKeys.inboxSnapsBundle,
@@ -176,6 +205,7 @@ export default function InboxScreen() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle }),
       queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests }),
     ]);
   }, [queryClient]);
 
@@ -219,14 +249,52 @@ export default function InboxScreen() {
     });
   }, []);
 
+  const deleteSingleThread = useCallback(
+    async (item: InboxThreadItem) => {
+      const peerId = item.direction === 'received' ? item.snap.sender_id : item.snap.receiver_id;
+      const username = item.direction === 'received' ? item.snap.sender?.username : item.snap.receiver?.username;
+      if (deletingPeerId) return;
+
+      setDeletingPeerId(peerId);
+      try {
+        await deleteConversationWithPeer(peerId);
+        await queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle });
+        await refreshInboxBadgeCount(queryClient, { forceNetwork: true });
+        if (process.env.EXPO_OS === 'ios') {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        notifySuccess(t('inbox.deleteConversationSuccess', { username: username || t('common.unknownUser') }));
+      } catch (err: any) {
+        if (process.env.EXPO_OS === 'ios') {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        }
+        notifyError(err?.message ?? t('inbox.deleteConversationFailure'));
+      } finally {
+        setDeletingPeerId(null);
+      }
+    },
+    [deletingPeerId, queryClient, t]
+  );
+
+  const handleNativeDelete = useCallback(
+    async (indices: number[]) => {
+      const firstIndex = indices[0];
+      if (typeof firstIndex !== 'number') return;
+      const item = feed[firstIndex];
+      if (!item) return;
+      await deleteSingleThread(item);
+    },
+    [deleteSingleThread, feed]
+  );
+
   const handleAccept = async (requestId: string) => {
     try {
       await acceptFriendRequest(requestId);
       await queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
       await invalidateInboxQueries();
-      notifySuccess('Zaproszenie zaakceptowane.');
+      notifySuccess(t('inbox.inviteAccepted'));
     } catch (err: any) {
-      notifyError(err?.message ?? 'Nie udało się zaakceptować zaproszenia.');
+      notifyError(err?.message ?? t('inbox.inviteAcceptFailure'));
     }
   };
 
@@ -234,9 +302,9 @@ export default function InboxScreen() {
     try {
       await rejectFriendRequest(requestId);
       await invalidateInboxQueries();
-      notifyInfo('Zaproszenie usunięte.');
+      notifyInfo(t('inbox.inviteRemoved'));
     } catch (err: any) {
-      notifyError(err?.message ?? 'Nie udało się usunąć zaproszenia.');
+      notifyError(err?.message ?? t('inbox.inviteRemoveFailure'));
     }
   };
 
@@ -253,7 +321,7 @@ export default function InboxScreen() {
     <Host style={styles.container} useViewportSizeMeasurement colorScheme={statusBarStyle === 'light' ? 'dark' : 'light'}>
       <List modifiers={[listStyle('insetGrouped'), padding({ top: 0 }), refreshable(refetchInboxForce)]}>
         {requests.length > 0 ? (
-          <Section title={`Zaproszenia (${requests.length})`}>
+          <Section title={t('inbox.invitesSection', { count: requests.length })}>
             {requests.map((request) => (
               <RNHostView matchContents key={request.id}>
                 <View style={styles.requestRow}>
@@ -262,10 +330,10 @@ export default function InboxScreen() {
                   </RNText>
                   <View style={styles.requestActions}>
                     <Pressable onPress={() => handleAccept(request.id)} hitSlop={8}>
-                      <RNText style={[styles.requestActionLabel, { color: colors.accent }]}>Przyjmij</RNText>
+                      <RNText style={[styles.requestActionLabel, { color: colors.accent }]}>{t('inbox.accept')}</RNText>
                     </Pressable>
                     <Pressable onPress={() => handleReject(request.id)} hitSlop={8}>
-                      <RNText style={[styles.requestActionLabel, { color: colors.destructive }]}>Usuń</RNText>
+                      <RNText style={[styles.requestActionLabel, { color: colors.destructive }]}>{t('inbox.remove')}</RNText>
                     </Pressable>
                   </View>
                 </View>
@@ -274,25 +342,33 @@ export default function InboxScreen() {
           </Section>
         ) : null}
 
-        <Section title={`Wiadomości (${feed.length})`}>
+        <Section title={t('inbox.messagesSection', { count: feed.length })}>
           {feed.length === 0 ? (
             <Text modifiers={[foregroundStyle({ type: 'hierarchical', style: 'secondary' }), listRowSeparator('hidden')]}>
-              Brak wiadomości.
+              {t('inbox.noMessages')}
             </Text>
           ) : (
-            feed.map((threadItem) => (
-              <ThreadRow
-                key={threadItem.id}
-                item={threadItem}
-                avatarUrls={avatarUrls}
-                colors={colors}
-                onOpenSnap={handleOpenSnap}
-              />
-            ))
+            <List.ForEach onDelete={handleNativeDelete}>
+              {feed.map((threadItem) => (
+                <ThreadRow
+                  key={threadItem.id}
+                  item={threadItem}
+                  avatarUrls={avatarUrls}
+                  colors={colors}
+                  onOpenSnap={handleOpenSnap}
+                  t={t}
+                  locale={locale}
+                  isDeleting={
+                    deletingPeerId ===
+                    (threadItem.direction === 'received' ? threadItem.snap.sender_id : threadItem.snap.receiver_id)
+                  }
+                />
+              ))}
+            </List.ForEach>
           )}
         </Section>
       </List>
-      <Stack.Screen.Title large>Skrzynka</Stack.Screen.Title>
+      <Stack.Screen.Title large>{t('inbox.title')}</Stack.Screen.Title>
     </Host>
   );
 }
@@ -307,6 +383,8 @@ const styles = StyleSheet.create({
   },
   requestRow: {
     gap: 8,
+    minHeight: 56,
+    justifyContent: 'center',
     paddingVertical: 6,
     ...SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING,
   },
@@ -321,15 +399,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   rowInner: {
-    minHeight: 52,
+    minHeight: 74,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    paddingVertical: 8,
+    gap: 10,
+    paddingVertical: 10,
     ...SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING,
   },
   rowPressed: {
-    opacity: 0.6,
+    opacity: 0.88,
   },
   rowDisabled: {
     opacity: 0.82,
@@ -337,12 +415,16 @@ const styles = StyleSheet.create({
   rowTextBlock: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
+    gap: 2,
   },
   peerTitle: {
-    ...typography.headline,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '600',
   },
   peerSubtitle: {
-    ...typography.footnote,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '400',
   },
 });

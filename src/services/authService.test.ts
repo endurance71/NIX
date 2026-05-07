@@ -4,6 +4,7 @@ import {
   signUpWithPassword,
   requestPasswordReset,
   updatePassword,
+  reauthenticatePasswordChange,
   signInWithAppleIdToken,
   signOut,
 } from './authService';
@@ -14,6 +15,7 @@ const { mockAuth } = vi.hoisted(() => ({
     signUp: vi.fn(),
     resetPasswordForEmail: vi.fn(),
     updateUser: vi.fn(),
+    reauthenticate: vi.fn(),
     signInWithIdToken: vi.fn(),
     signOut: vi.fn(),
   },
@@ -71,6 +73,25 @@ describe('authService', () => {
     expect(mockAuth.updateUser).toHaveBeenCalledWith({
       password: 'new-password-123',
     });
+  });
+
+  it('aktualizuje hasło użytkownika z nonce', async () => {
+    mockAuth.updateUser.mockResolvedValue({ data: null, error: null });
+
+    await updatePassword('new-password-123', '654321');
+
+    expect(mockAuth.updateUser).toHaveBeenCalledWith({
+      password: 'new-password-123',
+      nonce: '654321',
+    });
+  });
+
+  it('wysyła nonce do ponownej autoryzacji zmiany hasła', async () => {
+    mockAuth.reauthenticate.mockResolvedValue({ data: null, error: null });
+
+    await reauthenticatePasswordChange();
+
+    expect(mockAuth.reauthenticate).toHaveBeenCalledTimes(1);
   });
 
   it('loguje przez Apple Id token', async () => {

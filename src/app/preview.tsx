@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Image } from 'expo-image';
-import { useEventListener } from 'expo';
+import { useEvent, useEventListener } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { StatusBar } from 'expo-status-bar';
 import Animated, {
@@ -22,6 +22,8 @@ import { typography } from '../theme/typography';
 import { SFSymbol } from '../components/ui/sf-symbol';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoDraft, type VideoSegmentDraft } from '../context/VideoDraftContext';
+import { configureForPlayback } from '../lib/audioSession';
+import { trackEvent } from '../lib/telemetry';
 import {
   SNAP_VIEW_DURATION_CHOICES,
   DEFAULT_SNAP_VIEW_DURATION_SEC,
@@ -34,6 +36,8 @@ import {
 import { Host, ConfirmationDialog, Button, Text as SUIText, RNHostView } from '@expo/ui/swift-ui';
 
 const TIMER_TRACK_HEIGHT = 8;
+/** Maks. czas oczekiwania na `readyToPlay` zanim wymusimy `play()` + `onReady()`. */
+const PREVIEW_VIDEO_WATCHDOG_MS = 2500;
 /** Odstęp od safe area do pill z paskiem segmentów (zgodny z `timerHudShell`). */
 const VIDEO_PREVIEW_TIMER_HUD_TOP = 10;
 /** `paddingVertical` wewnątrz pill (`timerHudInner`) — musi być zsynchronizowany ze stylami. */
@@ -52,12 +56,14 @@ function paramFirst(value: string | string[] | undefined): string | undefined {
 
 function PreviewSegmentVideo({
   uri,
+  segmentIndex,
   segmentProgress,
   onReady,
   onPlaybackError,
   style,
 }: {
   uri: string;
+  segmentIndex: number;
   segmentProgress: SharedValue<number>;
   onReady: () => void;
   onPlaybackError: () => void;
@@ -68,9 +74,15 @@ function PreviewSegmentVideo({
     p.timeUpdateEventInterval = 1 / 60;
     p.muted = false;
     p.volume = 1;
-    // Autoplay attempt on initialization (some iOS devices are more reliable this way).
-    p.play();
+    p.audioMixingMode = 'auto';
   });
+
+  const readyEmittedRef = useRef(false);
+  const errorEmittedRef = useRef(false);
+  const watchdogFiredRef = useRef(false);
+
+  const statusEvent = useEvent(player, 'statusChange', { status: player.status });
+  const status = statusEvent?.status ?? player.status;
 
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
     const dur = player.duration;
@@ -83,16 +95,57 @@ function PreviewSegmentVideo({
     }
   });
 
-  useEventListener(player, 'statusChange', ({ status }) => {
+  useEffect(() => {
     if (status === 'readyToPlay') {
-      // Safety replay in case initial autoplay was ignored during buffering.
-      player.play();
-      onReady();
+      if (!readyEmittedRef.current) {
+        readyEmittedRef.current = true;
+        trackEvent('preview_video_status_change', {
+          status,
+          segment_index: segmentIndex,
+        });
+        onReady();
+      }
+      try {
+        player.play();
+      } catch {
+        // ignorujemy błąd play() — followup statusChange/error obsłuży przypadek
+      }
+      return;
     }
-    if (status === 'error') {
+    if (status === 'error' && !errorEmittedRef.current) {
+      errorEmittedRef.current = true;
+      trackEvent('preview_video_status_change', {
+        status,
+        segment_index: segmentIndex,
+      });
       onPlaybackError();
     }
-  });
+  }, [status, segmentIndex, player, onReady, onPlaybackError]);
+
+  useEffect(() => {
+    readyEmittedRef.current = false;
+    errorEmittedRef.current = false;
+    watchdogFiredRef.current = false;
+  }, [uri]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (readyEmittedRef.current || errorEmittedRef.current) return;
+      watchdogFiredRef.current = true;
+      trackEvent('preview_video_stuck_watchdog', {
+        current_status: player.status,
+        segment_index: segmentIndex,
+      });
+      try {
+        player.play();
+      } catch {
+        // ignorujemy
+      }
+      readyEmittedRef.current = true;
+      onReady();
+    }, PREVIEW_VIDEO_WATCHDOG_MS);
+    return () => clearTimeout(timer);
+  }, [uri, segmentIndex, player, onReady]);
 
   return <VideoView style={style} player={player} contentFit="cover" nativeControls={false} />;
 }
@@ -113,6 +166,12 @@ function PreviewVideoContent({
   const segmentProgress = useSharedValue(1);
 
   const current = segments[clipIndex];
+
+  useEffect(() => {
+    void configureForPlayback().catch((error) => {
+      console.warn('Preview audio session setup failed', error);
+    });
+  }, []);
 
   useEffect(() => {
     setVideoReady(false);
@@ -186,6 +245,7 @@ function PreviewVideoContent({
       <PreviewSegmentVideo
         key={`${clipIndex}-${current.uri}`}
         uri={current.uri}
+        segmentIndex={clipIndex}
         segmentProgress={segmentProgress}
         onReady={handleVideoReady}
         onPlaybackError={handleVideoPlaybackError}

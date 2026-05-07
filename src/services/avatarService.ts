@@ -11,36 +11,107 @@ const SIGNED_URL_TTL_SEC = 60 * 60 * 24;
 /** staleTime dla React Query — krócej niż TTL URL w Supabase, żeby odświeżyć przed wygaśnięciem. */
 export const AVATAR_SIGNED_URL_STALE_TIME_MS = (SIGNED_URL_TTL_SEC - 120) * 1000;
 
-export async function createSignedAvatarUrl(storagePath: string): Promise<string | null> {
-  const { data, error } = await supabase.storage
-    .from(AVATAR_BUCKET)
-    .createSignedUrl(storagePath, SIGNED_URL_TTL_SEC);
-  if (error || !data?.signedUrl) {
-    console.warn('createSignedAvatarUrl', error?.message);
+function normalizeAvatarStoragePath(path: string): string | null {
+  const trimmed = path.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
     return null;
   }
-  return data.signedUrl;
+
+  // Starsze rekordy mogły zawierać prefiks bucketu; Supabase oczekuje ścieżki obiektu.
+  if (trimmed.startsWith(`${AVATAR_BUCKET}/`)) return trimmed.slice(AVATAR_BUCKET.length + 1);
+  if (trimmed.startsWith(`/${AVATAR_BUCKET}/`)) return trimmed.slice(AVATAR_BUCKET.length + 2);
+  return trimmed.replace(/^\/+/, '');
+}
+
+export async function createSignedAvatarUrl(storagePath: string): Promise<string | null> {
+  const directUrl = storagePath.trim();
+  if (directUrl.startsWith('http://') || directUrl.startsWith('https://') || directUrl.startsWith('data:')) {
+    return directUrl;
+  }
+
+  const normalizedPath = normalizeAvatarStoragePath(storagePath);
+  if (!normalizedPath) return null;
+
+  const { data, error } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .createSignedUrl(normalizedPath, SIGNED_URL_TTL_SEC);
+  if (!error && data?.signedUrl) return data.signedUrl;
+
+  // Fallback: endpoint pojedynczego podpisu potrafi zwrócić 400 mimo poprawnego path.
+  const { data: batchData, error: batchError } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .createSignedUrls([normalizedPath], SIGNED_URL_TTL_SEC);
+
+  const batchSignedUrl = batchData?.[0]?.signedUrl ?? null;
+  if (batchError || !batchSignedUrl) {
+    console.warn('createSignedAvatarUrl', error?.message ?? batchError?.message);
+    return null;
+  }
+
+  return batchSignedUrl;
 }
 
 export async function createSignedAvatarUrls(storagePaths: string[]): Promise<Record<string, string>> {
-  const uniquePaths = Array.from(new Set(storagePaths.filter(Boolean)));
-  if (uniquePaths.length === 0) return {};
+  const directUrlsByRawPath: Record<string, string> = {};
+  const storageLikePaths = storagePaths.filter((rawPath) => {
+    const trimmed = rawPath.trim();
+    if (!trimmed) return false;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+      directUrlsByRawPath[rawPath] = trimmed;
+      return false;
+    }
+    return true;
+  });
+
+  const normalizedPairs = storageLikePaths
+    .map((rawPath) => {
+      const normalized = normalizeAvatarStoragePath(rawPath);
+      return normalized ? ([rawPath, normalized] as const) : null;
+    })
+    .filter((pair): pair is readonly [string, string] => pair !== null);
+  const uniquePaths = Array.from(new Set(normalizedPairs.map(([, normalized]) => normalized)));
+  if (uniquePaths.length === 0) return directUrlsByRawPath;
 
   const { data, error } = await supabase.storage
     .from(AVATAR_BUCKET)
     .createSignedUrls(uniquePaths, SIGNED_URL_TTL_SEC);
 
   if (error || !data) {
-    console.warn('createSignedAvatarUrls', error?.message);
-    return {};
+    console.warn('createSignedAvatarUrls batch', error?.message);
+    const perPathResults = await Promise.all(
+      uniquePaths.map(async (path) => {
+        const signedUrl = await createSignedAvatarUrl(path);
+        return signedUrl ? ([path, signedUrl] as const) : null;
+      })
+    );
+    const fallbackMap: Record<string, string> = {};
+    for (const item of perPathResults) {
+      if (!item) continue;
+      fallbackMap[item[0]] = item[1];
+    }
+    if (Object.keys(fallbackMap).length === 0) return directUrlsByRawPath;
+    const byOriginalPath: Record<string, string> = { ...directUrlsByRawPath };
+    for (const [rawPath, normalizedPath] of normalizedPairs) {
+      const resolved = fallbackMap[normalizedPath];
+      if (resolved) byOriginalPath[rawPath] = resolved;
+    }
+    return byOriginalPath;
   }
 
-  const urlsByPath: Record<string, string> = {};
+  const urlsByNormalizedPath: Record<string, string> = {};
   for (const row of data) {
     if (!row?.path || !row?.signedUrl) continue;
-    urlsByPath[row.path] = row.signedUrl;
+    urlsByNormalizedPath[row.path] = row.signedUrl;
   }
-  return urlsByPath;
+
+  const urlsByOriginalPath: Record<string, string> = { ...directUrlsByRawPath };
+  for (const [rawPath, normalizedPath] of normalizedPairs) {
+    const resolved = urlsByNormalizedPath[normalizedPath];
+    if (resolved) urlsByOriginalPath[rawPath] = resolved;
+  }
+  return urlsByOriginalPath;
 }
 
 async function safeRemoveAvatarObject(path: string | null | undefined, ownerId: string) {

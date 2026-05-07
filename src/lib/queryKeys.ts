@@ -3,6 +3,7 @@ export const queryKeys = {
   acceptedFriends: ['acceptedFriends'] as const,
   currentUserProfile: ['currentUserProfile'] as const,
   incomingFriendRequests: ['incomingFriendRequests'] as const,
+  outgoingFriendRequests: ['outgoingFriendRequests'] as const,
   inboxSnapsBundle: ['inboxSnapsBundle'] as const,
 };
 

@@ -63,6 +63,26 @@ ALTER TABLE public.snaps
 ALTER TABLE public.snaps
   ADD COLUMN IF NOT EXISTS client_upload_id TEXT;
 
+-- Embedded miniatura wideo (data URL JPEG base64) — pozwala odbiorcy wyświetlić pierwszą klatkę
+-- natychmiast po pobraniu listy snapów, bez dodatkowego pobrania pliku ze Storage.
+-- Limit ~60 KB stringa (≈45 KB binarki) chroni rozmiar wiersza.
+ALTER TABLE public.snaps
+  ADD COLUMN IF NOT EXISTS thumbnail_b64 TEXT;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'snaps_thumbnail_b64_size'
+      AND conrelid = 'public.snaps'::regclass
+  ) THEN
+    ALTER TABLE public.snaps
+      ADD CONSTRAINT snaps_thumbnail_b64_size
+      CHECK (thumbnail_b64 IS NULL OR octet_length(thumbnail_b64) <= 60000);
+  END IF;
+END $$;
+
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -356,6 +376,7 @@ BEGIN
     OR OLD.media_type IS DISTINCT FROM NEW.media_type
     OR OLD.created_at IS DISTINCT FROM NEW.created_at
     OR OLD.view_duration_sec IS DISTINCT FROM NEW.view_duration_sec
+    OR OLD.thumbnail_b64 IS DISTINCT FROM NEW.thumbnail_b64
   THEN
     RAISE EXCEPTION 'Only delivery status fields can be updated on snaps';
   END IF;
@@ -632,6 +653,33 @@ AS $$
   VALUES (p_snap_id, p_receiver_id, p_media_path, p_status, p_error_message);
 $$;
 
+CREATE OR REPLACE FUNCTION public.delete_my_conversation_with_peer(peer_profile_id UUID)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  deleted_count INTEGER;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  IF peer_profile_id IS NULL OR peer_profile_id = auth.uid() THEN
+    RAISE EXCEPTION 'Invalid peer id';
+  END IF;
+
+  DELETE FROM public.snaps s
+  WHERE
+    (s.sender_id = auth.uid() AND s.receiver_id = peer_profile_id)
+    OR (s.receiver_id = auth.uid() AND s.sender_id = peer_profile_id);
+
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+  RETURN COALESCE(deleted_count, 0);
+END;
+$$;
+
 REVOKE ALL ON FUNCTION public.get_public_profile_by_username(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_public_profiles_by_ids(UUID[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.create_friend_invite(TEXT) FROM PUBLIC;
@@ -642,6 +690,7 @@ REVOKE ALL ON FUNCTION public.fetch_inbox_snaps_paginated(INT, TIMESTAMPTZ) FROM
 REVOKE ALL ON FUNCTION public.fetch_sent_snaps_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.can_send_snap(UUID, UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.log_cleanup_audit(UUID, UUID, TEXT, TEXT, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.delete_my_conversation_with_peer(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_public_profile_by_username(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_public_profiles_by_ids(UUID[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_friend_invite(TEXT) TO authenticated;
@@ -652,6 +701,7 @@ GRANT EXECUTE ON FUNCTION public.fetch_inbox_snaps_paginated(INT, TIMESTAMPTZ) T
 GRANT EXECUTE ON FUNCTION public.fetch_sent_snaps_paginated(INT, TIMESTAMPTZ) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.can_send_snap(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.log_cleanup_audit(UUID, UUID, TEXT, TEXT, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.delete_my_conversation_with_peer(UUID) TO authenticated;
 
 -- Trigger na auth.users
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
@@ -761,6 +811,19 @@ CREATE POLICY "avatars_storage_select"
           AND (
             (f.user_id = auth.uid() AND f.friend_id = split_part(name, '/', 1)::uuid)
             OR (f.friend_id = auth.uid() AND f.user_id = split_part(name, '/', 1)::uuid)
+          )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM public.snaps s
+        WHERE
+          (
+            s.sender_id = auth.uid()
+            AND s.receiver_id = split_part(name, '/', 1)::uuid
+          )
+          OR (
+            s.receiver_id = auth.uid()
+            AND s.sender_id = split_part(name, '/', 1)::uuid
           )
       )
     )

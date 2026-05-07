@@ -1,18 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import {
-  View,
-  StyleSheet,
-  ActivityIndicator,
-  Text,
-  Pressable,
-  Image as RNImage,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, Pressable, type StyleProp, type ViewStyle } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Image as ExpoImage } from 'expo-image';
-import { useEventListener } from 'expo';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useEvent, useEventListener } from 'expo';
+import { useVideoPlayer, VideoView, type VideoThumbnail } from 'expo-video';
 import { StatusBar } from 'expo-status-bar';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -40,6 +31,11 @@ import { refreshInboxBadgeCount } from '../lib/inboxBadgeStore';
 import { clearMediaMemoryCache } from '../lib/mediaCache';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { queryKeys } from '../lib/queryKeys';
+import { generateVideoThumbnailAtTime } from '../lib/videoThumbnails';
+import { configureForPlayback } from '../lib/audioSession';
+
+/** Maks. czas oczekiwania na `readyToPlay` zanim wymusimy `play()` + `onReady()`. */
+const VIEWER_VIDEO_WATCHDOG_MS = 2500;
 
 type SnapQueueItem = {
   id: string;
@@ -47,6 +43,7 @@ type SnapQueueItem = {
   view_duration_sec: number;
   media_type: string;
   playback_duration_ms: number | null;
+  thumbnail_b64: string | null;
 };
 
 const SNAP_IMAGE_PLACEHOLDER = 'L00000fQfQfQfQfQfQfQfQfQfQfQ';
@@ -58,32 +55,85 @@ function paramFirst(value: string | string[] | undefined): string | undefined {
 
 function ViewerSnapVideo({
   uri,
+  snapId,
   onReady,
   onError,
   onPlayToEnd,
+  onProgress,
   style,
 }: {
   uri: string;
+  snapId: string;
   onReady: () => void;
   onError: () => void;
   onPlayToEnd: () => void;
+  onProgress?: (nextProgress: number) => void;
   style: StyleProp<ViewStyle>;
 }) {
   const player = useVideoPlayer({ uri }, (p) => {
     p.loop = false;
-    p.play();
+    p.timeUpdateEventInterval = 1 / 30;
+    p.muted = false;
+    p.volume = 1;
+    p.audioMixingMode = 'auto';
   });
+
+  const readyEmittedRef = useRef(false);
+  const errorEmittedRef = useRef(false);
 
   useEventListener(player, 'playToEnd', onPlayToEnd);
-
-  useEventListener(player, 'statusChange', ({ status }) => {
-    if (status === 'readyToPlay') {
-      onReady();
-    }
-    if (status === 'error') {
-      onError();
+  useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    const dur = player.duration;
+    if (dur > 0) {
+      const progress = Math.max(0, Math.min(1, 1 - currentTime / dur));
+      onProgress?.(progress);
     }
   });
+
+  const statusEvent = useEvent(player, 'statusChange', { status: player.status });
+  const status = statusEvent?.status ?? player.status;
+
+  useEffect(() => {
+    if (status === 'readyToPlay') {
+      if (!readyEmittedRef.current) {
+        readyEmittedRef.current = true;
+        onReady();
+      }
+      try {
+        player.play();
+      } catch {
+        // ignorujemy — kolejny statusChange/error obsłuży sytuację
+      }
+      return;
+    }
+    if (status === 'error' && !errorEmittedRef.current) {
+      errorEmittedRef.current = true;
+      onError();
+    }
+  }, [status, player, onReady, onError]);
+
+  useEffect(() => {
+    readyEmittedRef.current = false;
+    errorEmittedRef.current = false;
+  }, [uri]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (readyEmittedRef.current || errorEmittedRef.current) return;
+      trackEvent('viewer_video_stuck_watchdog', {
+        current_status: player.status,
+        snap_id: snapId,
+      });
+      try {
+        player.play();
+      } catch {
+        // ignorujemy
+      }
+      readyEmittedRef.current = true;
+      onReady();
+    }, VIEWER_VIDEO_WATCHDOG_MS);
+    return () => clearTimeout(timer);
+  }, [uri, snapId, player, onReady]);
 
   return <VideoView style={style} player={player} contentFit="cover" nativeControls={false} />;
 }
@@ -113,7 +163,9 @@ export default function ViewerScreen() {
   const [imageReady, setImageReady] = useState(false);
   const [imageLoadError, setImageLoadError] = useState<string | null>(null);
   const [useNativeFallback, setUseNativeFallback] = useState(false);
-  const [videoThumbnailUri, setVideoThumbnailUri] = useState<string | null>(null);
+  /** Placeholder zapisany w DB (data URL / base64) — zanim pojawi się signed URL do wideo. */
+  const [videoPosterUri, setVideoPosterUri] = useState<string | null>(null);
+  const [videoThumbnailOverlay, setVideoThumbnailOverlay] = useState<VideoThumbnail | null>(null);
   const [closing, setClosing] = useState(false);
   const segmentProgress = useSharedValue(1);
   const lastFinishedSlideIdRef = useRef<string | null>(null);
@@ -127,6 +179,12 @@ export default function ViewerScreen() {
   useEffect(() => { queueRef.current = queue; }, [queue]);
   useEffect(() => { slideIndexRef.current = slideIndex; }, [slideIndex]);
   useEffect(() => { closingRef.current = closing; }, [closing]);
+
+  useEffect(() => {
+    void configureForPlayback().catch((error) => {
+      console.warn('Viewer audio session setup failed', error);
+    });
+  }, []);
 
   const signedUrlTtlSec = useMemo(() => {
     const totalViewSec = queue.reduce((acc, s) => {
@@ -158,6 +216,7 @@ export default function ViewerScreen() {
             media_type: s.media_type ?? 'image',
             playback_duration_ms:
               typeof s.playback_duration_ms === 'number' ? s.playback_duration_ms : null,
+            thumbnail_b64: typeof s.thumbnail_b64 === 'string' ? s.thumbnail_b64 : null,
           }));
 
           setQueue(
@@ -168,6 +227,7 @@ export default function ViewerScreen() {
               media_type: s.media_type ?? 'image',
               playback_duration_ms:
                 typeof s.playback_duration_ms === 'number' ? s.playback_duration_ms : null,
+              thumbnail_b64: s.thumbnail_b64 ?? null,
             }))
           );
         } catch (err) {
@@ -187,6 +247,7 @@ export default function ViewerScreen() {
             view_duration_sec: paramViewDurationSec,
             media_type: 'image',
             playback_duration_ms: null,
+            thumbnail_b64: null,
           },
         ]);
         setQueueLoading(false);
@@ -259,7 +320,16 @@ export default function ViewerScreen() {
     setImageReady(false);
     setImageLoadError(null);
     setUseNativeFallback(false);
-    setVideoThumbnailUri(null);
+    setVideoPosterUri(null);
+    setVideoThumbnailOverlay(null);
+    // Miniatura zapisana przy wysyłce (thumbnail_b64) — bez osobnego pobierania strumienia.
+    if (currentSnap?.media_type === 'video' && currentSnap?.thumbnail_b64) {
+      const raw = currentSnap.thumbnail_b64;
+      setVideoPosterUri(raw.startsWith('data:') ? raw : `data:image/jpeg;base64,${raw}`);
+      trackEvent('viewer_thumbnail_source', { source: 'embedded' });
+    } else if (currentSnap?.media_type === 'video') {
+      trackEvent('viewer_thumbnail_source', { source: 'missing' });
+    }
 
     (async () => {
       try {
@@ -270,13 +340,12 @@ export default function ViewerScreen() {
           status: 'success',
         });
         if (cancelled) return;
-        if (currentSnap?.media_type === 'video') {
+        if (currentSnap?.media_type === 'video' && !currentSnap.thumbnail_b64) {
           try {
-            const { getThumbnailAsync } = await import('expo-video-thumbnails');
-            const thumb = await getThumbnailAsync(signedUrl, { time: 0, quality: 0.65 });
-            if (!cancelled) setVideoThumbnailUri(thumb.uri);
+            const thumb = await generateVideoThumbnailAtTime(signedUrl, 0, { maxWidth: 720 });
+            if (!cancelled) setVideoThumbnailOverlay(thumb);
           } catch {
-            // Thumbnail is optional; we still proceed with video load.
+            // Miniatura opcjonalna — odtwarzanie i tak ruszy po readyToPlay.
           }
         }
         if (!skipImagePrefetch) {
@@ -347,11 +416,14 @@ export default function ViewerScreen() {
     const snap = displayedSnap;
     if (!snap?.media_path) return;
     if (!loading && imageUrl && imageReady && !imageLoadError) {
-      const slideMs =
-        snap.media_type === 'video' && typeof snap.playback_duration_ms === 'number'
-          ? Math.max(400, snap.playback_duration_ms)
-          : Math.max(1000, (snap.view_duration_sec ?? 5) * 1000);
+      const isVideo = snap.media_type === 'video';
       segmentProgress.value = 1;
+      if (isVideo) {
+        return () => {
+          cancelAnimation(segmentProgress);
+        };
+      }
+      const slideMs = Math.max(1000, (snap.view_duration_sec ?? 5) * 1000);
       segmentProgress.value = withTiming(
         0,
         {
@@ -359,7 +431,10 @@ export default function ViewerScreen() {
           easing: Easing.linear,
         },
         (finished) => {
-          if (finished) {
+          // Dla wideo nie kończymy slajdu po timerze metadanych, bo mogą być
+          // niedokładne (np. różnice kontenera/enkodera). Koniec klipu wyznacza
+          // wyłącznie event `playToEnd` z odtwarzacza.
+          if (finished && !isVideo) {
             runOnJS(finishCurrentSlide)();
           }
         }
@@ -425,13 +500,22 @@ export default function ViewerScreen() {
         </View>
       </View>
 
+      {!imageUrl && currentSnap?.media_type === 'video' && videoPosterUri ? (
+        <View style={styles.imageContainer}>
+          <ExpoImage source={{ uri: videoPosterUri }} style={styles.image} contentFit="cover" />
+        </View>
+      ) : null}
       {imageUrl ? (
         <View style={styles.imageContainer}>
           {displayedSnap?.media_type === 'video' ? (
             <View style={styles.imageContainer}>
+              {!imageReady && videoThumbnailOverlay ? (
+                <ExpoImage source={videoThumbnailOverlay} style={styles.image} contentFit="cover" />
+              ) : null}
               <ViewerSnapVideo
                 key={`${displayedSnap.id}-${imageUrl}`}
                 uri={imageUrl}
+                snapId={displayedSnap.id}
                 onReady={() => {
                   trackEvent('viewer_media_ready_ms', {
                     media_type: 'video',
@@ -445,11 +529,11 @@ export default function ViewerScreen() {
                   setImageLoadError('Nie udało się wczytać wideo.');
                 }}
                 onPlayToEnd={finishCurrentSlide}
+                onProgress={(nextProgress) => {
+                  segmentProgress.value = nextProgress;
+                }}
                 style={styles.image}
               />
-              {!imageReady && videoThumbnailUri ? (
-                <ExpoImage source={{ uri: videoThumbnailUri }} style={styles.image} contentFit="cover" />
-              ) : null}
             </View>
           ) : !useNativeFallback ? (
             <ExpoImage
@@ -478,16 +562,16 @@ export default function ViewerScreen() {
               }}
             />
           ) : (
-            <RNImage
+            <ExpoImage
               source={{ uri: imageUrl }}
+              cachePolicy="none"
               style={styles.image}
-              resizeMode="cover"
+              contentFit="cover"
               onLoad={() => {
                 setImageReady(true);
                 setImageLoadError(null);
               }}
-              onError={(event) => {
-                console.error('native image load error', event.nativeEvent);
+              onError={() => {
                 setImageReady(false);
                 setImageLoadError('Nie udało się wczytać zdjęcia.');
               }}

@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  deleteConversationWithPeer,
   enqueueCleanupJob,
   fetchSentSnaps,
   filterUnreadInboxSnapsFromSender,
   flushCleanupQueue,
+  insertSnap,
   markSnapViewedWithCleanup,
   requestSnapCleanup,
   type InboxSnap,
@@ -18,6 +20,8 @@ const {
   mockSnapsSelectLimit,
   mockSnapsSelectEqValue,
   mockSnapsUpdateEq,
+  mockSnapsUpsert,
+  mockSnapsInsert,
   mockQueueUpsert,
   mockQueueDeleteEq,
   mockQueueDelete,
@@ -46,6 +50,8 @@ const {
     mockSnapsSelectOrder: snapsSelectOrder,
     mockSnapsSelectLimit: snapsSelectLimit,
     mockSnapsUpdateEq: vi.fn(),
+    mockSnapsUpsert: vi.fn(),
+    mockSnapsInsert: vi.fn(),
     mockQueueUpsert: vi.fn(),
     mockQueueDeleteEq: queueDeleteEq,
     mockQueueDelete: vi.fn(() => ({ eq: queueDeleteEq })),
@@ -72,6 +78,8 @@ vi.mock('../lib/supabase', () => ({
       if (table === 'snaps') {
         return {
           update: () => ({ eq: mockSnapsUpdateEq }),
+          insert: mockSnapsInsert,
+          upsert: mockSnapsUpsert,
           select: () => ({
             eq: mockSnapsSelectEq,
           }),
@@ -237,6 +245,87 @@ describe('snapService cleanup flow', () => {
   it('requestSnapCleanup zgłasza błąd dla niepoprawnej odpowiedzi', async () => {
     mockInvoke.mockResolvedValue({ data: { ok: false }, error: null });
     await expect(requestSnapCleanup('snap-4', 'snaps/receiver-1/a.jpg')).rejects.toThrow();
+  });
+
+  it('deleteConversationWithPeer wywołuje poprawne RPC', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
+    mockRpc.mockResolvedValue({ error: null });
+
+    await deleteConversationWithPeer('friend-2');
+
+    expect(mockRpc).toHaveBeenCalledWith('delete_my_conversation_with_peer', {
+      peer_profile_id: 'friend-2',
+    });
+  });
+
+  it('deleteConversationWithPeer zwraca czytelny błąd gdy RPC nie istnieje', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
+    mockRpc.mockResolvedValue({
+      error: {
+        message:
+          'Could not find the function public.delete_my_conversation_with_peer(peer_profile_id) in the schema cache',
+      },
+    });
+
+    await expect(deleteConversationWithPeer('friend-2')).rejects.toThrow(
+      'Usuwanie rozmowy jest chwilowo niedostępne'
+    );
+  });
+
+  it('insertSnap zapisuje thumbnail_b64 dla wideo', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
+    mockSnapsUpsert.mockResolvedValue({ error: null });
+
+    await insertSnap('receiver-1', 'snaps/sender-1/v.mp4', 15, {
+      mediaType: 'video',
+      playbackDurationMs: 12_000,
+      clientUploadId: 'abc',
+      thumbnailB64: 'data:image/jpeg;base64,Zm9v',
+    });
+
+    expect(mockSnapsUpsert).toHaveBeenCalledTimes(1);
+    const [payload, opts] = mockSnapsUpsert.mock.calls[0];
+    expect(payload.media_type).toBe('video');
+    expect(payload.thumbnail_b64).toBe('data:image/jpeg;base64,Zm9v');
+    expect(payload.playback_duration_ms).toBe(12_000);
+    expect(opts).toMatchObject({ onConflict: 'sender_id,receiver_id,client_upload_id' });
+  });
+
+  it('insertSnap retry-uje bez thumbnail_b64, gdy kolumna nie istnieje', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
+    mockSnapsUpsert
+      .mockResolvedValueOnce({
+        error: { message: "Could not find the 'thumbnail_b64' column of 'snaps'" },
+      })
+      .mockResolvedValueOnce({ error: null });
+
+    await insertSnap('receiver-1', 'snaps/sender-1/v2.mp4', 5, {
+      mediaType: 'video',
+      playbackDurationMs: 8_000,
+      clientUploadId: 'def',
+      thumbnailB64: 'data:image/jpeg;base64,Zm9v',
+    });
+
+    expect(mockSnapsUpsert).toHaveBeenCalledTimes(2);
+    const [retryPayload] = mockSnapsUpsert.mock.calls[1];
+    expect('thumbnail_b64' in retryPayload).toBe(false);
+    expect(retryPayload.media_type).toBe('video');
+  });
+
+  it('insertSnap pomija thumbnail_b64 dla obrazków', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
+    mockSnapsUpsert.mockResolvedValue({ error: null });
+
+    await insertSnap('receiver-1', 'snaps/sender-1/img.jpg', 5, {
+      mediaType: 'image',
+      clientUploadId: 'img-1',
+      // Wartość niedozwolona dla obrazów — powinna zostać zignorowana.
+      thumbnailB64: 'data:image/jpeg;base64,XXX',
+    });
+
+    expect(mockSnapsUpsert).toHaveBeenCalledTimes(1);
+    const [payload] = mockSnapsUpsert.mock.calls[0];
+    expect('thumbnail_b64' in payload).toBe(false);
   });
 
   it('fetchSentSnaps zwraca historię wysłanych z mapowaniem odbiorcy', async () => {

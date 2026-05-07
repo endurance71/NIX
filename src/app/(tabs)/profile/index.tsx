@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ActivityIndicator,
+  Keyboard,
   Pressable,
   StyleSheet,
   Text as RNText,
@@ -14,9 +15,11 @@ import { useAuth } from '../../../hooks/useAuth';
 import { StatusBar } from 'expo-status-bar';
 import {
   acceptFriendRequest,
+  cancelOutgoingFriendRequest,
   findProfileByUsername,
   listAcceptedFriends,
   listIncomingFriendRequests,
+  listOutgoingFriendRequests,
   rejectFriendRequest,
   sendFriendRequest,
 } from '../../../services/friendService';
@@ -41,6 +44,8 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../../../lib/queryKeys';
 import { notifyDomainError, notifyError, notifyInfo, notifySuccess } from '../../../lib/appNotify';
+import { AvatarCircle } from '../../../components/ui/avatar-circle';
+import { useTranslation } from 'react-i18next';
 
 type NativeCropResult = { path: string };
 type NativeCropPickerModule = {
@@ -57,11 +62,13 @@ type NativeCropPickerModule = {
 };
 
 export default function ProfileScreen() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { colors, statusBarStyle } = useAppTheme();
   const { user, signOut } = useAuth();
   const qrPayload = useProfileQrPayload();
   const [searchUsername, setSearchUsername] = useState('');
+  const [inviteInputResetKey, setInviteInputResetKey] = useState(0);
   const { data: profileRow = null, isPending: profilePending } = useQuery({
     queryKey: queryKeys.currentUserProfile,
     queryFn: getCurrentUserProfile,
@@ -70,6 +77,11 @@ export default function ProfileScreen() {
   const { data: requests = [] } = useQuery({
     queryKey: queryKeys.incomingFriendRequests,
     queryFn: listIncomingFriendRequests,
+    staleTime: 1000 * 60,
+  });
+  const { data: outgoingRequests = [] } = useQuery({
+    queryKey: queryKeys.outgoingFriendRequests,
+    queryFn: listOutgoingFriendRequests,
     staleTime: 1000 * 60,
   });
   const { data: friends = [] } = useQuery({
@@ -85,6 +97,17 @@ export default function ProfileScreen() {
     () => (profileRow?.avatar_storage_path ? [profileRow.avatar_storage_path] : []),
     [profileRow?.avatar_storage_path]
   );
+  const outgoingAvatarPaths = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          outgoingRequests
+            .map((request) => request.recipient.avatar_storage_path)
+            .filter((path): path is string => Boolean(path))
+        )
+      ),
+    [outgoingRequests]
+  );
   const { data: avatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(avatarPaths),
     queryFn: () => createSignedAvatarUrls(avatarPaths),
@@ -92,6 +115,12 @@ export default function ProfileScreen() {
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
   const avatarSignedUrl = profileRow?.avatar_storage_path ? avatarUrls[profileRow.avatar_storage_path] ?? null : null;
+  const { data: outgoingAvatarUrls = {} } = useQuery({
+    queryKey: avatarSignedUrlsQueryKey(outgoingAvatarPaths),
+    queryFn: () => createSignedAvatarUrls(outgoingAvatarPaths),
+    enabled: outgoingAvatarPaths.length > 0,
+    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
+  });
 
   const handleSignOut = async () => {
     await signOut();
@@ -101,6 +130,7 @@ export default function ProfileScreen() {
   const invalidateSocialQueries = useCallback(async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests }),
       queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
       queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile }),
     ]);
@@ -110,14 +140,15 @@ export default function ProfileScreen() {
     try {
       await Promise.all([
         queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
+        queryClient.refetchQueries({ queryKey: queryKeys.outgoingFriendRequests, type: 'active' }),
         queryClient.refetchQueries({ queryKey: queryKeys.acceptedFriends, type: 'active' }),
         queryClient.refetchQueries({ queryKey: queryKeys.currentUserProfile, type: 'active' }),
       ]);
     } catch (err) {
-      console.error('Nie udało się odświeżyć danych społecznościowych profilu', err);
-      notifyError('Odświeżenie nie powiodło się.', { message: 'Spróbuj ponownie.' });
+      console.error('Profile social refresh failed', err);
+      notifyError(t('notify.refreshFailedTitle'), { message: t('notify.refreshFailedBody') });
     }
-  }, [queryClient]);
+  }, [queryClient, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -128,6 +159,7 @@ export default function ProfileScreen() {
           if (
             key !== queryKeys.currentUserProfile[0] &&
             key !== queryKeys.incomingFriendRequests[0] &&
+            key !== queryKeys.outgoingFriendRequests[0] &&
             key !== queryKeys.acceptedFriends[0]
           ) {
             return false;
@@ -199,6 +231,7 @@ export default function ProfileScreen() {
   };
 
   const handleSendInvite = async () => {
+    Keyboard.dismiss();
     const normalized = searchUsername.trim();
     if (!normalized) {
       notifyInfo('Podaj nazwę użytkownika.', { message: 'Np. @nix_friend.' });
@@ -225,6 +258,8 @@ export default function ProfileScreen() {
       }
 
       setSearchUsername('');
+      setInviteInputResetKey((prev) => prev + 1);
+      Keyboard.dismiss();
       await invalidateSocialQueries();
     } catch (err: any) {
       notifyError(err?.message ?? 'Nie udało się wysłać zaproszenia.');
@@ -259,6 +294,19 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleCancelOutgoing = async (requestId: string) => {
+    setActionLoadingId(`outgoing-${requestId}`);
+    try {
+      await cancelOutgoingFriendRequest(requestId);
+      await invalidateSocialQueries();
+      notifyInfo('Zaproszenie usunięte.');
+    } catch (err: any) {
+      notifyError(err?.message ?? 'Nie udało się usunąć zaproszenia.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const hasAvatar = Boolean(profileRow?.avatar_storage_path || profileRow?.avatar_emoji);
   const initialLetter = (profileUsername ?? user?.email ?? '?').replace(/^@/, '').charAt(0).toUpperCase();
 
@@ -288,7 +336,7 @@ export default function ProfileScreen() {
               {user?.email ?? '—'}
             </Text>
           </Section>
-          <Section title="Mój kod QR">
+          <Section title={t('profile.myQrCode')}>
             <RNHostView matchContents>
               <MyProfileQrCard
                 payload={qrPayload}
@@ -313,7 +361,7 @@ export default function ProfileScreen() {
                 <Pressable
                   onPress={() =>
                     router.push({
-                      pathname: '/(tabs)/profile/remove-avatar',
+                      pathname: '/profile/remove-avatar',
                       params: {
                         avatarUrl: avatarSignedUrl ?? undefined,
                         avatarStoragePath: profileRow?.avatar_storage_path ?? undefined,
@@ -331,9 +379,10 @@ export default function ProfileScreen() {
               </View>
             </RNHostView>
           </Section>
-          <Section title="Dodaj znajomego">
-            <Button label="Skanuj QR" onPress={() => router.push('/friend-scan-qr')} />
+          <Section title={t('profile.addFriend')}>
+            <Button label={t('profile.scanQr')} onPress={() => router.push('/friend-scan-qr')} />
             <TextField
+              key={`invite-input-${inviteInputResetKey}`}
               placeholder="@nazwa_uzytkownika"
               defaultValue={searchUsername}
               onValueChange={setSearchUsername}
@@ -344,12 +393,12 @@ export default function ProfileScreen() {
               ]}
             />
             <Button
-              label={actionLoadingId === 'invite' ? 'Wysyłanie...' : 'Wyślij zaproszenie'}
+              label={actionLoadingId === 'invite' ? t('profile.sendInviteLoading') : t('profile.sendInvite')}
               onPress={handleSendInvite}
             />
           </Section>
           {requests.length > 0 ? (
-            <Section title={`Zaproszenia (${requests.length})`}>
+            <Section title={t('profile.incomingInvites', { count: requests.length })}>
               {requests.map((request) => (
                 <RNHostView matchContents key={request.id}>
                   <View style={styles.socialRow}>
@@ -369,7 +418,49 @@ export default function ProfileScreen() {
               ))}
             </Section>
           ) : null}
-          <Section title={`Znajomi (${friends.length})`}>
+          {outgoingRequests.length > 0 ? (
+            <Section title={t('profile.outgoingInvites', { count: outgoingRequests.length })}>
+              {outgoingRequests.map((request) => {
+                const avatarPath = request.recipient.avatar_storage_path ?? null;
+                const avatarUrl = avatarPath ? outgoingAvatarUrls[avatarPath] ?? null : null;
+                const fallbackInitial = request.recipient.username.replace(/^@/, '').charAt(0).toUpperCase();
+                return (
+                  <RNHostView matchContents key={request.id}>
+                    <View style={styles.socialRow}>
+                      <View style={styles.outgoingHeader}>
+                        <AvatarCircle
+                          size={36}
+                          url={avatarUrl}
+                          storagePath={avatarPath}
+                          emoji={request.recipient.avatar_emoji}
+                          fallbackInitial={fallbackInitial}
+                        />
+                        <RNText numberOfLines={1} style={[styles.socialTitle, { color: colors.label, flex: 1 }]}>
+                          @{request.recipient.username}
+                        </RNText>
+                      </View>
+                      <RNText style={[styles.outgoingStatusLabel, { color: colors.tertiaryLabel }]}>
+                        Oczekuje na akceptację
+                      </RNText>
+                      <Pressable onPress={() => handleCancelOutgoing(request.id)} hitSlop={8}>
+                        <RNText
+                          style={[
+                            styles.socialActionLabel,
+                            {
+                              color: colors.destructive,
+                              opacity: actionLoadingId === `outgoing-${request.id}` ? 0.45 : 1,
+                            },
+                          ]}>
+                          {actionLoadingId === `outgoing-${request.id}` ? 'Usuwanie…' : 'Usuń zaproszenie'}
+                        </RNText>
+                      </Pressable>
+                    </View>
+                  </RNHostView>
+                );
+              })}
+            </Section>
+          ) : null}
+          <Section title={t('profile.friends', { count: friends.length })}>
             {friends.length === 0 ? (
               <Text
                 modifiers={[
@@ -389,7 +480,7 @@ export default function ProfileScreen() {
                       disabled={actionLoadingId === `friend-${friend.id}`}
                       onPress={() =>
                         router.push({
-                          pathname: '/(tabs)/profile/remove-friend',
+                          pathname: '/profile/remove-friend',
                           params: {
                             friendId: friend.id,
                             username: friend.username,
@@ -416,12 +507,12 @@ export default function ProfileScreen() {
               ))
             )}
           </Section>
-          <Section title="Konto">
-            <Button label="Zmień hasło" onPress={() => router.push('/(tabs)/profile/change-password')} />
-            <Button label="Wyloguj" onPress={handleSignOut} />
+          <Section title={t('profile.account')}>
+            <Button label={t('profile.changePassword')} onPress={() => router.push('/profile/change-password')} />
+            <Button label={t('profile.signOut')} onPress={handleSignOut} />
           </Section>
         </List>
-        <Stack.Screen.Title large>Profil</Stack.Screen.Title>
+        <Stack.Screen.Title large>{t('profile.title')}</Stack.Screen.Title>
       </Host>
     </>
   );
@@ -468,5 +559,14 @@ const styles = StyleSheet.create({
   socialActionLabel: {
     ...typography.headline,
     fontWeight: '600',
+  },
+  outgoingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  outgoingStatusLabel: {
+    ...typography.footnote,
+    paddingLeft: 46,
   },
 });

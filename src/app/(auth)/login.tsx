@@ -21,6 +21,7 @@ import { NativeInput } from '../../components/ui/native-input';
 import { Host, Text as SUIText, VStack, Spacer } from '@expo/ui/swift-ui';
 import { font, foregroundStyle, frame, multilineTextAlignment } from '@expo/ui/swift-ui/modifiers';
 import { notifyError } from '../../lib/appNotify';
+import { useTranslation } from 'react-i18next';
 
 const GAP_MD = 16;
 const GAP_SM = 12;
@@ -31,9 +32,9 @@ const LOGO_TEXT_SIZE = 64;
 /** Promień karty jak ustaliliście dla stylu iOS. */
 const CARD_RADIUS = 26;
 
-function getAuthErrorMessage(message: string) {
-  if (message.includes('Invalid login credentials')) return 'Nieprawidłowy e-mail lub hasło.';
-  if (message.includes('Email not confirmed')) return 'Najpierw potwierdź e-mail. Sprawdź skrzynkę.';
+function getAuthErrorMessage(message: string, t: (key: string) => string) {
+  if (message.includes('Invalid login credentials')) return t('auth.invalidCredentials');
+  if (message.includes('Email not confirmed')) return t('auth.emailNotConfirmed');
   return message;
 }
 
@@ -42,10 +43,12 @@ function LoginHeroIos({
   colors,
   isDark,
   contentWidth,
+  t,
 }: {
   colors: ThemeColors;
   isDark: boolean;
   contentWidth: number;
+  t: (key: string) => string;
 }) {
   const scheme = isDark ? 'dark' : 'light';
   const inset = StyleSheet.hairlineWidth;
@@ -96,14 +99,14 @@ function LoginHeroIos({
               multilineTextAlignment('center'),
               frame({ maxWidth: contentWidth - GAP_MD * 2 }),
             ]}>
-            Ultraprywatne wiadomości wizualne
+            {t('auth.tagline')}
           </SUIText>
           <SUIText
             modifiers={[
               font({ size: 22, weight: 'semibold', design: 'rounded' }),
               foregroundStyle(colors.textPrimary),
             ]}>
-            Zaloguj się
+            {t('auth.loginTitle')}
           </SUIText>
         </VStack>
       </Host>
@@ -112,6 +115,7 @@ function LoginHeroIos({
 }
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const { colors, statusBarStyle, isDark } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -125,11 +129,11 @@ export default function LoginScreen() {
 
   const handleSignIn = async () => {
     if (!email.trim()) {
-      setError('Podaj adres e-mail.');
+      setError(t('auth.emailRequired'));
       return;
     }
     if (!password.trim()) {
-      setError('Podaj hasło.');
+      setError(t('auth.passwordRequired'));
       return;
     }
 
@@ -139,7 +143,7 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (error) {
-      notifyError(getAuthErrorMessage(error.message));
+      notifyError(getAuthErrorMessage(error.message, t));
     }
   };
 
@@ -171,7 +175,7 @@ export default function LoginScreen() {
           keyboardDismissMode="on-drag"
           contentContainerStyle={scrollContentStyle}>
           {isIos ? (
-            <LoginHeroIos colors={colors} isDark={isDark} contentWidth={contentWidth} />
+            <LoginHeroIos colors={colors} isDark={isDark} contentWidth={contentWidth} t={t} />
           ) : (
             <View style={styles.heroAndroid}>
               <View
@@ -185,10 +189,10 @@ export default function LoginScreen() {
                 <Text style={[styles.heroLogoAndroid, { color: colors.textPrimary }]}>NiX</Text>
               </View>
               <Text style={[styles.heroTaglineAndroid, { color: colors.textMuted }]}>
-                Ultraprywatne wiadomości wizualne
+                {t('auth.tagline')}
               </Text>
               <Text style={[styles.heroTitleAndroid, { color: colors.textPrimary }]}>
-                Zaloguj się
+                {t('auth.loginTitle')}
               </Text>
             </View>
           )}
@@ -204,7 +208,7 @@ export default function LoginScreen() {
             ]}>
             <View style={{ gap: GAP_SM }}>
               <NativeInput
-                placeholder="twój@email.com"
+                placeholder={t('auth.emailPlaceholder')}
                 value={email}
                 onChangeText={(value) => {
                   setError(null);
@@ -218,7 +222,7 @@ export default function LoginScreen() {
                 returnKeyType="next"
               />
               <NativeInput
-                placeholder="Wpisz hasło"
+                placeholder={t('auth.passwordPlaceholder')}
                 value={password}
                 onChangeText={(value) => {
                   setError(null);
@@ -239,7 +243,7 @@ export default function LoginScreen() {
             ) : null}
 
             <NativeButton
-              label={loading ? 'Logowanie…' : 'Zaloguj'}
+              label={loading ? t('auth.loginLoading') : t('auth.loginButton')}
               onPress={handleSignIn}
               loading={loading}
               disabled={loading}
@@ -247,11 +251,11 @@ export default function LoginScreen() {
 
             <View style={styles.links}>
               <Pressable onPress={() => router.push('/(auth)/forgot-password')} hitSlop={8}>
-                <Text style={[styles.linkLabel, { color: colors.accent }]}>Nie pamiętam hasła</Text>
+                <Text style={[styles.linkLabel, { color: colors.accent }]}>{t('auth.forgotPassword')}</Text>
               </Pressable>
               <Pressable onPress={() => router.push('/(auth)/register')} hitSlop={8}>
                 <Text style={[styles.linkLabel, { color: colors.accent }]}>
-                  Nie masz konta? Zarejestruj się
+                  {t('auth.noAccount')}
                 </Text>
               </Pressable>
             </View>

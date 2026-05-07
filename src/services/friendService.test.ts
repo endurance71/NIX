@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  cancelOutgoingFriendRequest,
   createFriendInviteToken,
   getFriendInviteRelationStatus,
+  listOutgoingFriendRequests,
   normalizeUsername,
   previewProfileQr,
   removeFriend,
@@ -248,5 +250,61 @@ describe('profile QR flow', () => {
 
     const status = await getFriendInviteRelationStatus('user-2');
     expect(status).toBe('incoming_pending');
+  });
+});
+
+describe('outgoing requests', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('zwraca pustą listę gdy brak sesji', async () => {
+    mockGetCurrentUser.mockResolvedValue(null);
+    const result = await listOutgoingFriendRequests();
+    expect(result).toEqual([]);
+  });
+
+  it('mapuje pending wysłane zaproszenia do profili odbiorców', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
+    const orderMock = vi.fn().mockResolvedValue({
+      data: [{ id: 'req-1', friend_id: 'user-2', created_at: '2026-05-07T08:00:00.000Z' }],
+      error: null,
+    });
+    const eqStatusMock = vi.fn().mockReturnValue({ order: orderMock });
+    const eqUserMock = vi.fn().mockReturnValue({ eq: eqStatusMock });
+    mockFriendshipsSelect.mockReturnValue({ eq: eqUserMock });
+    mockSupabaseRpc.mockResolvedValueOnce({
+      data: [{ id: 'user-2', username: 'friend_user', avatar_storage_path: null, avatar_emoji: null }],
+      error: null,
+    });
+
+    const result = await listOutgoingFriendRequests();
+
+    expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-1');
+    expect(eqStatusMock).toHaveBeenCalledWith('status', 'pending');
+    expect(result).toEqual([
+      {
+        id: 'req-1',
+        created_at: '2026-05-07T08:00:00.000Z',
+        recipient: {
+          id: 'user-2',
+          username: 'friend_user',
+          avatar_storage_path: null,
+          avatar_emoji: null,
+        },
+      },
+    ]);
+  });
+
+  it('usuwa wysłane zaproszenie dla zalogowanego użytkownika', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
+    const eqUserMock = vi.fn().mockResolvedValue({ error: null });
+    const eqIdMock = vi.fn().mockReturnValue({ eq: eqUserMock });
+    mockFriendshipsDelete.mockReturnValue({ eq: eqIdMock });
+
+    await cancelOutgoingFriendRequest('req-1');
+
+    expect(eqIdMock).toHaveBeenCalledWith('id', 'req-1');
+    expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-1');
   });
 });

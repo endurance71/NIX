@@ -17,8 +17,11 @@ import { ToastProvider } from 'react-native-pretty-toast';
 import { VideoDraftProvider } from '../context/VideoDraftContext';
 import { initMonitoring } from '../lib/monitoring';
 import { configureMediaCache } from '../lib/mediaCache';
+import { configureForPlayback } from '../lib/audioSession';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initBackgroundTaskService } from '../services/backgroundTaskService';
+import { useTranslation } from 'react-i18next';
+import '../lib/i18n';
 
 // Initialize monitoring at module load (runs once).
 initMonitoring();
@@ -29,6 +32,11 @@ export default function RootLayout() {
   useEffect(() => bindReactQueryAppLifecycle(), []);
   useEffect(() => configureMediaCache(), []);
   useEffect(() => initBackgroundTaskService(() => {}), []);
+  useEffect(() => {
+    void configureForPlayback().catch((error) => {
+      console.warn('Audio session bootstrap failed', error);
+    });
+  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -49,6 +57,7 @@ export default function RootLayout() {
 }
 
 function RootNavigator() {
+  const { t } = useTranslation();
   const { colors, statusBarStyle } = useAppTheme();
   const { session, loading } = useAuth();
   const segments = useSegments();
@@ -133,7 +142,7 @@ function RootNavigator() {
         {bootstrapTimedOut && (
           <>
             <Text style={{ color: colors.textMuted, marginTop: 16, textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
-              Uruchamianie trwa zbyt długo. Możesz przejść do logowania.
+              {t('root.bootstrapTooLong')}
             </Text>
             <Pressable
               style={{
@@ -148,7 +157,7 @@ function RootNavigator() {
                 router.replace('/(auth)/login');
               }}
             >
-              <Text style={{ color: colors.buttonPrimaryText, fontWeight: '700', fontFamily: APP_FONT_FAMILY }}>Przejdź do logowania</Text>
+              <Text style={{ color: colors.buttonPrimaryText, fontWeight: '700', fontFamily: APP_FONT_FAMILY }}>{t('root.goToLogin')}</Text>
             </Pressable>
           </>
         )}
@@ -177,7 +186,7 @@ function RootNavigator() {
         options={{
           presentation: 'card',
           headerShown: true,
-          title: 'Mój kod QR',
+          title: t('root.qrMyCode'),
           headerBackButtonDisplayMode: 'minimal',
         }}
       />
@@ -186,14 +195,14 @@ function RootNavigator() {
         options={{
           presentation: 'card',
           headerShown: true,
-          title: 'Skanuj QR',
+          title: t('root.qrScan'),
           headerTransparent: true,
           headerShadowVisible: false,
         }}
       />
       <Stack.Screen
         name="friend-invite"
-        options={{ presentation: 'card', headerShown: true, title: 'Zaproszenie' }}
+        options={{ presentation: 'card', headerShown: true, title: t('root.invite') }}
       />
       <Stack.Screen
         name="friend-invite-confirm"

@@ -1,5 +1,5 @@
 import NetInfo from '@react-native-community/netinfo';
-import { AppState, Platform } from 'react-native';
+import { AppState } from 'react-native';
 import type { AppStateStatus } from 'react-native';
 import { focusManager, onlineManager } from '@tanstack/react-query';
 
@@ -21,7 +21,7 @@ export function bindReactQueryAppLifecycle(): () => void {
   };
 
   const sub = AppState.addEventListener('change', onAppStateChange);
-  if (Platform.OS !== 'web') {
+  if (process.env.EXPO_OS !== 'web') {
     focusManager.setFocused(AppState.currentState === 'active');
   }
 

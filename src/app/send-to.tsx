@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -74,8 +75,9 @@ const FriendRecipientRow = memo(function FriendRecipientRow({
 
 export default function SendToSheet() {
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
-  const stylesForTheme = useMemo(() => createStyles(colors), [colors]);
+  const stylesForTheme = useMemo(() => createStyles(colors, insets.bottom), [colors, insets.bottom]);
   const rawParams = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string }>();
   const uri = paramFirst(rawParams.uri);
   const mode = paramFirst(rawParams.mode);
@@ -202,6 +204,8 @@ export default function SendToSheet() {
             getItemType={() => 'friend-recipient'}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
+            contentInsetAdjustmentBehavior="automatic"
+            contentContainerStyle={stylesForTheme.listContent}
             ListEmptyComponent={
               <View style={stylesForTheme.emptyState}>
                 <Text style={stylesForTheme.emptyStateText}>Nie masz jeszcze zaakceptowanych znajomych.</Text>
@@ -268,12 +272,15 @@ const styles = StyleSheet.create({
   },
 });
 
-const createStyles = (colors: ThemeColors) =>
+const createStyles = (colors: ThemeColors, bottomInset: number) =>
   StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: 'transparent',
       paddingTop: SHEET_CONTENT_PADDING_TOP,
+    },
+    listContent: {
+      paddingBottom: Math.max(bottomInset, 12),
     },
     title: {
       ...typography.title2,
@@ -294,7 +301,7 @@ const createStyles = (colors: ThemeColors) =>
     },
     footer: {
       padding: 24,
-      paddingBottom: 28,
+      paddingBottom: Math.max(bottomInset, 28),
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.separator,
       backgroundColor: 'transparent',

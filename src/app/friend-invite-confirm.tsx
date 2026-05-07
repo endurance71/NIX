@@ -145,6 +145,7 @@ export default function FriendInviteConfirmScreen() {
       });
       void queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
       void queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests });
       const message = mapConfirmationMessage(result.result, result.profile?.username ?? displayUsername);
       const persistOk = {
         autoDismiss: false as const,

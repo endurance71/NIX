@@ -8,38 +8,38 @@ import { Host, Form, Section, Text, SecureField, Button } from '@expo/ui/swift-u
 import { font, foregroundStyle, textFieldStyle, padding } from '@expo/ui/swift-ui/modifiers';
 import { notifySuccess } from '../../../lib/appNotify';
 
-function getVerifyPasswordErrorMessage(message: string) {
-  if (message.includes('Invalid login credentials')) return 'Nieprawidłowe aktualne hasło.';
+function isReauthenticationNeededError(error: { message?: string; code?: string } | null) {
+  if (!error) return false;
+  const code = error.code?.toLowerCase() ?? '';
+  const message = error.message?.toLowerCase() ?? '';
+  return code === 'reauthentication_needed' || message.includes('reauthentication');
+}
+
+function getPasswordUpdateErrorMessage(message: string) {
+  if (message.includes('Password should be at least')) return 'Nowe hasło musi mieć minimum 8 znaków.';
+  if (message.toLowerCase().includes('same password')) return 'Nowe hasło musi być inne niż poprzednie.';
   if (message.includes('Email not confirmed')) return 'Najpierw potwierdź e-mail. Sprawdź skrzynkę.';
+  if (message.toLowerCase().includes('invalid nonce')) return 'Kod weryfikacyjny jest nieprawidłowy lub wygasł.';
   return message;
 }
 
 export default function ChangePasswordScreen() {
   const { statusBarStyle } = useAppTheme();
-  const { session, user, signIn, updatePassword } = useAuth();
-  const [currentPassword, setCurrentPassword] = useState('');
+  const { session, loading: authLoading, updatePassword, reauthenticatePasswordChange } = useAuth();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [nonce, setNonce] = useState('');
+  const [requiresNonce, setRequiresNonce] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session || !user?.email) {
+    if (!authLoading && !session) {
       router.replace('/(auth)/login');
     }
-  }, [session, user?.email]);
+  }, [authLoading, session]);
 
   const handleSubmit = async () => {
-    const email = user?.email?.trim().toLowerCase();
-    if (!email) {
-      router.replace('/(auth)/login');
-      return;
-    }
-
-    if (!currentPassword) {
-      setError('Podaj aktualne hasło.');
-      return;
-    }
     if (newPassword.length < 8) {
       setError('Nowe hasło musi mieć minimum 8 znaków.');
       return;
@@ -48,31 +48,39 @@ export default function ChangePasswordScreen() {
       setError('Hasła nie są takie same.');
       return;
     }
-    if (newPassword === currentPassword) {
-      setError('Nowe hasło musi być inne niż aktualne.');
+    if (requiresNonce && !nonce.trim()) {
+      setError('Wpisz kod weryfikacyjny z e-maila.');
       return;
     }
 
     setLoading(true);
     setError(null);
 
-    const signInResult = await signIn(email, currentPassword);
-    if (signInResult.error) {
-      setLoading(false);
-      setError(getVerifyPasswordErrorMessage(signInResult.error.message));
-      return;
-    }
-
-    const { error: updateErr } = await updatePassword(newPassword);
-    setLoading(false);
+    const { error: updateErr } = await updatePassword(newPassword, requiresNonce ? nonce.trim() : undefined);
 
     if (updateErr) {
-      setError(updateErr.message);
+      if (!requiresNonce && isReauthenticationNeededError(updateErr)) {
+        const { error: reauthError } = await reauthenticatePasswordChange();
+        if (reauthError) {
+          setError(getPasswordUpdateErrorMessage(reauthError.message));
+          setLoading(false);
+          return;
+        }
+
+        setRequiresNonce(true);
+        setLoading(false);
+        setError('Wysłaliśmy kod weryfikacyjny na e-mail. Wpisz go poniżej i zapisz hasło ponownie.');
+        return;
+      }
+
+      setLoading(false);
+      setError(getPasswordUpdateErrorMessage(updateErr.message));
       return;
     }
 
+    setLoading(false);
     notifySuccess('Hasło zostało zmienione.');
-    router.back();
+    router.replace('/profile');
   };
 
   return (
@@ -81,17 +89,8 @@ export default function ChangePasswordScreen() {
       <Form modifiers={[padding({ horizontal: 12, top: 12 })]}>
         <Section title="Zmiana hasła">
           <Text modifiers={[foregroundStyle({ type: 'hierarchical', style: 'secondary' }), font({ size: 14, design: 'rounded' })]}>
-            Najpierw potwierdź aktualne hasło, potem ustaw nowe.
+            Ustaw nowe hasło. Gdy Supabase poprosi o dodatkową weryfikację, wpisz kod przesłany e-mailem.
           </Text>
-          <SecureField
-            placeholder="Aktualne hasło"
-            defaultValue={currentPassword}
-            onValueChange={(value) => {
-              setError(null);
-              setCurrentPassword(value);
-            }}
-            modifiers={[textFieldStyle('roundedBorder')]}
-          />
           <SecureField
             placeholder="Nowe hasło (min. 8 znaków)"
             defaultValue={newPassword}
@@ -110,6 +109,17 @@ export default function ChangePasswordScreen() {
             }}
             modifiers={[textFieldStyle('roundedBorder')]}
           />
+          {requiresNonce ? (
+            <SecureField
+              placeholder="Kod weryfikacyjny z e-maila"
+              defaultValue={nonce}
+              onValueChange={(value) => {
+                setError(null);
+                setNonce(value);
+              }}
+              modifiers={[textFieldStyle('roundedBorder')]}
+            />
+          ) : null}
           {error ? (
             <Text modifiers={[foregroundStyle({ type: 'color', color: 'red' }), font({ size: 13, design: 'rounded' })]}>{error}</Text>
           ) : null}

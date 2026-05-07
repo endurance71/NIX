@@ -19,6 +19,12 @@ export type IncomingFriendRequest = {
   created_at: string;
 };
 
+export type OutgoingFriendRequest = {
+  id: string;
+  recipient: FriendProfile;
+  created_at: string;
+};
+
 type FriendshipRow = {
   id: string;
   user_id: string;
@@ -253,6 +259,49 @@ export async function listIncomingFriendRequests(): Promise<IncomingFriendReques
     .filter(Boolean) as IncomingFriendRequest[];
 }
 
+export async function listOutgoingFriendRequests(): Promise<OutgoingFriendRequest[]> {
+  const user = await getCurrentUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from('friendships')
+    .select('id, friend_id, created_at')
+    .eq('user_id', user.id)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) throw toFriendlyError(error);
+
+  const recipientIds = (data ?? []).map((row) => row.friend_id as string);
+  if (recipientIds.length === 0) return [];
+
+  const { data: recipientProfiles, error: recipientProfilesError } = await supabase.rpc(
+    'get_public_profiles_by_ids',
+    {
+      profile_ids: recipientIds,
+    }
+  );
+  if (recipientProfilesError) throw toFriendlyError(recipientProfilesError);
+
+  const recipientMap = new Map<string, FriendProfile>();
+  for (const row of (recipientProfiles ?? []) as PublicProfileRpcRow[]) {
+    const mapped = mapPublicProfileRow(row);
+    if (mapped) recipientMap.set(mapped.id, mapped);
+  }
+
+  return (data ?? [])
+    .map((row) => {
+      const recipient = recipientMap.get(row.friend_id as string);
+      if (!recipient) return null;
+      return {
+        id: row.id as string,
+        created_at: row.created_at as string,
+        recipient,
+      };
+    })
+    .filter(Boolean) as OutgoingFriendRequest[];
+}
+
 export async function acceptFriendRequest(requestId: string) {
   const user = await getCurrentUser();
   if (!user) throw new Error('Brak sesji. Zaloguj się ponownie.');
@@ -275,6 +324,19 @@ export async function rejectFriendRequest(requestId: string) {
     .delete()
     .eq('id', requestId)
     .eq('friend_id', user.id);
+
+  if (error) throw toFriendlyError(error);
+}
+
+export async function cancelOutgoingFriendRequest(requestId: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Brak sesji. Zaloguj się ponownie.');
+
+  const { error } = await supabase
+    .from('friendships')
+    .delete()
+    .eq('id', requestId)
+    .eq('user_id', user.id);
 
   if (error) throw toFriendlyError(error);
 }

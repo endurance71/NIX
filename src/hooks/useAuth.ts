@@ -7,6 +7,7 @@ import {
   signUpWithPassword as requestPasswordSignUp,
   requestPasswordReset as requestPasswordResetEmail,
   updatePassword as requestPasswordUpdate,
+  reauthenticatePasswordChange as requestPasswordReauthenticate,
   signOut as requestSignOut,
 } from '../services/authService';
 
@@ -60,8 +61,13 @@ export function useAuth() {
     return { data, error };
   }, []);
 
-  const updatePassword = useCallback(async (password: string) => {
-    const { data, error } = await requestPasswordUpdate(password);
+  const updatePassword = useCallback(async (password: string, nonce?: string) => {
+    const { data, error } = await requestPasswordUpdate(password, nonce);
+    return { data, error };
+  }, []);
+
+  const reauthenticatePasswordChange = useCallback(async () => {
+    const { data, error } = await requestPasswordReauthenticate();
     return { data, error };
   }, []);
 
@@ -79,6 +85,7 @@ export function useAuth() {
     signUp,
     requestPasswordReset,
     updatePassword,
+    reauthenticatePasswordChange,
     signOut: logout,
   };
 }

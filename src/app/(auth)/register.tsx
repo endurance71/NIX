@@ -20,12 +20,14 @@ import {
   disabled,
 } from '@expo/ui/swift-ui/modifiers';
 import { notifyError } from '../../lib/appNotify';
+import { useTranslation } from 'react-i18next';
 
 function isEmailValid(email: string) {
   return /\S+@\S+\.\S+/.test(email);
 }
 
 export default function RegisterScreen() {
+  const { t } = useTranslation();
   const { statusBarStyle } = useAppTheme();
   const { signUp } = useAuth();
   const [email, setEmail] = useState('');
@@ -37,15 +39,15 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     const cleanedEmail = email.trim().toLowerCase();
     if (!isEmailValid(cleanedEmail)) {
-      setError('Podaj poprawny adres e-mail.');
+      setError(t('auth.invalidEmail'));
       return;
     }
     if (password.length < 8) {
-      setError('Hasło musi mieć minimum 8 znaków.');
+      setError(t('auth.passwordMin'));
       return;
     }
     if (password !== confirmPassword) {
-      setError('Hasła nie są takie same.');
+      setError(t('auth.passwordMismatch'));
       return;
     }
 
@@ -56,9 +58,9 @@ export default function RegisterScreen() {
 
     if (error) {
       if (error.message.includes('User already registered')) {
-        notifyError('To konto już istnieje. Zaloguj się.');
+        notifyError(t('auth.accountExists'));
       } else if (error.message.includes('Password should be at least')) {
-        notifyError('Hasło musi mieć minimum 8 znaków.');
+        notifyError(t('auth.passwordMin'));
       } else {
         notifyError(error.message);
       }
@@ -80,12 +82,12 @@ export default function RegisterScreen() {
     <Host style={styles.container} useViewportSizeMeasurement colorScheme={statusBarStyle === 'light' ? 'dark' : 'light'}>
       <StatusBar style={statusBarStyle} />
       <Form modifiers={[padding({ horizontal: 12, top: 12 })]}>
-        <Section title="Załóż konto">
+        <Section title={t('auth.registerHeader')}>
           <Text modifiers={[foregroundStyle({ type: 'hierarchical', style: 'secondary' }), font({ size: 14, design: 'rounded' })]}>
-            Utwórz konto e-mail + hasło, aby korzystać z NiX.
+            {t('auth.registerDescription')}
           </Text>
           <TextField
-          placeholder="E-mail"
+          placeholder={t('auth.emailField')}
           defaultValue={email}
           onValueChange={(value) => {
             setError(null);
@@ -99,7 +101,7 @@ export default function RegisterScreen() {
           ]}
         />
           <SecureField
-          placeholder="Hasło (min. 8 znaków)"
+          placeholder={t('auth.passwordField')}
           defaultValue={password}
           onValueChange={(value) => {
             setError(null);
@@ -108,7 +110,7 @@ export default function RegisterScreen() {
           modifiers={[textFieldStyle('automatic')]}
         />
           <SecureField
-          placeholder="Powtórz hasło"
+          placeholder={t('auth.confirmPasswordField')}
           defaultValue={confirmPassword}
           onValueChange={(value) => {
             setError(null);
@@ -120,13 +122,13 @@ export default function RegisterScreen() {
           {error ? <Text modifiers={[foregroundStyle({ type: 'color', color: 'red' }), font({ size: 13, design: 'rounded' })]}>{error}</Text> : null}
 
           <Button
-            label={loading ? 'Rejestracja…' : 'Zarejestruj'}
+            label={loading ? t('auth.registerLoading') : t('auth.registerButton')}
             onPress={handleRegister}
             modifiers={primaryButtonModifiers}
           />
 
           <Button
-            label="Masz konto? Zaloguj się"
+            label={t('auth.hasAccount')}
             onPress={() => router.replace('/(auth)/login')}
             modifiers={secondaryButtonModifiers}
           />

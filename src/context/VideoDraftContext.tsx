@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useMemo, useState, use, type ReactNode } from 'react';
 
 export type VideoSegmentDraft = {
   uri: string;
@@ -33,7 +33,7 @@ export function VideoDraftProvider({ children }: { children: ReactNode }) {
 }
 
 export function useVideoDraft(): VideoDraftContextValue {
-  const ctx = useContext(VideoDraftContext);
+  const ctx = use(VideoDraftContext);
   if (!ctx) {
     throw new Error('useVideoDraft musi być użyty wewnątrz VideoDraftProvider');
   }

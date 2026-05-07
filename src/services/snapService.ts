@@ -13,6 +13,11 @@ export type InboxSnap = {
   media_type: string;
   /** Długość klipu wideo (ms); przy zdjęciach zwykle null. */
   playback_duration_ms: number | null;
+  /**
+   * Embedded miniatura wideo (data URL JPEG base64). Pozwala odbiorcy
+   * wyświetlić pierwszą klatkę natychmiast, bez dodatkowego pobrania.
+   */
+  thumbnail_b64?: string | null;
   /** Sekundy wyświetlania u odbiorcy (5, 15, 30, 60, 180). */
   view_duration_sec: number;
   status: 'sent' | 'viewed' | 'cleaned' | 'cleanup_failed';
@@ -90,10 +95,32 @@ function isMissingClientUploadColumnError(error: unknown) {
   );
 }
 
+function isMissingThumbnailColumnError(error: unknown) {
+  const message = dbErrorMessage(error);
+  return (
+    message.includes('column snaps.thumbnail_b64 does not exist') ||
+    message.includes("Could not find the 'thumbnail_b64' column")
+  );
+}
+
+function isMissingDeleteConversationRpcError(error: unknown) {
+  const message = dbErrorMessage(error).toLowerCase();
+  return (
+    message.includes('delete_my_conversation_with_peer') &&
+    (message.includes('could not find the function') || message.includes('schema cache'))
+  );
+}
+
 export type InsertSnapMediaOptions = {
   mediaType?: 'image' | 'video';
   playbackDurationMs?: number | null;
   clientUploadId?: string;
+  /**
+   * Embedded miniatura jako data URL JPEG (`data:image/jpeg;base64,...`).
+   * Zapisywana wyłącznie dla `mediaType === 'video'`. Pominięta, jeśli kolumna
+   * `snaps.thumbnail_b64` nie istnieje (schema fallback).
+   */
+  thumbnailB64?: string | null;
 };
 
 function mapDatabaseError(error: unknown): DomainError {
@@ -119,6 +146,7 @@ function mapDatabaseError(error: unknown): DomainError {
 
 const ALLOWED_VIEW_DURATIONS = new Set([5, 15, 30, 60, 180]);
 let supportsClientUploadId: boolean | null = null;
+let supportsThumbnailB64: boolean | null = null;
 
 export async function insertSnap(
   receiverId: string,
@@ -157,6 +185,14 @@ export async function insertSnap(
   if (playbackMs !== null && mediaType === 'video') {
     payload.playback_duration_ms = playbackMs;
   }
+  if (
+    mediaType === 'video' &&
+    typeof mediaOptions?.thumbnailB64 === 'string' &&
+    mediaOptions.thumbnailB64.length > 0 &&
+    supportsThumbnailB64 !== false
+  ) {
+    payload.thumbnail_b64 = mediaOptions.thumbnailB64;
+  }
 
   let useLegacyInsert = supportsClientUploadId === false;
   const persistSnap = async (nextPayload: Record<string, unknown>, legacyMode: boolean) => {
@@ -174,6 +210,13 @@ export async function insertSnap(
     useLegacyInsert = true;
     supportsClientUploadId = false;
     ({ error } = await persistSnap(payload, true));
+  }
+
+  if (error && isMissingThumbnailColumnError(error)) {
+    supportsThumbnailB64 = false;
+    const { thumbnail_b64: _tb, ...rest } = payload;
+    payload = rest;
+    ({ error } = await persistSnap(payload, useLegacyInsert));
   }
 
   if (error && isMissingPlaybackDurationColumnError(error)) {
@@ -196,6 +239,9 @@ export async function insertSnap(
   if (!error && supportsClientUploadId === null && !useLegacyInsert) {
     supportsClientUploadId = true;
   }
+  if (!error && supportsThumbnailB64 === null && payload.thumbnail_b64 !== undefined) {
+    supportsThumbnailB64 = true;
+  }
 
   if (error) throw mapDatabaseError(error);
 }
@@ -207,6 +253,19 @@ export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
   const limit = normalizePageLimit(options.limit);
 
   const inboxSelectFull = `
+      id,
+      sender_id,
+      media_path,
+      media_type,
+      playback_duration_ms,
+      thumbnail_b64,
+      created_at,
+      is_viewed,
+      status,
+      view_duration_sec
+    `;
+
+  const inboxSelectNoThumbnail = `
       id,
       sender_id,
       media_path,
@@ -248,6 +307,19 @@ export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
   }
   let { data, error } = await inboxQuery.order('created_at', { ascending: false }).limit(limit);
 
+  if (error && isMissingThumbnailColumnError(error)) {
+    let retryQuery = supabase
+      .from('snaps')
+      .select(inboxSelectNoThumbnail)
+      .eq('receiver_id', user.id);
+    if (options.beforeCreatedAt) {
+      retryQuery = retryQuery.lt('created_at', options.beforeCreatedAt);
+    }
+    const retry = await retryQuery.order('created_at', { ascending: false }).limit(limit);
+    data = retry.data as typeof data;
+    error = retry.error;
+  }
+
   if (error && isMissingPlaybackDurationColumnError(error)) {
     let retryQuery = supabase
       .from('snaps')
@@ -282,6 +354,7 @@ export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
       media_type: typeof snap.media_type === 'string' ? snap.media_type : 'image',
       playback_duration_ms:
         typeof snap.playback_duration_ms === 'number' ? snap.playback_duration_ms : null,
+      thumbnail_b64: typeof snap.thumbnail_b64 === 'string' ? snap.thumbnail_b64 : null,
       view_duration_sec: typeof snap.view_duration_sec === 'number' ? snap.view_duration_sec : 5,
     }));
   }
@@ -339,6 +412,7 @@ export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
     media_type: typeof snap.media_type === 'string' ? snap.media_type : 'image',
     playback_duration_ms:
       typeof snap.playback_duration_ms === 'number' ? snap.playback_duration_ms : null,
+    thumbnail_b64: typeof snap.thumbnail_b64 === 'string' ? snap.thumbnail_b64 : null,
     view_duration_sec: typeof snap.view_duration_sec === 'number' ? snap.view_duration_sec : 5,
     sender: senderMap.get(snap.sender_id)
       ? {
@@ -369,7 +443,7 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
   if (!user) return [];
 
   const selectCols = `
-    id, sender_id, media_path, media_type, playback_duration_ms,
+    id, sender_id, media_path, media_type, playback_duration_ms, thumbnail_b64,
     created_at, is_viewed, status, view_duration_sec
   `;
 
@@ -380,6 +454,18 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
     .eq('sender_id', senderId)
     .eq('is_viewed', false)
     .order('created_at', { ascending: true });
+
+  if (error && isMissingThumbnailColumnError(error)) {
+    const retry = await supabase
+      .from('snaps')
+      .select('id, sender_id, media_path, media_type, playback_duration_ms, created_at, is_viewed, status, view_duration_sec')
+      .eq('receiver_id', user.id)
+      .eq('sender_id', senderId)
+      .eq('is_viewed', false)
+      .order('created_at', { ascending: true });
+    data = retry.data as typeof data;
+    error = retry.error;
+  }
 
   if (error && isMissingPlaybackDurationColumnError(error)) {
     const retry = await supabase
@@ -423,6 +509,7 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
     ...snap,
     media_type: typeof snap.media_type === 'string' ? snap.media_type : 'image',
     playback_duration_ms: typeof snap.playback_duration_ms === 'number' ? snap.playback_duration_ms : null,
+    thumbnail_b64: typeof snap.thumbnail_b64 === 'string' ? snap.thumbnail_b64 : null,
     view_duration_sec: typeof snap.view_duration_sec === 'number' ? snap.view_duration_sec : 5,
     status: snap.status ?? (snap.is_viewed ? 'viewed' : 'sent'),
     sender: null,
@@ -518,6 +605,28 @@ export async function fetchSentSnaps(options: SnapPageOptions = {}) {
     limit,
   });
   return result;
+}
+
+export async function deleteConversationWithPeer(peerProfileId: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
+  if (!peerProfileId) throw new DomainError('INVALID_INPUT', 'Brak identyfikatora rozmówcy.');
+  if (peerProfileId === user.id) {
+    throw new DomainError('INVALID_INPUT', 'Nie można usunąć rozmowy z samym sobą.');
+  }
+
+  const { error } = await supabase.rpc('delete_my_conversation_with_peer', {
+    peer_profile_id: peerProfileId,
+  });
+  if (error) {
+    if (isMissingDeleteConversationRpcError(error)) {
+      throw new DomainError(
+        'UNKNOWN',
+        'Usuwanie rozmowy jest chwilowo niedostępne. Spróbuj ponownie za chwilę.'
+      );
+    }
+    throw mapDatabaseError(error);
+  }
 }
 
 export async function createSignedSnapUrl(path: string, expiresInSec = 60) {

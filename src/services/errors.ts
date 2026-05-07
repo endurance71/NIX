@@ -11,10 +11,14 @@ export type DomainErrorCode =
 
 export class DomainError extends Error {
   code: DomainErrorCode;
+  messageKey: string;
+  messageParams?: Record<string, unknown>;
 
-  constructor(code: DomainErrorCode, message: string) {
+  constructor(code: DomainErrorCode, message: string, messageParams?: Record<string, unknown>) {
     super(message);
     this.code = code;
+    this.messageKey = `domainErrors.${code}`;
+    this.messageParams = messageParams;
   }
 }
 

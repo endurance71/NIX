@@ -22,8 +22,15 @@ export async function requestPasswordReset(email: string) {
   });
 }
 
-export async function updatePassword(password: string) {
-  return supabase.auth.updateUser({ password });
+export async function updatePassword(password: string, nonce?: string) {
+  return supabase.auth.updateUser({
+    password,
+    ...(nonce ? { nonce } : {}),
+  });
+}
+
+export async function reauthenticatePasswordChange() {
+  return supabase.auth.reauthenticate();
 }
 
 export async function signInWithAppleIdToken(token: string, nonce?: string) {

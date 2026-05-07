@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { useAppTheme } from '../../hooks/useAppTheme';
@@ -27,10 +27,16 @@ export function AvatarCircle({
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(size), [size]);
   const normalizedInitial = (fallbackInitial ?? '?').trim().charAt(0).toUpperCase();
+  const [imageFailed, setImageFailed] = useState(false);
+  const hasUsableUrl = Boolean(url) && !imageFailed;
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [url]);
 
   return (
     <View style={[styles.circle, { backgroundColor: colors.surfaceAlt }]}>
-      {url ? (
+      {hasUsableUrl ? (
         <ExpoImage
           cachePolicy="memory-disk"
           source={{
@@ -39,6 +45,7 @@ export function AvatarCircle({
           }}
           style={styles.image}
           contentFit="cover"
+          onError={() => setImageFailed(true)}
         />
       ) : emoji ? (
         <Text style={[styles.emoji, { fontSize: size * 0.52 }]}>{emoji}</Text>

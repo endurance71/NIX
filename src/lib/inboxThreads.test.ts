@@ -71,4 +71,20 @@ describe('buildInboxThreads', () => {
   it('zwraca pustą listę dla pustych danych', () => {
     expect(buildInboxThreads([], [])).toEqual([]);
   });
+
+  it('nie zwraca rozmówcy, gdy po usunięciu brak snapów dla peera', () => {
+    const beforeDelete = buildInboxThreads(
+      [inbox({ id: 'r1', sender_id: 'friend-a', created_at: '2026-05-01T10:00:00Z' })],
+      [sent({ id: 's1', receiver_id: 'friend-b', created_at: '2026-05-01T11:00:00Z' })]
+    );
+    expect(beforeDelete.map((item) => item.direction === 'received' ? item.snap.sender_id : item.snap.receiver_id)).toEqual([
+      'friend-b',
+      'friend-a',
+    ]);
+
+    const afterDelete = buildInboxThreads([], [sent({ id: 's1', receiver_id: 'friend-b', created_at: '2026-05-01T11:00:00Z' })]);
+    expect(afterDelete.map((item) => item.direction === 'received' ? item.snap.sender_id : item.snap.receiver_id)).toEqual([
+      'friend-b',
+    ]);
+  });
 });

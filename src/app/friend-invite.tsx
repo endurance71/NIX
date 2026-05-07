@@ -86,7 +86,7 @@ export default function FriendInviteScreen() {
         ) : (
           <Text style={styles.message}>{message ?? 'Brak danych.'}</Text>
         )}
-        <NativeButton label="Przejdź do profilu" onPress={() => router.replace('/(tabs)/profile')} />
+        <NativeButton label="Przejdź do profilu" onPress={() => router.replace('/profile')} />
       </NativeSectionCard>
     </NativeScreen>
   );

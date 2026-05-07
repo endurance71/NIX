@@ -1,9 +1,13 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import type { VideoThumbnail } from 'expo-video';
 import { supabase } from '../lib/supabase';
+import { generateVideoThumbnailAtTime } from '../lib/videoThumbnails';
 import { insertSnap } from './snapService';
 import { getCurrentUser } from './profileService';
 import { DomainError } from './errors';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
+import { uploadResumable } from './resumableUploadService';
 
 export function buildContentType(fileUri: string) {
   const ext = fileUri.split('?')[0].split('.').pop()?.toLowerCase() || 'jpg';
@@ -32,20 +36,46 @@ const TARGET_VIDEO_LONG_FORM_BITRATE = 1_500_000;
 const TARGET_VIDEO_MAX_SIZE = 1280;
 const UPLOAD_RETRY_DELAYS_MS = [600, 1400, 3000];
 /**
- * Konserwatywny limit dla standardowego uploadu storage.
- * Trzymamy bufor względem twardego limitu serwera, żeby nie marnować czasu na
- * długą kompresję i wielokrotne próby wysyłki, które i tak skończą się błędem.
+ * Limit pliku wideo akceptowanego przez aplikację. Po przejściu na resumable
+ * (TUS) upload OOM nie jest już wąskim gardłem; zostawiamy bezpieczny bufor
+ * względem 400 MB limitu bucketa.
  */
-export const MAX_VIDEO_FILE_SIZE_BYTES = 48 * 1024 * 1024;
+export const MAX_VIDEO_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 const MAX_VIDEO_FILE_SIZE_MB = Math.round(MAX_VIDEO_FILE_SIZE_BYTES / (1024 * 1024));
+/**
+ * Próg dla fast-path pomijającego kompresję `react-native-compressor`.
+ * Nagrania z aparatu są już ograniczone bitratem 2.5 Mbps, więc kompresja
+ * małych klipów daje minimalny zysk przy znaczącym koszcie CPU/baterii.
+ */
+const VIDEO_FAST_PATH_MAX_BYTES = 10 * 1024 * 1024;
 const SUPABASE_MAX_OBJECT_SIZE_ERROR = 'The object exceeded the maximum allowed size';
 const SUPABASE_RESOURCE_ALREADY_EXISTS_ERROR = 'The resource already exists';
+const SUPABASE_MISSING_THUMBNAIL_COLUMN_ERROR = "Could not find the 'thumbnail_b64' column";
+
+const THUMBNAIL_TARGET_WIDTH = 240;
+const THUMBNAIL_FALLBACK_WIDTH = 200;
+const THUMBNAIL_TARGET_QUALITY = 0.55;
+const THUMBNAIL_FALLBACK_QUALITY = 0.4;
+/** Maksymalny rozmiar binarki miniatury (≈45 KB) — synchronicznie z CHECK w SQL. */
+const THUMBNAIL_MAX_BINARY_BYTES = 45 * 1024;
 
 function mapStorageUploadError(message: string) {
   if (message.includes(SUPABASE_MAX_OBJECT_SIZE_ERROR)) {
     return `Plik wideo przekracza limit uploadu serwera. Utrzymaj plik poniżej ${MAX_VIDEO_FILE_SIZE_MB} MB.`;
   }
   return message;
+}
+
+function isMissingThumbnailColumnError(error: unknown) {
+  const message =
+    typeof error === 'object' && error && 'message' in error && typeof error.message === 'string'
+      ? error.message
+      : '';
+  return (
+    message.includes('column snaps.thumbnail_b64 does not exist') ||
+    message.includes(SUPABASE_MISSING_THUMBNAIL_COLUMN_ERROR) ||
+    (message.includes('thumbnail_b64') && message.includes('schema cache'))
+  );
 }
 
 export type MediaUploadPhase = 'reading' | 'compressing' | 'thumbnail' | 'uploading' | 'creating_record' | 'cleanup';
@@ -72,6 +102,12 @@ type PreparedMedia = {
   temporaryUris: string[];
   thumbnailUri?: string | null;
   thumbnailTemporaryUris?: string[];
+  /**
+   * Embedded miniatura jako data URL JPEG (`data:image/jpeg;base64,...`).
+   * Trafia do `snaps.thumbnail_b64` i jest serwowana odbiorcy bez dodatkowego
+   * pobrania ze Storage. `null`, jeśli nie udało się zmieścić w limicie.
+   */
+  thumbnailDataUrl?: string | null;
 };
 
 function emitProgress(options: MediaUploadOptions | undefined, progress: MediaUploadProgress) {
@@ -165,6 +201,59 @@ export async function prepareImageForUpload(fileUri: string, options?: MediaUplo
   }
 }
 
+/**
+ * Generuje data URL JPEG dla miniatury wideo z kontrolą rozmiaru.
+ * Próbuje najpierw 240px @ q=0.55; przy przekroczeniu limitu schodzi do 200px @ q=0.4.
+ * Zwraca `{ dataUrl, byteLength }` lub `null`, jeśli nie udało się zmieścić w limicie.
+ */
+async function buildThumbnailDataUrl(
+  thumbnailSource: VideoThumbnail,
+  temporaryUris: string[]
+): Promise<{ dataUrl: string; byteLength: number } | null> {
+  type Variant = { width: number; quality: number };
+  const variants: Variant[] = [
+    { width: THUMBNAIL_TARGET_WIDTH, quality: THUMBNAIL_TARGET_QUALITY },
+    { width: THUMBNAIL_FALLBACK_WIDTH, quality: THUMBNAIL_FALLBACK_QUALITY },
+  ];
+
+  for (const variant of variants) {
+    try {
+      const context = ImageManipulator.manipulate(thumbnailSource);
+      context.resize({ width: variant.width });
+      const image = await context.renderAsync();
+      let result: { uri: string };
+      try {
+        result = await image.saveAsync({
+          compress: variant.quality,
+          format: SaveFormat.JPEG,
+        });
+      } finally {
+        image.release();
+        context.release();
+      }
+
+      temporaryUris.push(result.uri);
+
+      const base64 = await FileSystem.readAsStringAsync(result.uri, {
+        encoding: 'base64',
+      });
+      const byteLength = Math.floor((base64.length * 3) / 4);
+      if (byteLength <= THUMBNAIL_MAX_BINARY_BYTES) {
+        return { dataUrl: `data:image/jpeg;base64,${base64}`, byteLength };
+      }
+    } catch (error) {
+      trackEvent('thumbnail_b64_variant_failed', {
+        media_type: 'video',
+        width: variant.width,
+        quality: variant.quality,
+        error_message: error instanceof Error ? error.message : 'Unknown thumbnail variant error',
+      });
+    }
+  }
+
+  return null;
+}
+
 export async function prepareVideoForUpload(fileUri: string, options?: MediaUploadOptions): Promise<PreparedMedia> {
   const startedAt = nowMs();
   const originalSizeBytes = await getFileSizeBytes(fileUri);
@@ -179,44 +268,97 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
       temporaryUris: [],
       thumbnailUri: null,
       thumbnailTemporaryUris: [],
+      thumbnailDataUrl: null,
     };
   }
 
   let compressedUri = fileUri;
   const temporaryUris: string[] = [];
-  try {
-    const { Video } = await import('react-native-compressor');
-    const useLowerBitrate =
-      typeof originalSizeBytes === 'number' && originalSizeBytes > 30 * 1024 * 1024;
-    compressedUri = await Video.compress(
-      fileUri,
-      {
-        compressionMethod: 'auto',
-        bitrate: useLowerBitrate ? TARGET_VIDEO_LONG_FORM_BITRATE : TARGET_VIDEO_BITRATE,
-        maxSize: TARGET_VIDEO_MAX_SIZE,
-        minimumFileSizeForCompress: 1,
-        progressDivider: 5,
-      },
-      (progress) => {
-        emitProgress(options, { phase: 'compressing', progress: Math.max(0.02, Math.min(0.95, progress)) });
-      }
-    );
-    if (compressedUri !== fileUri) temporaryUris.push(compressedUri);
-  } catch (error) {
-    trackEvent('compression_fallback', {
+  // Fast-path: lokalne nagrania o małym rozmiarze są już ograniczone bitratem
+  // 2.5 Mbps przez kamerę — rekompresja daje znikomy zysk za istotny koszt CPU.
+  const fastPathEligible =
+    typeof originalSizeBytes === 'number' &&
+    originalSizeBytes > 0 &&
+    originalSizeBytes <= VIDEO_FAST_PATH_MAX_BYTES &&
+    fileUri.startsWith('file://');
+
+  if (fastPathEligible) {
+    trackEvent('compression_skipped', {
       media_type: 'video',
-      error_message: error instanceof Error ? error.message : 'Unknown video compression error',
+      media_original_bytes: originalSizeBytes,
+      reason: 'fast_path',
+      threshold_bytes: VIDEO_FAST_PATH_MAX_BYTES,
     });
+    emitProgress(options, { phase: 'compressing', progress: 0.95 });
+  } else {
+    try {
+      const { Video } = await import('react-native-compressor');
+      const useLowerBitrate =
+        typeof originalSizeBytes === 'number' && originalSizeBytes > 30 * 1024 * 1024;
+      compressedUri = await Video.compress(
+        fileUri,
+        {
+          compressionMethod: 'auto',
+          bitrate: useLowerBitrate ? TARGET_VIDEO_LONG_FORM_BITRATE : TARGET_VIDEO_BITRATE,
+          maxSize: TARGET_VIDEO_MAX_SIZE,
+          minimumFileSizeForCompress: 1,
+          progressDivider: 5,
+        },
+        (progress) => {
+          emitProgress(options, { phase: 'compressing', progress: Math.max(0.02, Math.min(0.95, progress)) });
+        }
+      );
+      if (compressedUri !== fileUri) temporaryUris.push(compressedUri);
+    } catch (error) {
+      trackEvent('compression_fallback', {
+        media_type: 'video',
+        error_message: error instanceof Error ? error.message : 'Unknown video compression error',
+      });
+    }
   }
 
   let thumbnailUri: string | null = null;
+  let thumbnailDataUrl: string | null = null;
   const thumbnailTemporaryUris: string[] = [];
   try {
     emitProgress(options, { phase: 'thumbnail', progress: 0.2 });
-    const { getThumbnailAsync } = await import('expo-video-thumbnails');
-    const thumbnail = await getThumbnailAsync(compressedUri, { time: 0, quality: 0.72 });
-    thumbnailUri = thumbnail.uri;
-    thumbnailTemporaryUris.push(thumbnail.uri);
+    const thumbRef = await generateVideoThumbnailAtTime(compressedUri, 0, { maxWidth: 1280 });
+    if (thumbRef) {
+      const previewContext = ImageManipulator.manipulate(thumbRef);
+      const previewImage = await previewContext.renderAsync();
+      let previewSaved: { uri: string };
+      try {
+        previewSaved = await previewImage.saveAsync({
+          compress: 0.88,
+          format: SaveFormat.JPEG,
+        });
+      } finally {
+        previewImage.release();
+        previewContext.release();
+      }
+      thumbnailUri = previewSaved.uri;
+      thumbnailTemporaryUris.push(previewSaved.uri);
+
+      const dataUrlResult = await buildThumbnailDataUrl(thumbRef, thumbnailTemporaryUris);
+      if (dataUrlResult) {
+        thumbnailDataUrl = dataUrlResult.dataUrl;
+        trackEvent('thumbnail_b64_size_bytes', {
+          media_type: 'video',
+          bytes: dataUrlResult.byteLength,
+        });
+      } else {
+        trackEvent('thumbnail_b64_skipped', {
+          media_type: 'video',
+          reason: 'over_limit',
+          limit_bytes: THUMBNAIL_MAX_BINARY_BYTES,
+        });
+      }
+    } else {
+      trackEvent('thumbnail_generation_failed', {
+        media_type: 'video',
+        error_message: 'generateVideoThumbnailAtTime returned null',
+      });
+    }
     emitProgress(options, { phase: 'thumbnail', progress: 1 });
   } catch (error) {
     trackEvent('thumbnail_generation_failed', {
@@ -227,11 +369,12 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
 
   const sizeBytes = await getFileSizeBytes(compressedUri);
   trackDuration('compression_ms', startedAt, {
-    status: compressedUri === fileUri ? 'fallback' : 'success',
+    status: fastPathEligible ? 'skipped' : compressedUri === fileUri ? 'fallback' : 'success',
     media_type: 'video',
     media_original_bytes: originalSizeBytes,
     media_compressed_bytes: sizeBytes,
     thumbnail_generated: Boolean(thumbnailUri),
+    thumbnail_b64_embedded: Boolean(thumbnailDataUrl),
   });
 
   return {
@@ -242,6 +385,7 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
     temporaryUris,
     thumbnailUri,
     thumbnailTemporaryUris,
+    thumbnailDataUrl,
   };
 }
 
@@ -438,7 +582,7 @@ export async function uploadVideoAndCreateSnap(
   assertNotCancelled(options?.signal);
   const prepared = await prepareVideoForUpload(fileUri, options);
   emitProgress(options, { phase: 'reading', progress: 0 });
-  const bytes = await getImageBytes(prepared.uri);
+
   const { ext, contentType } = buildVideoContentType(prepared.uri);
 
   if (!receiverId) {
@@ -449,7 +593,13 @@ export async function uploadVideoAndCreateSnap(
     throw new DomainError('INVALID_MEDIA', 'Nieobsługiwany format wideo.');
   }
 
-  if (bytes.byteLength > MAX_VIDEO_FILE_SIZE_BYTES) {
+  // Walidacja rozmiaru bez wczytywania pliku do RAM. Korzystamy z `prepared.sizeBytes`
+  // (po kompresji) lub `originalSizeBytes` (fast-path / fallback).
+  const finalSizeBytes = prepared.sizeBytes ?? prepared.originalSizeBytes ?? null;
+  if (typeof finalSizeBytes !== 'number' || finalSizeBytes <= 0) {
+    throw new DomainError('INVALID_MEDIA', 'Plik jest pusty lub uszkodzony.');
+  }
+  if (finalSizeBytes > MAX_VIDEO_FILE_SIZE_BYTES) {
     throw new DomainError(
       'INVALID_MEDIA',
       `Plik wideo jest za duży. Maksymalny rozmiar to ${MAX_VIDEO_FILE_SIZE_MB} MB.`
@@ -473,17 +623,88 @@ export async function uploadVideoAndCreateSnap(
     return Boolean(data?.id);
   };
 
+  emitProgress(options, {
+    phase: 'uploading',
+    progress: 0,
+    bytesSent: 0,
+    bytesTotal: finalSizeBytes,
+    attempt: 1,
+  });
+
+  const uploadStartedAt = nowMs();
   try {
-    const uploadData = await uploadWithRetry('media-vault', filePath, bytes, { contentType }, options);
+    await uploadResumable({
+      bucket: 'media-vault',
+      objectPath: filePath,
+      fileUri: prepared.uri,
+      contentType,
+      fileSizeBytes: finalSizeBytes,
+      cacheControl: '3600',
+      upsert: false,
+      signal: options?.signal,
+      onProgress: ({ bytesSent, bytesTotal, attempt }) => {
+        emitProgress(options, {
+          phase: 'uploading',
+          progress: bytesTotal > 0 ? Math.min(0.99, bytesSent / bytesTotal) : 0,
+          bytesSent,
+          bytesTotal,
+          attempt,
+        });
+      },
+    });
+
+    trackDuration('upload_ms', uploadStartedAt, {
+      bucket: 'media-vault',
+      status: 'success',
+      media_bytes: finalSizeBytes,
+      transport: 'resumable',
+    });
+
+    emitProgress(options, {
+      phase: 'uploading',
+      progress: 1,
+      bytesSent: finalSizeBytes,
+      bytesTotal: finalSizeBytes,
+      attempt: 1,
+    });
+
     emitProgress(options, { phase: 'creating_record', progress: 0.5 });
     if (!(await hasExistingSnap())) {
-      await insertSnap(receiverId, uploadData.path, viewDurationSec, {
-        mediaType: 'video',
-        playbackDurationMs,
-        clientUploadId: stableUploadId ?? filePath,
-      });
+      try {
+        await insertSnap(receiverId, filePath, viewDurationSec, {
+          mediaType: 'video',
+          playbackDurationMs,
+          clientUploadId: stableUploadId ?? filePath,
+          thumbnailB64: prepared.thumbnailDataUrl ?? null,
+        });
+      } catch (error) {
+        // Cross-env schema mismatch: jeśli migracja `thumbnail_b64` nie weszła,
+        // ponawiamy insert bez miniatury zamiast failować upload.
+        if (!isMissingThumbnailColumnError(error)) throw error;
+        trackEvent('thumbnail_b64_skipped', {
+          media_type: 'video',
+          reason: 'missing_db_column',
+        });
+        await insertSnap(receiverId, filePath, viewDurationSec, {
+          mediaType: 'video',
+          playbackDurationMs,
+          clientUploadId: stableUploadId ?? filePath,
+          thumbnailB64: null,
+        });
+      }
     }
     emitProgress(options, { phase: 'creating_record', progress: 1 });
+  } catch (error) {
+    trackDuration('upload_ms', uploadStartedAt, {
+      bucket: 'media-vault',
+      status: 'failure',
+      media_bytes: finalSizeBytes,
+      transport: 'resumable',
+      error_message: error instanceof Error ? error.message : 'Unknown resumable error',
+    });
+    if (error instanceof DomainError) throw error;
+    const message = error instanceof Error ? error.message : 'Nie udało się przesłać pliku.';
+    throw new DomainError('INVALID_MEDIA', mapStorageUploadError(message));
   } finally {
     emitProgress(options, { phase: 'cleanup', progress: 0 });
     await safeDeleteTemporaryUris([

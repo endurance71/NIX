@@ -13,17 +13,17 @@ import { notifyError } from '../../lib/appNotify';
 
 export default function ResetPasswordScreen() {
   const { statusBarStyle } = useAppTheme();
-  const { session, updatePassword } = useAuth();
+  const { session, loading: authLoading, updatePassword } = useAuth();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session) {
+    if (!authLoading && !session) {
       router.replace('/(auth)/login');
     }
-  }, [session]);
+  }, [authLoading, session]);
 
   const handleUpdatePassword = async () => {
     if (password.length < 8) {
@@ -47,9 +47,9 @@ export default function ResetPasswordScreen() {
 
     try {
       const profile = await getCurrentUserProfile();
-      router.replace(profile?.username ? '/(tabs)' : '/(auth)/onboarding');
+      router.replace(profile?.username ? '/profile' : '/(auth)/onboarding');
     } catch {
-      router.replace('/(tabs)');
+      router.replace('/profile');
     }
   };
 

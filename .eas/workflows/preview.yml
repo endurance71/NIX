@@ -1,0 +1,12 @@
+name: Preview iOS (internal)
+
+on:
+  pull_request: {}
+
+jobs:
+  build_ios_preview:
+    name: Build iOS preview
+    type: build
+    params:
+      platform: ios
+      profile: preview
