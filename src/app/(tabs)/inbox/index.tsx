@@ -4,7 +4,6 @@ import { Stack, router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
-import * as Haptics from 'expo-haptics';
 import { sentLifecycleSegments } from '../../../lib/snapInboxLabels';
 import {
   deleteConversationWithPeer,
@@ -181,13 +180,16 @@ export default function InboxScreen() {
   const feed = useMemo(() => buildInboxThreads(snaps, sentSnaps), [snaps, sentSnaps]);
 
   const sortedAvatarPaths = useMemo(() => {
-    const paths = feed
+    const threadPaths = feed
       .map((item) =>
         item.direction === 'received' ? item.snap.sender?.avatar_storage_path : item.snap.receiver?.avatar_storage_path
       )
       .filter((path): path is string => Boolean(path));
-    return Array.from(new Set(paths)).sort();
-  }, [feed]);
+    const invitePaths = requests
+      .map((request) => request.requester.avatar_storage_path)
+      .filter((path): path is string => Boolean(path));
+    return Array.from(new Set([...threadPaths, ...invitePaths])).sort();
+  }, [feed, requests]);
 
   const { data: avatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(sortedAvatarPaths),
@@ -260,14 +262,8 @@ export default function InboxScreen() {
         await deleteConversationWithPeer(peerId);
         await queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle });
         await refreshInboxBadgeCount(queryClient, { forceNetwork: true });
-        if (process.env.EXPO_OS === 'ios') {
-          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
         notifySuccess(t('inbox.deleteConversationSuccess', { username: username || t('common.unknownUser') }));
       } catch (err: any) {
-        if (process.env.EXPO_OS === 'ios') {
-          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        }
         notifyError(err?.message ?? t('inbox.deleteConversationFailure'));
       } finally {
         setDeletingPeerId(null);
@@ -322,23 +318,37 @@ export default function InboxScreen() {
       <List modifiers={[listStyle('insetGrouped'), padding({ top: 0 }), refreshable(refetchInboxForce)]}>
         {requests.length > 0 ? (
           <Section title={t('inbox.invitesSection', { count: requests.length })}>
-            {requests.map((request) => (
-              <RNHostView matchContents key={request.id}>
-                <View style={styles.requestRow}>
-                  <RNText numberOfLines={1} style={[styles.peerTitle, { color: colors.label }]}>
-                    @{request.requester.username}
-                  </RNText>
-                  <View style={styles.requestActions}>
-                    <Pressable onPress={() => handleAccept(request.id)} hitSlop={8}>
-                      <RNText style={[styles.requestActionLabel, { color: colors.accent }]}>{t('inbox.accept')}</RNText>
-                    </Pressable>
-                    <Pressable onPress={() => handleReject(request.id)} hitSlop={8}>
-                      <RNText style={[styles.requestActionLabel, { color: colors.destructive }]}>{t('inbox.remove')}</RNText>
-                    </Pressable>
+            {requests.map((request) => {
+              const avatarPath = request.requester.avatar_storage_path ?? null;
+              const avatarUrl = avatarPath ? avatarUrls[avatarPath] ?? null : null;
+              const fallback = request.requester.username?.charAt(0).toUpperCase() || '?';
+              return (
+                <RNHostView matchContents key={request.id}>
+                  <View style={styles.requestRow}>
+                    <View style={styles.requestHeader}>
+                      <AvatarCircle
+                        size={36}
+                        url={avatarUrl}
+                        storagePath={avatarPath}
+                        emoji={request.requester.avatar_emoji}
+                        fallbackInitial={fallback}
+                      />
+                      <RNText numberOfLines={1} style={[styles.peerTitle, { color: colors.label, flex: 1 }]}>
+                        @{request.requester.username}
+                      </RNText>
+                    </View>
+                    <View style={styles.requestActions}>
+                      <Pressable onPress={() => handleAccept(request.id)} hitSlop={8}>
+                        <RNText style={[styles.requestActionLabel, { color: colors.accent }]}>{t('inbox.accept')}</RNText>
+                      </Pressable>
+                      <Pressable onPress={() => handleReject(request.id)} hitSlop={8}>
+                        <RNText style={[styles.requestActionLabel, { color: colors.destructive }]}>{t('inbox.remove')}</RNText>
+                      </Pressable>
+                    </View>
                   </View>
-                </View>
-              </RNHostView>
-            ))}
+                </RNHostView>
+              );
+            })}
           </Section>
         ) : null}
 
@@ -393,6 +403,11 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     alignItems: 'center',
+  },
+  requestHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   requestActionLabel: {
     ...typography.headline,

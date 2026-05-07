@@ -11,6 +11,7 @@ import { trackEvent } from '../lib/telemetry';
 import { NativeButton } from '../components/ui/native-button';
 import { NativeSectionCard } from '../components/ui/native-section-card';
 import { notifyError, notifyInfo } from '../lib/appNotify';
+import { notify as hapticNotify } from '../lib/haptics';
 
 export default function FriendScanQrScreen() {
   const { colors } = useAppTheme();
@@ -81,6 +82,7 @@ export default function FriendScanQrScreen() {
         status: 'success',
         result: 'preview_ok',
       });
+      hapticNotify('success');
       router.push({
         pathname: '/friend-invite-confirm',
         params: {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
-import * as Haptics from 'expo-haptics';
+import { tap, notify as hapticNotify } from '../../lib/haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import Animated, {
   useSharedValue,
@@ -248,6 +248,7 @@ export default function CameraScreen() {
 
       const cam = cameraRef.current;
       if (!cam) {
+        hapticNotify('error');
         setCaptureError('Kamera nie jest dostępna.');
         return;
       }
@@ -289,6 +290,7 @@ export default function CameraScreen() {
         setSegments([{ uri: result.uri, durationMs }]);
         router.push({ pathname: '/preview', params: { mode: 'video' } });
       } else if (attemptedRecord) {
+        hapticNotify('error');
         setCaptureError('Nie udało się zapisać nagrania. Spróbuj ponownie.');
       }
     } finally {
@@ -306,6 +308,7 @@ export default function CameraScreen() {
 
     const micOk = await ensureMicPermission();
     if (!micOk) {
+      hapticNotify('error');
       setCaptureError('NiX potrzebuje dostępu do mikrofonu, aby nagrywać wideo.');
       fingerDownRef.current = false;
       return;
@@ -314,9 +317,7 @@ export default function CameraScreen() {
 
     recordingSessionRunningRef.current = true;
     try {
-      if (process.env.EXPO_OS === 'ios') {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
+      tap('medium');
       await runVideoCaptureSession();
     } finally {
       recordingSessionRunningRef.current = false;
@@ -327,9 +328,7 @@ export default function CameraScreen() {
     if (takingPicture || recordingVideo || recordingSessionRunningRef.current) return;
     setTakingPicture(true);
     setCaptureError(null);
-    if (process.env.EXPO_OS === 'ios') {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    tap('light');
 
     shutterScale.value = withSequence(
       withTiming(0.85, { duration: 100, easing: Easing.out(Easing.ease) }),
@@ -346,6 +345,7 @@ export default function CameraScreen() {
       try {
         const ready = await waitForCameraReady();
         if (!ready) {
+          hapticNotify('error');
           setCaptureError('Kamera nie jest jeszcze gotowa. Spróbuj ponownie.');
           setTakingPicture(false);
           return;
@@ -373,11 +373,13 @@ export default function CameraScreen() {
           status: 'failure',
           error_message: err instanceof Error ? err.message : 'Unknown capture error',
         });
+        hapticNotify('error');
         setCaptureError('Nie udało się zrobić zdjęcia. Spróbuj ponownie.');
       } finally {
         setTakingPicture(false);
       }
     } else {
+      hapticNotify('error');
       setCaptureError('Kamera nie jest jeszcze gotowa.');
       setTakingPicture(false);
     }
@@ -492,12 +494,14 @@ export default function CameraScreen() {
           isSwitchingCameraRef.current = false;
           switchRecoveryUsedRef.current = false;
           setIsSwitchingCamera(false);
+          hapticNotify('error');
           setCaptureError('Nie udało się przełączyć kamery. Spróbuj ponownie.');
         }, 4000);
       } else {
         isSwitchingCameraRef.current = false;
         switchRecoveryUsedRef.current = false;
         setIsSwitchingCamera(false);
+        hapticNotify('error');
         setCaptureError('Nie udało się przełączyć kamery. Spróbuj ponownie.');
       }
     }, 4000);

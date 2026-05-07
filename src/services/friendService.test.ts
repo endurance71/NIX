@@ -300,7 +300,8 @@ describe('outgoing requests', () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
     const eqUserMock = vi.fn().mockResolvedValue({ error: null });
     const eqIdMock = vi.fn().mockReturnValue({ eq: eqUserMock });
-    mockFriendshipsDelete.mockReturnValue({ eq: eqIdMock });
+    const orMock = vi.fn();
+    mockFriendshipsDelete.mockReturnValue({ eq: eqIdMock, or: orMock });
 
     await cancelOutgoingFriendRequest('req-1');
 

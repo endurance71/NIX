@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoDraft, type VideoSegmentDraft } from '../context/VideoDraftContext';
 import { configureForPlayback } from '../lib/audioSession';
 import { trackEvent } from '../lib/telemetry';
+import { selection, tap } from '../lib/haptics';
 import {
   SNAP_VIEW_DURATION_CHOICES,
   DEFAULT_SNAP_VIEW_DURATION_SEC,
@@ -203,6 +204,7 @@ function PreviewVideoContent({
   };
 
   const handleSendTo = () => {
+    tap('light');
     router.push({
       pathname: '/send-to',
       params: { mode: 'video' },
@@ -369,6 +371,7 @@ export default function PreviewScreen() {
   };
 
   const handleSendTo = () => {
+    tap('light');
     router.push({
       pathname: '/send-to',
       params: { uri, mode: 'image', viewDurationSec: String(viewDurationSec) },
@@ -417,6 +420,7 @@ export default function PreviewScreen() {
                     label={formatSnapViewDurationLabel(sec)}
                     {...(sec === viewDurationSec ? { systemImage: 'checkmark.circle.fill' as const } : {})}
                     onPress={() => {
+                      selection();
                       setViewDurationSec(sec);
                       void savePreferredSnapViewDuration(sec);
                       setDurationPickerOpen(false);

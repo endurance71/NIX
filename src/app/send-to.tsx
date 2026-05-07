@@ -19,6 +19,7 @@ import { normalizeSnapViewDurationSec } from '../lib/snapViewDuration';
 import { toggleSetValue } from '../lib/selection';
 import { SHEET_CONTENT_PADDING_TOP } from '../theme/sheetLayout';
 import { notifyError, notifySuccess } from '../lib/appNotify';
+import { selection, tap } from '../lib/haptics';
 
 const SEND_CONCURRENCY = 2;
 
@@ -117,6 +118,7 @@ export default function SendToSheet() {
     if (!isVideo && !uri) return;
     if (isVideo && (!segments?.length || segments.length === 0)) return;
 
+    tap('medium');
     sendLockRef.current = true;
     setIsSending(true);
 
@@ -173,6 +175,7 @@ export default function SendToSheet() {
   };
 
   const toggleSelection = useCallback((id: string) => {
+    selection();
     setSelectedIds((prev) => toggleSetValue(prev, id));
   }, []);
 

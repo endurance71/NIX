@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { tap } from '../../lib/haptics';
 import { typography } from '../../theme/typography';
 
 type Variant = 'primary' | 'secondary' | 'destructive';
@@ -41,6 +42,12 @@ export function NativeButton({
             textColor: colors.label,
           };
 
+  const handlePress = () => {
+    if (isDisabled) return;
+    tap(variant === 'destructive' ? 'heavy' : 'light');
+    onPress();
+  };
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -52,7 +59,7 @@ export function NativeButton({
         pressed && styles.pressed,
         isDisabled && styles.disabled,
       ]}
-      onPress={onPress}
+      onPress={handlePress}
       disabled={isDisabled}
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled }}

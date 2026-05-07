@@ -20,6 +20,7 @@ import {
   listAcceptedFriends,
   listIncomingFriendRequests,
   listOutgoingFriendRequests,
+  removeFriend,
   rejectFriendRequest,
   sendFriendRequest,
 } from '../../../services/friendService';
@@ -108,6 +109,28 @@ export default function ProfileScreen() {
       ),
     [outgoingRequests]
   );
+  const incomingAvatarPaths = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          requests
+            .map((request) => request.requester.avatar_storage_path)
+            .filter((path): path is string => Boolean(path))
+        )
+      ),
+    [requests]
+  );
+  const friendAvatarPaths = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          friends
+            .map((friend) => friend.avatar_storage_path)
+            .filter((path): path is string => Boolean(path))
+        )
+      ),
+    [friends]
+  );
   const { data: avatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(avatarPaths),
     queryFn: () => createSignedAvatarUrls(avatarPaths),
@@ -119,6 +142,18 @@ export default function ProfileScreen() {
     queryKey: avatarSignedUrlsQueryKey(outgoingAvatarPaths),
     queryFn: () => createSignedAvatarUrls(outgoingAvatarPaths),
     enabled: outgoingAvatarPaths.length > 0,
+    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
+  });
+  const { data: incomingAvatarUrls = {} } = useQuery({
+    queryKey: avatarSignedUrlsQueryKey(incomingAvatarPaths),
+    queryFn: () => createSignedAvatarUrls(incomingAvatarPaths),
+    enabled: incomingAvatarPaths.length > 0,
+    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
+  });
+  const { data: friendAvatarUrls = {} } = useQuery({
+    queryKey: avatarSignedUrlsQueryKey(friendAvatarPaths),
+    queryFn: () => createSignedAvatarUrls(friendAvatarPaths),
+    enabled: friendAvatarPaths.length > 0,
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
 
@@ -294,6 +329,15 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleNativeIncomingDelete = async (indices: number[]) => {
+    const firstIndex = indices[0];
+    if (typeof firstIndex !== 'number') return;
+    const request = requests[firstIndex];
+    if (!request) return;
+    if (actionLoadingId === request.id) return;
+    await handleReject(request.id);
+  };
+
   const handleCancelOutgoing = async (requestId: string) => {
     setActionLoadingId(`outgoing-${requestId}`);
     try {
@@ -302,6 +346,36 @@ export default function ProfileScreen() {
       notifyInfo('Zaproszenie usunięte.');
     } catch (err: any) {
       notifyError(err?.message ?? 'Nie udało się usunąć zaproszenia.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleNativeOutgoingDelete = async (indices: number[]) => {
+    const firstIndex = indices[0];
+    if (typeof firstIndex !== 'number') return;
+    const request = outgoingRequests[firstIndex];
+    if (!request) return;
+    const loadingId = `outgoing-${request.id}`;
+    if (actionLoadingId === loadingId) return;
+    await handleCancelOutgoing(request.id);
+  };
+
+  const handleNativeFriendDelete = async (indices: number[]) => {
+    const firstIndex = indices[0];
+    if (typeof firstIndex !== 'number') return;
+    const friend = friends[firstIndex];
+    if (!friend) return;
+    const loadingId = `friend-${friend.id}`;
+    if (actionLoadingId === loadingId) return;
+
+    setActionLoadingId(loadingId);
+    try {
+      await removeFriend(friend.id);
+      await invalidateSocialQueries();
+      notifySuccess(`Usunięto @${friend.username} ze znajomych.`);
+    } catch (err: any) {
+      notifyError(err?.message ?? 'Nie udało się usunąć znajomego.');
     } finally {
       setActionLoadingId(null);
     }
@@ -399,65 +473,72 @@ export default function ProfileScreen() {
           </Section>
           {requests.length > 0 ? (
             <Section title={t('profile.incomingInvites', { count: requests.length })}>
-              {requests.map((request) => (
-                <RNHostView matchContents key={request.id}>
-                  <View style={styles.socialRow}>
-                    <RNText numberOfLines={1} style={[styles.socialTitle, { color: colors.label }]}>
-                      @{request.requester.username}
-                    </RNText>
-                    <View style={styles.socialActions}>
-                      <Pressable onPress={() => handleAccept(request.id)} hitSlop={8}>
-                        <RNText style={[styles.socialActionLabel, { color: colors.accent }]}>Przyjmij</RNText>
-                      </Pressable>
-                      <Pressable onPress={() => handleReject(request.id)} hitSlop={8}>
-                        <RNText style={[styles.socialActionLabel, { color: colors.destructive }]}>Usuń</RNText>
-                      </Pressable>
-                    </View>
-                  </View>
-                </RNHostView>
-              ))}
+              <List.ForEach onDelete={handleNativeIncomingDelete}>
+                {requests.map((request) => {
+                  const avatarPath = request.requester.avatar_storage_path ?? null;
+                  const avatarUrl = avatarPath ? incomingAvatarUrls[avatarPath] ?? null : null;
+                  const fallbackInitial = request.requester.username.replace(/^@/, '').charAt(0).toUpperCase();
+                  return (
+                    <RNHostView matchContents key={request.id}>
+                      <View style={[styles.socialRow, actionLoadingId === request.id && styles.rowDisabled]}>
+                        <View style={styles.outgoingHeader}>
+                          <AvatarCircle
+                            size={36}
+                            url={avatarUrl}
+                            storagePath={avatarPath}
+                            emoji={request.requester.avatar_emoji}
+                            fallbackInitial={fallbackInitial}
+                          />
+                          <RNText numberOfLines={1} style={[styles.socialTitle, { color: colors.label, flex: 1 }]}>
+                            @{request.requester.username}
+                          </RNText>
+                        </View>
+                        <View style={styles.socialActions}>
+                          <Pressable onPress={() => handleAccept(request.id)} hitSlop={8}>
+                            <RNText style={[styles.socialActionLabel, { color: colors.accent }]}>Przyjmij</RNText>
+                          </Pressable>
+                        </View>
+                      </View>
+                    </RNHostView>
+                  );
+                })}
+              </List.ForEach>
             </Section>
           ) : null}
           {outgoingRequests.length > 0 ? (
             <Section title={t('profile.outgoingInvites', { count: outgoingRequests.length })}>
-              {outgoingRequests.map((request) => {
-                const avatarPath = request.recipient.avatar_storage_path ?? null;
-                const avatarUrl = avatarPath ? outgoingAvatarUrls[avatarPath] ?? null : null;
-                const fallbackInitial = request.recipient.username.replace(/^@/, '').charAt(0).toUpperCase();
-                return (
-                  <RNHostView matchContents key={request.id}>
-                    <View style={styles.socialRow}>
-                      <View style={styles.outgoingHeader}>
-                        <AvatarCircle
-                          size={36}
-                          url={avatarUrl}
-                          storagePath={avatarPath}
-                          emoji={request.recipient.avatar_emoji}
-                          fallbackInitial={fallbackInitial}
-                        />
-                        <RNText numberOfLines={1} style={[styles.socialTitle, { color: colors.label, flex: 1 }]}>
-                          @{request.recipient.username}
+              <List.ForEach onDelete={handleNativeOutgoingDelete}>
+                {outgoingRequests.map((request) => {
+                  const avatarPath = request.recipient.avatar_storage_path ?? null;
+                  const avatarUrl = avatarPath ? outgoingAvatarUrls[avatarPath] ?? null : null;
+                  const fallbackInitial = request.recipient.username.replace(/^@/, '').charAt(0).toUpperCase();
+                  return (
+                    <RNHostView matchContents key={request.id}>
+                      <View
+                        style={[
+                          styles.socialRow,
+                          actionLoadingId === `outgoing-${request.id}` && styles.rowDisabled,
+                        ]}>
+                        <View style={styles.outgoingHeader}>
+                          <AvatarCircle
+                            size={36}
+                            url={avatarUrl}
+                            storagePath={avatarPath}
+                            emoji={request.recipient.avatar_emoji}
+                            fallbackInitial={fallbackInitial}
+                          />
+                          <RNText numberOfLines={1} style={[styles.socialTitle, { color: colors.label, flex: 1 }]}>
+                            @{request.recipient.username}
+                          </RNText>
+                        </View>
+                        <RNText style={[styles.outgoingStatusLabel, { color: colors.tertiaryLabel }]}>
+                          {actionLoadingId === `outgoing-${request.id}` ? 'Usuwanie…' : 'Oczekuje na akceptację'}
                         </RNText>
                       </View>
-                      <RNText style={[styles.outgoingStatusLabel, { color: colors.tertiaryLabel }]}>
-                        Oczekuje na akceptację
-                      </RNText>
-                      <Pressable onPress={() => handleCancelOutgoing(request.id)} hitSlop={8}>
-                        <RNText
-                          style={[
-                            styles.socialActionLabel,
-                            {
-                              color: colors.destructive,
-                              opacity: actionLoadingId === `outgoing-${request.id}` ? 0.45 : 1,
-                            },
-                          ]}>
-                          {actionLoadingId === `outgoing-${request.id}` ? 'Usuwanie…' : 'Usuń zaproszenie'}
-                        </RNText>
-                      </Pressable>
-                    </View>
-                  </RNHostView>
-                );
-              })}
+                    </RNHostView>
+                  );
+                })}
+              </List.ForEach>
             </Section>
           ) : null}
           <Section title={t('profile.friends', { count: friends.length })}>
@@ -470,41 +551,35 @@ export default function ProfileScreen() {
                 Nie masz jeszcze znajomych.
               </Text>
             ) : (
-              friends.map((friend) => (
-                <RNHostView matchContents key={friend.id}>
-                  <View style={styles.socialRow}>
-                    <RNText numberOfLines={1} style={[styles.socialTitle, { color: colors.label }]}>
-                      @{friend.username}
-                    </RNText>
-                    <Pressable
-                      disabled={actionLoadingId === `friend-${friend.id}`}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/profile/remove-friend',
-                          params: {
-                            friendId: friend.id,
-                            username: friend.username,
-                            avatarStoragePath: friend.avatar_storage_path ?? undefined,
-                            avatarEmoji: friend.avatar_emoji ?? undefined,
-                            fallbackInitial: friend.username.replace(/^@/, '').charAt(0).toUpperCase(),
-                          },
-                        })
-                      }
-                      hitSlop={8}>
-                      <RNText
+              <List.ForEach onDelete={handleNativeFriendDelete}>
+                {friends.map((friend) => {
+                  const avatarPath = friend.avatar_storage_path ?? null;
+                  const avatarUrl = avatarPath ? friendAvatarUrls[avatarPath] ?? null : null;
+                  const fallbackInitial = friend.username.replace(/^@/, '').charAt(0).toUpperCase();
+                  return (
+                    <RNHostView matchContents key={friend.id}>
+                      <View
                         style={[
-                          styles.socialActionLabel,
-                          {
-                            color: colors.destructive,
-                            opacity: actionLoadingId === `friend-${friend.id}` ? 0.45 : 1,
-                          },
+                          styles.socialRow,
+                          actionLoadingId === `friend-${friend.id}` && styles.rowDisabled,
                         ]}>
-                        {actionLoadingId === `friend-${friend.id}` ? 'Usuwanie…' : 'Usuń znajomego'}
-                      </RNText>
-                    </Pressable>
-                  </View>
-                </RNHostView>
-              ))
+                        <View style={styles.outgoingHeader}>
+                          <AvatarCircle
+                            size={36}
+                            url={avatarUrl}
+                            storagePath={avatarPath}
+                            emoji={friend.avatar_emoji}
+                            fallbackInitial={fallbackInitial}
+                          />
+                          <RNText numberOfLines={1} style={[styles.socialTitle, { color: colors.label, flex: 1 }]}>
+                            @{friend.username}
+                          </RNText>
+                        </View>
+                      </View>
+                    </RNHostView>
+                  );
+                })}
+              </List.ForEach>
             )}
           </Section>
           <Section title={t('profile.account')}>
@@ -568,5 +643,8 @@ const styles = StyleSheet.create({
   outgoingStatusLabel: {
     ...typography.footnote,
     paddingLeft: 46,
+  },
+  rowDisabled: {
+    opacity: 0.82,
   },
 });

@@ -460,9 +460,10 @@ export function useMediaUpload() {
   }, []);
 
   useEffect(() => {
+    const completionWaiters = completionWaitersRef.current;
     return () => {
-      completionWaitersRef.current.forEach((waiter) => clearTimeout(waiter.timeoutId));
-      completionWaitersRef.current.clear();
+      completionWaiters.forEach((waiter) => clearTimeout(waiter.timeoutId));
+      completionWaiters.clear();
     };
   }, []);
 

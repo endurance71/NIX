@@ -29,6 +29,16 @@ export function AvatarCircle({
   const normalizedInitial = (fallbackInitial ?? '?').trim().charAt(0).toUpperCase();
   const [imageFailed, setImageFailed] = useState(false);
   const hasUsableUrl = Boolean(url) && !imageFailed;
+  const imageSource = useMemo(
+    () =>
+      hasUsableUrl
+        ? {
+            uri: url ?? undefined,
+            ...(storagePath ? { cacheKey: storagePath } : {}),
+          }
+        : null,
+    [hasUsableUrl, storagePath, url]
+  );
 
   useEffect(() => {
     setImageFailed(false);
@@ -36,13 +46,10 @@ export function AvatarCircle({
 
   return (
     <View style={[styles.circle, { backgroundColor: colors.surfaceAlt }]}>
-      {hasUsableUrl ? (
+      {imageSource ? (
         <ExpoImage
           cachePolicy="memory-disk"
-          source={{
-            uri: url,
-            ...(storagePath ? { cacheKey: storagePath } : {}),
-          }}
+          source={imageSource}
           style={styles.image}
           contentFit="cover"
           onError={() => setImageFailed(true)}

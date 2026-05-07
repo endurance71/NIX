@@ -31,8 +31,31 @@ NiX to aplikacja Expo tworzona najpierw pod iOS z efemerycznym przepływem wiado
 
 - Główna dokumentacja produktowo-techniczna: `docs/ZenSnap_Documentation_v1.0.md`
 - Konfiguracja bazy Supabase: `docs/supabase_setup.sql`
+- Seed grafu społecznego (10 znajomych + 10 rozmówców): `docs/supabase_seed_social_graph.sql`
 - Przepływ pracy deweloperskiej i testy dymne: `docs/development-workflow.md`
 - Wytyczne motywu systemowego iOS: `docs/theme-guidelines.md`
+
+## Social Seed (Supabase)
+
+Skrypt `docs/supabase_seed_social_graph.sql` dopełnia dane społeczne tak, aby każdy użytkownik miał:
+- minimum 10 zaakceptowanych znajomych (`friendships.status = 'accepted'`),
+- minimum 10 rozmówców (unikalnych peerów) w `snaps`.
+
+Jeżeli w bazie jest mniej niż 11 użytkowników, skrypt doda brakujące konta techniczne (`seed_social_*`) do `auth.users` i `profiles`.
+
+### Kolejność uruchomienia
+
+1. Uruchom `docs/supabase_setup.sql` (schema + RLS + funkcje).
+2. Uruchom `docs/supabase_seed_social_graph.sql` (seed danych społecznych).
+3. Sprawdź trzy końcowe wyniki SELECT ze skryptu seed:
+   - liczba znajomych per user,
+   - liczba rozmówców per user,
+   - lista odchyleń od celu.
+
+### Oczekiwany wynik
+
+- Trzeci SELECT (odchylenia) powinien zwrócić pusty wynik.
+- Skrypt jest idempotentny: można uruchamiać wielokrotnie bez tworzenia duplikatów seedowych par i seedowych snapów.
 
 ## System Theme (iOS)
 

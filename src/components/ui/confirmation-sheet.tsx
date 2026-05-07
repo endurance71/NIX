@@ -6,6 +6,7 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { APP_FONT_FAMILY } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/colors';
 import { SHEET_CONTENT_PADDING_TOP } from '../../theme/sheetLayout';
+import { tap } from '../../lib/haptics';
 
 type ConfirmationSheetProps = {
   title: string;
@@ -36,6 +37,7 @@ export function ConfirmationSheet({
 
   const handleConfirm = async () => {
     if (loading) return;
+    tap('heavy');
     setLoading(true);
     try {
       await onConfirm();

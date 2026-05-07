@@ -32,6 +32,7 @@ import { clearMediaMemoryCache } from '../lib/mediaCache';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { queryKeys } from '../lib/queryKeys';
 import { generateVideoThumbnailAtTime } from '../lib/videoThumbnails';
+import { selection } from '../lib/haptics';
 import { configureForPlayback } from '../lib/audioSession';
 
 /** Maks. czas oczekiwania na `readyToPlay` zanim wymusimy `play()` + `onReady()`. */
@@ -301,6 +302,9 @@ export default function ViewerScreen() {
     })();
 
     if (slideIndexRef.current < queueRef.current.length - 1) {
+      if (queueRef.current.length > 1) {
+        selection();
+      }
       setSlideIndex((n) => n + 1);
       setImageReady(false);
       setImageLoadError(null);
@@ -308,7 +312,7 @@ export default function ViewerScreen() {
       setClosing(true);
       router.back();
     }
-  }, [queryClient, segmentProgress]);
+  }, [segmentProgress]);
 
   useEffect(() => {
     const path = currentSnap?.media_path;
@@ -378,6 +382,7 @@ export default function ViewerScreen() {
       cancelled = true;
     };
   }, [
+    currentSnap,
     currentSnap?.media_path,
     currentSnap?.media_type,
     queueLoading,
@@ -446,6 +451,7 @@ export default function ViewerScreen() {
   }, [
     queueLoading,
     closing,
+    queue.length,
     displayedSnap,
     loading,
     imageUrl,

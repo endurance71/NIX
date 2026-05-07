@@ -147,26 +147,23 @@ export default function FriendInviteConfirmScreen() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests });
       void queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests });
       const message = mapConfirmationMessage(result.result, result.profile?.username ?? displayUsername);
-      const persistOk = {
-        autoDismiss: false as const,
-        action: { label: 'OK', onPress: () => router.back() },
-      };
       switch (result.result) {
         case 'request_sent':
         case 'already_friends':
         case 'accepted_reverse_request':
-          notifySuccess('Potwierdzenie', { message, ...persistOk });
+          notifySuccess('Potwierdzenie', { message });
           break;
         case 'already_requested':
-          notifyInfo('Potwierdzenie', { message, ...persistOk });
+          notifyInfo('Potwierdzenie', { message });
           break;
         case 'own_profile':
         case 'invalid_profile':
-          notifyError('Potwierdzenie', { message, ...persistOk });
+          notifyError('Potwierdzenie', { message });
           break;
         default:
-          notifyShow({ title: 'Potwierdzenie', message, ...persistOk });
+          notifyShow({ title: 'Potwierdzenie', message });
       }
+      router.back();
     } catch (err: any) {
       trackEvent('friend_invite_redeem', {
         channel: 'qr',

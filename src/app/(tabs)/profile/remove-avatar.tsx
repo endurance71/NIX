@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { clearProfileAvatar } from '../../../services/avatarService';
 import { queryKeys } from '../../../lib/queryKeys';
 import { ConfirmationSheet } from '../../../components/ui/confirmation-sheet';
+import { notifyDomainError, notifySuccess } from '../../../lib/appNotify';
 
 export default function RemoveAvatarSheet() {
   const queryClient = useQueryClient();
@@ -19,10 +20,17 @@ export default function RemoveAvatarSheet() {
   const fallbackInitial = params.fallbackInitial ?? null;
 
   const handleConfirm = async () => {
-    await clearProfileAvatar();
-    void queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle });
-    router.back();
+    try {
+      await clearProfileAvatar();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle });
+      notifySuccess('Awatar usunięty.');
+      router.back();
+    } catch (err: unknown) {
+      notifyDomainError(err, 'Nie udało się usunąć awatara.');
+      throw err;
+    }
   };
 
   return (

@@ -3,6 +3,8 @@ import { vi } from 'vitest';
 /** Domyślne wartości na czas testów (ładowanie modułu supabase wymaga EXPO_PUBLIC_*). */
 process.env.EXPO_PUBLIC_SUPABASE_URL ??= 'https://placeholder.supabase.co';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??= 'placeholder-anon-key';
+/** Gate haptyki i innych zachowań specyficznych dla iOS w kodzie produkcyjnym. */
+process.env.EXPO_OS ??= 'ios';
 
 /** mediaService importuje moduły Expo z natywnym core — w Node zastępujemy je stubami. */
 vi.mock('expo-video', () => ({
