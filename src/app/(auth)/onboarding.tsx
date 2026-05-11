@@ -64,7 +64,6 @@ export default function OnboardingScreen() {
               setError(null);
               setUsername(t.toLowerCase().replace(/[^a-z0-9_]/g, ''));
             }}
-            autoFocus
             modifiers={[
               textFieldStyle('roundedBorder'),
               textInputAutocapitalization('never'),

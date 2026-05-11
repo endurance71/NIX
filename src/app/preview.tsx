@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Image } from 'expo-image';
@@ -26,14 +26,14 @@ import { configureForPlayback } from '../lib/audioSession';
 import { trackEvent } from '../lib/telemetry';
 import { selection, tap } from '../lib/haptics';
 import {
-  SNAP_VIEW_DURATION_CHOICES,
-  DEFAULT_SNAP_VIEW_DURATION_SEC,
-  formatSnapViewDurationLabel,
-  loadPreferredSnapViewDuration,
-  savePreferredSnapViewDuration,
-  shortSnapViewDurationLabel,
-  type SnapViewDurationSec,
-} from '../lib/snapViewDuration';
+  NIX_VIEW_DURATION_CHOICES,
+  DEFAULT_NIX_VIEW_DURATION_SEC,
+  formatNixViewDurationLabel,
+  loadPreferredNixViewDuration,
+  savePreferredNixViewDuration,
+  shortNixViewDurationLabel,
+  type NixViewDurationSec,
+} from '../lib/nixViewDuration';
 import { Host, ConfirmationDialog, Button, Text as SUIText, RNHostView } from '@expo/ui/swift-ui';
 
 const TIMER_TRACK_HEIGHT = 8;
@@ -82,6 +82,9 @@ function PreviewSegmentVideo({
   const errorEmittedRef = useRef(false);
   const watchdogFiredRef = useRef(false);
 
+  const onReadyEffect = useEffectEvent(onReady);
+  const onPlaybackErrorEffect = useEffectEvent(onPlaybackError);
+
   const statusEvent = useEvent(player, 'statusChange', { status: player.status });
   const status = statusEvent?.status ?? player.status;
 
@@ -104,7 +107,7 @@ function PreviewSegmentVideo({
           status,
           segment_index: segmentIndex,
         });
-        onReady();
+        onReadyEffect();
       }
       try {
         player.play();
@@ -119,9 +122,10 @@ function PreviewSegmentVideo({
         status,
         segment_index: segmentIndex,
       });
-      onPlaybackError();
+      onPlaybackErrorEffect();
     }
-  }, [status, segmentIndex, player, onReady, onPlaybackError]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent (onReady / onPlaybackError)
+  }, [status, segmentIndex, player]);
 
   useEffect(() => {
     readyEmittedRef.current = false;
@@ -143,10 +147,11 @@ function PreviewSegmentVideo({
         // ignorujemy
       }
       readyEmittedRef.current = true;
-      onReady();
+      onReadyEffect();
     }, PREVIEW_VIDEO_WATCHDOG_MS);
     return () => clearTimeout(timer);
-  }, [uri, segmentIndex, player, onReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent onReady
+  }, [uri, segmentIndex, player]);
 
   return <VideoView style={style} player={player} contentFit="cover" nativeControls={false} />;
 }
@@ -182,7 +187,7 @@ function PreviewVideoContent({
   }, [clipIndex, current.uri, segmentProgress]);
 
   const activeSegmentMaskStyle = useAnimatedStyle(() => ({
-    width: `${(1 - segmentProgress.value) * 100}%`,
+    transform: [{ scaleX: Math.max(0, 1 - segmentProgress.value) }],
   }));
 
   const advanceClip = useCallback(() => {
@@ -321,14 +326,14 @@ export default function PreviewScreen() {
   const mode = paramFirst(raw.mode);
   const uri = paramFirst(raw.uri);
 
-  const [viewDurationSec, setViewDurationSec] = useState<SnapViewDurationSec>(DEFAULT_SNAP_VIEW_DURATION_SEC);
+  const [viewDurationSec, setViewDurationSec] = useState<NixViewDurationSec>(DEFAULT_NIX_VIEW_DURATION_SEC);
   const [durationPickerOpen, setDurationPickerOpen] = useState(false);
 
   const { segments, clearSegments } = useVideoDraft();
 
   useEffect(() => {
     let cancelled = false;
-    void loadPreferredSnapViewDuration().then((sec) => {
+    void loadPreferredNixViewDuration().then((sec) => {
       if (!cancelled) setViewDurationSec(sec);
     });
     return () => {
@@ -401,12 +406,12 @@ export default function PreviewScreen() {
               <ConfirmationDialog.Trigger>
                 <RNHostView matchContents>
                   <Pressable
-                    style={styles.snapDurationButton}
+                    style={styles.nixDurationButton}
                     onPress={() => setDurationPickerOpen(true)}
                     hitSlop={10}
-                    accessibilityLabel={`Czas wyświetlania: ${formatSnapViewDurationLabel(viewDurationSec)}`}>
+                    accessibilityLabel={`Czas wyświetlania: ${formatNixViewDurationLabel(viewDurationSec)}`}>
                     <SFSymbol name="timer" size={20} tintColor={colors.cameraControlTint} />
-                    <Text style={styles.snapDurationButtonLabel}>{shortSnapViewDurationLabel(viewDurationSec)}</Text>
+                    <Text style={styles.nixDurationButtonLabel}>{shortNixViewDurationLabel(viewDurationSec)}</Text>
                   </Pressable>
                 </RNHostView>
               </ConfirmationDialog.Trigger>
@@ -414,15 +419,15 @@ export default function PreviewScreen() {
                 <SUIText>Jak długo zdjęcie będzie widoczne u odbiorcy po otwarciu.</SUIText>
               </ConfirmationDialog.Message>
               <ConfirmationDialog.Actions>
-                {SNAP_VIEW_DURATION_CHOICES.map((sec) => (
+                {NIX_VIEW_DURATION_CHOICES.map((sec) => (
                   <Button
                     key={sec}
-                    label={formatSnapViewDurationLabel(sec)}
+                    label={formatNixViewDurationLabel(sec)}
                     {...(sec === viewDurationSec ? { systemImage: 'checkmark.circle.fill' as const } : {})}
                     onPress={() => {
                       selection();
                       setViewDurationSec(sec);
-                      void savePreferredSnapViewDuration(sec);
+                      void savePreferredNixViewDuration(sec);
                       setDurationPickerOpen(false);
                     }}
                   />
@@ -495,7 +500,7 @@ const createStyles = (colors: ThemeColors) => {
       alignItems: 'center',
       alignSelf: 'stretch',
     },
-    snapDurationButton: {
+    nixDurationButton: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
@@ -504,7 +509,7 @@ const createStyles = (colors: ThemeColors) => {
       borderRadius: 24,
       backgroundColor: colors.cameraControlBackground,
     },
-    snapDurationButtonLabel: {
+    nixDurationButtonLabel: {
       color: colors.cameraControlTint,
       ...typography.footnote,
       fontWeight: '600',
@@ -584,8 +589,10 @@ const createStyles = (colors: ThemeColors) => {
       left: 0,
       top: 0,
       bottom: 0,
+      width: '100%',
       borderRadius: TIMER_TRACK_HEIGHT / 2,
       backgroundColor: progressBlue,
+      transformOrigin: 'left center',
     },
     dismissArea: {
       ...StyleSheet.absoluteFillObject,

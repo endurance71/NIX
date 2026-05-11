@@ -25,20 +25,20 @@ export default function RemoveFriendSheet() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!avatarStoragePath) {
-      setAvatarUrl(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-    createSignedAvatarUrl(avatarStoragePath)
-      .then((url) => {
-        if (!cancelled) setAvatarUrl(url);
-      })
-      .catch((err) => {
-        console.warn('Nie udało się pobrać signed URL avatara znajomego', err);
-        if (!cancelled) setAvatarUrl(null);
-      });
+    void (async () => {
+      let nextAvatarUrl: string | null = null;
+      if (!avatarStoragePath) {
+        nextAvatarUrl = null;
+      } else {
+        try {
+          nextAvatarUrl = await createSignedAvatarUrl(avatarStoragePath);
+        } catch (err) {
+          console.warn('Nie udało się pobrać signed URL avatara znajomego', err);
+          nextAvatarUrl = null;
+        }
+      }
+      if (!cancelled) setAvatarUrl(nextAvatarUrl);
+    })();
     return () => {
       cancelled = true;
     };
@@ -48,7 +48,7 @@ export default function RemoveFriendSheet() {
     if (!friendId) return;
     await removeFriend(friendId);
     void queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
     router.back();
   };
 

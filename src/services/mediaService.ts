@@ -1,9 +1,10 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import type { VideoThumbnail } from 'expo-video';
+import { Video as VideoCompressor } from 'react-native-compressor';
 import { supabase } from '../lib/supabase';
 import { generateVideoThumbnailAtTime } from '../lib/videoThumbnails';
-import { insertSnap } from './snapService';
+import { insertNix } from './nixService';
 import { getCurrentUser } from './profileService';
 import { DomainError } from './errors';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
@@ -18,15 +19,15 @@ export function buildContentType(fileUri: string) {
   };
 }
 
-export function buildVideoContentType(fileUri: string) {
+function buildVideoContentType(fileUri: string) {
   const ext = fileUri.split('?')[0].split('.').pop()?.toLowerCase() || 'mp4';
   const contentType =
     ext === 'mov' ? 'video/quicktime' : ext === 'm4v' ? 'video/x-m4v' : 'video/mp4';
   return { ext, contentType };
 }
 
-export const SNAP_ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-export const SNAP_ALLOWED_VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/x-m4v']);
+export const NIX_ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const NIX_ALLOWED_VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/x-m4v']);
 
 const MAX_IMAGE_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const TARGET_IMAGE_LONG_EDGE = 1440;
@@ -34,6 +35,8 @@ const TARGET_IMAGE_QUALITY = 0.78;
 const TARGET_VIDEO_BITRATE = 2_000_000;
 const TARGET_VIDEO_LONG_FORM_BITRATE = 1_500_000;
 const TARGET_VIDEO_MAX_SIZE = 1280;
+const TARGET_VIDEO_AGGRESSIVE_BITRATE = 900_000;
+const TARGET_VIDEO_AGGRESSIVE_MAX_SIZE = 960;
 const UPLOAD_RETRY_DELAYS_MS = [600, 1400, 3000];
 /**
  * Limit pliku wideo akceptowanego przez aplikację. Po przejściu na resumable
@@ -42,6 +45,7 @@ const UPLOAD_RETRY_DELAYS_MS = [600, 1400, 3000];
  */
 export const MAX_VIDEO_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 const MAX_VIDEO_FILE_SIZE_MB = Math.round(MAX_VIDEO_FILE_SIZE_BYTES / (1024 * 1024));
+const BYTES_IN_MB = 1024 * 1024;
 /**
  * Próg dla fast-path pomijającego kompresję `react-native-compressor`.
  * Nagrania z aparatu są już ograniczone bitratem 2.5 Mbps, więc kompresja
@@ -72,13 +76,13 @@ function isMissingThumbnailColumnError(error: unknown) {
       ? error.message
       : '';
   return (
-    message.includes('column snaps.thumbnail_b64 does not exist') ||
+    message.includes('column nixes.thumbnail_b64 does not exist') ||
     message.includes(SUPABASE_MISSING_THUMBNAIL_COLUMN_ERROR) ||
     (message.includes('thumbnail_b64') && message.includes('schema cache'))
   );
 }
 
-export type MediaUploadPhase = 'reading' | 'compressing' | 'thumbnail' | 'uploading' | 'creating_record' | 'cleanup';
+type MediaUploadPhase = 'reading' | 'compressing' | 'thumbnail' | 'uploading' | 'creating_record' | 'cleanup';
 
 export type MediaUploadProgress = {
   phase: MediaUploadPhase;
@@ -104,7 +108,7 @@ type PreparedMedia = {
   thumbnailTemporaryUris?: string[];
   /**
    * Embedded miniatura jako data URL JPEG (`data:image/jpeg;base64,...`).
-   * Trafia do `snaps.thumbnail_b64` i jest serwowana odbiorcy bez dodatkowego
+   * Trafia do `nixes.thumbnail_b64` i jest serwowana odbiorcy bez dodatkowego
    * pobrania ze Storage. `null`, jeśli nie udało się zmieścić w limicie.
    */
   thumbnailDataUrl?: string | null;
@@ -216,7 +220,9 @@ async function buildThumbnailDataUrl(
     { width: THUMBNAIL_FALLBACK_WIDTH, quality: THUMBNAIL_FALLBACK_QUALITY },
   ];
 
-  for (const variant of variants) {
+  const tryVariantAt = async (index: number): Promise<{ dataUrl: string; byteLength: number } | null> => {
+    if (index >= variants.length) return null;
+    const variant = variants[index];
     try {
       const context = ImageManipulator.manipulate(thumbnailSource);
       context.resize({ width: variant.width });
@@ -249,9 +255,10 @@ async function buildThumbnailDataUrl(
         error_message: error instanceof Error ? error.message : 'Unknown thumbnail variant error',
       });
     }
-  }
+    return tryVariantAt(index + 1);
+  };
 
-  return null;
+  return tryVariantAt(0);
 }
 
 export async function prepareVideoForUpload(fileUri: string, options?: MediaUploadOptions): Promise<PreparedMedia> {
@@ -292,10 +299,9 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
     emitProgress(options, { phase: 'compressing', progress: 0.95 });
   } else {
     try {
-      const { Video } = await import('react-native-compressor');
       const useLowerBitrate =
         typeof originalSizeBytes === 'number' && originalSizeBytes > 30 * 1024 * 1024;
-      compressedUri = await Video.compress(
+      compressedUri = await VideoCompressor.compress(
         fileUri,
         {
           compressionMethod: 'auto',
@@ -309,6 +315,32 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
         }
       );
       if (compressedUri !== fileUri) temporaryUris.push(compressedUri);
+
+      const firstPassSize = await getFileSizeBytes(compressedUri);
+      if (typeof firstPassSize === 'number' && firstPassSize > MAX_VIDEO_FILE_SIZE_BYTES) {
+        const aggressiveUri = await VideoCompressor.compress(
+          compressedUri,
+          {
+            compressionMethod: 'auto',
+            bitrate: TARGET_VIDEO_AGGRESSIVE_BITRATE,
+            maxSize: TARGET_VIDEO_AGGRESSIVE_MAX_SIZE,
+            minimumFileSizeForCompress: 1,
+            progressDivider: 5,
+          },
+          (progress) => {
+            emitProgress(options, { phase: 'compressing', progress: Math.max(0.4, Math.min(0.95, progress)) });
+          }
+        );
+        if (aggressiveUri !== compressedUri) {
+          temporaryUris.push(aggressiveUri);
+          compressedUri = aggressiveUri;
+        }
+        trackEvent('compression_aggressive_pass', {
+          media_type: 'video',
+          first_pass_bytes: firstPassSize,
+          final_bytes: await getFileSizeBytes(compressedUri),
+        });
+      }
     } catch (error) {
       trackEvent('compression_fallback', {
         media_type: 'video',
@@ -396,9 +428,7 @@ async function uploadWithRetry(
   options: { contentType: string; cacheControl?: string },
   uploadOptions?: MediaUploadOptions
 ) {
-  let lastError: unknown = null;
-
-  for (let attempt = 1; attempt <= UPLOAD_RETRY_DELAYS_MS.length + 1; attempt += 1) {
+  const uploadAttempt = async (attempt: number): Promise<{ path: string }> => {
     assertNotCancelled(uploadOptions?.signal);
     emitProgress(uploadOptions, {
       phase: 'uploading',
@@ -434,12 +464,7 @@ async function uploadWithRetry(
       return data;
     }
 
-    // Idempotent path: jeśli obiekt już istnieje pod tym samym stable path,
-    // traktujemy to jako sukces i przechodzimy dalej do zapisu metadanych.
-    if (
-      typeof error.message === 'string' &&
-      error.message.includes(SUPABASE_RESOURCE_ALREADY_EXISTS_ERROR)
-    ) {
+    if (isStorageObjectAlreadyExistsError(error.message)) {
       emitProgress(uploadOptions, {
         phase: 'uploading',
         progress: 1,
@@ -450,17 +475,24 @@ async function uploadWithRetry(
       return { path };
     }
 
-    lastError = error;
-    if (attempt > UPLOAD_RETRY_DELAYS_MS.length) break;
+    if (attempt > UPLOAD_RETRY_DELAYS_MS.length) {
+      const message =
+        typeof error === 'object' && error && 'message' in error && typeof error.message === 'string'
+          ? error.message
+          : 'Nie udało się przesłać pliku.';
+      throw new DomainError('INVALID_MEDIA', mapStorageUploadError(message));
+    }
+
     const retryDelayMs = isTestRuntime() ? 0 : UPLOAD_RETRY_DELAYS_MS[attempt - 1];
     await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-  }
+    return uploadAttempt(attempt + 1);
+  };
 
-  const message =
-    typeof lastError === 'object' && lastError && 'message' in lastError && typeof lastError.message === 'string'
-      ? lastError.message
-      : 'Nie udało się przesłać pliku.';
-  throw new DomainError('INVALID_MEDIA', mapStorageUploadError(message));
+  return uploadAttempt(1);
+}
+
+function isStorageObjectAlreadyExistsError(message: unknown): boolean {
+  return typeof message === 'string' && message.includes(SUPABASE_RESOURCE_ALREADY_EXISTS_ERROR);
 }
 
 async function fetchArrayBufferViaXhr(fileUri: string): Promise<ArrayBuffer> {
@@ -508,7 +540,7 @@ export async function getImageBytes(fileUri: string): Promise<Uint8Array> {
   return new Uint8Array(buffer);
 }
 
-export async function uploadImageAndCreateSnap(
+export async function uploadImageAndCreateNix(
   fileUri: string,
   receiverId: string,
   viewDurationSec = 5,
@@ -528,7 +560,7 @@ export async function uploadImageAndCreateSnap(
     throw new DomainError('INVALID_RECEIVER', 'Wybierz poprawnego odbiorcę.');
   }
 
-  if (!SNAP_ALLOWED_IMAGE_TYPES.has(contentType)) {
+  if (!NIX_ALLOWED_IMAGE_TYPES.has(contentType)) {
     throw new DomainError('INVALID_MEDIA', 'Nieobsługiwany format pliku.');
   }
 
@@ -538,12 +570,12 @@ export async function uploadImageAndCreateSnap(
 
   const stableUploadId = options?.clientUploadId?.replace(/[^a-zA-Z0-9_-]/g, '');
   const fileName = `${user.id}/${stableUploadId || `${Date.now()}_${Math.random().toString(36).substring(7)}`}.${ext}`;
-  const filePath = `snaps/${fileName}`;
+  const filePath = `nixes/${fileName}`;
 
-  const hasExistingSnap = async () => {
+  const hasExistingNix = async () => {
     if (typeof (supabase as { from?: unknown }).from !== 'function') return false;
     const { data } = await supabase
-      .from('snaps')
+      .from('nixes')
       .select('id')
       .eq('sender_id', user.id)
       .eq('receiver_id', receiverId)
@@ -556,8 +588,8 @@ export async function uploadImageAndCreateSnap(
   try {
     const uploadData = await uploadWithRetry('media-vault', filePath, bytes, { contentType }, options);
     emitProgress(options, { phase: 'creating_record', progress: 0.5 });
-    if (!(await hasExistingSnap())) {
-      await insertSnap(receiverId, uploadData.path, viewDurationSec, {
+    if (!(await hasExistingNix())) {
+      await insertNix(receiverId, uploadData.path, viewDurationSec, {
         clientUploadId: stableUploadId ?? filePath,
       });
     }
@@ -569,7 +601,7 @@ export async function uploadImageAndCreateSnap(
   }
 }
 
-export async function uploadVideoAndCreateSnap(
+export async function uploadVideoAndCreateNix(
   fileUri: string,
   receiverId: string,
   playbackDurationMs: number,
@@ -589,7 +621,7 @@ export async function uploadVideoAndCreateSnap(
     throw new DomainError('INVALID_RECEIVER', 'Wybierz poprawnego odbiorcę.');
   }
 
-  if (!SNAP_ALLOWED_VIDEO_TYPES.has(contentType)) {
+  if (!NIX_ALLOWED_VIDEO_TYPES.has(contentType)) {
     throw new DomainError('INVALID_MEDIA', 'Nieobsługiwany format wideo.');
   }
 
@@ -600,20 +632,21 @@ export async function uploadVideoAndCreateSnap(
     throw new DomainError('INVALID_MEDIA', 'Plik jest pusty lub uszkodzony.');
   }
   if (finalSizeBytes > MAX_VIDEO_FILE_SIZE_BYTES) {
+    const finalSizeMb = (finalSizeBytes / BYTES_IN_MB).toFixed(1);
     throw new DomainError(
       'INVALID_MEDIA',
-      `Plik wideo jest za duży. Maksymalny rozmiar to ${MAX_VIDEO_FILE_SIZE_MB} MB.`
+      `Plik nadal jest za duży po kompresji (${finalSizeMb} MB). Maksymalny rozmiar to ${MAX_VIDEO_FILE_SIZE_MB} MB — wybierz krótsze wideo.`
     );
   }
 
   const stableUploadId = options?.clientUploadId?.replace(/[^a-zA-Z0-9_-]/g, '');
   const fileName = `${user.id}/${stableUploadId || `${Date.now()}_${Math.random().toString(36).substring(7)}`}.${ext}`;
-  const filePath = `snaps/${fileName}`;
+  const filePath = `nixes/${fileName}`;
 
-  const hasExistingSnap = async () => {
+  const hasExistingNix = async () => {
     if (typeof (supabase as { from?: unknown }).from !== 'function') return false;
     const { data } = await supabase
-      .from('snaps')
+      .from('nixes')
       .select('id')
       .eq('sender_id', user.id)
       .eq('receiver_id', receiverId)
@@ -669,9 +702,9 @@ export async function uploadVideoAndCreateSnap(
     });
 
     emitProgress(options, { phase: 'creating_record', progress: 0.5 });
-    if (!(await hasExistingSnap())) {
+    if (!(await hasExistingNix())) {
       try {
-        await insertSnap(receiverId, filePath, viewDurationSec, {
+        await insertNix(receiverId, filePath, viewDurationSec, {
           mediaType: 'video',
           playbackDurationMs,
           clientUploadId: stableUploadId ?? filePath,
@@ -685,7 +718,7 @@ export async function uploadVideoAndCreateSnap(
           media_type: 'video',
           reason: 'missing_db_column',
         });
-        await insertSnap(receiverId, filePath, viewDurationSec, {
+        await insertNix(receiverId, filePath, viewDurationSec, {
           mediaType: 'video',
           playbackDurationMs,
           clientUploadId: stableUploadId ?? filePath,

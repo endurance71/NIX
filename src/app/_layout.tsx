@@ -1,7 +1,7 @@
 import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { View, ActivityIndicator, Text, Pressable } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -25,6 +25,35 @@ import '../lib/i18n';
 
 // Initialize monitoring at module load (runs once).
 initMonitoring();
+
+type ProfileGateState = {
+  profileLoading: boolean;
+  needsOnboarding: boolean;
+};
+
+type ProfileGateAction =
+  | { type: 'no_session' }
+  | { type: 'fetch_start' }
+  | { type: 'resolved'; profile: Awaited<ReturnType<typeof getCurrentUserProfile>> }
+  | { type: 'fetch_error' };
+
+function profileGateReducer(state: ProfileGateState, action: ProfileGateAction): ProfileGateState {
+  switch (action.type) {
+    case 'no_session':
+      return { profileLoading: false, needsOnboarding: false };
+    case 'fetch_start':
+      return { ...state, profileLoading: true };
+    case 'resolved':
+      return {
+        profileLoading: false,
+        needsOnboarding: !action.profile?.username,
+      };
+    case 'fetch_error':
+      return { profileLoading: false, needsOnboarding: true };
+    default:
+      return state;
+  }
+}
 
 export default function RootLayout() {
   const [queryClient] = useState(() => createAppQueryClient());
@@ -61,48 +90,60 @@ function RootNavigator() {
   const { colors, statusBarStyle } = useAppTheme();
   const { session, loading } = useAuth();
   const segments = useSegments();
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [gate, dispatchGate] = useReducer(profileGateReducer, {
+    profileLoading: false,
+    needsOnboarding: false,
+  });
+  const { profileLoading, needsOnboarding } = gate;
   const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false);
 
   useEffect(() => {
     let mounted = true;
+    let profileRaceTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const checkProfile = async () => {
       if (!session) {
         if (!mounted) return;
-        setNeedsOnboarding(false);
-        setProfileLoading(false);
+        dispatchGate({ type: 'no_session' });
         return;
       }
 
-      setProfileLoading(true);
+      dispatchGate({ type: 'fetch_start' });
       try {
-        const profile = await Promise.race([
-          getCurrentUserProfile(),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-        ]);
+        const timeoutPromise = new Promise<Awaited<ReturnType<typeof getCurrentUserProfile>> | null>(
+          (resolve) => {
+            profileRaceTimeoutId = setTimeout(() => resolve(null), 5000);
+          }
+        );
+        const profile = await Promise.race([getCurrentUserProfile(), timeoutPromise]);
         if (!mounted) return;
-        setNeedsOnboarding(!profile?.username);
+        dispatchGate({ type: 'resolved', profile });
       } catch {
         if (!mounted) return;
-        setNeedsOnboarding(true);
+        dispatchGate({ type: 'fetch_error' });
       } finally {
-        if (mounted) setProfileLoading(false);
+        if (profileRaceTimeoutId !== undefined) {
+          clearTimeout(profileRaceTimeoutId);
+          profileRaceTimeoutId = undefined;
+        }
       }
     };
 
-    checkProfile();
+    void checkProfile();
     return () => {
       mounted = false;
+      if (profileRaceTimeoutId !== undefined) clearTimeout(profileRaceTimeoutId);
     };
   }, [session]);
 
   useEffect(() => {
-    if (!loading && !profileLoading) {
+    if (loading || profileLoading) {
       setBootstrapTimedOut(false);
-      return;
     }
+  }, [loading, profileLoading]);
+
+  useEffect(() => {
+    if (!loading && !profileLoading) return;
 
     const timer = setTimeout(() => {
       setBootstrapTimedOut(true);

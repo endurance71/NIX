@@ -25,6 +25,8 @@ vi.mock('./i18n', () => ({
   },
 }));
 
+// SUT musi być po vi.mock; Vitest hoistuje mocki — import nie może być „na górze”.
+/* eslint-disable import/first -- Vitest: mocks before SUT */
 import {
   notifyDomainError,
   notifyError,

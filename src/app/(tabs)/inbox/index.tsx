@@ -4,14 +4,14 @@ import { Stack, router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
-import { sentLifecycleSegments } from '../../../lib/snapInboxLabels';
+import { sentLifecycleSegments } from '../../../lib/nixInboxLabels';
 import {
   deleteConversationWithPeer,
-  fetchInboxSnaps,
-  fetchSentSnaps,
+  fetchInboxNixes,
+  fetchSentNixes,
   flushCleanupQueue,
-  type InboxSnap,
-} from '../../../services/snapService';
+  type InboxNix,
+} from '../../../services/nixService';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../../../lib/queryKeys';
 import { useAppTheme } from '../../../hooks/useAppTheme';
 import { refreshInboxBadgeCount, setInboxBadgeCount } from '../../../lib/inboxBadgeStore';
@@ -39,9 +39,9 @@ import { formatShortTime } from '../../../lib/formatters';
 import { getCurrentLocale } from '../../../lib/i18n';
 import { SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING } from '../../../theme/swiftUiEmbeddedLayout';
 
-async function fetchInboxSnapsBundle() {
+async function fetchInboxNixesBundle() {
   void flushCleanupQueue().catch(() => {});
-  const [inboxData, sentData] = await Promise.all([fetchInboxSnaps(), fetchSentSnaps()]);
+  const [inboxData, sentData] = await Promise.all([fetchInboxNixes(), fetchSentNixes()]);
   return { inboxData, sentData };
 }
 
@@ -49,7 +49,7 @@ type ThreadRowProps = {
   avatarUrls: Record<string, string>;
   colors: ReturnType<typeof useAppTheme>['colors'];
   item: InboxThreadItem;
-  onOpenSnap: (snap: InboxSnap) => void;
+  onOpenNix: (nix: InboxNix) => void;
   isDeleting: boolean;
   t: (key: string, params?: Record<string, unknown>) => string;
   locale: string;
@@ -59,7 +59,7 @@ const ThreadRow = memo(function ThreadRow({
   avatarUrls,
   colors,
   item,
-  onOpenSnap,
+  onOpenNix,
   isDeleting,
   t,
   locale,
@@ -68,18 +68,18 @@ const ThreadRow = memo(function ThreadRow({
     <RNHostView matchContents>
       {item.direction === 'received' ? (
         (() => {
-          const snap = item.snap;
-          const isNew = !snap.is_viewed;
-          const avatarPath = snap.sender?.avatar_storage_path ?? null;
+          const nix = item.nix;
+          const isNew = !nix.is_viewed;
+          const avatarPath = nix.sender?.avatar_storage_path ?? null;
           const avatarUrl = avatarPath ? avatarUrls[avatarPath] : null;
-          const fallback = snap.sender?.username?.charAt(0).toUpperCase() || '?';
+          const fallback = nix.sender?.username?.charAt(0).toUpperCase() || '?';
 
           return (
             <Pressable
-              accessibilityLabel={t('inbox.openSnapA11y', { username: snap.sender?.username || t('common.unknownUser') })}
+              accessibilityLabel={t('inbox.openNixA11y', { username: nix.sender?.username || t('common.unknownUser') })}
               accessibilityRole="button"
               disabled={!isNew || isDeleting}
-              onPress={() => onOpenSnap(snap)}
+              onPress={() => onOpenNix(nix)}
               style={({ pressed }) => [
                 styles.rowInner,
                 pressed && styles.rowPressed,
@@ -89,7 +89,7 @@ const ThreadRow = memo(function ThreadRow({
                 size={44}
                 url={avatarUrl}
                 storagePath={avatarPath}
-                emoji={snap.sender?.avatar_emoji}
+                emoji={nix.sender?.avatar_emoji}
                 fallbackInitial={fallback}
               />
               <View style={styles.rowTextBlock}>
@@ -100,12 +100,12 @@ const ThreadRow = memo(function ThreadRow({
                     { color: colors.label },
                     !isNew && { color: colors.secondaryLabel, fontWeight: '400' },
                   ]}>
-                  @{snap.sender?.username || t('common.unknown')}
+                  @{nix.sender?.username || t('common.unknown')}
                 </RNText>
                 <RNText
                   numberOfLines={1}
                   style={[styles.peerSubtitle, { color: isNew ? colors.destructive : colors.tertiaryLabel }]}>
-                  {isNew ? t('inbox.newSnap') : t('inbox.opened')} • {formatShortTime(snap.created_at, locale)}
+                  {isNew ? t('inbox.newNix') : t('inbox.opened')} • {formatShortTime(nix.created_at, locale)}
                 </RNText>
               </View>
               {isNew ? <SFSymbol name="chevron.right" size={14} tintColor={colors.tertiaryLabel} /> : null}
@@ -114,7 +114,7 @@ const ThreadRow = memo(function ThreadRow({
         })()
       ) : (
         (() => {
-          const sent = item.snap;
+          const sent = item.nix;
           const avatarPath = sent.receiver?.avatar_storage_path ?? null;
           const avatarUrl = avatarPath ? avatarUrls[avatarPath] : null;
           const timeStr = formatShortTime(sent.created_at, locale);
@@ -159,9 +159,9 @@ export default function InboxScreen() {
   const lastFocusRefreshAtRef = useRef(0);
   const [deletingPeerId, setDeletingPeerId] = useState<string | null>(null);
 
-  const { data: snapsBundle, isPending: snapsPending } = useQuery({
-    queryKey: queryKeys.inboxSnapsBundle,
-    queryFn: fetchInboxSnapsBundle,
+  const { data: nixesBundle, isPending: nixesPending } = useQuery({
+    queryKey: queryKeys.inboxNixesBundle,
+    queryFn: fetchInboxNixesBundle,
     staleTime: 10_000,
     refetchOnWindowFocus: false,
   });
@@ -173,21 +173,21 @@ export default function InboxScreen() {
     refetchOnWindowFocus: false,
   });
 
-  const snaps = useMemo(() => snapsBundle?.inboxData ?? [], [snapsBundle?.inboxData]);
-  const sentSnaps = useMemo(() => snapsBundle?.sentData ?? [], [snapsBundle?.sentData]);
-  const loading = snapsPending || requestsPending;
+  const nixes = useMemo(() => nixesBundle?.inboxData ?? [], [nixesBundle?.inboxData]);
+  const sentNixes = useMemo(() => nixesBundle?.sentData ?? [], [nixesBundle?.sentData]);
+  const loading = nixesPending || requestsPending;
 
-  const feed = useMemo(() => buildInboxThreads(snaps, sentSnaps), [snaps, sentSnaps]);
+  const feed = useMemo(() => buildInboxThreads(nixes, sentNixes), [nixes, sentNixes]);
 
   const sortedAvatarPaths = useMemo(() => {
-    const threadPaths = feed
-      .map((item) =>
-        item.direction === 'received' ? item.snap.sender?.avatar_storage_path : item.snap.receiver?.avatar_storage_path
-      )
-      .filter((path): path is string => Boolean(path));
-    const invitePaths = requests
-      .map((request) => request.requester.avatar_storage_path)
-      .filter((path): path is string => Boolean(path));
+    const threadPaths = feed.flatMap((item) => {
+      const path =
+        item.direction === 'received' ? item.nix.sender?.avatar_storage_path : item.nix.receiver?.avatar_storage_path;
+      return path ? [path] : [];
+    });
+    const invitePaths = requests.flatMap((request) =>
+      request.requester.avatar_storage_path ? [request.requester.avatar_storage_path] : []
+    );
     return Array.from(new Set([...threadPaths, ...invitePaths])).sort();
   }, [feed, requests]);
 
@@ -199,13 +199,13 @@ export default function InboxScreen() {
   });
 
   useEffect(() => {
-    if (snapsPending) return;
-    setInboxBadgeCount(snaps.filter((snap) => snap.is_viewed !== true).length);
-  }, [snaps, snapsPending]);
+    if (nixesPending) return;
+    setInboxBadgeCount(nixes.filter((nix) => nix.is_viewed !== true).length);
+  }, [nixes, nixesPending]);
 
   const invalidateInboxQueries = useCallback(async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
       queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests }),
       queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests }),
     ]);
@@ -219,7 +219,7 @@ export default function InboxScreen() {
       type: 'active',
       predicate: (query) => {
         const key = query.queryKey[0];
-        if (key !== queryKeys.inboxSnapsBundle[0] && key !== queryKeys.incomingFriendRequests[0]) return false;
+        if (key !== queryKeys.inboxNixesBundle[0] && key !== queryKeys.incomingFriendRequests[0]) return false;
         return query.isStale();
       },
     });
@@ -228,7 +228,7 @@ export default function InboxScreen() {
   const refetchInboxForce = useCallback(async () => {
     try {
       await Promise.all([
-        queryClient.refetchQueries({ queryKey: queryKeys.inboxSnapsBundle, type: 'active' }),
+        queryClient.refetchQueries({ queryKey: queryKeys.inboxNixesBundle, type: 'active' }),
         queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
       ]);
       await refreshInboxBadgeCount(queryClient);
@@ -243,25 +243,27 @@ export default function InboxScreen() {
     }, [refetchInboxIfStale])
   );
 
-  const handleOpenSnap = useCallback((snap: InboxSnap) => {
-    if (snap.is_viewed) return;
+  const handleOpenNix = useCallback((nix: InboxNix) => {
+    if (nix.is_viewed) return;
     router.push({
       pathname: '/viewer',
-      params: { id: snap.id, path: snap.media_path, senderId: snap.sender_id },
+      params: { id: nix.id, path: nix.media_path, senderId: nix.sender_id },
     });
   }, []);
 
   const deleteSingleThread = useCallback(
     async (item: InboxThreadItem) => {
-      const peerId = item.direction === 'received' ? item.snap.sender_id : item.snap.receiver_id;
-      const username = item.direction === 'received' ? item.snap.sender?.username : item.snap.receiver?.username;
+      const peerId = item.direction === 'received' ? item.nix.sender_id : item.nix.receiver_id;
+      const username = item.direction === 'received' ? item.nix.sender?.username : item.nix.receiver?.username;
       if (deletingPeerId) return;
 
       setDeletingPeerId(peerId);
       try {
         await deleteConversationWithPeer(peerId);
-        await queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle });
-        await refreshInboxBadgeCount(queryClient, { forceNetwork: true });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
+          refreshInboxBadgeCount(queryClient, { forceNetwork: true }),
+        ]);
         notifySuccess(t('inbox.deleteConversationSuccess', { username: username || t('common.unknownUser') }));
       } catch (err: any) {
         notifyError(err?.message ?? t('inbox.deleteConversationFailure'));
@@ -286,8 +288,10 @@ export default function InboxScreen() {
   const handleAccept = async (requestId: string) => {
     try {
       await acceptFriendRequest(requestId);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
-      await invalidateInboxQueries();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
+        invalidateInboxQueries(),
+      ]);
       notifySuccess(t('inbox.inviteAccepted'));
     } catch (err: any) {
       notifyError(err?.message ?? t('inbox.inviteAcceptFailure'));
@@ -365,12 +369,12 @@ export default function InboxScreen() {
                   item={threadItem}
                   avatarUrls={avatarUrls}
                   colors={colors}
-                  onOpenSnap={handleOpenSnap}
+                  onOpenNix={handleOpenNix}
                   t={t}
                   locale={locale}
                   isDeleting={
                     deletingPeerId ===
-                    (threadItem.direction === 'received' ? threadItem.snap.sender_id : threadItem.snap.receiver_id)
+                    (threadItem.direction === 'received' ? threadItem.nix.sender_id : threadItem.nix.receiver_id)
                   }
                 />
               ))}

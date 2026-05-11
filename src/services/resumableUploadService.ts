@@ -15,7 +15,7 @@ export const RESUMABLE_CHUNK_SIZE_BYTES = 6 * 1024 * 1024;
 const DEFAULT_RETRY_DELAYS_MS = [0, 1_000, 3_000, 5_000];
 const SUPABASE_RESOURCE_ALREADY_EXISTS_ERROR = 'The resource already exists';
 
-export type ResumableUploadProgress = {
+type ResumableUploadProgress = {
   bytesSent: number;
   bytesTotal: number;
   /** Numer kolejnej próby (1 = pierwsza). Aktualizowany po każdym retry. */

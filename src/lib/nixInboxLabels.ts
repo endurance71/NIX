@@ -1,6 +1,6 @@
-/** Pola jak w SentSnap (snapService), bez importu klienta Supabase — bezpieczne dla Vitesta w Node. */
+/** Pola jak w SentNix (nixService), bez importu klienta Supabase — bezpieczne dla Vitesta w Node. */
 
-export type SentSnapLifecycleInput = {
+export type SentNixLifecycleInput = {
   status: 'sent' | 'viewed' | 'cleaned' | 'cleanup_failed';
   viewed_at: string | null;
   cleaned_at: string | null;
@@ -18,7 +18,7 @@ const FALLBACK_LABELS: Record<'sentStatus.opened' | 'sentStatus.cleaned' | 'sent
  * Segmenty statusu nadawcy między „Wysłane” a godziną (np. Otwarto, Usunięte).
  * Po cleanup `status` jest `cleaned`, ale `viewed_at` pozostaje — pokazujemy oba.
  */
-export function sentLifecycleSegments(sent: SentSnapLifecycleInput, translate?: Translate): string[] {
+export function sentLifecycleSegments(sent: SentNixLifecycleInput, translate?: Translate): string[] {
   const segments: string[] = [];
   const t = translate ?? ((key: keyof typeof FALLBACK_LABELS) => FALLBACK_LABELS[key]);
 

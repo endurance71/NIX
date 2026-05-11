@@ -3,7 +3,7 @@ import { getCurrentUser } from './profileService';
 import { DomainError } from './errors';
 import { nowMs, trackDuration } from '../lib/telemetry';
 
-export type InboxSnap = {
+export type InboxNix = {
   id: string;
   sender_id: string;
   media_path: string;
@@ -28,7 +28,7 @@ export type InboxSnap = {
   } | null;
 };
 
-export type SentSnap = {
+export type SentNix = {
   id: string;
   receiver_id: string;
   created_at: string;
@@ -43,21 +43,21 @@ export type SentSnap = {
 };
 
 type CleanupQueueRow = {
-  snap_id: string;
+  nix_id: string;
   media_path: string;
   receiver_id: string;
   attempt_count: number;
 };
 
-type SnapPageOptions = {
+type NixPageOptions = {
   limit?: number;
   beforeCreatedAt?: string;
 };
 
-const DEFAULT_SNAP_PAGE_LIMIT = 100;
+const DEFAULT_NIX_PAGE_LIMIT = 100;
 
 function normalizePageLimit(limit: number | undefined) {
-  return Math.max(1, Math.min(limit ?? DEFAULT_SNAP_PAGE_LIMIT, 100));
+  return Math.max(1, Math.min(limit ?? DEFAULT_NIX_PAGE_LIMIT, 100));
 }
 
 function dbErrorMessage(error: unknown) {
@@ -68,13 +68,13 @@ function dbErrorMessage(error: unknown) {
 
 function isMissingStatusColumnError(error: unknown) {
   const message = dbErrorMessage(error);
-  return message.includes('column snaps.status does not exist') || message.includes("Could not find the 'status' column");
+  return message.includes('column nixes.status does not exist') || message.includes("Could not find the 'status' column");
 }
 
 function isMissingViewDurationColumnError(error: unknown) {
   const message = dbErrorMessage(error);
   return (
-    message.includes('column snaps.view_duration_sec does not exist') ||
+    message.includes('column nixes.view_duration_sec does not exist') ||
     message.includes("Could not find the 'view_duration_sec' column")
   );
 }
@@ -82,7 +82,7 @@ function isMissingViewDurationColumnError(error: unknown) {
 function isMissingPlaybackDurationColumnError(error: unknown) {
   const message = dbErrorMessage(error);
   return (
-    message.includes('column snaps.playback_duration_ms does not exist') ||
+    message.includes('column nixes.playback_duration_ms does not exist') ||
     message.includes("Could not find the 'playback_duration_ms' column")
   );
 }
@@ -90,7 +90,7 @@ function isMissingPlaybackDurationColumnError(error: unknown) {
 function isMissingClientUploadColumnError(error: unknown) {
   const message = dbErrorMessage(error);
   return (
-    message.includes('column snaps.client_upload_id does not exist') ||
+    message.includes('column nixes.client_upload_id does not exist') ||
     message.includes("Could not find the 'client_upload_id' column")
   );
 }
@@ -98,7 +98,7 @@ function isMissingClientUploadColumnError(error: unknown) {
 function isMissingThumbnailColumnError(error: unknown) {
   const message = dbErrorMessage(error);
   return (
-    message.includes('column snaps.thumbnail_b64 does not exist') ||
+    message.includes('column nixes.thumbnail_b64 does not exist') ||
     message.includes("Could not find the 'thumbnail_b64' column")
   );
 }
@@ -111,14 +111,14 @@ function isMissingDeleteConversationRpcError(error: unknown) {
   );
 }
 
-export type InsertSnapMediaOptions = {
+export type InsertNixMediaOptions = {
   mediaType?: 'image' | 'video';
   playbackDurationMs?: number | null;
   clientUploadId?: string;
   /**
    * Embedded miniatura jako data URL JPEG (`data:image/jpeg;base64,...`).
    * Zapisywana wyłącznie dla `mediaType === 'video'`. Pominięta, jeśli kolumna
-   * `snaps.thumbnail_b64` nie istnieje (schema fallback).
+   * `nixes.thumbnail_b64` nie istnieje (schema fallback).
    */
   thumbnailB64?: string | null;
 };
@@ -133,7 +133,7 @@ function mapDatabaseError(error: unknown): DomainError {
     return new DomainError('NOT_FRIEND', 'Możesz wysyłać wiadomości tylko do zaakceptowanych znajomych.');
   }
 
-  if (message.includes('can_send_snap') || message.includes('Only viewed status')) {
+  if (message.includes('can_send_nix') || message.includes('Only viewed status')) {
     return new DomainError('INVALID_RECEIVER', 'Nieprawidłowy odbiorca wiadomości.');
   }
 
@@ -148,11 +148,11 @@ const ALLOWED_VIEW_DURATIONS = new Set([5, 15, 30, 60, 180]);
 let supportsClientUploadId: boolean | null = null;
 let supportsThumbnailB64: boolean | null = null;
 
-export async function insertSnap(
+export async function insertNix(
   receiverId: string,
   mediaPath: string,
   viewDurationSec = 5,
-  mediaOptions?: InsertSnapMediaOptions
+  mediaOptions?: InsertNixMediaOptions
 ) {
   const user = await getCurrentUser();
   if (!user) throw new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
@@ -195,45 +195,45 @@ export async function insertSnap(
   }
 
   let useLegacyInsert = supportsClientUploadId === false;
-  const persistSnap = async (nextPayload: Record<string, unknown>, legacyMode: boolean) => {
+  const persistNix = async (nextPayload: Record<string, unknown>, legacyMode: boolean) => {
     if (legacyMode) {
       const { client_upload_id: _idempotencyKey, ...legacyPayload } = nextPayload;
-      return await supabase.from('snaps').insert(legacyPayload);
+      return await supabase.from('nixes').insert(legacyPayload);
     }
     return await supabase
-      .from('snaps')
+      .from('nixes')
       .upsert(nextPayload, { onConflict: 'sender_id,receiver_id,client_upload_id', ignoreDuplicates: true });
   };
 
-  let { error } = await persistSnap(payload, useLegacyInsert);
+  let { error } = await persistNix(payload, useLegacyInsert);
   if (error && isMissingClientUploadColumnError(error)) {
     useLegacyInsert = true;
     supportsClientUploadId = false;
-    ({ error } = await persistSnap(payload, true));
+    ({ error } = await persistNix(payload, true));
   }
 
   if (error && isMissingThumbnailColumnError(error)) {
     supportsThumbnailB64 = false;
     const { thumbnail_b64: _tb, ...rest } = payload;
     payload = rest;
-    ({ error } = await persistSnap(payload, useLegacyInsert));
+    ({ error } = await persistNix(payload, useLegacyInsert));
   }
 
   if (error && isMissingPlaybackDurationColumnError(error)) {
     const { playback_duration_ms: _pb, ...rest } = payload;
     payload = rest;
-    ({ error } = await persistSnap(payload, useLegacyInsert));
+    ({ error } = await persistNix(payload, useLegacyInsert));
   }
 
   if (error && isMissingViewDurationColumnError(error)) {
     const { view_duration_sec: _vd, ...rest } = payload;
     payload = rest;
-    ({ error } = await persistSnap(payload, useLegacyInsert));
+    ({ error } = await persistNix(payload, useLegacyInsert));
   }
 
   if (error && isMissingStatusColumnError(error)) {
     const { status: _st, ...rest } = payload;
-    ({ error } = await persistSnap(rest, useLegacyInsert));
+    ({ error } = await persistNix(rest, useLegacyInsert));
   }
 
   if (!error && supportsClientUploadId === null && !useLegacyInsert) {
@@ -246,7 +246,7 @@ export async function insertSnap(
   if (error) throw mapDatabaseError(error);
 }
 
-export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
+export async function fetchInboxNixes(options: NixPageOptions = {}) {
   const user = await getCurrentUser();
   if (!user) return [];
   const startedAt = nowMs();
@@ -299,7 +299,7 @@ export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
     `;
 
   let inboxQuery = supabase
-    .from('snaps')
+    .from('nixes')
     .select(inboxSelectFull)
     .eq('receiver_id', user.id);
   if (options.beforeCreatedAt) {
@@ -309,7 +309,7 @@ export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
 
   if (error && isMissingThumbnailColumnError(error)) {
     let retryQuery = supabase
-      .from('snaps')
+      .from('nixes')
       .select(inboxSelectNoThumbnail)
       .eq('receiver_id', user.id);
     if (options.beforeCreatedAt) {
@@ -322,7 +322,7 @@ export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
 
   if (error && isMissingPlaybackDurationColumnError(error)) {
     let retryQuery = supabase
-      .from('snaps')
+      .from('nixes')
       .select(inboxSelectNoPlayback)
       .eq('receiver_id', user.id);
     if (options.beforeCreatedAt) {
@@ -335,7 +335,7 @@ export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
 
   if (error && isMissingViewDurationColumnError(error)) {
     let retryQuery = supabase
-      .from('snaps')
+      .from('nixes')
       .select(inboxSelectNoViewDuration)
       .eq('receiver_id', user.id);
     if (options.beforeCreatedAt) {
@@ -349,18 +349,18 @@ export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
   /** Stałe pole widoku — część schematów DB bez kolumny `view_duration_sec`. */
   let inboxRows: any[] | null = null;
   if (!error && Array.isArray(data)) {
-    inboxRows = data.map((snap: Record<string, unknown>) => ({
-      ...snap,
-      media_type: typeof snap.media_type === 'string' ? snap.media_type : 'image',
+    inboxRows = data.map((nix: Record<string, unknown>) => ({
+      ...nix,
+      media_type: typeof nix.media_type === 'string' ? nix.media_type : 'image',
       playback_duration_ms:
-        typeof snap.playback_duration_ms === 'number' ? snap.playback_duration_ms : null,
-      thumbnail_b64: typeof snap.thumbnail_b64 === 'string' ? snap.thumbnail_b64 : null,
-      view_duration_sec: typeof snap.view_duration_sec === 'number' ? snap.view_duration_sec : 5,
+        typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
+      thumbnail_b64: typeof nix.thumbnail_b64 === 'string' ? nix.thumbnail_b64 : null,
+      view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
     }));
   }
   if (error && isMissingStatusColumnError(error)) {
     let fallbackQuery = supabase
-      .from('snaps')
+      .from('nixes')
       .select(
         `
         id,
@@ -378,18 +378,18 @@ export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
       .order('created_at', { ascending: false })
       .limit(limit);
     if (fallbackError) throw mapDatabaseError(fallbackError);
-    inboxRows = (fallbackData ?? []).map((snap: any) => ({
-      ...snap,
+    inboxRows = (fallbackData ?? []).map((nix: any) => ({
+      ...nix,
       media_type: 'image',
       playback_duration_ms: null,
-      status: snap.is_viewed ? 'viewed' : 'sent',
-      view_duration_sec: typeof snap.view_duration_sec === 'number' ? snap.view_duration_sec : 5,
+      status: nix.is_viewed ? 'viewed' : 'sent',
+      view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
     }));
   } else if (error) {
     throw mapDatabaseError(error);
   }
 
-  const senderIds = Array.from(new Set((inboxRows ?? []).map((snap) => snap.sender_id as string)));
+  const senderIds = Array.from(new Set((inboxRows ?? []).map((nix) => nix.sender_id as string)));
   const { data: senderProfiles, error: senderError } = await supabase.rpc('get_public_profiles_by_ids', {
     profile_ids: senderIds,
   });
@@ -407,21 +407,21 @@ export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
     ])
   );
 
-  const result = ((inboxRows ?? []).map((snap: any) => ({
-    ...snap,
-    media_type: typeof snap.media_type === 'string' ? snap.media_type : 'image',
+  const result = ((inboxRows ?? []).map((nix: any) => ({
+    ...nix,
+    media_type: typeof nix.media_type === 'string' ? nix.media_type : 'image',
     playback_duration_ms:
-      typeof snap.playback_duration_ms === 'number' ? snap.playback_duration_ms : null,
-    thumbnail_b64: typeof snap.thumbnail_b64 === 'string' ? snap.thumbnail_b64 : null,
-    view_duration_sec: typeof snap.view_duration_sec === 'number' ? snap.view_duration_sec : 5,
-    sender: senderMap.get(snap.sender_id)
+      typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
+    thumbnail_b64: typeof nix.thumbnail_b64 === 'string' ? nix.thumbnail_b64 : null,
+    view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
+    sender: senderMap.get(nix.sender_id)
       ? {
-          username: senderMap.get(snap.sender_id)!.username,
-          avatar_storage_path: senderMap.get(snap.sender_id)!.avatar_storage_path ?? null,
-          avatar_emoji: senderMap.get(snap.sender_id)!.avatar_emoji ?? null,
+          username: senderMap.get(nix.sender_id)!.username,
+          avatar_storage_path: senderMap.get(nix.sender_id)!.avatar_storage_path ?? null,
+          avatar_emoji: senderMap.get(nix.sender_id)!.avatar_emoji ?? null,
         }
       : null,
-  })) ?? []) as InboxSnap[];
+  })) ?? []) as InboxNix[];
 
   trackDuration('inbox_fetch_ms', startedAt, {
     status: 'success',
@@ -431,14 +431,14 @@ export async function fetchInboxSnaps(options: SnapPageOptions = {}) {
   return result;
 }
 
-/** Nieobejrzane snapy od jednego nadawcy, od najstarszego (FIFO przy odtwarzaniu). */
-export function filterUnreadInboxSnapsFromSender(snaps: InboxSnap[], senderId: string): InboxSnap[] {
-  return snaps
+/** Nieobejrzane nixy od jednego nadawcy, od najstarszego (FIFO przy odtwarzaniu). */
+export function filterUnreadInboxNixesFromSender(nixes: InboxNix[], senderId: string): InboxNix[] {
+  return nixes
     .filter((s) => s.sender_id === senderId && s.is_viewed !== true)
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 }
 
-export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise<InboxSnap[]> {
+export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise<InboxNix[]> {
   const user = await getCurrentUser();
   if (!user) return [];
 
@@ -448,7 +448,7 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
   `;
 
   let { data, error } = await supabase
-    .from('snaps')
+    .from('nixes')
     .select(selectCols)
     .eq('receiver_id', user.id)
     .eq('sender_id', senderId)
@@ -457,7 +457,7 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
 
   if (error && isMissingThumbnailColumnError(error)) {
     const retry = await supabase
-      .from('snaps')
+      .from('nixes')
       .select('id, sender_id, media_path, media_type, playback_duration_ms, created_at, is_viewed, status, view_duration_sec')
       .eq('receiver_id', user.id)
       .eq('sender_id', senderId)
@@ -469,7 +469,7 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
 
   if (error && isMissingPlaybackDurationColumnError(error)) {
     const retry = await supabase
-      .from('snaps')
+      .from('nixes')
       .select('id, sender_id, media_path, media_type, created_at, is_viewed, status, view_duration_sec')
       .eq('receiver_id', user.id)
       .eq('sender_id', senderId)
@@ -481,7 +481,7 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
 
   if (error && isMissingViewDurationColumnError(error)) {
     const retry = await supabase
-      .from('snaps')
+      .from('nixes')
       .select('id, sender_id, media_path, media_type, created_at, is_viewed, status')
       .eq('receiver_id', user.id)
       .eq('sender_id', senderId)
@@ -493,7 +493,7 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
 
   if (error && isMissingStatusColumnError(error)) {
     const retry = await supabase
-      .from('snaps')
+      .from('nixes')
       .select('id, sender_id, media_path, created_at, is_viewed')
       .eq('receiver_id', user.id)
       .eq('sender_id', senderId)
@@ -505,25 +505,25 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
 
   if (error) throw mapDatabaseError(error);
 
-  return ((data ?? []) as any[]).map((snap) => ({
-    ...snap,
-    media_type: typeof snap.media_type === 'string' ? snap.media_type : 'image',
-    playback_duration_ms: typeof snap.playback_duration_ms === 'number' ? snap.playback_duration_ms : null,
-    thumbnail_b64: typeof snap.thumbnail_b64 === 'string' ? snap.thumbnail_b64 : null,
-    view_duration_sec: typeof snap.view_duration_sec === 'number' ? snap.view_duration_sec : 5,
-    status: snap.status ?? (snap.is_viewed ? 'viewed' : 'sent'),
+  return ((data ?? []) as any[]).map((nix) => ({
+    ...nix,
+    media_type: typeof nix.media_type === 'string' ? nix.media_type : 'image',
+    playback_duration_ms: typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
+    thumbnail_b64: typeof nix.thumbnail_b64 === 'string' ? nix.thumbnail_b64 : null,
+    view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
+    status: nix.status ?? (nix.is_viewed ? 'viewed' : 'sent'),
     sender: null,
-  })) as InboxSnap[];
+  })) as InboxNix[];
 }
 
-export async function fetchSentSnaps(options: SnapPageOptions = {}) {
+export async function fetchSentNixes(options: NixPageOptions = {}) {
   const user = await getCurrentUser();
   if (!user) return [];
   const startedAt = nowMs();
   const limit = normalizePageLimit(options.limit);
 
   let sentQuery = supabase
-    .from('snaps')
+    .from('nixes')
     .select(
       `
       id,
@@ -543,7 +543,7 @@ export async function fetchSentSnaps(options: SnapPageOptions = {}) {
   let sentRows = data;
   if (error && isMissingStatusColumnError(error)) {
     let fallbackQuery = supabase
-      .from('snaps')
+      .from('nixes')
       .select(
         `
         id,
@@ -561,16 +561,16 @@ export async function fetchSentSnaps(options: SnapPageOptions = {}) {
       .order('created_at', { ascending: false })
       .limit(limit);
     if (fallbackError) throw mapDatabaseError(fallbackError);
-    sentRows = (fallbackData ?? []).map((snap: any) => ({
-      ...snap,
-      status: snap.is_viewed ? 'viewed' : 'sent',
+    sentRows = (fallbackData ?? []).map((nix: any) => ({
+      ...nix,
+      status: nix.is_viewed ? 'viewed' : 'sent',
       cleaned_at: null,
     }));
   } else if (error) {
     throw mapDatabaseError(error);
   }
 
-  const receiverIds = Array.from(new Set((sentRows ?? []).map((snap) => snap.receiver_id as string)));
+  const receiverIds = Array.from(new Set((sentRows ?? []).map((nix) => nix.receiver_id as string)));
   const { data: receiverProfiles, error: receiverError } = await supabase.rpc('get_public_profiles_by_ids', {
     profile_ids: receiverIds,
   });
@@ -588,16 +588,16 @@ export async function fetchSentSnaps(options: SnapPageOptions = {}) {
     ])
   );
 
-  const result = ((sentRows ?? []).map((snap: any) => ({
-    ...snap,
-    receiver: receiverMap.get(snap.receiver_id)
+  const result = ((sentRows ?? []).map((nix: any) => ({
+    ...nix,
+    receiver: receiverMap.get(nix.receiver_id)
       ? {
-          username: receiverMap.get(snap.receiver_id)!.username,
-          avatar_storage_path: receiverMap.get(snap.receiver_id)!.avatar_storage_path ?? null,
-          avatar_emoji: receiverMap.get(snap.receiver_id)!.avatar_emoji ?? null,
+          username: receiverMap.get(nix.receiver_id)!.username,
+          avatar_storage_path: receiverMap.get(nix.receiver_id)!.avatar_storage_path ?? null,
+          avatar_emoji: receiverMap.get(nix.receiver_id)!.avatar_emoji ?? null,
         }
       : null,
-  })) ?? []) as SentSnap[];
+  })) ?? []) as SentNix[];
 
   trackDuration('sent_fetch_ms', startedAt, {
     status: 'success',
@@ -629,7 +629,7 @@ export async function deleteConversationWithPeer(peerProfileId: string) {
   }
 }
 
-export async function createSignedSnapUrl(path: string, expiresInSec = 60) {
+export async function createSignedNixUrl(path: string, expiresInSec = 60) {
   const { data, error } = await supabase.storage
     .from('media-vault')
     .createSignedUrl(path, expiresInSec);
@@ -638,15 +638,15 @@ export async function createSignedSnapUrl(path: string, expiresInSec = 60) {
   return data.signedUrl;
 }
 
-export async function markSnapViewed(snapId: string) {
+async function markNixViewed(nixId: string) {
   const basePayload = { is_viewed: true, viewed_at: new Date().toISOString() };
   const { error } = await supabase
-    .from('snaps')
+    .from('nixes')
     .update({ ...basePayload, status: 'viewed' })
-    .eq('id', snapId);
+    .eq('id', nixId);
 
   if (error && isMissingStatusColumnError(error)) {
-    const { error: fallbackError } = await supabase.from('snaps').update(basePayload).eq('id', snapId);
+    const { error: fallbackError } = await supabase.from('nixes').update(basePayload).eq('id', nixId);
     if (fallbackError) throw mapDatabaseError(fallbackError);
     return;
   }
@@ -654,9 +654,9 @@ export async function markSnapViewed(snapId: string) {
   if (error) throw mapDatabaseError(error);
 }
 
-export async function requestSnapCleanup(snapId: string, mediaPath: string) {
-  const { data, error } = await supabase.functions.invoke('cleanup-snap', {
-    body: { snapId, mediaPath },
+export async function requestNixCleanup(nixId: string, mediaPath: string) {
+  const { data, error } = await supabase.functions.invoke('cleanup-nix', {
+    body: { nixId, mediaPath },
   });
 
   if (error) {
@@ -668,12 +668,12 @@ export async function requestSnapCleanup(snapId: string, mediaPath: string) {
   }
 }
 
-export async function enqueueCleanupJob(snapId: string, mediaPath: string) {
+export async function enqueueCleanupJob(nixId: string, mediaPath: string) {
   const user = await getCurrentUser();
   if (!user) return;
 
-  const { error } = await supabase.from('snap_cleanup_queue').upsert({
-    snap_id: snapId,
+  const { error } = await supabase.from('nix_cleanup_queue').upsert({
+    nix_id: nixId,
     media_path: mediaPath,
     receiver_id: user.id,
     updated_at: new Date().toISOString(),
@@ -684,23 +684,23 @@ export async function enqueueCleanupJob(snapId: string, mediaPath: string) {
   }
 }
 
-export async function markCleanupJobDone(snapId: string) {
-  const { error } = await supabase.from('snap_cleanup_queue').delete().eq('snap_id', snapId);
+async function markCleanupJobDone(nixId: string) {
+  const { error } = await supabase.from('nix_cleanup_queue').delete().eq('nix_id', nixId);
   if (error) {
     console.warn('Nie udało się usunąć zadania cleanup z kolejki', error);
   }
 }
 
-export async function markCleanupJobFailed(snapId: string, reason: string) {
+async function markCleanupJobFailed(nixId: string, reason: string) {
   const { error } = await supabase
-    .from('snap_cleanup_queue')
+    .from('nix_cleanup_queue')
     .update({
       last_error: reason,
       updated_at: new Date().toISOString(),
       attempt_count: 1,
       next_attempt_at: new Date(Date.now() + 60_000).toISOString(),
     })
-    .eq('snap_id', snapId);
+    .eq('nix_id', nixId);
 
   if (error) {
     console.warn('Nie udało się zapisać błędu cleanup w kolejce', error);
@@ -712,8 +712,8 @@ export async function flushCleanupQueue(limit = 10) {
   if (!user) return;
 
   const { data, error } = await supabase
-    .from('snap_cleanup_queue')
-    .select('snap_id, media_path, receiver_id, attempt_count')
+    .from('nix_cleanup_queue')
+    .select('nix_id, media_path, receiver_id, attempt_count')
     .eq('receiver_id', user.id)
     .lte('next_attempt_at', new Date().toISOString())
     .order('updated_at', { ascending: true })
@@ -724,40 +724,42 @@ export async function flushCleanupQueue(limit = 10) {
     return;
   }
 
-  for (const job of (data ?? []) as CleanupQueueRow[]) {
-    try {
-      await requestSnapCleanup(job.snap_id, job.media_path);
-      await markCleanupJobDone(job.snap_id);
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : 'Unknown cleanup failure';
-      const { error: updateError } = await supabase
-        .from('snap_cleanup_queue')
-        .update({
-          last_error: reason,
-          attempt_count: job.attempt_count + 1,
-          updated_at: new Date().toISOString(),
-          next_attempt_at: new Date(Date.now() + Math.min(15 * 60_000, (job.attempt_count + 1) * 60_000)).toISOString(),
-        })
-        .eq('snap_id', job.snap_id);
+  await Promise.all(
+    ((data ?? []) as CleanupQueueRow[]).map(async (job) => {
+      try {
+        await requestNixCleanup(job.nix_id, job.media_path);
+        await markCleanupJobDone(job.nix_id);
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : 'Unknown cleanup failure';
+        const { error: updateError } = await supabase
+          .from('nix_cleanup_queue')
+          .update({
+            last_error: reason,
+            attempt_count: job.attempt_count + 1,
+            updated_at: new Date().toISOString(),
+            next_attempt_at: new Date(Date.now() + Math.min(15 * 60_000, (job.attempt_count + 1) * 60_000)).toISOString(),
+          })
+          .eq('nix_id', job.nix_id);
 
-      if (updateError) {
-        console.warn('Nie udało się zaktualizować próby cleanup', updateError);
+        if (updateError) {
+          console.warn('Nie udało się zaktualizować próby cleanup', updateError);
+        }
       }
-    }
-  }
+    })
+  );
 }
 
-export async function markSnapViewedWithCleanup(snapId: string, mediaPath: string) {
-  await markSnapViewed(snapId);
-  await enqueueCleanupJob(snapId, mediaPath);
+export async function markNixViewedWithCleanup(nixId: string, mediaPath: string) {
+  await markNixViewed(nixId);
+  await enqueueCleanupJob(nixId, mediaPath);
 
   try {
-    await requestSnapCleanup(snapId, mediaPath);
-    await markCleanupJobDone(snapId);
+    await requestNixCleanup(nixId, mediaPath);
+    await markCleanupJobDone(nixId);
   } catch (err) {
     const reason = err instanceof Error ? err.message : 'Unknown cleanup error';
-    await markCleanupJobFailed(snapId, reason);
-    // Cleanup failure is non-critical — snap is already viewed and job is enqueued for retry.
+    await markCleanupJobFailed(nixId, reason);
+    // Cleanup failure is non-critical — nix is already viewed and job is enqueued for retry.
     console.warn('Cleanup zostanie ponowiony:', reason);
   }
 }

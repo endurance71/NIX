@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useReducer, useEffect, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { clearUserCache } from '../services/profileService';
@@ -11,32 +11,55 @@ import {
   signOut as requestSignOut,
 } from '../services/authService';
 
+type AuthState = {
+  session: Session | null;
+  user: User | null;
+  loading: boolean;
+};
+
+type AuthAction =
+  | { type: 'hydrated'; session: Session | null }
+  | { type: 'bootstrap_timeout' };
+
+function authReducer(state: AuthState, action: AuthAction): AuthState {
+  switch (action.type) {
+    case 'hydrated':
+      return {
+        session: action.session,
+        user: action.session?.user ?? null,
+        loading: false,
+      };
+    case 'bootstrap_timeout':
+      return state.loading ? { ...state, loading: false } : state;
+    default:
+      return state;
+  }
+}
+
 export function useAuth() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [{ session, user, loading }, dispatch] = useReducer(authReducer, {
+    session: null,
+    user: null,
+    loading: true,
+  });
 
   useEffect(() => {
     let mounted = true;
 
     const authBootstrapTimeout = setTimeout(() => {
-      if (mounted) setLoading(false);
+      if (mounted) dispatch({ type: 'bootstrap_timeout' });
     }, 5000);
 
-    // Fetch current session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session: nextSession } }) => {
       if (!mounted) return;
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      dispatch({ type: 'hydrated', session: nextSession });
     });
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      dispatch({ type: 'hydrated', session: nextSession });
     });
 
     return () => {

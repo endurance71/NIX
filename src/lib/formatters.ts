@@ -1,6 +1,6 @@
 export function formatShortTime(input: string | Date, locale: string): string {
-  return new Intl.DateTimeFormat(locale, {
+  return new Date(input).toLocaleTimeString(locale, {
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(input));
+  });
 }

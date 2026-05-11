@@ -109,9 +109,9 @@ ON CONFLICT (user_id, friend_id)
 DO UPDATE SET status = 'accepted';
 
 -- ------------------------------------------------------------
--- 3) Snaps: 1 rekord na parę (daje 10 rozmówców per user)
+-- 3) Nixes: 1 rekord na parę (daje 10 rozmówców per user)
 -- ------------------------------------------------------------
-INSERT INTO public.snaps (
+INSERT INTO public.nixes (
   sender_id,
   receiver_id,
   media_path,
@@ -123,7 +123,7 @@ INSERT INTO public.snaps (
 SELECT
   sp.canonical_user_id AS sender_id,
   sp.canonical_friend_id AS receiver_id,
-  format('snaps/%s/seed/social/%s.jpg', sp.canonical_user_id::TEXT, replace(sp.canonical_friend_id::TEXT, '-', '')) AS media_path,
+  format('nixes/%s/seed/social/%s.jpg', sp.canonical_user_id::TEXT, replace(sp.canonical_friend_id::TEXT, '-', '')) AS media_path,
   'image' AS media_type,
   'sent' AS status,
   5 AS view_duration_sec,
@@ -149,17 +149,17 @@ LEFT JOIN public.friendships f
 GROUP BY u.id, p.username
 ORDER BY accepted_friends_count ASC, p.username NULLS LAST, u.id;
 
--- 4.2 Liczba unikalnych rozmówców per user (na bazie snaps)
+-- 4.2 Liczba unikalnych rozmówców per user (na bazie nixes)
 WITH user_peers AS (
   SELECT
     s.sender_id AS user_id,
     s.receiver_id AS peer_id
-  FROM public.snaps s
+  FROM public.nixes s
   UNION
   SELECT
     s.receiver_id AS user_id,
     s.sender_id AS peer_id
-  FROM public.snaps s
+  FROM public.nixes s
 )
 SELECT
   u.id,
@@ -190,9 +190,9 @@ chat_peers_count AS (
     COUNT(DISTINCT peers.peer_id) AS chat_peers_count
   FROM tmp_seed_users u
   LEFT JOIN (
-    SELECT sender_id AS user_id, receiver_id AS peer_id FROM public.snaps
+    SELECT sender_id AS user_id, receiver_id AS peer_id FROM public.nixes
     UNION
-    SELECT receiver_id AS user_id, sender_id AS peer_id FROM public.snaps
+    SELECT receiver_id AS user_id, sender_id AS peer_id FROM public.nixes
   ) peers
     ON peers.user_id = u.id
   GROUP BY u.id

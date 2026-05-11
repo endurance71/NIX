@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { fetchInboxSnaps } from '../services/snapService';
+import { fetchInboxNixes } from '../services/nixService';
 import { queryKeys } from './queryKeys';
 
 type InboxBadgeState = {
@@ -35,13 +35,13 @@ export function setInboxBadgeCount(count: number) {
   notify();
 }
 
-function countUnreadSnaps(snaps: { is_viewed?: boolean }[]) {
-  return snaps.filter((snap) => snap.is_viewed !== true).length;
+function countUnreadNixes(nixes: { is_viewed?: boolean }[]) {
+  return nixes.filter((nix) => nix.is_viewed !== true).length;
 }
 
 type InboxBundleCached = { inboxData: { is_viewed?: boolean }[] };
 
-/** Jeśli podasz `queryClient`, badge aktualizuje się po jednym refetch bundle — bez osobnego `fetchInboxSnaps`. */
+/** Jeśli podasz `queryClient`, badge aktualizuje się po jednym refetch bundle — bez osobnego `fetchInboxNixes`. */
 export async function refreshInboxBadgeCount(
   queryClient?: QueryClient,
   options?: { forceNetwork?: boolean }
@@ -55,16 +55,16 @@ export async function refreshInboxBadgeCount(
     try {
       if (queryClient) {
         if (options?.forceNetwork) {
-          await queryClient.refetchQueries({ queryKey: queryKeys.inboxSnapsBundle, type: 'active' });
+          await queryClient.refetchQueries({ queryKey: queryKeys.inboxNixesBundle, type: 'active' });
         }
-        const bundle = queryClient.getQueryData<InboxBundleCached>(queryKeys.inboxSnapsBundle);
-        const unreadCount = countUnreadSnaps(bundle?.inboxData ?? []);
+        const bundle = queryClient.getQueryData<InboxBundleCached>(queryKeys.inboxNixesBundle);
+        const unreadCount = countUnreadNixes(bundle?.inboxData ?? []);
         setInboxBadgeCount(unreadCount);
         return unreadCount;
       }
 
-      const inbox = await fetchInboxSnaps();
-      const unreadCount = countUnreadSnaps(inbox);
+      const inbox = await fetchInboxNixes();
+      const unreadCount = countUnreadNixes(inbox);
       setInboxBadgeCount(unreadCount);
       return unreadCount;
     } catch (error) {

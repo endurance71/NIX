@@ -58,7 +58,7 @@ describe('resumableUploadService', () => {
 
     await uploadResumable({
       bucket: 'media-vault',
-      objectPath: 'snaps/user-1/file.mp4',
+      objectPath: 'nixes/user-1/file.mp4',
       fileUri: 'file:///tmp/file.mp4',
       contentType: 'video/mp4',
       fileSizeBytes: 12 * 1024 * 1024,
@@ -72,7 +72,7 @@ describe('resumableUploadService', () => {
     expect(capturedOpts.headers['x-upsert']).toBe('false');
     expect(capturedOpts.metadata).toEqual({
       bucketName: 'media-vault',
-      objectName: 'snaps/user-1/file.mp4',
+      objectName: 'nixes/user-1/file.mp4',
       contentType: 'video/mp4',
       cacheControl: '3600',
     });
@@ -94,7 +94,7 @@ describe('resumableUploadService', () => {
 
     await uploadResumable({
       bucket: 'media-vault',
-      objectPath: 'snaps/user-1/v.mp4',
+      objectPath: 'nixes/user-1/v.mp4',
       fileUri: 'file:///tmp/v.mp4',
       contentType: 'video/mp4',
       fileSizeBytes: RESUMABLE_CHUNK_SIZE_BYTES * 2 + 100,
@@ -118,7 +118,7 @@ describe('resumableUploadService', () => {
     const controller = new AbortController();
     const promise = uploadResumable({
       bucket: 'media-vault',
-      objectPath: 'snaps/user-1/big.mp4',
+      objectPath: 'nixes/user-1/big.mp4',
       fileUri: 'file:///tmp/big.mp4',
       contentType: 'video/mp4',
       fileSizeBytes: 50 * 1024 * 1024,
@@ -147,7 +147,7 @@ describe('resumableUploadService', () => {
 
     await uploadResumable({
       bucket: 'media-vault',
-      objectPath: 'snaps/user-1/auth.mp4',
+      objectPath: 'nixes/user-1/auth.mp4',
       fileUri: 'file:///tmp/auth.mp4',
       contentType: 'video/mp4',
       fileSizeBytes: 1024,
@@ -167,7 +167,7 @@ describe('resumableUploadService', () => {
     await expect(
       uploadResumable({
         bucket: 'media-vault',
-        objectPath: 'snaps/user-1/no-auth.mp4',
+        objectPath: 'nixes/user-1/no-auth.mp4',
         fileUri: 'file:///tmp/no-auth.mp4',
         contentType: 'video/mp4',
         fileSizeBytes: 1024,

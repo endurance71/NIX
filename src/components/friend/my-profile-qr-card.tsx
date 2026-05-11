@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import QRCode from 'react-native-qrcode-svg';
 import { ThemeColors } from '../../theme/colors';
@@ -32,13 +32,10 @@ export function MyProfileQrCard({
   const safeOverlayRatio = Math.min(0.32, Math.max(0.2, centerOverlayRatio));
   const logoSize = Math.round(size * safeOverlayRatio);
   const innerContentSize = logoSize * 0.72;
-  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
+  const [failedForAvatarUrl, setFailedForAvatarUrl] = useState<string | null>(null);
+  const avatarLoadFailed = Boolean(avatarUrl) && failedForAvatarUrl === avatarUrl;
   const shouldShowAvatarImage = Boolean(avatarUrl) && !avatarLoadFailed;
   const normalizedInitial = (fallbackInitial ?? '?').trim().charAt(0).toUpperCase();
-
-  useEffect(() => {
-    setAvatarLoadFailed(false);
-  }, [avatarUrl]);
 
   return (
     <View style={styles.wrapper}>
@@ -56,7 +53,7 @@ export function MyProfileQrCard({
                   }}
                   style={{ width: innerContentSize, height: innerContentSize, borderRadius: innerContentSize / 2 }}
                   contentFit="cover"
-                  onError={() => setAvatarLoadFailed(true)}
+                  onError={() => setFailedForAvatarUrl(avatarUrl ?? null)}
                 />
               ) : avatarEmoji ? (
                 <Text style={[styles.avatarEmoji, { color: colors.textPrimary, fontSize: innerContentSize * 0.62 }]}>
@@ -67,10 +64,10 @@ export function MyProfileQrCard({
                   {normalizedInitial}
                 </Text>
               ) : (
-                <Image
+                <ExpoImage
                   source={require('../../../nix-icons/icon.png')}
                   style={{ width: innerContentSize, height: innerContentSize, borderRadius: innerContentSize / 4 }}
-                  resizeMode="cover"
+                  contentFit="cover"
                 />
               )}
             </View>

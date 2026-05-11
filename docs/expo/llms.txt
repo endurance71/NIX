@@ -20,7 +20,7 @@
 - [Navigation in Expo and React Native apps](https://docs.expo.dev/develop/app-navigation): Learn about the recommended approach for integrating navigation in an Expo and React Native project.
 - [Databases in Expo and React Native apps](https://docs.expo.dev/develop/database): Learn about adding a database to your Expo project.
 - [Authentication in Expo and React Native apps](https://docs.expo.dev/develop/authentication): Learn about setting up authentication in your Expo project.
-- [Unit testing with Jest](https://docs.expo.dev/develop/unit-testing): Learn how to set up and configure the jest-expo library to write unit and snapshot tests for a project with Jest.
+- [Unit testing with Jest](https://docs.expo.dev/develop/unit-testing): Learn how to set up and configure the jest-expo library to write unit and nixeshot tests for a project with Jest.
 
 ### User interface
 - [Splash screen and app icon](https://docs.expo.dev/develop/user-interface/splash-screen-and-app-icon): Learn how to add a splash screen and app icon to your Expo project.

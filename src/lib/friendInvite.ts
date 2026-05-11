@@ -1,8 +1,4 @@
-export const FRIEND_INVITE_PATH = 'friend-invite';
-
-export function buildFriendInviteLink(token: string) {
-  return `nix://${FRIEND_INVITE_PATH}?token=${encodeURIComponent(token)}`;
-}
+const FRIEND_INVITE_PATH = 'friend-invite';
 
 export function buildProfileQrLink(profileId: string) {
   return `nix://${FRIEND_INVITE_PATH}?profileId=${encodeURIComponent(profileId)}`;
@@ -28,10 +24,6 @@ export function extractFriendInvitePayload(value: string) {
   } catch {
     return null;
   }
-}
-
-export function extractFriendInviteToken(value: string) {
-  return extractFriendInvitePayload(value)?.token ?? null;
 }
 
 export function extractProfileQrProfileId(value: string) {

@@ -6084,7 +6084,7 @@ The **Network** tab gives you insights into the network requests made by your ap
 
 ### Inspecting memory
 
-The **Memory** tab allows you to inspect the memory usage and take a heap snapshot of your app's JavaScript code.
+The **Memory** tab allows you to inspect the memory usage and take a heap nixeshot of your app's JavaScript code.
 
 ### Inspecting components
 
@@ -6875,7 +6875,7 @@ The key is to build authentication that fits your current needs, while staying f
 ---
 modificationDate: April 05, 2026
 title: Unit testing with Jest
-description: Learn how to set up and configure the jest-expo library to write unit and snapshot tests for a project with Jest.
+description: Learn how to set up and configure the jest-expo library to write unit and nixeshot tests for a project with Jest.
 ---
 
 <AgentInstructions>
@@ -6892,11 +6892,11 @@ Only submit when you have something specific and actionable to report.
 
 # Unit testing with Jest
 
-Learn how to set up and configure the jest-expo library to write unit and snapshot tests for a project with Jest.
+Learn how to set up and configure the jest-expo library to write unit and nixeshot tests for a project with Jest.
 
 > For the complete documentation index, see [llms.txt](/llms.txt). Use this file to discover all available pages.
 
-[Jest](https://jestjs.io) is the most widely used unit and snapshot JavaScript testing framework. In this guide, you will learn how to set up Jest in your project, write a unit test, write a snapshot test, and best practices for structuring your tests when using Jest with React Native.
+[Jest](https://jestjs.io) is the most widely used unit and nixeshot JavaScript testing framework. In this guide, you will learn how to set up Jest in your project, write a unit test, write a nixeshot test, and best practices for structuring your tests when using Jest with React Native.
 
 You will also use the [`jest-expo`](https://github.com/expo/expo/tree/main/packages/jest-expo) library, which is a Jest preset that mocks the native part of the Expo SDK and handles most of the configuration required for your Expo project.
 
@@ -7066,13 +7066,13 @@ Alternatively, you can have multiple **__tests__** sub-directories for different
 
 It's all about preferences, and it is up to you to decide how you want to organize your project directory.
 
-## Snapshot test
+## Nixeshot test
 
-> **Note:** For UI testing, we recommend end-to-end tests instead of snapshot unit tests. See the [E2E tests with Maestro](/eas/workflows/examples/e2e-tests) guide.
+> **Note:** For UI testing, we recommend end-to-end tests instead of nixeshot unit tests. See the [E2E tests with Maestro](/eas/workflows/examples/e2e-tests) guide.
 
-A [snapshot test](https://jestjs.io/docs/en/snapshot-testing) is used to make sure that UI stays consistent, especially when a project is working with global styles that are potentially shared across components.
+A [nixeshot test](https://jestjs.io/docs/en/nixeshot-testing) is used to make sure that UI stays consistent, especially when a project is working with global styles that are potentially shared across components.
 
-To add a snapshot test for `<HomeScreen />`, add the following code snippet in the `describe()` in **home-screen-test.tsx**:
+To add a nixeshot test for `<HomeScreen />`, add the following code snippet in the `describe()` in **home-screen-test.tsx**:
 
 ```tsx
 describe('<HomeScreen />', () => {
@@ -7081,12 +7081,12 @@ describe('<HomeScreen />', () => {
   test('CustomText renders correctly', () => {
     const tree = render(<CustomText>Some text</CustomText>).toJSON();
 
-    expect(tree).toMatchSnapshot();
+    expect(tree).toMatchNixeshot();
   });
 });
 ```
 
-Run `npm run test` command, and you will see a snapshot created inside **__tests__\\__snapshots__** directory, and two tests passed.
+Run `npm run test` command, and you will see a nixeshot created inside **__tests__\\__nixeshots__** directory, and two tests passed.
 
 ## Code coverage reports
 
@@ -7120,7 +7120,7 @@ You can also use different flows to run your tests. Below are a few example scri
   "test": "jest --watch --coverage=false --changedSince=origin/main",
   "testDebug": "jest -o --watch --coverage=false",
   "testFinal": "jest",
-  "updateSnapshots": "jest -u --coverage=false"
+  "updateNixeshots": "jest -u --coverage=false"
   ... 
 }
 ```
@@ -26093,7 +26093,7 @@ export default function Layout() {
 
 Detents define the heights where the sheet can rest. Use `sheetAllowedDetents` to configure them:
 
--   **Numeric array** (`number[]`): Specify snap positions as fractions of the screen height between 0 and 1. For example, `[0.25, 0.5, 1]` creates three snap points at 25%, 50%, and full screen height. Values must be sorted in ascending order.
+-   **Numeric array** (`number[]`): Specify nix positions as fractions of the screen height between 0 and 1. For example, `[0.25, 0.5, 1]` creates three nix points at 25%, 50%, and full screen height. Values must be sorted in ascending order.
     
 -   **Fit to contents** (`'fitToContents'`): The sheet automatically sizes itself based on its content. When using this option, you must provide explicit content sizing since `flex: 1` is not supported because the sheet needs to know the content's actual size to determine its height.
     
@@ -26291,7 +26291,7 @@ export default function Layout() {
         name="modal"
         options={{
           presentation: 'modal', // Enables modal behavior
-          sheetAllowedDetents: [0.5, 1], // Array of snap positions for screens that have a width less than 768px.
+          sheetAllowedDetents: [0.5, 1], // Array of nix positions for screens that have a width less than 768px.
         }}
       />
     </Stack>
@@ -26375,7 +26375,7 @@ The difference between the presentation of how a modal appears in your web app o
 | Option | Type | Description |
 | --- | --- | --- |
 | `presentation` | `'modal'`, `'formSheet'`, `'transparentModal'`, `'containedTransparentModal'` | Modal presentation style. On screens with width more than 768px, all styles display as a centered overlay (for example, a lightbox). On screens with width less than `768px`, `formSheet` is used to display as a bottom sheet. When set to `transparentModal`, it displays as an overlay without a completely obscure background content. Detents and sheet grabber properties are not applied. This presentation is useful when building your own custom modal. Similar to `transparentModal`, when set to `containedTransparentModal`, it displays as an overlay without a completely obscure background content. Detents and other properties are not applied. This presentation is useful when building your own custom modal. |
-| `sheetAllowedDetents` | `number[]`, `'fitToContents'` | Snap positions as percentages (0.0-1.0) or automatic fitting. Only applies to screens with less than `768px` width. |
+| `sheetAllowedDetents` | `number[]`, `'fitToContents'` | Nix positions as percentages (0.0-1.0) or automatic fitting. Only applies to screens with less than `768px` width. |
 | `sheetGrabberVisible` | `boolean` | **On iOS, s**hows/hides the drag handle at the top of the sheet. Not supported on Android and web. We recommend using a custom sheet header component to imitate the grabber across all platforms. |
 | `sheetCornerRadius` | `number` | Corner radius of the sheet in pixels. |
 | `webModalStyle` | `WebModalStyle` | Special prop that allows web-specific styling options for fine-tuning modal appearance. |
@@ -31905,7 +31905,7 @@ export default function Page() {
 
 ## Customizing the link preview
 
-By default, the link preview is rendered as a full-sized page snapshot. There are several ways to customize this behavior.
+By default, the link preview is rendered as a full-sized page nixeshot. There are several ways to customize this behavior.
 
 ### Custom size
 
@@ -39580,7 +39580,7 @@ describe('useMyHook', () => {
 
 ## More
 
-[Unit testing with Jest](/develop/unit-testing) — Learn how to set up and configure the jest-expo package to write unit and snapshot tests for a project.
+[Unit testing with Jest](/develop/unit-testing) — Learn how to set up and configure the jest-expo package to write unit and nixeshot tests for a project.
 
 ---
 

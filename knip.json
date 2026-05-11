@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["src/app/_layout.tsx", "src/services/videoCompressionService.ts"],
+  "project": ["src/**/*.{ts,tsx}", "vitest-shims/**/*.ts"],
+  "ignore": [
+    "**/*.test.ts",
+    "src/types/database.types.ts",
+    "vitest-shims/**",
+    "supabase/functions/**",
+    "src/components/friend/incoming-requests-list.tsx"
+  ],
+  "ignoreDependencies": [
+    "react-dom",
+    "@react-navigation/native",
+    "expo-background-fetch",
+    "expo-task-manager",
+    "mime-db",
+    "expo-updates"
+  ],
+  "ignoreBinaries": ["react-doctor"]
+}

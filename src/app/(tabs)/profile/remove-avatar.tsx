@@ -24,7 +24,7 @@ export default function RemoveAvatarSheet() {
       await clearProfileAvatar();
       void queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile });
       void queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
       notifySuccess('Awatar usunięty.');
       router.back();
     } catch (err: unknown) {

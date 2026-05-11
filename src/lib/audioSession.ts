@@ -54,16 +54,12 @@ async function waitMs(ms: number): Promise<void> {
 }
 
 async function applyMode(mode: AudioSessionMode, modeConfig: Partial<AudioMode>) {
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt += 1) {
+  const tryAttempt = async (attempt: number): Promise<void> => {
     try {
       await setAudioModeAsync(modeConfig);
       lastConfiguredMode = mode;
       trackEvent('audio_session_set', { mode, status: 'success', attempts: attempt });
-      return;
     } catch (error) {
-      lastError = error;
       const retriable = isInsufficientPriorityError(error) && attempt < MAX_RETRY_ATTEMPTS;
 
       trackEvent('audio_session_set_retry', {
@@ -84,16 +80,11 @@ async function applyMode(mode: AudioSessionMode, modeConfig: Partial<AudioMode>)
       }
 
       await waitMs(RETRY_DELAYS_MS[attempt - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]);
+      await tryAttempt(attempt + 1);
     }
-  }
+  };
 
-  trackEvent('audio_session_set', {
-    mode,
-    status: 'failure',
-    attempts: MAX_RETRY_ATTEMPTS,
-    error_message: getErrorMessage(lastError),
-  });
-  throw lastError;
+  await tryAttempt(1);
 }
 
 /**

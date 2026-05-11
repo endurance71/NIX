@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer } from 'react';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../../../hooks/useAuth';
@@ -26,12 +26,51 @@ function getPasswordUpdateErrorMessage(message: string) {
 export default function ChangePasswordScreen() {
   const { statusBarStyle } = useAppTheme();
   const { session, loading: authLoading, updatePassword, reauthenticatePasswordChange } = useAuth();
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [nonce, setNonce] = useState('');
-  const [requiresNonce, setRequiresNonce] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(
+    (
+      current: {
+        newPassword: string;
+        confirmPassword: string;
+        nonce: string;
+        requiresNonce: boolean;
+        loading: boolean;
+        error: string | null;
+      },
+      action:
+        | { type: 'set_new_password'; value: string }
+        | { type: 'set_confirm_password'; value: string }
+        | { type: 'set_nonce'; value: string }
+        | { type: 'set_requires_nonce'; value: boolean }
+        | { type: 'set_loading'; value: boolean }
+        | { type: 'set_error'; value: string | null }
+    ) => {
+      switch (action.type) {
+        case 'set_new_password':
+          return { ...current, newPassword: action.value, error: null };
+        case 'set_confirm_password':
+          return { ...current, confirmPassword: action.value, error: null };
+        case 'set_nonce':
+          return { ...current, nonce: action.value, error: null };
+        case 'set_requires_nonce':
+          return { ...current, requiresNonce: action.value };
+        case 'set_loading':
+          return { ...current, loading: action.value };
+        case 'set_error':
+          return { ...current, error: action.value };
+        default:
+          return current;
+      }
+    },
+    {
+      newPassword: '',
+      confirmPassword: '',
+      nonce: '',
+      requiresNonce: false,
+      loading: false,
+      error: null,
+    }
+  );
+  const { newPassword, confirmPassword, nonce, requiresNonce, loading, error } = state;
 
   useEffect(() => {
     if (!authLoading && !session) {
@@ -41,20 +80,20 @@ export default function ChangePasswordScreen() {
 
   const handleSubmit = async () => {
     if (newPassword.length < 8) {
-      setError('Nowe hasło musi mieć minimum 8 znaków.');
+      dispatch({ type: 'set_error', value: 'Nowe hasło musi mieć minimum 8 znaków.' });
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('Hasła nie są takie same.');
+      dispatch({ type: 'set_error', value: 'Hasła nie są takie same.' });
       return;
     }
     if (requiresNonce && !nonce.trim()) {
-      setError('Wpisz kod weryfikacyjny z e-maila.');
+      dispatch({ type: 'set_error', value: 'Wpisz kod weryfikacyjny z e-maila.' });
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    dispatch({ type: 'set_loading', value: true });
+    dispatch({ type: 'set_error', value: null });
 
     const { error: updateErr } = await updatePassword(newPassword, requiresNonce ? nonce.trim() : undefined);
 
@@ -62,23 +101,26 @@ export default function ChangePasswordScreen() {
       if (!requiresNonce && isReauthenticationNeededError(updateErr)) {
         const { error: reauthError } = await reauthenticatePasswordChange();
         if (reauthError) {
-          setError(getPasswordUpdateErrorMessage(reauthError.message));
-          setLoading(false);
+          dispatch({ type: 'set_error', value: getPasswordUpdateErrorMessage(reauthError.message) });
+          dispatch({ type: 'set_loading', value: false });
           return;
         }
 
-        setRequiresNonce(true);
-        setLoading(false);
-        setError('Wysłaliśmy kod weryfikacyjny na e-mail. Wpisz go poniżej i zapisz hasło ponownie.');
+        dispatch({ type: 'set_requires_nonce', value: true });
+        dispatch({ type: 'set_loading', value: false });
+        dispatch({
+          type: 'set_error',
+          value: 'Wysłaliśmy kod weryfikacyjny na e-mail. Wpisz go poniżej i zapisz hasło ponownie.',
+        });
         return;
       }
 
-      setLoading(false);
-      setError(getPasswordUpdateErrorMessage(updateErr.message));
+      dispatch({ type: 'set_loading', value: false });
+      dispatch({ type: 'set_error', value: getPasswordUpdateErrorMessage(updateErr.message) });
       return;
     }
 
-    setLoading(false);
+    dispatch({ type: 'set_loading', value: false });
     notifySuccess('Hasło zostało zmienione.');
     router.replace('/profile');
   };
@@ -95,8 +137,7 @@ export default function ChangePasswordScreen() {
             placeholder="Nowe hasło (min. 8 znaków)"
             defaultValue={newPassword}
             onValueChange={(value) => {
-              setError(null);
-              setNewPassword(value);
+              dispatch({ type: 'set_new_password', value });
             }}
             modifiers={[textFieldStyle('roundedBorder')]}
           />
@@ -104,8 +145,7 @@ export default function ChangePasswordScreen() {
             placeholder="Powtórz nowe hasło"
             defaultValue={confirmPassword}
             onValueChange={(value) => {
-              setError(null);
-              setConfirmPassword(value);
+              dispatch({ type: 'set_confirm_password', value });
             }}
             modifiers={[textFieldStyle('roundedBorder')]}
           />
@@ -114,8 +154,7 @@ export default function ChangePasswordScreen() {
               placeholder="Kod weryfikacyjny z e-maila"
               defaultValue={nonce}
               onValueChange={(value) => {
-                setError(null);
-                setNonce(value);
+                dispatch({ type: 'set_nonce', value });
               }}
               modifiers={[textFieldStyle('roundedBorder')]}
             />

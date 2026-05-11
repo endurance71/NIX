@@ -1,14 +1,5 @@
 export const APP_FONT_FAMILY = 'SF Pro Rounded';
 
-export type TypographyRole =
-  | 'largeTitle'
-  | 'title2'
-  | 'headline'
-  | 'body'
-  | 'callout'
-  | 'footnote'
-  | 'caption';
-
 export const typography = {
   largeTitle: {
     fontSize: 34,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { unstable_batchedUpdates } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { toDomainError } from '../services/errors';
 import type { VideoSegmentDraft } from '../context/VideoDraftContext';
@@ -9,9 +10,9 @@ import {
 } from '../services/supabaseUploadService';
 import type { UploadTask, UploadTaskProgress, UploadTaskStage } from '../types/uploadQueue';
 import {
-  clearUploadQueueSnapshot,
-  readUploadQueueSnapshot,
-  writeUploadQueueSnapshot,
+  clearUploadQueueNixeshot,
+  readUploadQueueNixeshot,
+  writeUploadQueueNixeshot,
 } from '../lib/uploadQueuePersistence';
 import { trackEvent } from '../lib/telemetry';
 
@@ -70,6 +71,7 @@ export function useMediaUpload() {
   const inFlightTaskIdsRef = useRef(new Set<string>());
   const processingRef = useRef(false);
   const jobsRef = useRef<UploadQueueTask[]>([]);
+  const hydratedPausedRef = useRef<boolean | null>(null);
   const completionWaitersRef = useRef(
     new Map<string, { resolve: (value: TaskCompletionResult) => void; timeoutId: ReturnType<typeof setTimeout> }>()
   );
@@ -91,26 +93,26 @@ export function useMediaUpload() {
       completionWaitersRef.current.set(taskId, { resolve, timeoutId });
     });
   }, []);
-  const persistSnapshot = useCallback((nextJobs: UploadQueueTask[], nextActiveTaskId: string | null, paused: boolean) => {
-    const snapshot = {
+  const persistNixeshot = useCallback((nextJobs: UploadQueueTask[], nextActiveTaskId: string | null, paused: boolean) => {
+    const nixeshot = {
       version: 1 as const,
       tasks: nextJobs.slice(-MAX_PERSISTED_TASKS),
       activeTaskId: nextActiveTaskId,
       paused,
       updatedAt: Date.now(),
     };
-    void writeUploadQueueSnapshot(snapshot).catch(() => {});
+    void writeUploadQueueNixeshot(nixeshot).catch(() => {});
   }, []);
 
   const setJobsAndPersist = useCallback(
     (updater: (current: UploadQueueTask[]) => UploadQueueTask[]) => {
       setJobs((current) => {
         const next = updater(current);
-        persistSnapshot(next, activeTaskId, isPaused);
+        persistNixeshot(next, activeTaskId, isPaused);
         return next;
       });
     },
-    [activeTaskId, isPaused, persistSnapshot]
+    [activeTaskId, isPaused, persistNixeshot]
   );
 
   const upsertJob = useCallback(
@@ -316,7 +318,7 @@ export function useMediaUpload() {
     }
   }, [isPaused, isQueueReady, patchJob, processTask]);
 
-  const uploadSnap = async (
+  const uploadNix = async (
     fileUri: string,
     receiverId: string,
     viewDurationSec = 5,
@@ -420,39 +422,40 @@ export function useMediaUpload() {
   useEffect(() => {
     let mounted = true;
     void (async () => {
-      const snapshot = await readUploadQueueSnapshot();
-      if (!mounted) return;
-      if (snapshot?.tasks?.length) {
-        const now = Date.now();
-        setJobs(
-          snapshot.tasks
-            .filter((task) => {
+      const nixeshot = await readUploadQueueNixeshot();
+      if (mounted) {
+        unstable_batchedUpdates(() => {
+          if (nixeshot?.tasks?.length) {
+            const now = Date.now();
+            const nextJobs: UploadJob[] = [];
+            for (const task of nixeshot.tasks) {
+              const stage = task.progress.stage;
               const ageMs = now - task.createdAt;
               const updatedAgeMs =
                 typeof task.updatedAt === 'number' && Number.isFinite(task.updatedAt)
                   ? now - task.updatedAt
                   : ageMs;
-              if (!Number.isFinite(task.createdAt) || ageMs > MAX_REHYDRATED_TASK_AGE_MS) return false;
-              if (updatedAgeMs > MAX_REHYDRATED_TASK_AGE_MS) return false;
-              if (task.retryCount >= MAX_RETRIES) return false;
-              return (
-                task.progress.stage === 'queued' ||
-                task.progress.stage === 'upload_preparing' ||
-                task.progress.stage === 'uploading'
-              );
-            })
-            .map((task) => ({
-              ...task,
-              uploadFlowId:
-                typeof task.uploadFlowId === 'string' && task.uploadFlowId.length > 0
-                  ? task.uploadFlowId
-                  : createUploadFlowId(),
-              progress: { ...task.progress, stage: 'queued', progress: 0 },
-            }))
-        );
-        setIsPaused(snapshot.paused);
+              if (!Number.isFinite(task.createdAt) || ageMs > MAX_REHYDRATED_TASK_AGE_MS) continue;
+              if (updatedAgeMs > MAX_REHYDRATED_TASK_AGE_MS) continue;
+              if (task.retryCount >= MAX_RETRIES) continue;
+              if (stage !== 'queued' && stage !== 'upload_preparing' && stage !== 'uploading') {
+                continue;
+              }
+              nextJobs.push({
+                ...task,
+                uploadFlowId:
+                  typeof task.uploadFlowId === 'string' && task.uploadFlowId.length > 0
+                    ? task.uploadFlowId
+                    : createUploadFlowId(),
+                progress: { ...task.progress, stage: 'queued', progress: 0 },
+              });
+            }
+            setJobs(nextJobs);
+          hydratedPausedRef.current = nixeshot.paused;
+          }
+          setIsQueueReady(true);
+        });
       }
-      setIsQueueReady(true);
     })();
     return () => {
       mounted = false;
@@ -473,8 +476,15 @@ export function useMediaUpload() {
 
   useEffect(() => {
     if (!isQueueReady) return;
-    persistSnapshot(jobs, activeTaskId, isPaused);
-  }, [activeTaskId, isPaused, isQueueReady, jobs, persistSnapshot]);
+    if (hydratedPausedRef.current === null) return;
+    setIsPaused(hydratedPausedRef.current);
+    hydratedPausedRef.current = null;
+  }, [isQueueReady]);
+
+  useEffect(() => {
+    if (!isQueueReady) return;
+    persistNixeshot(jobs, activeTaskId, isPaused);
+  }, [activeTaskId, isPaused, isQueueReady, jobs, persistNixeshot]);
 
   useEffect(() => {
     void processQueue();
@@ -482,17 +492,19 @@ export function useMediaUpload() {
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
+      let nextPaused: boolean | null = null;
       if (state.isConnected === false) {
-        setIsPaused(true);
-        return;
+        nextPaused = true;
+      } else if (
+        state.isConnected === true &&
+        state.type === 'cellular' &&
+        state.details?.cellularGeneration === '3g'
+      ) {
+        nextPaused = true;
+      } else if (state.isConnected === true) {
+        nextPaused = false;
       }
-      if (state.isConnected === true && state.type === 'cellular' && state.details?.cellularGeneration === '3g') {
-        setIsPaused(true);
-        return;
-      }
-      if (state.isConnected === true) {
-        setIsPaused(false);
-      }
+      if (nextPaused !== null) setIsPaused(nextPaused);
     });
     return () => unsubscribe();
   }, []);
@@ -514,11 +526,11 @@ export function useMediaUpload() {
     inFlightTaskIdsRef.current.clear();
     abortControllersRef.current.forEach((controller) => controller.abort());
     abortControllersRef.current.clear();
-    await clearUploadQueueSnapshot();
+    await clearUploadQueueNixeshot();
   }, []);
 
   return {
-    uploadSnap,
+    uploadNix,
     uploadVideoSegments,
     isUploading,
     isPaused,

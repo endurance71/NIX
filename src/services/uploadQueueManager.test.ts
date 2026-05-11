@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  clearUploadQueueSnapshot,
-  readUploadQueueSnapshot,
-  writeUploadQueueSnapshot,
+  clearUploadQueueNixeshot,
+  readUploadQueueNixeshot,
+  writeUploadQueueNixeshot,
 } from '../lib/uploadQueuePersistence';
 
 const { getItemMock, setItemMock, removeItemMock } = vi.hoisted(() => ({
@@ -24,8 +24,8 @@ describe('uploadQueuePersistence', () => {
     vi.clearAllMocks();
   });
 
-  it('zapisuje snapshot kolejki', async () => {
-    await writeUploadQueueSnapshot({
+  it('zapisuje nixeshot kolejki', async () => {
+    await writeUploadQueueNixeshot({
       version: 1,
       tasks: [],
       activeTaskId: null,
@@ -35,7 +35,7 @@ describe('uploadQueuePersistence', () => {
     expect(setItemMock).toHaveBeenCalledTimes(1);
   });
 
-  it('odczytuje poprawny snapshot', async () => {
+  it('odczytuje poprawny nixeshot', async () => {
     getItemMock.mockResolvedValueOnce(
       JSON.stringify({
         version: 1,
@@ -45,19 +45,19 @@ describe('uploadQueuePersistence', () => {
         updatedAt: 321,
       })
     );
-    const snapshot = await readUploadQueueSnapshot();
-    expect(snapshot?.paused).toBe(true);
-    expect(snapshot?.version).toBe(1);
+    const nixeshot = await readUploadQueueNixeshot();
+    expect(nixeshot?.paused).toBe(true);
+    expect(nixeshot?.version).toBe(1);
   });
 
-  it('ignoruje uszkodzony snapshot', async () => {
+  it('ignoruje uszkodzony nixeshot', async () => {
     getItemMock.mockResolvedValueOnce('{invalid');
-    const snapshot = await readUploadQueueSnapshot();
-    expect(snapshot).toBeNull();
+    const nixeshot = await readUploadQueueNixeshot();
+    expect(nixeshot).toBeNull();
   });
 
-  it('czyści snapshot', async () => {
-    await clearUploadQueueSnapshot();
+  it('czyści nixeshot', async () => {
+    await clearUploadQueueNixeshot();
     expect(removeItemMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -8,7 +8,7 @@ import { toDomainError } from '../services/errors';
 import i18n from './i18n';
 import { notify as hapticNotify } from './haptics';
 
-export const NOTIFY_ERROR_DURATION_MS = 5000;
+const NOTIFY_ERROR_DURATION_MS = 5000;
 const NOTIFY_PLACEHOLDER_MESSAGE = ' ';
 
 type ExtraToastFields = Omit<ToastConfig, 'title'>;

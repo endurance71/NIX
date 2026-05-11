@@ -10,7 +10,7 @@ export type UploadTaskStage =
   | 'paused'
   | 'cancelled';
 
-export type UploadTaskMediaType = 'image' | 'video';
+type UploadTaskMediaType = 'image' | 'video';
 
 export type UploadTaskProgress = {
   stage: UploadTaskStage;
@@ -40,14 +40,10 @@ export type UploadTask = {
   error?: string | null;
 };
 
-export type UploadQueueSnapshot = {
+export type UploadQueueNixeshot = {
   version: 1;
   tasks: UploadTask[];
   activeTaskId: string | null;
   paused: boolean;
   updatedAt: number;
 };
-
-export type QueueProcessingResult =
-  | { ok: true }
-  | { ok: false; retryable: boolean; message: string };

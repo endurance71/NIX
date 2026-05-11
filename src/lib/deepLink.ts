@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Linking } from 'react-native';
+import { useLinkingURL } from 'expo-linking';
 import { router } from 'expo-router';
 import { supabase } from './supabase';
 import { extractFriendInvitePayload } from './friendInvite';
@@ -21,7 +21,7 @@ function parseAuthUrl(url: string) {
   }
 }
 
-async function handleAuthDeepLink(url: string) {
+async function handleAuthDeepLink(url: string, isCancelled: () => boolean) {
   const { accessToken, refreshToken, type } = parseAuthUrl(url);
   if (!accessToken || !refreshToken) return;
 
@@ -30,7 +30,7 @@ async function handleAuthDeepLink(url: string) {
     refresh_token: refreshToken,
   });
 
-  if (error) return;
+  if (isCancelled() || error) return;
 
   if (type === 'recovery') {
     router.replace('/(auth)/reset-password');
@@ -53,23 +53,26 @@ function handleFriendInviteDeepLink(url: string) {
 }
 
 export function DeepLinkHandler() {
-  useEffect(() => {
-    Linking.getInitialURL().then((url) => {
-      if (url) {
-        if (handleFriendInviteDeepLink(url)) return;
-        handleAuthDeepLink(url);
-      }
-    });
+  const linkingUrl = useLinkingURL();
 
-    const subscription = Linking.addEventListener('url', ({ url }) => {
-      if (handleFriendInviteDeepLink(url)) return;
-      handleAuthDeepLink(url);
-    });
+  useEffect(() => {
+    if (!linkingUrl) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        if (cancelled) return;
+        if (handleFriendInviteDeepLink(linkingUrl)) return;
+        await handleAuthDeepLink(linkingUrl, () => cancelled);
+      } catch {
+        // ignorujemy parsowanie / sesję przy niepoprawnym URL
+      }
+    })();
 
     return () => {
-      subscription.remove();
+      cancelled = true;
     };
-  }, []);
+  }, [linkingUrl]);
 
   return null;
 }

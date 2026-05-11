@@ -1,10 +1,10 @@
 export type CleanupPayload = {
-  snapId?: string;
+  nixId?: string;
   mediaPath?: string;
 };
 
 export function isValidCleanupPayload(payload: CleanupPayload) {
-  return Boolean(payload.snapId && payload.mediaPath);
+  return Boolean(payload.nixId && payload.mediaPath);
 }
 
 export function nextCleanupAttemptDelayMs(attemptCount: number) {

@@ -1,21 +1,21 @@
-import type { InboxSnap, SentSnap } from '../services/snapService';
+import type { InboxNix, SentNix } from '../services/nixService';
 
 export type InboxThreadItem =
   | {
       id: string;
       direction: 'received';
       timestamp: number;
-      snap: InboxSnap;
+      nix: InboxNix;
     }
   | {
       id: string;
       direction: 'sent';
       timestamp: number;
-      snap: SentSnap;
+      nix: SentNix;
     };
 
 function peerUserId(item: InboxThreadItem): string {
-  return item.direction === 'received' ? item.snap.sender_id : item.snap.receiver_id;
+  return item.direction === 'received' ? item.nix.sender_id : item.nix.receiver_id;
 }
 
 function timestampFrom(createdAt: string): number {
@@ -23,7 +23,7 @@ function timestampFrom(createdAt: string): number {
   return Number.isFinite(value) ? value : 0;
 }
 
-export function buildInboxThreads(inboxSnaps: readonly InboxSnap[], sentSnaps: readonly SentSnap[]): InboxThreadItem[] {
+export function buildInboxThreads(inboxNixes: readonly InboxNix[], sentNixes: readonly SentNix[]): InboxThreadItem[] {
   const byPeer = new Map<
     string,
     {
@@ -33,24 +33,24 @@ export function buildInboxThreads(inboxSnaps: readonly InboxSnap[], sentSnaps: r
   >();
 
   const items: InboxThreadItem[] = [
-    ...inboxSnaps.map((snap) => ({
-      id: `received-${snap.id}`,
+    ...inboxNixes.map((nix) => ({
+      id: `received-${nix.id}`,
       direction: 'received' as const,
-      timestamp: timestampFrom(snap.created_at),
-      snap,
+      timestamp: timestampFrom(nix.created_at),
+      nix,
     })),
-    ...sentSnaps.map((snap) => ({
-      id: `sent-${snap.id}`,
+    ...sentNixes.map((nix) => ({
+      id: `sent-${nix.id}`,
       direction: 'sent' as const,
-      timestamp: timestampFrom(snap.created_at),
-      snap,
+      timestamp: timestampFrom(nix.created_at),
+      nix,
     })),
   ];
 
   for (const item of items) {
     const id = peerUserId(item);
     const prev = byPeer.get(id);
-    const isUnreadReceived = item.direction === 'received' && item.snap.is_viewed !== true;
+    const isUnreadReceived = item.direction === 'received' && item.nix.is_viewed !== true;
 
     if (!prev) {
       byPeer.set(id, {

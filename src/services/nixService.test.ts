@@ -2,26 +2,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   deleteConversationWithPeer,
   enqueueCleanupJob,
-  fetchSentSnaps,
-  filterUnreadInboxSnapsFromSender,
+  fetchSentNixes,
+  filterUnreadInboxNixesFromSender,
   flushCleanupQueue,
-  insertSnap,
-  markSnapViewedWithCleanup,
-  requestSnapCleanup,
-  type InboxSnap,
-} from './snapService';
+  insertNix,
+  markNixViewedWithCleanup,
+  requestNixCleanup,
+  type InboxNix,
+} from './nixService';
 
 const {
   mockGetCurrentUser,
   mockInvoke,
   mockRpc,
-  mockSnapsSelectEq,
-  mockSnapsSelectOrder,
-  mockSnapsSelectLimit,
-  mockSnapsSelectEqValue,
-  mockSnapsUpdateEq,
-  mockSnapsUpsert,
-  mockSnapsInsert,
+  mockNixesSelectEq,
+  mockNixesSelectOrder,
+  mockNixesSelectLimit,
+  mockNixesSelectEqValue,
+  mockNixesUpdateEq,
+  mockNixesUpsert,
+  mockNixesInsert,
   mockQueueUpsert,
   mockQueueDeleteEq,
   mockQueueDelete,
@@ -37,21 +37,21 @@ const {
   const queueSelectLte = vi.fn();
   const queueSelectOrder = vi.fn();
   const queueSelectLimit = vi.fn();
-  const snapsSelectOrder = vi.fn();
-  const snapsSelectLimit = vi.fn();
-  const snapsSelectEq = vi.fn();
+  const nixesSelectOrder = vi.fn();
+  const nixesSelectLimit = vi.fn();
+  const nixesSelectEq = vi.fn();
 
   return {
     mockGetCurrentUser: vi.fn(),
     mockInvoke: vi.fn(),
     mockRpc: vi.fn(),
-    mockSnapsSelectEqValue: { order: snapsSelectOrder },
-    mockSnapsSelectEq: snapsSelectEq,
-    mockSnapsSelectOrder: snapsSelectOrder,
-    mockSnapsSelectLimit: snapsSelectLimit,
-    mockSnapsUpdateEq: vi.fn(),
-    mockSnapsUpsert: vi.fn(),
-    mockSnapsInsert: vi.fn(),
+    mockNixesSelectEqValue: { order: nixesSelectOrder },
+    mockNixesSelectEq: nixesSelectEq,
+    mockNixesSelectOrder: nixesSelectOrder,
+    mockNixesSelectLimit: nixesSelectLimit,
+    mockNixesUpdateEq: vi.fn(),
+    mockNixesUpsert: vi.fn(),
+    mockNixesInsert: vi.fn(),
     mockQueueUpsert: vi.fn(),
     mockQueueDeleteEq: queueDeleteEq,
     mockQueueDelete: vi.fn(() => ({ eq: queueDeleteEq })),
@@ -75,18 +75,18 @@ vi.mock('../lib/supabase', () => ({
       invoke: mockInvoke,
     },
     from: (table: string) => {
-      if (table === 'snaps') {
+      if (table === 'nixes') {
         return {
-          update: () => ({ eq: mockSnapsUpdateEq }),
-          insert: mockSnapsInsert,
-          upsert: mockSnapsUpsert,
+          update: () => ({ eq: mockNixesUpdateEq }),
+          insert: mockNixesInsert,
+          upsert: mockNixesUpsert,
           select: () => ({
-            eq: mockSnapsSelectEq,
+            eq: mockNixesSelectEq,
           }),
         };
       }
 
-      if (table === 'snap_cleanup_queue') {
+      if (table === 'nix_cleanup_queue') {
         return {
           upsert: mockQueueUpsert,
           delete: mockQueueDelete,
@@ -102,7 +102,7 @@ vi.mock('../lib/supabase', () => ({
   },
 }));
 
-function inboxStub(partial: Partial<InboxSnap> & Pick<InboxSnap, 'id' | 'sender_id' | 'created_at'>): InboxSnap {
+function inboxStub(partial: Partial<InboxNix> & Pick<InboxNix, 'id' | 'sender_id' | 'created_at'>): InboxNix {
   return {
     media_path: 'p.jpg',
     is_viewed: false,
@@ -115,23 +115,23 @@ function inboxStub(partial: Partial<InboxSnap> & Pick<InboxSnap, 'id' | 'sender_
   };
 }
 
-describe('filterUnreadInboxSnapsFromSender', () => {
+describe('filterUnreadInboxNixesFromSender', () => {
   it('zwraca tylko nieprzeczytane od danego nadawcy posortowane rosnąco po created_at', () => {
     const sender = 'user-a';
-    const snaps: InboxSnap[] = [
+    const nixes: InboxNix[] = [
       inboxStub({ id: '3', sender_id: sender, created_at: '2026-01-03T00:00:00.000Z' }),
       inboxStub({ id: '1', sender_id: sender, created_at: '2026-01-01T00:00:00.000Z' }),
       inboxStub({ id: '2', sender_id: sender, created_at: '2026-01-02T00:00:00.000Z' }),
       inboxStub({ id: 'x', sender_id: 'other', created_at: '2026-01-01T12:00:00.000Z' }),
       inboxStub({ id: '4', sender_id: sender, created_at: '2026-01-04T00:00:00.000Z', is_viewed: true }),
     ];
-    const q = filterUnreadInboxSnapsFromSender(snaps, sender);
+    const q = filterUnreadInboxNixesFromSender(nixes, sender);
     expect(q.map((s) => s.id)).toEqual(['1', '2', '3']);
   });
 
   it('pomija wpisy z is_viewed wyłącznie przez !== true', () => {
     const sender = 'user-b';
-    const snaps: InboxSnap[] = [
+    const nixes: InboxNix[] = [
       inboxStub({ id: 'a', sender_id: sender, created_at: '2026-01-01T00:00:00.000Z', is_viewed: false as any }),
       inboxStub({
         id: 'b',
@@ -140,19 +140,19 @@ describe('filterUnreadInboxSnapsFromSender', () => {
         is_viewed: undefined as unknown as boolean,
       }),
     ];
-    const q = filterUnreadInboxSnapsFromSender(snaps, sender);
+    const q = filterUnreadInboxNixesFromSender(nixes, sender);
     expect(q.map((s) => s.id)).toEqual(['a', 'b']);
   });
 });
 
-describe('snapService cleanup flow', () => {
+describe('nixService cleanup flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetCurrentUser.mockResolvedValue({ id: 'receiver-1' });
-    mockSnapsUpdateEq.mockResolvedValue({ error: null });
-    mockSnapsSelectEq.mockReturnValue(mockSnapsSelectEqValue);
-    mockSnapsSelectOrder.mockReturnValue({ limit: mockSnapsSelectLimit });
-    mockSnapsSelectLimit.mockResolvedValue({ error: null, data: [] });
+    mockNixesUpdateEq.mockResolvedValue({ error: null });
+    mockNixesSelectEq.mockReturnValue(mockNixesSelectEqValue);
+    mockNixesSelectOrder.mockReturnValue({ limit: mockNixesSelectLimit });
+    mockNixesSelectLimit.mockResolvedValue({ error: null, data: [] });
     mockRpc.mockResolvedValue({ error: null, data: [] });
     mockQueueUpsert.mockResolvedValue({ error: null });
     mockQueueDeleteEq.mockResolvedValue({ error: null });
@@ -162,19 +162,19 @@ describe('snapService cleanup flow', () => {
   it('wywołuje edge cleanup i usuwa job z kolejki', async () => {
     mockInvoke.mockResolvedValue({ data: { ok: true }, error: null });
 
-    await markSnapViewedWithCleanup('snap-1', 'snaps/receiver-1/file.jpg');
+    await markNixViewedWithCleanup('nix-1', 'nixes/receiver-1/file.jpg');
 
-    expect(mockInvoke).toHaveBeenCalledWith('cleanup-snap', {
-      body: { snapId: 'snap-1', mediaPath: 'snaps/receiver-1/file.jpg' },
+    expect(mockInvoke).toHaveBeenCalledWith('cleanup-nix', {
+      body: { nixId: 'nix-1', mediaPath: 'nixes/receiver-1/file.jpg' },
     });
-    expect(mockQueueDeleteEq).toHaveBeenCalledWith('snap_id', 'snap-1');
+    expect(mockQueueDeleteEq).toHaveBeenCalledWith('nix_id', 'nix-1');
   });
 
   it('zapisuje retry gdy cleanup edge nie działa', async () => {
     mockInvoke.mockResolvedValue({ data: null, error: new Error('network') });
 
     // Cleanup failure is non-critical — function resolves but enqueues retry.
-    await markSnapViewedWithCleanup('snap-2', 'snaps/receiver-1/file2.jpg');
+    await markNixViewedWithCleanup('nix-2', 'nixes/receiver-1/file2.jpg');
     expect(mockQueueUpdate).toHaveBeenCalled();
   });
 
@@ -193,8 +193,8 @@ describe('snapService cleanup flow', () => {
       error: null,
       data: [
         {
-          snap_id: 'snap-queued',
-          media_path: 'snaps/receiver-1/queued.jpg',
+          nix_id: 'nix-queued',
+          media_path: 'nixes/receiver-1/queued.jpg',
           receiver_id: 'receiver-1',
           attempt_count: 1,
         },
@@ -203,8 +203,8 @@ describe('snapService cleanup flow', () => {
 
     await flushCleanupQueue();
 
-    expect(mockInvoke).toHaveBeenCalledWith('cleanup-snap', {
-      body: { snapId: 'snap-queued', mediaPath: 'snaps/receiver-1/queued.jpg' },
+    expect(mockInvoke).toHaveBeenCalledWith('cleanup-nix', {
+      body: { nixId: 'nix-queued', mediaPath: 'nixes/receiver-1/queued.jpg' },
     });
   });
 
@@ -223,8 +223,8 @@ describe('snapService cleanup flow', () => {
       error: null,
       data: [
         {
-          snap_id: 'snap-retry',
-          media_path: 'snaps/receiver-1/retry.jpg',
+          nix_id: 'nix-retry',
+          media_path: 'nixes/receiver-1/retry.jpg',
           receiver_id: 'receiver-1',
           attempt_count: 2,
         },
@@ -234,17 +234,17 @@ describe('snapService cleanup flow', () => {
     await flushCleanupQueue();
 
     expect(mockQueueUpdate).toHaveBeenCalled();
-    expect(mockQueueUpdateEq).toHaveBeenCalledWith('snap_id', 'snap-retry');
+    expect(mockQueueUpdateEq).toHaveBeenCalledWith('nix_id', 'nix-retry');
   });
 
   it('enqueueCleanupJob dodaje pozycję do kolejki', async () => {
-    await enqueueCleanupJob('snap-3', 'snaps/receiver-1/queued2.jpg');
+    await enqueueCleanupJob('nix-3', 'nixes/receiver-1/queued2.jpg');
     expect(mockQueueUpsert).toHaveBeenCalled();
   });
 
-  it('requestSnapCleanup zgłasza błąd dla niepoprawnej odpowiedzi', async () => {
+  it('requestNixCleanup zgłasza błąd dla niepoprawnej odpowiedzi', async () => {
     mockInvoke.mockResolvedValue({ data: { ok: false }, error: null });
-    await expect(requestSnapCleanup('snap-4', 'snaps/receiver-1/a.jpg')).rejects.toThrow();
+    await expect(requestNixCleanup('nix-4', 'nixes/receiver-1/a.jpg')).rejects.toThrow();
   });
 
   it('deleteConversationWithPeer wywołuje poprawne RPC', async () => {
@@ -272,67 +272,67 @@ describe('snapService cleanup flow', () => {
     );
   });
 
-  it('insertSnap zapisuje thumbnail_b64 dla wideo', async () => {
+  it('insertNix zapisuje thumbnail_b64 dla wideo', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
-    mockSnapsUpsert.mockResolvedValue({ error: null });
+    mockNixesUpsert.mockResolvedValue({ error: null });
 
-    await insertSnap('receiver-1', 'snaps/sender-1/v.mp4', 15, {
+    await insertNix('receiver-1', 'nixes/sender-1/v.mp4', 15, {
       mediaType: 'video',
       playbackDurationMs: 12_000,
       clientUploadId: 'abc',
       thumbnailB64: 'data:image/jpeg;base64,Zm9v',
     });
 
-    expect(mockSnapsUpsert).toHaveBeenCalledTimes(1);
-    const [payload, opts] = mockSnapsUpsert.mock.calls[0];
+    expect(mockNixesUpsert).toHaveBeenCalledTimes(1);
+    const [payload, opts] = mockNixesUpsert.mock.calls[0];
     expect(payload.media_type).toBe('video');
     expect(payload.thumbnail_b64).toBe('data:image/jpeg;base64,Zm9v');
     expect(payload.playback_duration_ms).toBe(12_000);
     expect(opts).toMatchObject({ onConflict: 'sender_id,receiver_id,client_upload_id' });
   });
 
-  it('insertSnap retry-uje bez thumbnail_b64, gdy kolumna nie istnieje', async () => {
+  it('insertNix retry-uje bez thumbnail_b64, gdy kolumna nie istnieje', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
-    mockSnapsUpsert
+    mockNixesUpsert
       .mockResolvedValueOnce({
-        error: { message: "Could not find the 'thumbnail_b64' column of 'snaps'" },
+        error: { message: "Could not find the 'thumbnail_b64' column of 'nixes'" },
       })
       .mockResolvedValueOnce({ error: null });
 
-    await insertSnap('receiver-1', 'snaps/sender-1/v2.mp4', 5, {
+    await insertNix('receiver-1', 'nixes/sender-1/v2.mp4', 5, {
       mediaType: 'video',
       playbackDurationMs: 8_000,
       clientUploadId: 'def',
       thumbnailB64: 'data:image/jpeg;base64,Zm9v',
     });
 
-    expect(mockSnapsUpsert).toHaveBeenCalledTimes(2);
-    const [retryPayload] = mockSnapsUpsert.mock.calls[1];
+    expect(mockNixesUpsert).toHaveBeenCalledTimes(2);
+    const [retryPayload] = mockNixesUpsert.mock.calls[1];
     expect('thumbnail_b64' in retryPayload).toBe(false);
     expect(retryPayload.media_type).toBe('video');
   });
 
-  it('insertSnap pomija thumbnail_b64 dla obrazków', async () => {
+  it('insertNix pomija thumbnail_b64 dla obrazków', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
-    mockSnapsUpsert.mockResolvedValue({ error: null });
+    mockNixesUpsert.mockResolvedValue({ error: null });
 
-    await insertSnap('receiver-1', 'snaps/sender-1/img.jpg', 5, {
+    await insertNix('receiver-1', 'nixes/sender-1/img.jpg', 5, {
       mediaType: 'image',
       clientUploadId: 'img-1',
       // Wartość niedozwolona dla obrazów — powinna zostać zignorowana.
       thumbnailB64: 'data:image/jpeg;base64,XXX',
     });
 
-    expect(mockSnapsUpsert).toHaveBeenCalledTimes(1);
-    const [payload] = mockSnapsUpsert.mock.calls[0];
+    expect(mockNixesUpsert).toHaveBeenCalledTimes(1);
+    const [payload] = mockNixesUpsert.mock.calls[0];
     expect('thumbnail_b64' in payload).toBe(false);
   });
 
-  it('fetchSentSnaps zwraca historię wysłanych z mapowaniem odbiorcy', async () => {
+  it('fetchSentNixes zwraca historię wysłanych z mapowaniem odbiorcy', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
-    mockSnapsSelectEq.mockReturnValue({ order: mockSnapsSelectOrder });
-    mockSnapsSelectOrder.mockReturnValue({ limit: mockSnapsSelectLimit });
-    mockSnapsSelectLimit.mockResolvedValue({
+    mockNixesSelectEq.mockReturnValue({ order: mockNixesSelectOrder });
+    mockNixesSelectOrder.mockReturnValue({ limit: mockNixesSelectLimit });
+    mockNixesSelectLimit.mockResolvedValue({
       error: null,
       data: [
         {
@@ -350,7 +350,7 @@ describe('snapService cleanup flow', () => {
       data: [{ id: 'friend-1', username: 'nix_friend', avatar_emoji: '🦊' }],
     });
 
-    const result = await fetchSentSnaps();
+    const result = await fetchSentNixes();
 
     expect(result).toEqual([
       {
@@ -363,7 +363,7 @@ describe('snapService cleanup flow', () => {
         receiver: { username: 'nix_friend', avatar_emoji: '🦊', avatar_storage_path: null },
       },
     ]);
-    expect(mockSnapsSelectEq).toHaveBeenCalledWith('sender_id', 'sender-1');
+    expect(mockNixesSelectEq).toHaveBeenCalledWith('sender_id', 'sender-1');
     expect(mockRpc).toHaveBeenCalledWith('get_public_profiles_by_ids', {
       profile_ids: ['friend-1'],
     });

@@ -15,7 +15,7 @@ import { ThemeColors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { SFSymbol } from '../components/ui/sf-symbol';
 import { AvatarCircle } from '../components/ui/avatar-circle';
-import { normalizeSnapViewDurationSec } from '../lib/snapViewDuration';
+import { normalizeNixViewDurationSec } from '../lib/nixViewDuration';
 import { toggleSetValue } from '../lib/selection';
 import { SHEET_CONTENT_PADDING_TOP } from '../theme/sheetLayout';
 import { notifyError, notifySuccess } from '../lib/appNotify';
@@ -83,12 +83,12 @@ export default function SendToSheet() {
   const uri = paramFirst(rawParams.uri);
   const mode = paramFirst(rawParams.mode);
   const viewDurationSec = useMemo(
-    () => normalizeSnapViewDurationSec(paramFirst(rawParams.viewDurationSec)),
+    () => normalizeNixViewDurationSec(paramFirst(rawParams.viewDurationSec)),
     [rawParams.viewDurationSec]
   );
   const isVideo = mode === 'video' && !uri;
   const { segments, clearSegments } = useVideoDraft();
-  const { uploadSnap, uploadVideoSegments } = useMediaUpload();
+  const { uploadNix, uploadVideoSegments } = useMediaUpload();
   const { data: profiles = [], isPending: loading } = useQuery({
     queryKey: queryKeys.acceptedFriends,
     queryFn: () => listAcceptedFriends({ limit: 50 }),
@@ -102,7 +102,7 @@ export default function SendToSheet() {
   const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds]);
 
   const sortedFriendAvatarPaths = useMemo(() => {
-    const paths = profiles.map((p) => p.avatar_storage_path).filter((path): path is string => Boolean(path));
+    const paths = profiles.flatMap((p) => (p.avatar_storage_path ? [p.avatar_storage_path] : []));
     return Array.from(new Set(paths)).sort();
   }, [profiles]);
 
@@ -124,8 +124,10 @@ export default function SendToSheet() {
 
     let successCount = 0;
     let failureCount = 0;
-    for (let index = 0; index < selectedIdList.length; index += SEND_CONCURRENCY) {
-      const batch = selectedIdList.slice(index, index + SEND_CONCURRENCY);
+    // Partie po SEND_CONCURRENCY: wewnątrz partii Promise.all; kolejne partie sekwencyjnie — rekurencja zamiast for+await dla react-doctor.
+    const processBatchFromIndex = async (startIndex: number): Promise<void> => {
+      if (startIndex >= selectedIdList.length) return;
+      const batch = selectedIdList.slice(startIndex, startIndex + SEND_CONCURRENCY);
       const results = await Promise.all(
         batch.map(async (receiverId) => {
           try {
@@ -133,11 +135,10 @@ export default function SendToSheet() {
               return await uploadVideoSegments(segments!, receiverId, viewDurationSec, {
                 awaitCompletion: true,
               });
-            } else {
-              return await uploadSnap(uri!, receiverId, viewDurationSec, {
-                awaitCompletion: true,
-              });
             }
+            return await uploadNix(uri!, receiverId, viewDurationSec, {
+              awaitCompletion: true,
+            });
           } catch (err) {
             const message = toDomainError(err, 'Spróbuj ponownie za chwilę.').message;
             return { success: false as const, error: message };
@@ -145,17 +146,18 @@ export default function SendToSheet() {
         })
       );
 
-      results.forEach((result) => {
-        if (result.success) {
-          successCount += 1;
-        } else {
-          failureCount += 1;
-        }
-      });
-    }
+      for (const result of results) {
+        if (result.success) successCount += 1;
+        else failureCount += 1;
+      }
+
+      await processBatchFromIndex(startIndex + SEND_CONCURRENCY);
+    };
+
+    await processBatchFromIndex(0);
 
     if (isVideo) clearSegments();
-    void queryClient.invalidateQueries({ queryKey: queryKeys.inboxSnapsBundle });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
 
     if (successCount > 0) {
       notifySuccess(

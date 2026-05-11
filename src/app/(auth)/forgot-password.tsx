@@ -60,7 +60,6 @@ export default function ForgotPasswordScreen() {
             setError(null);
             setEmail(value);
           }}
-          autoFocus
           modifiers={[
             textFieldStyle('roundedBorder'),
             keyboardType('email-address'),

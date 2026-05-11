@@ -7,7 +7,7 @@ describe('toggleSetValue', () => {
     const next = toggleSetValue(current, 'b');
 
     expect([...current]).toEqual(['a']);
-    expect([...next].sort()).toEqual(['a', 'b']);
+    expect([...next].toSorted()).toEqual(['a', 'b']);
   });
 
   it('usuwa istniejącą wartość', () => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useReducer } from 'react';
 import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -26,29 +26,50 @@ function mapResultMessage(result: RedeemInviteResult | SendFriendRequestResult |
   return 'Zaproszenie jest nieprawidłowe, wygasłe lub już użyte.';
 }
 
+type InviteState = { loading: boolean; message: string | null };
+
+type InviteAction =
+  | { type: 'missing_payload' }
+  | { type: 'done'; message: string };
+
+function inviteReducer(state: InviteState, action: InviteAction): InviteState {
+  switch (action.type) {
+    case 'missing_payload':
+      return { loading: false, message: 'Brak danych zaproszenia.' };
+    case 'done':
+      return { loading: false, message: action.message };
+    default:
+      return state;
+  }
+}
+
 export default function FriendInviteScreen() {
   const { token, profileId } = useLocalSearchParams<{ token?: string; profileId?: string }>();
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
+  const [{ loading, message }, dispatch] = useReducer(inviteReducer, {
+    loading: true,
+    message: null,
+  });
 
   useEffect(() => {
     const run = async () => {
       if (!token && !profileId) {
-        setMessage('Brak danych zaproszenia.');
         trackEvent('friend_invite_redeem', {
           channel: 'deeplink',
           status: 'fail',
           errorCode: 'missing_payload',
         });
-        setLoading(false);
+        dispatch({ type: 'missing_payload' });
         return;
       }
       try {
         if (profileId) {
           const result = await sendFriendRequestByProfileQr(profileId);
-          setMessage(mapResultMessage(result.result, result.profile?.username));
+          dispatch({
+            type: 'done',
+            message: mapResultMessage(result.result, result.profile?.username),
+          });
           trackEvent('friend_invite_redeem', {
             channel: 'deeplink',
             status: 'success',
@@ -58,24 +79,26 @@ export default function FriendInviteScreen() {
         }
 
         const result = await redeemFriendInviteToken(token as string);
-        setMessage(mapResultMessage(result.result, result.inviterProfile?.username));
+        dispatch({
+          type: 'done',
+          message: mapResultMessage(result.result, result.inviterProfile?.username),
+        });
         trackEvent('friend_invite_redeem', {
           channel: 'deeplink',
           status: 'success',
           result: result.result,
         });
-      } catch (err: any) {
-        setMessage(err?.message ?? 'Nie udało się zrealizować zaproszenia.');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Nie udało się zrealizować zaproszenia.';
+        dispatch({ type: 'done', message: msg });
         trackEvent('friend_invite_redeem', {
           channel: 'deeplink',
           status: 'fail',
-          errorCode: err?.message ?? 'unknown',
+          errorCode: err instanceof Error ? err.message : 'unknown',
         });
-      } finally {
-        setLoading(false);
       }
     };
-    run();
+    void run();
   }, [token, profileId]);
 
   return (

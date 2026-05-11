@@ -39,8 +39,8 @@ ALTER TABLE public.profiles
     avatar_emoji IS NULL OR char_length(avatar_emoji) <= 32
   );
 
--- 1.2 Snaps (wiadomości efemeryczne)
-CREATE TABLE IF NOT EXISTS public.snaps (
+-- 1.2 Nixes (wiadomości efemeryczne)
+CREATE TABLE IF NOT EXISTS public.nixes (
   id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   sender_id    UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   receiver_id  UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
@@ -54,19 +54,19 @@ CREATE TABLE IF NOT EXISTS public.snaps (
 );
 
 -- Czas wyświetlania u odbiorcy (sekundy); ustawiany przy wysyłce z aplikacji.
-ALTER TABLE public.snaps
+ALTER TABLE public.nixes
   ADD COLUMN IF NOT EXISTS view_duration_sec INT NOT NULL DEFAULT 5;
 
-ALTER TABLE public.snaps
+ALTER TABLE public.nixes
   ADD COLUMN IF NOT EXISTS playback_duration_ms INTEGER;
 
-ALTER TABLE public.snaps
+ALTER TABLE public.nixes
   ADD COLUMN IF NOT EXISTS client_upload_id TEXT;
 
 -- Embedded miniatura wideo (data URL JPEG base64) — pozwala odbiorcy wyświetlić pierwszą klatkę
--- natychmiast po pobraniu listy snapów, bez dodatkowego pobrania pliku ze Storage.
+-- natychmiast po pobraniu listy nixów, bez dodatkowego pobrania pliku ze Storage.
 -- Limit ~60 KB stringa (≈45 KB binarki) chroni rozmiar wiersza.
-ALTER TABLE public.snaps
+ALTER TABLE public.nixes
   ADD COLUMN IF NOT EXISTS thumbnail_b64 TEXT;
 
 DO $$
@@ -74,11 +74,11 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1
     FROM pg_constraint
-    WHERE conname = 'snaps_thumbnail_b64_size'
-      AND conrelid = 'public.snaps'::regclass
+    WHERE conname = 'nixes_thumbnail_b64_size'
+      AND conrelid = 'public.nixes'::regclass
   ) THEN
-    ALTER TABLE public.snaps
-      ADD CONSTRAINT snaps_thumbnail_b64_size
+    ALTER TABLE public.nixes
+      ADD CONSTRAINT nixes_thumbnail_b64_size
       CHECK (thumbnail_b64 IS NULL OR octet_length(thumbnail_b64) <= 60000);
   END IF;
 END $$;
@@ -88,19 +88,19 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1
     FROM pg_constraint
-    WHERE conname = 'snaps_view_duration_sec_check'
-      AND conrelid = 'public.snaps'::regclass
+    WHERE conname = 'nixes_view_duration_sec_check'
+      AND conrelid = 'public.nixes'::regclass
   ) THEN
-    ALTER TABLE public.snaps
-      ADD CONSTRAINT snaps_view_duration_sec_check
+    ALTER TABLE public.nixes
+      ADD CONSTRAINT nixes_view_duration_sec_check
       CHECK (view_duration_sec IN (5, 15, 30, 60, 180));
   END IF;
 END $$;
 
-ALTER TABLE public.snaps
+ALTER TABLE public.nixes
   ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'sent';
 
-ALTER TABLE public.snaps
+ALTER TABLE public.nixes
   ADD COLUMN IF NOT EXISTS cleaned_at TIMESTAMPTZ;
 
 DO $$
@@ -108,11 +108,11 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1
     FROM pg_constraint
-    WHERE conname = 'snaps_status_check'
-      AND conrelid = 'public.snaps'::regclass
+    WHERE conname = 'nixes_status_check'
+      AND conrelid = 'public.nixes'::regclass
   ) THEN
-    ALTER TABLE public.snaps
-      ADD CONSTRAINT snaps_status_check
+    ALTER TABLE public.nixes
+      ADD CONSTRAINT nixes_status_check
       CHECK (status IN ('sent', 'viewed', 'cleaned', 'cleanup_failed'));
   END IF;
 END $$;
@@ -125,6 +125,16 @@ CREATE TABLE IF NOT EXISTS public.friendships (
   status     TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id, friend_id)
+);
+
+-- 1.3b Preferencje ochrony capture per znajomy (domyślnie deny przy braku wpisu)
+CREATE TABLE IF NOT EXISTS public.nix_capture_prefs (
+  owner_user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  friend_user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  capture_policy TEXT NOT NULL DEFAULT 'deny' CHECK (capture_policy IN ('deny', 'allow')),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (owner_user_id, friend_user_id),
+  CONSTRAINT nix_capture_prefs_not_self CHECK (owner_user_id <> friend_user_id)
 );
 
 -- 1.4 Zaproszenia QR (jednorazowe tokeny)
@@ -140,8 +150,8 @@ CREATE TABLE IF NOT EXISTS public.friend_invites (
 );
 
 -- 1.4 Kolejka cleanupu (retry/safety-net)
-CREATE TABLE IF NOT EXISTS public.snap_cleanup_queue (
-  snap_id UUID PRIMARY KEY REFERENCES public.snaps(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.nix_cleanup_queue (
+  nix_id UUID PRIMARY KEY REFERENCES public.nixes(id) ON DELETE CASCADE,
   receiver_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   media_path TEXT NOT NULL,
   attempt_count INT DEFAULT 0,
@@ -152,9 +162,9 @@ CREATE TABLE IF NOT EXISTS public.snap_cleanup_queue (
 );
 
 -- 1.5 Audit cleanupu
-CREATE TABLE IF NOT EXISTS public.snap_cleanup_audit (
+CREATE TABLE IF NOT EXISTS public.nix_cleanup_audit (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  snap_id UUID,
+  nix_id UUID,
   receiver_id UUID,
   media_path TEXT,
   status TEXT NOT NULL CHECK (status IN ('queued', 'success', 'failed', 'not_found', 'forbidden')),
@@ -213,25 +223,25 @@ CREATE POLICY "profiles_delete"
   USING (auth.uid() = id);
 
 
--- 2.2 Snaps
-ALTER TABLE public.snaps ENABLE ROW LEVEL SECURITY;
+-- 2.2 Nixes
+ALTER TABLE public.nixes ENABLE ROW LEVEL SECURITY;
 
--- Nadawca i odbiorca widzą snap
-CREATE POLICY "snaps_select"
-  ON public.snaps FOR SELECT
+-- Nadawca i odbiorca widzą nix
+CREATE POLICY "nixes_select"
+  ON public.nixes FOR SELECT
   USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
 
--- Tylko zalogowany użytkownik może wysłać snap (jako nadawca)
-CREATE POLICY "snaps_insert"
-  ON public.snaps FOR INSERT
+-- Tylko zalogowany użytkownik może wysłać nix (jako nadawca)
+CREATE POLICY "nixes_insert"
+  ON public.nixes FOR INSERT
   WITH CHECK (
     auth.uid() = sender_id
-    AND public.can_send_snap(sender_id, receiver_id)
+    AND public.can_send_nix(sender_id, receiver_id)
   );
 
--- Tylko odbiorca może oznaczyć snap jako przeczytany
-CREATE POLICY "snaps_update_viewed"
-  ON public.snaps FOR UPDATE
+-- Tylko odbiorca może oznaczyć nix jako przeczytany
+CREATE POLICY "nixes_update_viewed"
+  ON public.nixes FOR UPDATE
   USING (auth.uid() = receiver_id);
 
 
@@ -286,34 +296,54 @@ CREATE POLICY "friend_invites_update"
   USING (auth.uid() = used_by OR auth.role() = 'service_role')
   WITH CHECK (auth.uid() = used_by OR auth.role() = 'service_role');
 
--- 2.5 Cleanup queue
-ALTER TABLE public.snap_cleanup_queue ENABLE ROW LEVEL SECURITY;
+-- 2.4b Nix capture prefs
+ALTER TABLE public.nix_capture_prefs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "snap_cleanup_queue_select"
-  ON public.snap_cleanup_queue FOR SELECT
+CREATE POLICY "nix_capture_prefs_select"
+  ON public.nix_capture_prefs FOR SELECT
+  USING (auth.uid() = owner_user_id);
+
+CREATE POLICY "nix_capture_prefs_insert"
+  ON public.nix_capture_prefs FOR INSERT
+  WITH CHECK (auth.uid() = owner_user_id);
+
+CREATE POLICY "nix_capture_prefs_update"
+  ON public.nix_capture_prefs FOR UPDATE
+  USING (auth.uid() = owner_user_id)
+  WITH CHECK (auth.uid() = owner_user_id);
+
+CREATE POLICY "nix_capture_prefs_delete"
+  ON public.nix_capture_prefs FOR DELETE
+  USING (auth.uid() = owner_user_id);
+
+-- 2.5 Cleanup queue
+ALTER TABLE public.nix_cleanup_queue ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "nix_cleanup_queue_select"
+  ON public.nix_cleanup_queue FOR SELECT
   USING (auth.uid() = receiver_id);
 
-CREATE POLICY "snap_cleanup_queue_insert"
-  ON public.snap_cleanup_queue FOR INSERT
+CREATE POLICY "nix_cleanup_queue_insert"
+  ON public.nix_cleanup_queue FOR INSERT
   WITH CHECK (auth.uid() = receiver_id);
 
-CREATE POLICY "snap_cleanup_queue_update"
-  ON public.snap_cleanup_queue FOR UPDATE
+CREATE POLICY "nix_cleanup_queue_update"
+  ON public.nix_cleanup_queue FOR UPDATE
   USING (auth.uid() = receiver_id);
 
-CREATE POLICY "snap_cleanup_queue_delete"
-  ON public.snap_cleanup_queue FOR DELETE
+CREATE POLICY "nix_cleanup_queue_delete"
+  ON public.nix_cleanup_queue FOR DELETE
   USING (auth.uid() = receiver_id OR auth.role() = 'service_role');
 
 -- 2.6 Cleanup audit (tylko serwis)
-ALTER TABLE public.snap_cleanup_audit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nix_cleanup_audit ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "snap_cleanup_audit_select"
-  ON public.snap_cleanup_audit FOR SELECT
+CREATE POLICY "nix_cleanup_audit_select"
+  ON public.nix_cleanup_audit FOR SELECT
   USING (auth.role() = 'service_role');
 
-CREATE POLICY "snap_cleanup_audit_insert"
-  ON public.snap_cleanup_audit FOR INSERT
+CREATE POLICY "nix_cleanup_audit_insert"
+  ON public.nix_cleanup_audit FOR INSERT
   WITH CHECK (auth.role() = 'service_role');
 
 -- 2.7 Upload logs
@@ -334,7 +364,7 @@ CREATE POLICY "upload_logs_delete"
 
 -- ============================================================
 -- 3. FUNKCJA: Auto-tworzenie profilu po rejestracji
--- Wyzwala się automatycznie gdy użytkownik potwierdzi OTP
+-- Wyzwala się automatycznie po utworzeniu użytkownika w auth.users (np. po rejestracji / potwierdzeniu e-maila)
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -365,7 +395,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.prevent_snap_payload_update()
+CREATE OR REPLACE FUNCTION public.prevent_nix_payload_update()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -378,14 +408,14 @@ BEGIN
     OR OLD.view_duration_sec IS DISTINCT FROM NEW.view_duration_sec
     OR OLD.thumbnail_b64 IS DISTINCT FROM NEW.thumbnail_b64
   THEN
-    RAISE EXCEPTION 'Only delivery status fields can be updated on snaps';
+    RAISE EXCEPTION 'Only delivery status fields can be updated on nixes';
   END IF;
 
   RETURN NEW;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.can_send_snap(sender UUID, receiver UUID)
+CREATE OR REPLACE FUNCTION public.can_send_nix(sender UUID, receiver UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 STABLE
@@ -417,7 +447,7 @@ BEGIN
 
   SELECT COUNT(*)
     INTO recent_count
-  FROM public.snaps s
+  FROM public.nixes s
   WHERE s.sender_id = sender
     AND s.created_at > NOW() - INTERVAL '1 minute';
 
@@ -582,6 +612,25 @@ AS $$
   ORDER BY p.username ASC;
 $$;
 
+CREATE OR REPLACE FUNCTION public.get_capture_policy_for_sender(sender_id UUID)
+RETURNS TEXT
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(
+    (
+      SELECT scp.capture_policy
+      FROM public.nix_capture_prefs scp
+      WHERE scp.owner_user_id = auth.uid()
+        AND scp.friend_user_id = sender_id
+      LIMIT 1
+    ),
+    'deny'
+  );
+$$;
+
 CREATE OR REPLACE FUNCTION public.list_accepted_friends_paginated(page_limit INT DEFAULT 50, before_created_at TIMESTAMPTZ DEFAULT NULL)
 RETURNS TABLE(id UUID, username TEXT, avatar_storage_path TEXT, avatar_emoji TEXT, friendship_created_at TIMESTAMPTZ)
 LANGUAGE sql
@@ -607,30 +656,30 @@ AS $$
   ORDER BY r.created_at DESC;
 $$;
 
-CREATE OR REPLACE FUNCTION public.fetch_inbox_snaps_paginated(page_limit INT DEFAULT 50, before_created_at TIMESTAMPTZ DEFAULT NULL)
-RETURNS SETOF public.snaps
+CREATE OR REPLACE FUNCTION public.fetch_inbox_nixes_paginated(page_limit INT DEFAULT 50, before_created_at TIMESTAMPTZ DEFAULT NULL)
+RETURNS SETOF public.nixes
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT s.*
-  FROM public.snaps s
+  FROM public.nixes s
   WHERE s.receiver_id = auth.uid()
     AND (before_created_at IS NULL OR s.created_at < before_created_at)
   ORDER BY s.created_at DESC
   LIMIT LEAST(GREATEST(page_limit, 1), 100);
 $$;
 
-CREATE OR REPLACE FUNCTION public.fetch_sent_snaps_paginated(page_limit INT DEFAULT 50, before_created_at TIMESTAMPTZ DEFAULT NULL)
-RETURNS SETOF public.snaps
+CREATE OR REPLACE FUNCTION public.fetch_sent_nixes_paginated(page_limit INT DEFAULT 50, before_created_at TIMESTAMPTZ DEFAULT NULL)
+RETURNS SETOF public.nixes
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT s.*
-  FROM public.snaps s
+  FROM public.nixes s
   WHERE s.sender_id = auth.uid()
     AND (before_created_at IS NULL OR s.created_at < before_created_at)
   ORDER BY s.created_at DESC
@@ -638,7 +687,7 @@ AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION public.log_cleanup_audit(
-  p_snap_id UUID,
+  p_nix_id UUID,
   p_receiver_id UUID,
   p_media_path TEXT,
   p_status TEXT,
@@ -649,8 +698,8 @@ LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  INSERT INTO public.snap_cleanup_audit (snap_id, receiver_id, media_path, status, error_message)
-  VALUES (p_snap_id, p_receiver_id, p_media_path, p_status, p_error_message);
+  INSERT INTO public.nix_cleanup_audit (nix_id, receiver_id, media_path, status, error_message)
+  VALUES (p_nix_id, p_receiver_id, p_media_path, p_status, p_error_message);
 $$;
 
 CREATE OR REPLACE FUNCTION public.delete_my_conversation_with_peer(peer_profile_id UUID)
@@ -670,7 +719,7 @@ BEGIN
     RAISE EXCEPTION 'Invalid peer id';
   END IF;
 
-  DELETE FROM public.snaps s
+  DELETE FROM public.nixes s
   WHERE
     (s.sender_id = auth.uid() AND s.receiver_id = peer_profile_id)
     OR (s.receiver_id = auth.uid() AND s.sender_id = peer_profile_id);
@@ -685,10 +734,11 @@ REVOKE ALL ON FUNCTION public.get_public_profiles_by_ids(UUID[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.create_friend_invite(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.redeem_friend_invite(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.list_public_profiles() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_capture_policy_for_sender(UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.list_accepted_friends_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.fetch_inbox_snaps_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.fetch_sent_snaps_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.can_send_snap(UUID, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.fetch_inbox_nixes_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.fetch_sent_nixes_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.can_send_nix(UUID, UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.log_cleanup_audit(UUID, UUID, TEXT, TEXT, TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.delete_my_conversation_with_peer(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_public_profile_by_username(TEXT) TO authenticated;
@@ -696,10 +746,11 @@ GRANT EXECUTE ON FUNCTION public.get_public_profiles_by_ids(UUID[]) TO authentic
 GRANT EXECUTE ON FUNCTION public.create_friend_invite(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.redeem_friend_invite(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.list_public_profiles() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_capture_policy_for_sender(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.list_accepted_friends_paginated(INT, TIMESTAMPTZ) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.fetch_inbox_snaps_paginated(INT, TIMESTAMPTZ) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.fetch_sent_snaps_paginated(INT, TIMESTAMPTZ) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.can_send_snap(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.fetch_inbox_nixes_paginated(INT, TIMESTAMPTZ) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.fetch_sent_nixes_paginated(INT, TIMESTAMPTZ) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.can_send_nix(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.log_cleanup_audit(UUID, UUID, TEXT, TEXT, TEXT) TO service_role;
 GRANT EXECUTE ON FUNCTION public.delete_my_conversation_with_peer(UUID) TO authenticated;
 
@@ -715,11 +766,11 @@ CREATE TRIGGER prevent_username_update
   FOR EACH ROW
   EXECUTE PROCEDURE public.prevent_username_change();
 
-DROP TRIGGER IF EXISTS protect_snap_payload ON public.snaps;
-CREATE TRIGGER protect_snap_payload
-  BEFORE UPDATE ON public.snaps
+DROP TRIGGER IF EXISTS protect_nix_payload ON public.nixes;
+CREATE TRIGGER protect_nix_payload
+  BEFORE UPDATE ON public.nixes
   FOR EACH ROW
-  EXECUTE PROCEDURE public.prevent_snap_payload_update();
+  EXECUTE PROCEDURE public.prevent_nix_payload_update();
 
 
 -- ============================================================
@@ -748,10 +799,10 @@ CREATE POLICY "storage_insert"
   WITH CHECK (
     bucket_id = 'media-vault'
     AND auth.role() = 'authenticated'
-    AND name LIKE ('snaps/' || auth.uid() || '/%')
+    AND name LIKE ('nixes/' || auth.uid() || '/%')
   );
 
--- Nadawca i odbiorca mogą pobrać plik (sprawdzane przez snap record)
+-- Nadawca i odbiorca mogą pobrać plik (sprawdzane przez nix record)
 CREATE POLICY "storage_select"
   ON storage.objects FOR SELECT
   USING (
@@ -759,7 +810,7 @@ CREATE POLICY "storage_select"
     AND auth.role() = 'authenticated'
     AND EXISTS (
       SELECT 1
-      FROM public.snaps s
+      FROM public.nixes s
       WHERE s.media_path = name
         AND (s.sender_id = auth.uid() OR s.receiver_id = auth.uid())
     )
@@ -815,7 +866,7 @@ CREATE POLICY "avatars_storage_select"
       )
       OR EXISTS (
         SELECT 1
-        FROM public.snaps s
+        FROM public.nixes s
         WHERE
           (
             s.sender_id = auth.uid()
@@ -842,19 +893,20 @@ CREATE POLICY "avatars_storage_delete"
 -- 5. INDEKSY (wydajność)
 -- ============================================================
 
-CREATE INDEX IF NOT EXISTS idx_snaps_receiver_id ON public.snaps(receiver_id);
-CREATE INDEX IF NOT EXISTS idx_snaps_sender_id   ON public.snaps(sender_id);
-CREATE INDEX IF NOT EXISTS idx_snaps_is_viewed   ON public.snaps(is_viewed);
-CREATE INDEX IF NOT EXISTS idx_snaps_sender_created_at ON public.snaps(sender_id, created_at DESC);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_snaps_sender_receiver_upload_id_unique
-  ON public.snaps(sender_id, receiver_id, client_upload_id)
+CREATE INDEX IF NOT EXISTS idx_nixes_receiver_id ON public.nixes(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_nixes_sender_id   ON public.nixes(sender_id);
+CREATE INDEX IF NOT EXISTS idx_nixes_is_viewed   ON public.nixes(is_viewed);
+CREATE INDEX IF NOT EXISTS idx_nixes_sender_created_at ON public.nixes(sender_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nixes_sender_receiver_upload_id_unique
+  ON public.nixes(sender_id, receiver_id, client_upload_id)
   WHERE client_upload_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_friendships_user  ON public.friendships(user_id);
 CREATE INDEX IF NOT EXISTS idx_friendships_friend ON public.friendships(friend_id);
+CREATE INDEX IF NOT EXISTS idx_nix_capture_prefs_owner ON public.nix_capture_prefs(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_friend_invites_created_by ON public.friend_invites(created_by);
 CREATE INDEX IF NOT EXISTS idx_friend_invites_expires_at ON public.friend_invites(expires_at);
-CREATE INDEX IF NOT EXISTS idx_snap_cleanup_queue_receiver_next_attempt
-  ON public.snap_cleanup_queue(receiver_id, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_nix_cleanup_queue_receiver_next_attempt
+  ON public.nix_cleanup_queue(receiver_id, next_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_upload_logs_sender_created_at
   ON public.upload_logs(sender_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_upload_logs_status_created_at
@@ -869,5 +921,5 @@ CREATE INDEX IF NOT EXISTS idx_upload_logs_failure_stage
 
 -- ============================================================
 -- GOTOWE ✅
--- Sprawdź w: Table Editor → profiles / snaps / friendships
+-- Sprawdź w: Table Editor → profiles / nixes / friendships
 -- ============================================================

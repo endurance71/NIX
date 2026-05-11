@@ -1,4 +1,4 @@
-import { uploadImageAndCreateSnap, uploadVideoAndCreateSnap, type MediaUploadProgress } from './mediaService';
+import { uploadImageAndCreateNix, uploadVideoAndCreateNix, type MediaUploadProgress } from './mediaService';
 import { toDomainError } from './errors';
 import { trackEvent } from '../lib/telemetry';
 
@@ -41,7 +41,7 @@ function mapMediaProgress(progress: MediaUploadProgress): SupabaseUploadProgress
 
 export async function uploadImageWithMetadata(params: UploadImageParams): Promise<void> {
   try {
-    await uploadImageAndCreateSnap(params.fileUri, params.receiverId, params.viewDurationSec, {
+    await uploadImageAndCreateNix(params.fileUri, params.receiverId, params.viewDurationSec, {
       signal: params.signal,
       clientUploadId: params.uploadId,
       onProgress: (progress) => params.onProgress?.(mapMediaProgress(progress)),
@@ -65,7 +65,7 @@ export async function uploadImageWithMetadata(params: UploadImageParams): Promis
 
 export async function uploadVideoWithMetadata(params: UploadVideoParams): Promise<void> {
   try {
-    await uploadVideoAndCreateSnap(
+    await uploadVideoAndCreateNix(
       params.fileUri,
       params.receiverId,
       params.playbackDurationMs,

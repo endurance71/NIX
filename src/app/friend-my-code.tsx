@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useReducer } from 'react';
 import { StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -16,8 +16,25 @@ export default function FriendMyCodeScreen() {
   const { user } = useAuth();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const payload = useProfileQrPayload();
-  const [profileRow, setProfileRow] = useState<CurrentUserProfileRow | null>(null);
-  const [avatarSignedUrl, setAvatarSignedUrl] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(
+    (
+      current: { profileRow: CurrentUserProfileRow | null; avatarSignedUrl: string | null },
+      action:
+        | { type: 'profile_loaded'; profileRow: CurrentUserProfileRow | null }
+        | { type: 'avatar_loaded'; avatarSignedUrl: string | null }
+    ) => {
+      switch (action.type) {
+        case 'profile_loaded':
+          return { ...current, profileRow: action.profileRow };
+        case 'avatar_loaded':
+          return { ...current, avatarSignedUrl: action.avatarSignedUrl };
+        default:
+          return current;
+      }
+    },
+    { profileRow: null, avatarSignedUrl: null }
+  );
+  const { profileRow, avatarSignedUrl } = state;
 
   const fallbackInitial = (profileRow?.username ?? user?.email ?? '?').replace(/^@/, '').charAt(0).toUpperCase();
 
@@ -25,9 +42,7 @@ export default function FriendMyCodeScreen() {
     let cancelled = false;
     getCurrentUserProfile()
       .then((profile) => {
-        if (!cancelled) {
-          setProfileRow(profile);
-        }
+        if (!cancelled) dispatch({ type: 'profile_loaded', profileRow: profile });
       })
       .catch((err) => {
         console.error('Nie udało się pobrać profilu dla QR', err);
@@ -41,24 +56,19 @@ export default function FriendMyCodeScreen() {
   useEffect(() => {
     let cancelled = false;
     const path = profileRow?.avatar_storage_path;
-    if (!path) {
-      setAvatarSignedUrl(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-    createSignedAvatarUrl(path)
-      .then((url) => {
-        if (!cancelled) {
-          setAvatarSignedUrl(url);
-        }
-      })
-      .catch((err) => {
+    void (async () => {
+      if (!path) {
+        if (!cancelled) dispatch({ type: 'avatar_loaded', avatarSignedUrl: null });
+        return;
+      }
+      try {
+        const url = await createSignedAvatarUrl(path);
+        if (!cancelled) dispatch({ type: 'avatar_loaded', avatarSignedUrl: url });
+      } catch (err) {
         console.error('Nie udało się wygenerować signed URL avatara', err);
-        if (!cancelled) {
-          setAvatarSignedUrl(null);
-        }
-      });
+        if (!cancelled) dispatch({ type: 'avatar_loaded', avatarSignedUrl: null });
+      }
+    })();
 
     return () => {
       cancelled = true;

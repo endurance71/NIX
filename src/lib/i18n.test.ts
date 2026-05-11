@@ -7,11 +7,11 @@ vi.mock('expo-localization', () => ({
 
 describe('i18n', () => {
   let i18nModule: typeof import('./i18n');
-  let sentLifecycleSegments: typeof import('./snapInboxLabels').sentLifecycleSegments;
+  let sentLifecycleSegments: typeof import('./nixInboxLabels').sentLifecycleSegments;
 
   beforeEach(async () => {
     i18nModule = await import('./i18n');
-    ({ sentLifecycleSegments } = await import('./snapInboxLabels'));
+    ({ sentLifecycleSegments } = await import('./nixInboxLabels'));
     await i18nModule.default.changeLanguage('pl');
   });
 

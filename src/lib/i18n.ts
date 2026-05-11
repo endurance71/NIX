@@ -64,9 +64,9 @@ const resources = {
       },
       inbox: {
         title: 'Skrzynka',
-        openSnapA11y: 'Otwórz snap od @{{username}}',
+        openNixA11y: 'Otwórz nix od @{{username}}',
         sentToA11y: 'Wysłano do @{{username}}',
-        newSnap: 'Nowy NiX',
+        newNix: 'Nowy NiX',
         opened: 'Otwarto',
         sent: 'Wysłane',
         deleteConversationSuccess: 'Usunięto rozmowę z @{{username}}.',
@@ -169,9 +169,9 @@ const resources = {
       },
       inbox: {
         title: 'Inbox',
-        openSnapA11y: 'Open snap from @{{username}}',
+        openNixA11y: 'Open nix from @{{username}}',
         sentToA11y: 'Sent to @{{username}}',
-        newSnap: 'New NiX',
+        newNix: 'New NiX',
         opened: 'Opened',
         sent: 'Sent',
         deleteConversationSuccess: 'Deleted conversation with @{{username}}.',

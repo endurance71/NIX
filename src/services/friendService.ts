@@ -246,17 +246,11 @@ export async function listIncomingFriendRequests(): Promise<IncomingFriendReques
     if (mapped) requesterMap.set(mapped.id, mapped);
   }
 
-  return (data ?? [])
-    .map((row) => {
-      const requester = requesterMap.get(row.user_id as string);
-      if (!requester) return null;
-      return {
-        id: row.id as string,
-        created_at: row.created_at as string,
-        requester,
-      };
-    })
-    .filter(Boolean) as IncomingFriendRequest[];
+  return (data ?? []).flatMap((row) => {
+    const requester = requesterMap.get(row.user_id as string);
+    if (!requester) return [];
+    return [{ id: row.id as string, created_at: row.created_at as string, requester }];
+  }) as IncomingFriendRequest[];
 }
 
 export async function listOutgoingFriendRequests(): Promise<OutgoingFriendRequest[]> {
@@ -289,17 +283,11 @@ export async function listOutgoingFriendRequests(): Promise<OutgoingFriendReques
     if (mapped) recipientMap.set(mapped.id, mapped);
   }
 
-  return (data ?? [])
-    .map((row) => {
-      const recipient = recipientMap.get(row.friend_id as string);
-      if (!recipient) return null;
-      return {
-        id: row.id as string,
-        created_at: row.created_at as string,
-        recipient,
-      };
-    })
-    .filter(Boolean) as OutgoingFriendRequest[];
+  return (data ?? []).flatMap((row) => {
+    const recipient = recipientMap.get(row.friend_id as string);
+    if (!recipient) return [];
+    return [{ id: row.id as string, created_at: row.created_at as string, recipient }];
+  }) as OutgoingFriendRequest[];
 }
 
 export async function acceptFriendRequest(requestId: string) {
@@ -360,9 +348,10 @@ export async function listAcceptedFriends(options: FriendListOptions = {}): Prom
 
   if (relationsError) throw toFriendlyError(relationsError);
 
-  const friendIds = (relations ?? [])
-    .map((relation) => (relation.user_id === user.id ? relation.friend_id : relation.user_id))
-    .filter(Boolean);
+  const friendIds = (relations ?? []).flatMap((relation) => {
+    const id = relation.user_id === user.id ? relation.friend_id : relation.user_id;
+    return id ? [id as string] : [];
+  });
 
   if (friendIds.length === 0) return [];
 
@@ -372,9 +361,10 @@ export async function listAcceptedFriends(options: FriendListOptions = {}): Prom
 
   if (profilesError) throw toFriendlyError(profilesError);
 
-  return ((profiles ?? []) as PublicProfileRpcRow[])
-    .map((row) => mapPublicProfileRow(row))
-    .filter(Boolean) as FriendProfile[];
+  return ((profiles ?? []) as PublicProfileRpcRow[]).flatMap((row) => {
+    const mapped = mapPublicProfileRow(row);
+    return mapped ? [mapped] : [];
+  }) as FriendProfile[];
 }
 
 export async function removeFriend(friendId: string) {

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useReducer } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -45,66 +45,126 @@ export default function FriendInviteConfirmScreen() {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const [friendProfile, setFriendProfile] = useState<FriendProfile | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
-  const [profileError, setProfileError] = useState<string | null>(null);
-  const [relationStatus, setRelationStatus] = useState<FriendInviteRelationStatus>('none');
-  const [actionLoading, setActionLoading] = useState(false);
+  const [state, dispatch] = useReducer(
+    (
+      current: {
+        friendProfile: FriendProfile | null;
+        avatarUrl: string | null;
+        profileLoading: boolean;
+        profileError: string | null;
+        relationStatus: FriendInviteRelationStatus;
+        actionLoading: boolean;
+      },
+      action:
+        | {
+            type: 'reset_for_loading';
+          }
+        | {
+            type: 'profile_loaded';
+            friendProfile: FriendProfile;
+            avatarUrl: string | null;
+            relationStatus: FriendInviteRelationStatus;
+          }
+        | { type: 'profile_error'; profileError: string }
+        | { type: 'set_action_loading'; actionLoading: boolean }
+    ) => {
+      switch (action.type) {
+        case 'reset_for_loading':
+          return {
+            ...current,
+            profileLoading: true,
+            profileError: null,
+            friendProfile: null,
+            avatarUrl: null,
+            relationStatus: 'none' as FriendInviteRelationStatus,
+          };
+        case 'profile_loaded':
+          return {
+            ...current,
+            friendProfile: action.friendProfile,
+            avatarUrl: action.avatarUrl,
+            relationStatus: action.relationStatus,
+            profileLoading: false,
+            profileError: null,
+          };
+        case 'profile_error':
+          return {
+            ...current,
+            profileLoading: false,
+            profileError: action.profileError,
+            friendProfile: null,
+            avatarUrl: null,
+            relationStatus: 'none' as FriendInviteRelationStatus,
+          };
+        case 'set_action_loading':
+          return {
+            ...current,
+            actionLoading: action.actionLoading,
+          };
+        default:
+          return current;
+      }
+    },
+    {
+      friendProfile: null,
+      avatarUrl: null,
+      profileLoading: true,
+      profileError: null,
+      relationStatus: 'none',
+      actionLoading: false,
+    }
+  );
+  const { friendProfile, avatarUrl, profileLoading, profileError, relationStatus, actionLoading } = state;
 
   useFocusEffect(
     useCallback(() => {
       if (!profileId) {
-        setProfileLoading(false);
-        setProfileError('Brak ID profilu.');
-        setFriendProfile(null);
-        setAvatarUrl(null);
-        setRelationStatus('none');
+        dispatch({ type: 'profile_error', profileError: 'Brak ID profilu.' });
         return;
       }
 
       let cancelled = false;
 
       const loadProfile = async () => {
-        setProfileLoading(true);
-        setProfileError(null);
-        setFriendProfile(null);
-        setAvatarUrl(null);
-        setRelationStatus('none');
+        dispatch({ type: 'reset_for_loading' });
 
         try {
           const preview = await previewProfileQr(profileId);
           if (cancelled) return;
 
           if (preview.status === 'invalid_profile' || !preview.profile) {
-            setProfileError('Nie udało się wczytać tego profilu.');
+            dispatch({ type: 'profile_error', profileError: 'Nie udało się wczytać tego profilu.' });
             return;
           }
 
           if (preview.status === 'own_profile') {
-            setProfileError('To jest Twój profil.');
+            dispatch({ type: 'profile_error', profileError: 'To jest Twój profil.' });
             return;
           }
 
-          setFriendProfile(preview.profile);
-
+          let nextAvatarUrl: string | null = null;
           const path = preview.profile.avatar_storage_path;
           if (path) {
-            const signed = await createSignedAvatarUrl(path);
-            if (!cancelled) setAvatarUrl(signed);
+            nextAvatarUrl = await createSignedAvatarUrl(path);
           }
 
+          let nextRelationStatus: FriendInviteRelationStatus = 'none';
           try {
             const rel = await getFriendInviteRelationStatus(preview.profile.id);
-            if (!cancelled) setRelationStatus(rel);
+            nextRelationStatus = rel;
           } catch {
-            if (!cancelled) setRelationStatus('none');
+            nextRelationStatus = 'none';
           }
+          if (cancelled) return;
+          dispatch({
+            type: 'profile_loaded',
+            friendProfile: preview.profile,
+            avatarUrl: nextAvatarUrl,
+            relationStatus: nextRelationStatus,
+          });
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : 'Nie udało się wczytać profilu.';
-          if (!cancelled) setProfileError(message);
-        } finally {
-          if (!cancelled) setProfileLoading(false);
+          if (!cancelled) dispatch({ type: 'profile_error', profileError: message });
         }
       };
 
@@ -135,7 +195,7 @@ export default function FriendInviteConfirmScreen() {
       return;
     }
 
-    setActionLoading(true);
+    dispatch({ type: 'set_action_loading', actionLoading: true });
     try {
       const result = await sendFriendRequestByProfileQr(profileId);
       trackEvent('friend_invite_redeem', {
@@ -172,7 +232,7 @@ export default function FriendInviteConfirmScreen() {
       });
       notifyError('Błąd', { message: err?.message ?? 'Nie udało się wysłać zaproszenia.' });
     } finally {
-      setActionLoading(false);
+      dispatch({ type: 'set_action_loading', actionLoading: false });
     }
   };
 

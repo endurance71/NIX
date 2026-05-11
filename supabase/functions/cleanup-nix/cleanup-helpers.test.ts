@@ -3,9 +3,9 @@ import { isValidCleanupPayload, nextCleanupAttemptDelayMs } from './cleanup-help
 
 describe('cleanup helpers', () => {
   it('waliduje payload cleanup', () => {
-    expect(isValidCleanupPayload({ snapId: '1', mediaPath: 'snaps/a.jpg' })).toBe(true);
-    expect(isValidCleanupPayload({ snapId: '1' })).toBe(false);
-    expect(isValidCleanupPayload({ mediaPath: 'snaps/a.jpg' })).toBe(false);
+    expect(isValidCleanupPayload({ nixId: '1', mediaPath: 'nixes/a.jpg' })).toBe(true);
+    expect(isValidCleanupPayload({ nixId: '1' })).toBe(false);
+    expect(isValidCleanupPayload({ mediaPath: 'nixes/a.jpg' })).toBe(false);
   });
 
   it('wylicza opóźnienie retry z limitem górnym', () => {

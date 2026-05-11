@@ -1,13 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
-export type BasicProfile = {
-  id: string;
-  username: string | null;
-  avatar_storage_path?: string | null;
-  avatar_emoji?: string | null;
-};
-
 export type CurrentUserProfileRow = {
   id: string;
   username: string | null;
@@ -57,22 +50,6 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfileRow | n
     avatar_storage_path: data.avatar_storage_path ?? null,
     avatar_emoji: data.avatar_emoji ?? null,
   };
-}
-
-export async function listOtherProfiles() {
-  const user = await getCurrentUser();
-  if (!user) return [];
-
-  const { data, error } = await supabase.rpc('list_public_profiles');
-
-  if (error) throw error;
-  const rows = (data ?? []) as BasicProfile[];
-  return rows.filter((profile) => profile.id !== user.id).map((row) => ({
-    id: row.id,
-    username: row.username,
-    avatar_storage_path: row.avatar_storage_path ?? null,
-    avatar_emoji: row.avatar_emoji ?? null,
-  }));
 }
 
 export async function isUsernameTaken(username: string) {

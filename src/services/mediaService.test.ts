@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MAX_VIDEO_FILE_SIZE_BYTES, uploadImageAndCreateSnap, uploadVideoAndCreateSnap } from './mediaService';
+import { MAX_VIDEO_FILE_SIZE_BYTES, uploadImageAndCreateNix, uploadVideoAndCreateNix } from './mediaService';
 
 const {
   mockUpload,
   mockGetCurrentUser,
-  mockInsertSnap,
+  mockInsertNix,
   mockGetInfoAsync,
   mockUploadResumable,
 } = vi.hoisted(() => ({
   mockUpload: vi.fn(),
   mockGetCurrentUser: vi.fn(),
-  mockInsertSnap: vi.fn(),
+  mockInsertNix: vi.fn(),
   mockGetInfoAsync: vi.fn(),
   mockUploadResumable: vi.fn(),
 }));
@@ -31,12 +31,25 @@ vi.mock('expo-file-system/legacy', () => ({
   readAsStringAsync: vi.fn().mockResolvedValue(''),
 }));
 
+vi.mock('react-native-compressor', () => ({
+  Video: {
+    compress: vi.fn().mockResolvedValue('file:///tmp/compressed.mp4'),
+  },
+}));
+
+vi.mock('expo-image-manipulator', () => ({
+  ImageManipulator: {
+    manipulateAsync: vi.fn().mockResolvedValue({ uri: 'file:///tmp/out.jpg' }),
+  },
+  SaveFormat: { JPEG: 'jpeg' },
+}));
+
 vi.mock('./profileService', () => ({
   getCurrentUser: mockGetCurrentUser,
 }));
 
-vi.mock('./snapService', () => ({
-  insertSnap: mockInsertSnap,
+vi.mock('./nixService', () => ({
+  insertNix: mockInsertNix,
 }));
 
 vi.mock('./resumableUploadService', () => ({
@@ -50,10 +63,10 @@ describe('mediaService', () => {
     mockGetInfoAsync.mockResolvedValue({ exists: true, size: 4 });
   });
 
-  it('wgrywa plik i tworzy rekord snapa', async () => {
+  it('wgrywa plik i tworzy rekord nixa', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
-    mockUpload.mockResolvedValue({ error: null, data: { path: 'snaps/user-1/file.jpg' } });
-    mockInsertSnap.mockResolvedValue(undefined);
+    mockUpload.mockResolvedValue({ error: null, data: { path: 'nixes/user-1/file.jpg' } });
+    mockInsertNix.mockResolvedValue(undefined);
 
     const blob = new Blob(['test'], { type: 'image/jpeg' });
     vi.stubGlobal(
@@ -64,21 +77,21 @@ describe('mediaService', () => {
       })
     );
 
-    await uploadImageAndCreateSnap('file:///tmp/image.jpg', 'receiver-1');
+    await uploadImageAndCreateNix('file:///tmp/image.jpg', 'receiver-1');
 
     expect(mockUpload).toHaveBeenCalledTimes(1);
-    expect(mockInsertSnap).toHaveBeenCalledWith(
+    expect(mockInsertNix).toHaveBeenCalledWith(
       'receiver-1',
-      'snaps/user-1/file.jpg',
+      'nixes/user-1/file.jpg',
       5,
       expect.objectContaining({ clientUploadId: expect.any(String) })
     );
   });
 
-  it('przekazuje niestandardowy czas wyświetlania do rekordu snapa', async () => {
+  it('przekazuje niestandardowy czas wyświetlania do rekordu nixa', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
-    mockUpload.mockResolvedValue({ error: null, data: { path: 'snaps/user-1/file.jpg' } });
-    mockInsertSnap.mockResolvedValue(undefined);
+    mockUpload.mockResolvedValue({ error: null, data: { path: 'nixes/user-1/file.jpg' } });
+    mockInsertNix.mockResolvedValue(undefined);
 
     const blob = new Blob(['test'], { type: 'image/jpeg' });
     vi.stubGlobal(
@@ -89,11 +102,11 @@ describe('mediaService', () => {
       })
     );
 
-    await uploadImageAndCreateSnap('file:///tmp/image.jpg', 'receiver-1', 180);
+    await uploadImageAndCreateNix('file:///tmp/image.jpg', 'receiver-1', 180);
 
-    expect(mockInsertSnap).toHaveBeenCalledWith(
+    expect(mockInsertNix).toHaveBeenCalledWith(
       'receiver-1',
-      'snaps/user-1/file.jpg',
+      'nixes/user-1/file.jpg',
       180,
       expect.objectContaining({ clientUploadId: expect.any(String) })
     );
@@ -102,7 +115,7 @@ describe('mediaService', () => {
   it('rzuca błąd gdy brak zalogowanego użytkownika', async () => {
     mockGetCurrentUser.mockResolvedValue(null);
 
-    await expect(uploadImageAndCreateSnap('file:///tmp/image.jpg', 'receiver-1')).rejects.toThrow(
+    await expect(uploadImageAndCreateNix('file:///tmp/image.jpg', 'receiver-1')).rejects.toThrow(
       'Brak autoryzacji.'
     );
   });
@@ -117,18 +130,18 @@ describe('mediaService', () => {
       })
     );
 
-    await expect(uploadImageAndCreateSnap('file:///tmp/image.jpg', 'receiver-1')).rejects.toThrow(
+    await expect(uploadImageAndCreateNix('file:///tmp/image.jpg', 'receiver-1')).rejects.toThrow(
       'Nie udało się odczytać pliku do wysyłki.'
     );
   });
 
-  it('wgrywa wideo strumieniowo (resumable) i tworzy rekord snapa', async () => {
+  it('wgrywa wideo strumieniowo (resumable) i tworzy rekord nixa', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
     mockGetInfoAsync.mockResolvedValue({ exists: true, size: 8 * 1024 * 1024 });
-    mockInsertSnap.mockResolvedValue(undefined);
+    mockInsertNix.mockResolvedValue(undefined);
     mockUploadResumable.mockResolvedValue(undefined);
 
-    await uploadVideoAndCreateSnap('file:///tmp/video.mp4', 'receiver-1', 12_000, 15);
+    await uploadVideoAndCreateNix('file:///tmp/video.mp4', 'receiver-1', 12_000, 15);
 
     expect(mockUploadResumable).toHaveBeenCalledTimes(1);
     expect(mockUploadResumable).toHaveBeenCalledWith(
@@ -141,9 +154,9 @@ describe('mediaService', () => {
     );
     // Klasyczny upload przez storage SDK nie powinien być wywołany dla wideo.
     expect(mockUpload).not.toHaveBeenCalled();
-    expect(mockInsertSnap).toHaveBeenCalledWith(
+    expect(mockInsertNix).toHaveBeenCalledWith(
       'receiver-1',
-      expect.stringMatching(/^snaps\/user-1\/.+\.mp4$/),
+      expect.stringMatching(/^nixes\/user-1\/.+\.mp4$/),
       15,
       expect.objectContaining({
         mediaType: 'video',
@@ -157,8 +170,9 @@ describe('mediaService', () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
     mockGetInfoAsync.mockResolvedValue({ exists: true, size: MAX_VIDEO_FILE_SIZE_BYTES + 1 });
 
-    await expect(uploadVideoAndCreateSnap('file:///tmp/video.mp4', 'receiver-1', 8_000)).rejects.toThrow(
-      `Plik wideo jest za duży. Maksymalny rozmiar to ${Math.round(MAX_VIDEO_FILE_SIZE_BYTES / (1024 * 1024))} MB.`
+    const overLimitMb = ((MAX_VIDEO_FILE_SIZE_BYTES + 1) / (1024 * 1024)).toFixed(1);
+    await expect(uploadVideoAndCreateNix('file:///tmp/video.mp4', 'receiver-1', 8_000)).rejects.toThrow(
+      `Plik nadal jest za duży po kompresji (${overLimitMb} MB). Maksymalny rozmiar to ${Math.round(MAX_VIDEO_FILE_SIZE_BYTES / (1024 * 1024))} MB — wybierz krótsze wideo.`
     );
     expect(mockUploadResumable).not.toHaveBeenCalled();
   });
@@ -167,7 +181,7 @@ describe('mediaService', () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
     mockGetInfoAsync.mockResolvedValue({ exists: true, size: 0 });
 
-    await expect(uploadVideoAndCreateSnap('file:///tmp/video.mp4', 'receiver-1', 5_000)).rejects.toThrow(
+    await expect(uploadVideoAndCreateNix('file:///tmp/video.mp4', 'receiver-1', 5_000)).rejects.toThrow(
       'Plik jest pusty lub uszkodzony.'
     );
     expect(mockUploadResumable).not.toHaveBeenCalled();
@@ -180,7 +194,7 @@ describe('mediaService', () => {
       new Error('The object exceeded the maximum allowed size')
     );
 
-    await expect(uploadVideoAndCreateSnap('file:///tmp/video.mp4', 'receiver-1', 5_000)).rejects.toThrow(
+    await expect(uploadVideoAndCreateNix('file:///tmp/video.mp4', 'receiver-1', 5_000)).rejects.toThrow(
       `Plik wideo przekracza limit uploadu serwera. Utrzymaj plik poniżej ${Math.round(
         MAX_VIDEO_FILE_SIZE_BYTES / (1024 * 1024)
       )} MB.`

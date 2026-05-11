@@ -6,7 +6,7 @@ select
   receiver_id,
   client_upload_id,
   count(*) as duplicate_count
-from public.snaps
+from public.nixes
 where client_upload_id is not null
 group by sender_id, receiver_id, client_upload_id
 having count(*) > 1
@@ -38,4 +38,4 @@ select
   count(*) as queued_jobs,
   max(attempt_count) as max_attempt_count,
   min(next_attempt_at) as next_retry_at
-from public.snap_cleanup_queue;
+from public.nix_cleanup_queue;

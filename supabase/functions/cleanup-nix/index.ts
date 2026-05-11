@@ -11,19 +11,19 @@ function isMissingStatusColumnError(error: unknown) {
     typeof error === 'object' && error && 'message' in error && typeof error.message === 'string'
       ? error.message
       : '';
-  return message.includes('column snaps.status does not exist') || message.includes("Could not find the 'status' column");
+  return message.includes('column nixes.status does not exist') || message.includes("Could not find the 'status' column");
 }
 
 async function auditCleanup(
   serviceClient: ReturnType<typeof createClient>,
   status: 'queued' | 'success' | 'failed' | 'not_found' | 'forbidden',
-  snapId: string,
+  nixId: string,
   receiverId: string,
   mediaPath: string,
   errorMessage?: string
 ) {
   await serviceClient.rpc('log_cleanup_audit', {
-    p_snap_id: snapId,
+    p_nix_id: nixId,
     p_receiver_id: receiverId,
     p_media_path: mediaPath,
     p_status: status,
@@ -79,12 +79,12 @@ Deno.serve(async (req) => {
   }
 
   if (!isValidCleanupPayload(payload)) {
-    return new Response(JSON.stringify({ error: 'snapId and mediaPath are required' }), {
+    return new Response(JSON.stringify({ error: 'nixId and mediaPath are required' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-  const snapId = payload.snapId as string;
+  const nixId = payload.nixId as string;
   const mediaPath = payload.mediaPath as string;
 
   const authClient = createClient(supabaseUrl, anonKey, {
@@ -104,71 +104,71 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: snap, error: snapError } = await serviceClient
-    .from('snaps')
+  const { data: nix, error: nixError } = await serviceClient
+    .from('nixes')
     .select('id, receiver_id, media_path, is_viewed')
-    .eq('id', snapId)
+    .eq('id', nixId)
     .maybeSingle();
 
-  if (snapError) {
-    return new Response(JSON.stringify({ error: snapError.message }), {
+  if (nixError) {
+    return new Response(JSON.stringify({ error: nixError.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
-  if (!snap) {
-    await serviceClient.from('snap_cleanup_queue').delete().eq('snap_id', snapId);
-    await auditCleanup(serviceClient, 'not_found', snapId, user.id, mediaPath);
-    return new Response(JSON.stringify({ ok: true, deleted: false, reason: 'snap_not_found' }), {
+  if (!nix) {
+    await serviceClient.from('nix_cleanup_queue').delete().eq('nix_id', nixId);
+    await auditCleanup(serviceClient, 'not_found', nixId, user.id, mediaPath);
+    return new Response(JSON.stringify({ ok: true, deleted: false, reason: 'nix_not_found' }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
-  if (snap.receiver_id !== user.id) {
-    await auditCleanup(serviceClient, 'forbidden', snapId, user.id, mediaPath, 'forbidden_receiver_mismatch');
+  if (nix.receiver_id !== user.id) {
+    await auditCleanup(serviceClient, 'forbidden', nixId, user.id, mediaPath, 'forbidden_receiver_mismatch');
     return new Response(JSON.stringify({ error: 'Forbidden' }), {
       status: 403,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
-  if (snap.media_path !== mediaPath) {
-    await auditCleanup(serviceClient, 'failed', snapId, user.id, mediaPath, 'media_path_mismatch');
+  if (nix.media_path !== mediaPath) {
+    await auditCleanup(serviceClient, 'failed', nixId, user.id, mediaPath, 'media_path_mismatch');
     return new Response(JSON.stringify({ error: 'mediaPath mismatch' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
-  if (!snap.is_viewed) {
+  if (!nix.is_viewed) {
     const { error: viewedUpdateError } = await serviceClient
-      .from('snaps')
+      .from('nixes')
       .update({ is_viewed: true, viewed_at: new Date().toISOString(), status: 'viewed' })
-      .eq('id', snapId);
+      .eq('id', nixId);
     if (viewedUpdateError && isMissingStatusColumnError(viewedUpdateError)) {
       await serviceClient
-        .from('snaps')
+        .from('nixes')
         .update({ is_viewed: true, viewed_at: new Date().toISOString() })
-        .eq('id', snapId);
+        .eq('id', nixId);
     }
   }
 
   const { error: storageError } = await serviceClient.storage.from('media-vault').remove([mediaPath]);
   if (storageError) {
     const { error: statusError } = await serviceClient
-      .from('snaps')
+      .from('nixes')
       .update({ status: 'cleanup_failed' })
-      .eq('id', snapId);
+      .eq('id', nixId);
     if (statusError && isMissingStatusColumnError(statusError)) {
       // Starszy schemat nie ma kolumny status — pomijamy oznaczenie.
     }
 
     await serviceClient
-      .from('snap_cleanup_queue')
+      .from('nix_cleanup_queue')
       .upsert({
-        snap_id: snapId,
+        nix_id: nixId,
         receiver_id: user.id,
         media_path: mediaPath,
         attempt_count: 1,
@@ -176,25 +176,25 @@ Deno.serve(async (req) => {
         last_error: storageError.message,
         updated_at: new Date().toISOString(),
       });
-    await auditCleanup(serviceClient, 'failed', snapId, user.id, mediaPath, storageError.message);
+    await auditCleanup(serviceClient, 'failed', nixId, user.id, mediaPath, storageError.message);
     return new Response(JSON.stringify({ error: storageError.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
-  const { error: updateSnapError } = await serviceClient
-    .from('snaps')
+  const { error: updateNixError } = await serviceClient
+    .from('nixes')
     .update({ status: 'cleaned', cleaned_at: new Date().toISOString() })
-    .eq('id', snapId);
-  if (updateSnapError && isMissingStatusColumnError(updateSnapError)) {
+    .eq('id', nixId);
+  if (updateNixError && isMissingStatusColumnError(updateNixError)) {
     const { error: legacyUpdateError } = await serviceClient
-      .from('snaps')
+      .from('nixes')
       .update({ is_viewed: true, viewed_at: new Date().toISOString() })
-      .eq('id', snapId);
+      .eq('id', nixId);
     if (!legacyUpdateError) {
-      await serviceClient.from('snap_cleanup_queue').delete().eq('snap_id', snapId);
-      await auditCleanup(serviceClient, 'success', snapId, user.id, mediaPath);
+      await serviceClient.from('nix_cleanup_queue').delete().eq('nix_id', nixId);
+      await auditCleanup(serviceClient, 'success', nixId, user.id, mediaPath);
       return new Response(JSON.stringify({ ok: true, deleted: false, archived: false }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -202,27 +202,27 @@ Deno.serve(async (req) => {
     }
   }
 
-  if (updateSnapError) {
+  if (updateNixError) {
     await serviceClient
-      .from('snap_cleanup_queue')
+      .from('nix_cleanup_queue')
       .upsert({
-        snap_id: snapId,
+        nix_id: nixId,
         receiver_id: user.id,
         media_path: mediaPath,
         attempt_count: 1,
         next_attempt_at: new Date(Date.now() + 60_000).toISOString(),
-        last_error: updateSnapError.message,
+        last_error: updateNixError.message,
         updated_at: new Date().toISOString(),
       });
-    await auditCleanup(serviceClient, 'failed', snapId, user.id, mediaPath, updateSnapError.message);
-    return new Response(JSON.stringify({ error: updateSnapError.message }), {
+    await auditCleanup(serviceClient, 'failed', nixId, user.id, mediaPath, updateNixError.message);
+    return new Response(JSON.stringify({ error: updateNixError.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
-  await serviceClient.from('snap_cleanup_queue').delete().eq('snap_id', snapId);
-  await auditCleanup(serviceClient, 'success', snapId, user.id, mediaPath);
+  await serviceClient.from('nix_cleanup_queue').delete().eq('nix_id', nixId);
+  await auditCleanup(serviceClient, 'success', nixId, user.id, mediaPath);
 
   return new Response(JSON.stringify({ ok: true, deleted: false, archived: true }), {
     status: 200,

@@ -1,7 +1,7 @@
 import {
   StyleSheet,
 } from 'react-native';
-import { useState } from 'react';
+import { useReducer } from 'react';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../../hooks/useAuth';
@@ -30,31 +30,66 @@ export default function RegisterScreen() {
   const { t } = useTranslation();
   const { statusBarStyle } = useAppTheme();
   const { signUp } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(
+    (
+      current: {
+        email: string;
+        password: string;
+        confirmPassword: string;
+        loading: boolean;
+        error: string | null;
+      },
+      action:
+        | { type: 'set_email'; value: string }
+        | { type: 'set_password'; value: string }
+        | { type: 'set_confirm_password'; value: string }
+        | { type: 'set_error'; value: string | null }
+        | { type: 'set_loading'; value: boolean }
+    ) => {
+      switch (action.type) {
+        case 'set_email':
+          return { ...current, email: action.value, error: null };
+        case 'set_password':
+          return { ...current, password: action.value, error: null };
+        case 'set_confirm_password':
+          return { ...current, confirmPassword: action.value, error: null };
+        case 'set_error':
+          return { ...current, error: action.value };
+        case 'set_loading':
+          return { ...current, loading: action.value };
+        default:
+          return current;
+      }
+    },
+    {
+      email: '',
+      password: '',
+      confirmPassword: '',
+      loading: false,
+      error: null,
+    }
+  );
+  const { email, password, confirmPassword, loading, error } = state;
 
   const handleRegister = async () => {
     const cleanedEmail = email.trim().toLowerCase();
     if (!isEmailValid(cleanedEmail)) {
-      setError(t('auth.invalidEmail'));
+      dispatch({ type: 'set_error', value: t('auth.invalidEmail') });
       return;
     }
     if (password.length < 8) {
-      setError(t('auth.passwordMin'));
+      dispatch({ type: 'set_error', value: t('auth.passwordMin') });
       return;
     }
     if (password !== confirmPassword) {
-      setError(t('auth.passwordMismatch'));
+      dispatch({ type: 'set_error', value: t('auth.passwordMismatch') });
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    dispatch({ type: 'set_loading', value: true });
+    dispatch({ type: 'set_error', value: null });
     const { error } = await signUp(cleanedEmail, password);
-    setLoading(false);
+    dispatch({ type: 'set_loading', value: false });
 
     if (error) {
       if (error.message.includes('User already registered')) {
@@ -90,8 +125,7 @@ export default function RegisterScreen() {
           placeholder={t('auth.emailField')}
           defaultValue={email}
           onValueChange={(value) => {
-            setError(null);
-            setEmail(value);
+            dispatch({ type: 'set_email', value });
           }}
           modifiers={[
             textFieldStyle('automatic'),
@@ -104,8 +138,7 @@ export default function RegisterScreen() {
           placeholder={t('auth.passwordField')}
           defaultValue={password}
           onValueChange={(value) => {
-            setError(null);
-            setPassword(value);
+            dispatch({ type: 'set_password', value });
           }}
           modifiers={[textFieldStyle('automatic')]}
         />
@@ -113,8 +146,7 @@ export default function RegisterScreen() {
           placeholder={t('auth.confirmPasswordField')}
           defaultValue={confirmPassword}
           onValueChange={(value) => {
-            setError(null);
-            setConfirmPassword(value);
+            dispatch({ type: 'set_confirm_password', value });
           }}
           modifiers={[textFieldStyle('automatic')]}
         />

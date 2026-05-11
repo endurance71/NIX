@@ -1,7 +1,6 @@
 import { supabase } from '../lib/supabase';
-import { normalizeAvatarEmoji } from '../lib/avatarEmoji';
 import { DomainError } from './errors';
-import { buildContentType, getImageBytes, SNAP_ALLOWED_IMAGE_TYPES } from './mediaService';
+import { buildContentType, getImageBytes, NIX_ALLOWED_IMAGE_TYPES } from './mediaService';
 import { getCurrentUser, getCurrentUserProfile } from './profileService';
 
 const AVATAR_BUCKET = 'avatars';
@@ -65,12 +64,10 @@ export async function createSignedAvatarUrls(storagePaths: string[]): Promise<Re
     return true;
   });
 
-  const normalizedPairs = storageLikePaths
-    .map((rawPath) => {
-      const normalized = normalizeAvatarStoragePath(rawPath);
-      return normalized ? ([rawPath, normalized] as const) : null;
-    })
-    .filter((pair): pair is readonly [string, string] => pair !== null);
+  const normalizedPairs = storageLikePaths.flatMap((rawPath) => {
+    const normalized = normalizeAvatarStoragePath(rawPath);
+    return normalized ? [[rawPath, normalized] as const] : [];
+  });
   const uniquePaths = Array.from(new Set(normalizedPairs.map(([, normalized]) => normalized)));
   if (uniquePaths.length === 0) return directUrlsByRawPath;
 
@@ -127,7 +124,7 @@ export async function uploadProfileAvatarFromUri(fileUri: string): Promise<void>
   const bytes = await getImageBytes(fileUri);
   const { ext, contentType } = buildContentType(fileUri);
 
-  if (!SNAP_ALLOWED_IMAGE_TYPES.has(contentType)) {
+  if (!NIX_ALLOWED_IMAGE_TYPES.has(contentType)) {
     throw new DomainError('INVALID_MEDIA', 'Nieobsługiwany format pliku.');
   }
 
@@ -154,31 +151,6 @@ export async function uploadProfileAvatarFromUri(fileUri: string): Promise<void>
     await supabase.storage.from(AVATAR_BUCKET).remove([uploadData.path]);
     throw new DomainError('UNKNOWN', updateError.message);
   }
-
-  await safeRemoveAvatarObject(previousPath, user.id);
-}
-
-export async function setProfileAvatarEmoji(raw: string): Promise<void> {
-  const user = await getCurrentUser();
-  if (!user) throw new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
-
-  let emoji: string;
-  try {
-    emoji = normalizeAvatarEmoji(raw);
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Nieprawidłowe emoji.';
-    throw new DomainError('INVALID_INPUT', msg);
-  }
-
-  const profile = await getCurrentUserProfile();
-  const previousPath = profile?.avatar_storage_path ?? null;
-
-  const { error } = await supabase
-    .from('profiles')
-    .update({ avatar_emoji: emoji, avatar_storage_path: null })
-    .eq('id', user.id);
-
-  if (error) throw new DomainError('UNKNOWN', error.message);
 
   await safeRemoveAvatarObject(previousPath, user.id);
 }
