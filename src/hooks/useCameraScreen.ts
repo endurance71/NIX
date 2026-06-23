@@ -1,7 +1,6 @@
 import type { RefObject } from 'react';
 import { useEffect, useMemo, useReducer, useRef, useCallback } from 'react';
 import type { ViewStyle } from 'react-native';
-import { Platform } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
@@ -53,7 +52,7 @@ export type CameraScreenViewModel = {
   cameraInstanceKey: number;
   takingPicture: boolean;
   captureError: string | null;
-  isIosSimulator: boolean;
+  isNativeSimulator: boolean;
   cameraRef: RefObject<CameraView | null>;
   pinchGesture: ReturnType<typeof Gesture.Pinch>;
   onCameraReady: () => void;
@@ -68,7 +67,7 @@ export type CameraScreenViewModel = {
 };
 
 export function useCameraScreen(): CameraScreenViewModel {
-  const isIosSimulator = Platform.OS === 'ios' && !Constants.isDevice;
+  const isNativeSimulator = !Constants.isDevice;
   const { colors, statusBarStyle } = useAppTheme();
   const { setSegments } = useVideoDraft();
   const insets = useSafeAreaInsets();
@@ -115,7 +114,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     try {
       cameraRef.current?.stopRecording();
     } catch (err) {
-      if (Platform.OS === 'ios') {
+      if (process.env.EXPO_OS === 'ios') {
         const message = err instanceof Error ? err.message : String(err ?? '');
         const simulatorUnsupported = message.toLowerCase().includes('simulator');
         if (simulatorUnsupported) return;
@@ -389,7 +388,7 @@ export function useCameraScreen(): CameraScreenViewModel {
       try {
         const ready = await waitForCameraReady();
         if (!ready) {
-          if (isIosSimulator) {
+          if (isNativeSimulator) {
             try {
               const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ['images'],
@@ -627,7 +626,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     cameraInstanceKey,
     takingPicture,
     captureError,
-    isIosSimulator,
+    isNativeSimulator,
     cameraRef,
     pinchGesture,
     onCameraReady,

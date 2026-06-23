@@ -4,13 +4,27 @@
     "slug": "nix-app",
     "version": "1.0.0",
     "platforms": [
-      "ios"
+      "ios",
+      "android"
     ],
     "orientation": "portrait",
     "icon": "./nix-icons/icon.png",
     "userInterfaceStyle": "automatic",
     "web": {
       "favicon": "./nix-icons/favicon.png"
+    },
+    "android": {
+      "package": "com.damianmotylinski.nixapp",
+      "adaptiveIcon": {
+        "foregroundImage": "./nix-icons/icon.png",
+        "backgroundColor": "#000000"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
+      ]
     },
     "ios": {
       "supportsTablet": false,
@@ -20,8 +34,6 @@
         "NSMicrophoneUsageDescription": "NiX potrzebuje dostępu do mikrofonu, aby nagrywać wiadomości wideo.",
         "NSPhotoLibraryUsageDescription": "NiX potrzebuje dostępu do zdjęć i filmów, aby korzystać z multimediów.",
         "UIBackgroundModes": [
-          "fetch",
-          "processing",
           "fetch",
           "processing"
         ],

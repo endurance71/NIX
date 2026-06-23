@@ -1,8 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text as RNText, View } from 'react-native';
+import { Pressable, StyleSheet, Text as RNText, View } from 'react-native';
 import { Stack, router, useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { StatusBar } from 'expo-status-bar';
 import { sentLifecycleSegments } from '../../../lib/nixInboxLabels';
 import {
   deleteConversationWithPeer,
@@ -22,21 +21,20 @@ import {
   listIncomingFriendRequests,
   rejectFriendRequest,
 } from '../../../services/friendService';
-import { SFSymbol } from '../../../components/ui/sf-symbol';
+import { AppIcon } from '../../../components/ui/app-icon';
 import { AvatarCircle } from '../../../components/ui/avatar-circle';
-import { Host, List, Section, Text, RNHostView } from '@expo/ui/swift-ui';
+import { RNHostView } from '@expo/ui';
+import { DeletableRowMenu } from '../../../components/ui/deletable-row-menu';
 import {
-  foregroundStyle,
-  listStyle,
-  padding,
-  refreshable,
-  listRowSeparator,
-} from '@expo/ui/swift-ui/modifiers';
+  SettingsEmptyText,
+  SettingsListScreen,
+  SettingsSectionTitle,
+} from '../../../components/ui/settings-list-screen';
 import { notifyError, notifyInfo, notifySuccess } from '../../../lib/appNotify';
 import { useTranslation } from 'react-i18next';
 import { formatShortTime } from '../../../lib/formatters';
 import { getCurrentLocale } from '../../../lib/i18n';
-import { SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING } from '../../../theme/swiftUiEmbeddedLayout';
+import { NATIVE_GROUPED_LIST_RN_ROW_PADDING } from '../../../theme/nativeListLayout';
 
 async function fetchInboxNixesBundle() {
   void flushCleanupQueue().catch(() => {});
@@ -107,7 +105,7 @@ const ThreadRow = memo(function ThreadRow({
                   {isNew ? t('inbox.newNix') : t('inbox.opened')} • {formatShortTime(nix.created_at, locale)}
                 </RNText>
               </View>
-              {isNew ? <SFSymbol name="chevron.right" size={14} tintColor={colors.tertiaryLabel} /> : null}
+              {isNew ? <AppIcon name="chevronRight" size={14} color={colors.tertiaryLabel} /> : null}
             </Pressable>
           );
         })()
@@ -308,19 +306,15 @@ export default function InboxScreen() {
   };
 
   if (loading && feed.length === 0) {
-    return (
-      <Host style={[styles.container, styles.centered]} colorScheme={statusBarStyle === 'light' ? 'dark' : 'light'}>
-        <StatusBar style={statusBarStyle} />
-        <ActivityIndicator color={colors.label} />
-      </Host>
-    );
+    return <SettingsListScreen loading />;
   }
 
   return (
-    <Host style={styles.container} useViewportSizeMeasurement colorScheme={statusBarStyle === 'light' ? 'dark' : 'light'}>
-      <List modifiers={[listStyle('insetGrouped'), padding({ top: 0 }), refreshable(refetchInboxForce)]}>
+    <>
+      <SettingsListScreen onRefresh={refetchInboxForce}>
         {requests.length > 0 ? (
-          <Section title={t('inbox.invitesSection', { count: requests.length })}>
+          <>
+            <SettingsSectionTitle>{t('inbox.invitesSection', { count: requests.length })}</SettingsSectionTitle>
             {requests.map((request) => {
               const avatarPath = request.requester.avatar_storage_path ?? null;
               const avatarUrl = avatarPath ? avatarUrls[avatarPath] ?? null : null;
@@ -352,37 +346,42 @@ export default function InboxScreen() {
                 </RNHostView>
               );
             })}
-          </Section>
+          </>
         ) : null}
 
-        <Section title={t('inbox.messagesSection', { count: feed.length })}>
-          {feed.length === 0 ? (
-            <Text modifiers={[foregroundStyle({ type: 'hierarchical', style: 'secondary' }), listRowSeparator('hidden')]}>
-              {t('inbox.noMessages')}
-            </Text>
-          ) : (
-            <List.ForEach onDelete={handleNativeDelete}>
-              {feed.map((threadItem) => (
-                <ThreadRow
-                  key={threadItem.id}
-                  item={threadItem}
-                  avatarUrls={avatarUrls}
-                  colors={colors}
-                  onOpenNix={handleOpenNix}
-                  t={t}
-                  locale={locale}
-                  isDeleting={
-                    deletingPeerId ===
-                    (threadItem.direction === 'received' ? threadItem.nix.sender_id : threadItem.nix.receiver_id)
-                  }
-                />
-              ))}
-            </List.ForEach>
-          )}
-        </Section>
-      </List>
+        <SettingsSectionTitle>{t('inbox.messagesSection', { count: feed.length })}</SettingsSectionTitle>
+        {feed.length === 0 ? (
+          <SettingsEmptyText>{t('inbox.noMessages')}</SettingsEmptyText>
+        ) : (
+          feed.map((threadItem, index) => (
+            <DeletableRowMenu
+              key={threadItem.id}
+              deleteLabel={t('inbox.deleteConversation', { defaultValue: 'Usuń rozmowę' })}
+              disabled={
+                deletingPeerId ===
+                (threadItem.direction === 'received'
+                  ? threadItem.nix.sender_id
+                  : threadItem.nix.receiver_id)
+              }
+              onDelete={() => void handleNativeDelete([index])}>
+              <ThreadRow
+                item={threadItem}
+                avatarUrls={avatarUrls}
+                colors={colors}
+                onOpenNix={handleOpenNix}
+                t={t}
+                locale={locale}
+                isDeleting={
+                  deletingPeerId ===
+                  (threadItem.direction === 'received' ? threadItem.nix.sender_id : threadItem.nix.receiver_id)
+                }
+              />
+            </DeletableRowMenu>
+          ))
+        )}
+      </SettingsListScreen>
       <Stack.Screen.Title large>{t('inbox.title')}</Stack.Screen.Title>
-    </Host>
+    </>
   );
 }
 
@@ -399,7 +398,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
     justifyContent: 'center',
     paddingVertical: 6,
-    ...SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING,
+    ...NATIVE_GROUPED_LIST_RN_ROW_PADDING,
   },
   requestActions: {
     flexDirection: 'row',
@@ -422,7 +421,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingVertical: 10,
-    ...SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING,
+    ...NATIVE_GROUPED_LIST_RN_ROW_PADDING,
   },
   rowPressed: {
     opacity: 0.88,

@@ -1,11 +1,14 @@
-import { StyleSheet } from 'react-native';
 import { useEffect, useReducer } from 'react';
 import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../../../hooks/useAuth';
-import { useAppTheme } from '../../../hooks/useAppTheme';
-import { Host, Form, Section, Text, SecureField, Button } from '@expo/ui/swift-ui';
-import { font, foregroundStyle, textFieldStyle, padding } from '@expo/ui/swift-ui/modifiers';
+import {
+  AuthErrorText,
+  AuthFormLayout,
+  AuthFormSection,
+  AuthPrimaryButton,
+  AuthSecondaryText,
+  AuthSecureField,
+} from '../../../components/ui/auth-form-layout';
 import { notifySuccess } from '../../../lib/appNotify';
 
 function isReauthenticationNeededError(error: { message?: string; code?: string } | null) {
@@ -24,7 +27,6 @@ function getPasswordUpdateErrorMessage(message: string) {
 }
 
 export default function ChangePasswordScreen() {
-  const { statusBarStyle } = useAppTheme();
   const { session, loading: authLoading, updatePassword, reauthenticatePasswordChange } = useAuth();
   const [state, dispatch] = useReducer(
     (
@@ -126,48 +128,38 @@ export default function ChangePasswordScreen() {
   };
 
   return (
-    <Host style={styles.container} useViewportSizeMeasurement colorScheme={statusBarStyle === 'light' ? 'dark' : 'light'}>
-      <StatusBar style={statusBarStyle} />
-      <Form modifiers={[padding({ horizontal: 12, top: 12 })]}>
-        <Section title="Zmiana hasła">
-          <Text modifiers={[foregroundStyle({ type: 'hierarchical', style: 'secondary' }), font({ size: 14, design: 'rounded' })]}>
-            Ustaw nowe hasło. Gdy Supabase poprosi o dodatkową weryfikację, wpisz kod przesłany e-mailem.
-          </Text>
-          <SecureField
-            placeholder="Nowe hasło (min. 8 znaków)"
-            onTextChange={(text) => {
-              dispatch({ type: 'set_new_password', value: text });
+    <AuthFormLayout>
+      <AuthFormSection title="Zmiana hasła">
+        <AuthSecondaryText>
+          Ustaw nowe hasło. Gdy Supabase poprosi o dodatkową weryfikację, wpisz kod przesłany e-mailem.
+        </AuthSecondaryText>
+        <AuthSecureField
+          placeholder="Nowe hasło (min. 8 znaków)"
+          onChangeText={(text) => {
+            dispatch({ type: 'set_new_password', value: text });
+          }}
+        />
+        <AuthSecureField
+          placeholder="Powtórz nowe hasło"
+          onChangeText={(text) => {
+            dispatch({ type: 'set_confirm_password', value: text });
+          }}
+        />
+        {requiresNonce ? (
+          <AuthSecureField
+            placeholder="Kod weryfikacyjny z e-maila"
+            onChangeText={(text) => {
+              dispatch({ type: 'set_nonce', value: text });
             }}
-            modifiers={[textFieldStyle('roundedBorder')]}
           />
-          <SecureField
-            placeholder="Powtórz nowe hasło"
-            onTextChange={(text) => {
-              dispatch({ type: 'set_confirm_password', value: text });
-            }}
-            modifiers={[textFieldStyle('roundedBorder')]}
-          />
-          {requiresNonce ? (
-            <SecureField
-              placeholder="Kod weryfikacyjny z e-maila"
-              onTextChange={(text) => {
-                dispatch({ type: 'set_nonce', value: text });
-              }}
-              modifiers={[textFieldStyle('roundedBorder')]}
-            />
-          ) : null}
-          {error ? (
-            <Text modifiers={[foregroundStyle({ type: 'color', color: 'red' }), font({ size: 13, design: 'rounded' })]}>{error}</Text>
-          ) : null}
-          <Button label={loading ? 'Zapisywanie...' : 'Zapisz nowe hasło'} onPress={handleSubmit} />
-        </Section>
-      </Form>
-    </Host>
+        ) : null}
+        {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+        <AuthPrimaryButton
+          label={loading ? 'Zapisywanie...' : 'Zapisz nowe hasło'}
+          onPress={handleSubmit}
+          disabled={loading}
+        />
+      </AuthFormSection>
+    </AuthFormLayout>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

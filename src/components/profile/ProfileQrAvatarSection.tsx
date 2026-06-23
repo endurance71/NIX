@@ -1,8 +1,9 @@
-import { Pressable, Text as RNText, View, type TextStyle, type ViewStyle } from 'react-native';
+import { Pressable, Text as RNText, View } from 'react-native';
 import { router } from 'expo-router';
-import { RNHostView } from '@expo/ui/swift-ui';
+import { RNHostView } from '@expo/ui';
 import { MyProfileQrCard } from '../friend/my-profile-qr-card';
 import type { ThemeColors } from '../../theme/colors';
+import type { TextStyle, ViewStyle } from 'react-native';
 
 type Props = {
   colors: ThemeColors;

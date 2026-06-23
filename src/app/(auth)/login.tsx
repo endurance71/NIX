@@ -12,24 +12,18 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { Column, Host, Spacer, Text as UiText, TextInput, Button } from '@expo/ui';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import type { ThemeColors } from '../../theme/colors';
 import { APP_FONT_FAMILY } from '../../theme/typography';
-import { NativeButton } from '../../components/ui/native-button';
-import { NativeInput } from '../../components/ui/native-input';
-import { Host, Text as SUIText, VStack, Spacer } from '@expo/ui/swift-ui';
-import { font, foregroundStyle, frame, multilineTextAlignment } from '@expo/ui/swift-ui/modifiers';
 import { notifyError } from '../../lib/appNotify';
 import { useTranslation } from 'react-i18next';
 
 const GAP_MD = 16;
 const GAP_SM = 12;
-
-/** Większy znak marki w okręgu (bez SwiftUI Circle — tam `background` bywało renderowane jak czarna plama). */
 const LOGO_MARK_SIZE = 204;
 const LOGO_TEXT_SIZE = 64;
-/** Promień karty jak ustaliliście dla stylu iOS. */
 const CARD_RADIUS = 26;
 
 function getAuthErrorMessage(message: string, t: (key: string) => string) {
@@ -38,8 +32,7 @@ function getAuthErrorMessage(message: string, t: (key: string) => string) {
   return message;
 }
 
-/** Hero: okrąg z RN (poprawne tło/obrys), tekst NiX + reszta w SwiftUI z `design: 'rounded'` i kolorami z tokenów (hex). */
-function LoginHeroIos({
+function LoginHero({
   colors,
   isDark,
   contentWidth,
@@ -51,64 +44,43 @@ function LoginHeroIos({
   t: (key: string) => string;
 }) {
   const scheme = isDark ? 'dark' : 'light';
-  const inset = StyleSheet.hairlineWidth;
 
   return (
-    <View style={[styles.heroIosWrap, { width: contentWidth }]}>
+    <View style={[styles.heroWrap, { width: contentWidth }]}>
       <View
         style={[
-          styles.logoMarkIos,
+          styles.logoMark,
           {
             width: LOGO_MARK_SIZE,
             height: LOGO_MARK_SIZE,
             borderRadius: LOGO_MARK_SIZE / 2,
             backgroundColor: colors.surface,
             borderColor: isDark ? colors.borderStrong : PlatformColor('separator'),
-            borderWidth: inset,
+            borderWidth: StyleSheet.hairlineWidth,
           },
         ]}>
-        <Host
-          matchContents
-          ignoreSafeArea="all"
-          style={styles.logoHostSwift}
-          colorScheme={scheme}>
-          <VStack alignment="center" modifiers={[frame({ width: LOGO_MARK_SIZE, height: LOGO_MARK_SIZE })]}>
-            <Spacer />
-            <SUIText
-              modifiers={[
-                font({ size: LOGO_TEXT_SIZE, weight: 'bold', design: 'rounded' }),
-                foregroundStyle(colors.textPrimary),
-              ]}>
-              NiX
-            </SUIText>
-            <Spacer />
-          </VStack>
+        <Host matchContents ignoreSafeArea="all" style={styles.logoHost} colorScheme={scheme}>
+          <Column style={{ width: LOGO_MARK_SIZE, height: LOGO_MARK_SIZE }} alignment="center">
+            <UiText textStyle={{ fontSize: LOGO_TEXT_SIZE, fontWeight: '700', color: colors.textPrimary }}>NiX</UiText>
+          </Column>
         </Host>
       </View>
 
-      <Host
-        matchContents
-        ignoreSafeArea="all"
-        style={styles.heroTextHostSwift}
-        colorScheme={scheme}>
-        <VStack spacing={14} alignment="center" modifiers={[frame({ width: contentWidth })]}>
-          <SUIText
-            modifiers={[
-              font({ size: 15, weight: 'regular', design: 'rounded' }),
-              foregroundStyle(colors.textMuted),
-              multilineTextAlignment('center'),
-              frame({ maxWidth: contentWidth - GAP_MD * 2 }),
-            ]}>
+      <Host matchContents ignoreSafeArea="all" style={styles.heroTextHost} colorScheme={scheme}>
+        <Column style={{ width: contentWidth }} spacing={14} alignment="center">
+          <UiText
+            textStyle={{
+              fontSize: 15,
+              color: colors.textMuted,
+              textAlign: 'center',
+              lineHeight: 21,
+            }}>
             {t('auth.tagline')}
-          </SUIText>
-          <SUIText
-            modifiers={[
-              font({ size: 22, weight: 'semibold', design: 'rounded' }),
-              foregroundStyle(colors.textPrimary),
-            ]}>
+          </UiText>
+          <UiText textStyle={{ fontSize: 22, fontWeight: '600', color: colors.textPrimary }}>
             {t('auth.loginTitle')}
-          </SUIText>
-        </VStack>
+          </UiText>
+        </Column>
       </Host>
     </View>
   );
@@ -139,19 +111,17 @@ export default function LoginScreen() {
 
     setLoading(true);
     setError(null);
-    const { error } = await signIn(email.trim().toLowerCase(), password);
+    const { error: signInError } = await signIn(email.trim().toLowerCase(), password);
     setLoading(false);
 
-    if (error) {
-      notifyError(getAuthErrorMessage(error.message, t));
+    if (signInError) {
+      notifyError(getAuthErrorMessage(signInError.message, t));
     }
   };
 
-  const cardBorderColor =
-    isIos ? PlatformColor('separator') : colors.borderStrong;
-
-  /** Szerokość kolumny treści (marginesy już w `paddingHorizontal` ScrollView). */
+  const cardBorderColor = isIos ? PlatformColor('separator') : colors.borderStrong;
   const contentWidth = Math.max(260, windowWidth - GAP_MD * 2);
+  const scheme = isDark ? 'dark' : 'light';
 
   const scrollContentStyle = [
     styles.scrollContent,
@@ -174,28 +144,7 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           contentContainerStyle={scrollContentStyle}>
-          {isIos ? (
-            <LoginHeroIos colors={colors} isDark={isDark} contentWidth={contentWidth} t={t} />
-          ) : (
-            <View style={styles.heroAndroid}>
-              <View
-                style={[
-                  styles.logoMark,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: cardBorderColor,
-                  },
-                ]}>
-                <Text style={[styles.heroLogoAndroid, { color: colors.textPrimary }]}>NiX</Text>
-              </View>
-              <Text style={[styles.heroTaglineAndroid, { color: colors.textMuted }]}>
-                {t('auth.tagline')}
-              </Text>
-              <Text style={[styles.heroTitleAndroid, { color: colors.textPrimary }]}>
-                {t('auth.loginTitle')}
-              </Text>
-            </View>
-          )}
+          <LoginHero colors={colors} isDark={isDark} contentWidth={contentWidth} t={t} />
 
           <View
             style={[
@@ -206,57 +155,46 @@ export default function LoginScreen() {
                 ...(isDark ? {} : { boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)' }),
               },
             ]}>
-            <View style={{ gap: GAP_SM }}>
-              <NativeInput
+            <Host matchContents colorScheme={scheme} style={{ width: '100%' }}>
+              <TextInput
                 placeholder={t('auth.emailPlaceholder')}
-                value={email}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
                 onChangeText={(value) => {
                   setError(null);
                   setEmail(value);
                 }}
+              />
+              <TextInput
+                placeholder={t('auth.passwordPlaceholder')}
+                secureTextEntry
                 autoCapitalize="none"
                 autoCorrect={false}
-                keyboardType="email-address"
-                textContentType="emailAddress"
-                autoComplete="email"
-                returnKeyType="next"
-              />
-              <NativeInput
-                placeholder={t('auth.passwordPlaceholder')}
-                value={password}
                 onChangeText={(value) => {
                   setError(null);
                   setPassword(value);
                 }}
-                secureTextEntry
-                textContentType="password"
-                autoComplete="password"
-                returnKeyType="go"
-                onSubmitEditing={handleSignIn}
               />
-            </View>
-
-            {error ? (
-              <Text selectable style={[styles.errorText, { color: colors.error }]}>
-                {error}
-              </Text>
-            ) : null}
-
-            <NativeButton
-              label={loading ? t('auth.loginLoading') : t('auth.loginButton')}
-              onPress={handleSignIn}
-              loading={loading}
-              disabled={loading}
-            />
+              <Spacer />
+              {error ? (
+                <Text selectable style={[styles.errorText, { color: colors.error }]}>
+                  {error}
+                </Text>
+              ) : null}
+              <Button
+                label={loading ? t('auth.loginLoading') : t('auth.loginButton')}
+                onPress={loading ? undefined : handleSignIn}
+                variant="filled"
+              />
+            </Host>
 
             <View style={styles.links}>
               <Pressable onPress={() => router.push('/(auth)/forgot-password')} hitSlop={8}>
                 <Text style={[styles.linkLabel, { color: colors.accent }]}>{t('auth.forgotPassword')}</Text>
               </Pressable>
               <Pressable onPress={() => router.push('/(auth)/register')} hitSlop={8}>
-                <Text style={[styles.linkLabel, { color: colors.accent }]}>
-                  {t('auth.noAccount')}
-                </Text>
+                <Text style={[styles.linkLabel, { color: colors.accent }]}>{t('auth.noAccount')}</Text>
               </Pressable>
             </View>
           </View>
@@ -275,59 +213,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: GAP_MD,
     paddingTop: GAP_SM,
   },
-  heroAndroid: {
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: GAP_MD,
-  },
-  logoMark: {
-    width: LOGO_MARK_SIZE,
-    height: LOGO_MARK_SIZE,
-    borderRadius: LOGO_MARK_SIZE / 2,
-    borderCurve: 'continuous',
-    borderWidth: StyleSheet.hairlineWidth,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heroLogoAndroid: {
-    fontSize: 62,
-    fontWeight: '700',
-    fontFamily: APP_FONT_FAMILY,
-    letterSpacing: -2,
-    textAlign: 'center',
-  },
-  heroTaglineAndroid: {
-    fontSize: 15,
-    fontWeight: '400',
-    fontFamily: APP_FONT_FAMILY,
-    textAlign: 'center',
-    lineHeight: 21,
-    paddingHorizontal: GAP_MD,
-  },
-  heroTitleAndroid: {
-    fontSize: 22,
-    fontWeight: '600',
-    fontFamily: APP_FONT_FAMILY,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  heroIosWrap: {
+  heroWrap: {
     alignSelf: 'center',
     alignItems: 'center',
     gap: 14,
     paddingVertical: GAP_MD,
     backgroundColor: 'transparent',
   },
-  logoMarkIos: {
+  logoMark: {
     borderCurve: 'continuous',
     overflow: 'visible',
     position: 'relative',
   },
-  logoHostSwift: {
+  logoHost: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'transparent',
   },
-  heroTextHostSwift: {
+  heroTextHost: {
     backgroundColor: 'transparent',
     width: '100%',
   },

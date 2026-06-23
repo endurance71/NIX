@@ -5,7 +5,7 @@ import Animated from 'react-native-reanimated';
 import { GestureDetector } from 'react-native-gesture-handler';
 import type { CameraScreenViewModel } from '../../hooks/useCameraScreen';
 import { VIDEO_RECORDING_BITRATE } from '../../hooks/useCameraScreen';
-import { SFSymbol } from '../ui/sf-symbol';
+import { AppIcon } from '../ui/app-icon';
 import { VIDEO_TOTAL_MAX_DURATION_MS } from '../../lib/videoRecordingLimits';
 
 type Props = {
@@ -30,7 +30,7 @@ export function CameraCaptureSurface({ vm }: Props) {
     cameraInstanceKey,
     takingPicture,
     captureError,
-    isIosSimulator,
+    isNativeSimulator,
     cameraRef,
     pinchGesture,
     onCameraReady,
@@ -93,10 +93,10 @@ export function CameraCaptureSurface({ vm }: Props) {
                       recordAudioMuted ? 'Włącz nagrywanie dźwięku' : 'Wycisz nagrywanie dźwięku'
                     }
                     hitSlop={15}>
-                    <SFSymbol
-                      name={recordAudioMuted ? 'mic.slash.fill' : 'mic.fill'}
+                    <AppIcon
+                      name={recordAudioMuted ? 'micOff' : 'mic'}
                       size={22}
-                      tintColor={colors.cameraControlTint}
+                      color={colors.cameraControlTint}
                     />
                   </Pressable>
                   {facing === 'back' ? (
@@ -105,10 +105,10 @@ export function CameraCaptureSurface({ vm }: Props) {
                       style={styles.iconButton}
                       accessibilityLabel={flash === 'on' ? 'Wyłącz latarkę' : 'Włącz latarkę'}
                       hitSlop={15}>
-                      <SFSymbol
-                        name={flash === 'on' ? 'bolt.fill' : 'bolt.slash.fill'}
+                      <AppIcon
+                        name={flash === 'on' ? 'flash' : 'flashOff'}
                         size={22}
-                        tintColor={colors.cameraControlTint}
+                        color={colors.cameraControlTint}
                       />
                     </Pressable>
                   ) : (
@@ -129,7 +129,7 @@ export function CameraCaptureSurface({ vm }: Props) {
                 accessibilityState={{ disabled: recordingVideo || isSwitchingCamera || takingPicture }}
                 hitSlop={15}
                 disabled={recordingVideo || isSwitchingCamera || takingPicture}>
-                <SFSymbol name="photo.on.rectangle.angled" size={22} tintColor={colors.cameraControlTint} />
+                <AppIcon name="photoLibrary" size={22} color={colors.cameraControlTint} />
               </Pressable>
             </View>
 
@@ -146,10 +146,10 @@ export function CameraCaptureSurface({ vm }: Props) {
                 accessibilityRole="button"
                 accessibilityState={{
                   disabled:
-                    takingPicture || isSwitchingCamera || (!isIosSimulator && !cameraReady && !recordingVideo),
+                    takingPicture || isSwitchingCamera || (!isNativeSimulator && !cameraReady && !recordingVideo),
                 }}
                 disabled={
-                  takingPicture || isSwitchingCamera || (!isIosSimulator && !cameraReady && !recordingVideo)
+                  takingPicture || isSwitchingCamera || (!isNativeSimulator && !cameraReady && !recordingVideo)
                 }
                 hitSlop={15}>
                 <Animated.View
@@ -172,7 +172,7 @@ export function CameraCaptureSurface({ vm }: Props) {
                 accessibilityState={{ disabled: recordingVideo || isSwitchingCamera }}
                 hitSlop={15}
                 disabled={recordingVideo || isSwitchingCamera}>
-                <SFSymbol name="camera.rotate.fill" size={22} tintColor={colors.cameraControlTint} />
+                <AppIcon name="cameraRotate" size={22} color={colors.cameraControlTint} />
               </Pressable>
             </View>
           </View>

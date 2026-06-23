@@ -13,7 +13,7 @@ import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { SFSymbol } from '../components/ui/sf-symbol';
+import { AppIcon } from '../components/ui/app-icon';
 import { AvatarCircle } from '../components/ui/avatar-circle';
 import { normalizeNixViewDurationSec } from '../lib/nixViewDuration';
 import { toggleSetValue } from '../lib/selection';
@@ -69,7 +69,7 @@ const FriendRecipientRow = memo(function FriendRecipientRow({
       <Text numberOfLines={1} style={[styles.username, { color: colors.label }]}>
         {item.username ?? 'Nieznany'}
       </Text>
-      {selected ? <SFSymbol name="checkmark.circle.fill" size={24} tintColor={tintColor} /> : null}
+      {selected ? <AppIcon name="checkCircle" size={24} color={tintColor} /> : null}
     </Pressable>
   );
 });
@@ -240,7 +240,7 @@ export default function SendToSheet() {
               <Text style={stylesForTheme.sendButtonText}>
                 {selectedCount > 1 ? `Wyślij do ${selectedCount} znajomych` : 'Wyślij wiadomość'}
               </Text>
-              <SFSymbol name="paperplane.fill" size={20} tintColor={colors.buttonPrimaryText} />
+              <AppIcon name="send" size={20} color={colors.buttonPrimaryText} />
             </>
           )}
         </Pressable>

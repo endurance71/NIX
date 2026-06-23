@@ -1,24 +1,16 @@
-import {
-  StyleSheet,
-} from 'react-native';
-import { useReducer } from 'react';
 import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import { useReducer } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { useAppTheme } from '../../hooks/useAppTheme';
-import { Host, Form, Section, Text, TextField, SecureField, Button } from '@expo/ui/swift-ui';
 import {
-  foregroundStyle,
-  font,
-  textFieldStyle,
-  keyboardType,
-  textInputAutocapitalization,
-  autocorrectionDisabled,
-  padding,
-  buttonStyle,
-  controlSize,
-  disabled,
-} from '@expo/ui/swift-ui/modifiers';
+  AuthErrorText,
+  AuthFormLayout,
+  AuthFormSection,
+  AuthPrimaryButton,
+  AuthSecondaryButton,
+  AuthSecondaryText,
+  AuthSecureField,
+  AuthTextField,
+} from '../../components/ui/auth-form-layout';
 import { notifyError } from '../../lib/appNotify';
 import { useTranslation } from 'react-i18next';
 
@@ -28,7 +20,6 @@ function isEmailValid(email: string) {
 
 export default function RegisterScreen() {
   const { t } = useTranslation();
-  const { statusBarStyle } = useAppTheme();
   const { signUp } = useAuth();
   const [state, dispatch] = useReducer(
     (
@@ -88,16 +79,16 @@ export default function RegisterScreen() {
 
     dispatch({ type: 'set_loading', value: true });
     dispatch({ type: 'set_error', value: null });
-    const { error } = await signUp(cleanedEmail, password);
+    const { error: signUpError } = await signUp(cleanedEmail, password);
     dispatch({ type: 'set_loading', value: false });
 
-    if (error) {
-      if (error.message.includes('User already registered')) {
+    if (signUpError) {
+      if (signUpError.message.includes('User already registered')) {
         notifyError(t('auth.accountExists'));
-      } else if (error.message.includes('Password should be at least')) {
+      } else if (signUpError.message.includes('Password should be at least')) {
         notifyError(t('auth.passwordMin'));
       } else {
-        notifyError(error.message);
+        notifyError(signUpError.message);
       }
       return;
     }
@@ -105,70 +96,37 @@ export default function RegisterScreen() {
     router.replace({ pathname: '/(auth)/check-email', params: { email: cleanedEmail, mode: 'signup' } });
   };
 
-  const primaryButtonModifiers = [
-    buttonStyle('borderedProminent'),
-    controlSize('large'),
-    ...(loading ? [disabled(true)] : []),
-  ];
-
-  const secondaryButtonModifiers = [buttonStyle('plain')];
-
   return (
-    <Host style={styles.container} useViewportSizeMeasurement colorScheme={statusBarStyle === 'light' ? 'dark' : 'light'}>
-      <StatusBar style={statusBarStyle} />
-      <Form modifiers={[padding({ horizontal: 12, top: 12 })]}>
-        <Section title={t('auth.registerHeader')}>
-          <Text modifiers={[foregroundStyle({ type: 'hierarchical', style: 'secondary' }), font({ size: 14, design: 'rounded' })]}>
-            {t('auth.registerDescription')}
-          </Text>
-          <TextField
+    <AuthFormLayout>
+      <AuthFormSection title={t('auth.registerHeader')}>
+        <AuthSecondaryText>{t('auth.registerDescription')}</AuthSecondaryText>
+        <AuthTextField
           placeholder={t('auth.emailField')}
-          onTextChange={(text) => {
+          keyboardType="email-address"
+          onChangeText={(text) => {
             dispatch({ type: 'set_email', value: text });
           }}
-          modifiers={[
-            textFieldStyle('automatic'),
-            keyboardType('email-address'),
-            textInputAutocapitalization('never'),
-            autocorrectionDisabled(true),
-          ]}
         />
-          <SecureField
+        <AuthSecureField
           placeholder={t('auth.passwordField')}
-          onTextChange={(text) => {
+          onChangeText={(text) => {
             dispatch({ type: 'set_password', value: text });
           }}
-          modifiers={[textFieldStyle('automatic')]}
         />
-          <SecureField
+        <AuthSecureField
           placeholder={t('auth.confirmPasswordField')}
-          onTextChange={(text) => {
+          onChangeText={(text) => {
             dispatch({ type: 'set_confirm_password', value: text });
           }}
-          modifiers={[textFieldStyle('automatic')]}
         />
-
-          {error ? <Text modifiers={[foregroundStyle({ type: 'color', color: 'red' }), font({ size: 13, design: 'rounded' })]}>{error}</Text> : null}
-
-          <Button
-            label={loading ? t('auth.registerLoading') : t('auth.registerButton')}
-            onPress={handleRegister}
-            modifiers={primaryButtonModifiers}
-          />
-
-          <Button
-            label={t('auth.hasAccount')}
-            onPress={() => router.replace('/(auth)/login')}
-            modifiers={secondaryButtonModifiers}
-          />
-        </Section>
-      </Form>
-    </Host>
+        {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+        <AuthPrimaryButton
+          label={loading ? t('auth.registerLoading') : t('auth.registerButton')}
+          onPress={handleRegister}
+          disabled={loading}
+        />
+        <AuthSecondaryButton label={t('auth.hasAccount')} onPress={() => router.replace('/(auth)/login')} />
+      </AuthFormSection>
+    </AuthFormLayout>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

@@ -76,16 +76,16 @@ describe('haptics', () => {
     expect(notificationAsync).toHaveBeenNthCalledWith(3, 'Error');
   });
 
-  it('na nie-iOS nie wywołuje expo-haptics', async () => {
+  it('tap działa też na Androidzie', async () => {
     process.env.EXPO_OS = 'android';
     vi.resetModules();
     const m = await import('./haptics');
     m.tap('medium');
     m.selection();
     m.notify('error');
-    expect(impactAsync).not.toHaveBeenCalled();
-    expect(selectionAsync).not.toHaveBeenCalled();
-    expect(notificationAsync).not.toHaveBeenCalled();
+    expect(impactAsync).toHaveBeenCalledWith('Medium');
+    expect(selectionAsync).toHaveBeenCalledTimes(1);
+    expect(notificationAsync).toHaveBeenCalledWith('Error');
   });
 
   it('odrzucony Promise z impactAsync nie propaguje (catch wewnętrzny)', async () => {

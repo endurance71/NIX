@@ -1,25 +1,18 @@
-import {
-  StyleSheet,
-} from 'react-native';
-import { useState } from 'react';
 import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { useAppTheme } from '../../hooks/useAppTheme';
-import { Host, Form, Section, Text, TextField, Button } from '@expo/ui/swift-ui';
 import {
-  font,
-  foregroundStyle,
-  textFieldStyle,
-  keyboardType,
-  textInputAutocapitalization,
-  autocorrectionDisabled,
-  padding,
-} from '@expo/ui/swift-ui/modifiers';
+  AuthErrorText,
+  AuthFormLayout,
+  AuthFormSection,
+  AuthPrimaryButton,
+  AuthSecondaryButton,
+  AuthSecondaryText,
+  AuthTextField,
+} from '../../components/ui/auth-form-layout';
 import { notifyError } from '../../lib/appNotify';
 
 export default function ForgotPasswordScreen() {
-  const { statusBarStyle } = useAppTheme();
   const { requestPasswordReset } = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,11 +27,11 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     setError(null);
-    const { error } = await requestPasswordReset(cleanedEmail);
+    const { error: resetError } = await requestPasswordReset(cleanedEmail);
     setLoading(false);
 
-    if (error) {
-      notifyError(error.message);
+    if (resetError) {
+      notifyError(resetError.message);
       return;
     }
 
@@ -46,37 +39,25 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <Host style={styles.container} useViewportSizeMeasurement colorScheme={statusBarStyle === 'light' ? 'dark' : 'light'}>
-      <StatusBar style={statusBarStyle} />
-      <Form modifiers={[padding({ horizontal: 12, top: 12 })]}>
-        <Section title="Reset hasła">
-          <Text modifiers={[foregroundStyle({ type: 'hierarchical', style: 'secondary' }), font({ size: 14, design: 'rounded' })]}>
-            Wyślemy link do ustawienia nowego hasła.
-          </Text>
-          <TextField
+    <AuthFormLayout>
+      <AuthFormSection title="Reset hasła">
+        <AuthSecondaryText>Wyślemy link do ustawienia nowego hasła.</AuthSecondaryText>
+        <AuthTextField
           placeholder="E-mail"
-          onTextChange={(text) => {
+          keyboardType="email-address"
+          onChangeText={(text) => {
             setError(null);
             setEmail(text);
           }}
-          modifiers={[
-            textFieldStyle('roundedBorder'),
-            keyboardType('email-address'),
-            textInputAutocapitalization('never'),
-            autocorrectionDisabled(true),
-          ]}
         />
-          {error ? <Text modifiers={[foregroundStyle({ type: 'color', color: 'red' }), font({ size: 13, design: 'rounded' })]}>{error}</Text> : null}
-          <Button label={loading ? 'Wysyłanie...' : 'Wyślij link resetu'} onPress={handleResetRequest} />
-          <Button label="Wróć do logowania" onPress={() => router.replace('/(auth)/login')} />
-        </Section>
-      </Form>
-    </Host>
+        {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+        <AuthPrimaryButton
+          label={loading ? 'Wysyłanie...' : 'Wyślij link resetu'}
+          onPress={handleResetRequest}
+          disabled={loading}
+        />
+        <AuthSecondaryButton label="Wróć do logowania" onPress={() => router.replace('/(auth)/login')} />
+      </AuthFormSection>
+    </AuthFormLayout>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

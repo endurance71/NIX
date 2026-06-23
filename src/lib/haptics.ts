@@ -1,12 +1,8 @@
 /**
- * Fasada haptyki zgodna z Apple HIG (Impact / Selection / Notification).
- * Tylko iOS — na innych platformach no-op.
+ * Haptics facade aligned with Apple HIG (Impact / Selection / Notification).
+ * Enabled on iOS and Android via expo-haptics.
  */
 import * as Haptics from 'expo-haptics';
-
-function isIOS(): boolean {
-  return process.env.EXPO_OS === 'ios';
-}
 
 export type ImpactIntensity = 'light' | 'medium' | 'heavy' | 'soft' | 'rigid';
 export type NotifyKind = 'success' | 'warning' | 'error';
@@ -45,20 +41,17 @@ function toNotifyType(kind: NotifyKind): Haptics.NotificationFeedbackType {
   }
 }
 
-/** Impact — fizyczne „kliknięcie" UI (przycisk, start akcji). */
+/** Impact — physical UI click (button, action start). */
 export function tap(intensity: ImpactIntensity = 'light'): void {
-  if (!isIOS()) return;
   void Haptics.impactAsync(toImpactStyle(intensity)).catch(() => {});
 }
 
-/** Selection — ruch przez dyskretne wartości (toggle, picker). */
+/** Selection — moving through discrete values (toggle, picker). */
 export function selection(): void {
-  if (!isIOS()) return;
   void Haptics.selectionAsync().catch(() => {});
 }
 
-/** Notification — wynik zadania (sukces / ostrzeżenie / błąd). */
+/** Notification — task outcome (success / warning / error). */
 export function notify(kind: NotifyKind): void {
-  if (!isIOS()) return;
   void Haptics.notificationAsync(toNotifyType(kind)).catch(() => {});
 }

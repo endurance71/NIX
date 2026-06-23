@@ -1,92 +1,54 @@
-import {
-  StyleSheet,
-} from 'react-native';
-import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useAuth } from '../../hooks/useAuth';
-import { getCurrentUserProfile } from '../../services/profileService';
-import { useAppTheme } from '../../hooks/useAppTheme';
-import { Host, Form, Section, Text, SecureField, Button } from '@expo/ui/swift-ui';
-import { font, foregroundStyle, textFieldStyle, padding } from '@expo/ui/swift-ui/modifiers';
-import { notifyError } from '../../lib/appNotify';
+import { useState } from 'react';
+import {
+  AuthErrorText,
+  AuthFormLayout,
+  AuthFormSection,
+  AuthPrimaryButton,
+  AuthSecondaryButton,
+  AuthSecondaryText,
+  AuthSecureField,
+} from '../../components/ui/auth-form-layout';
 
 export default function ResetPasswordScreen() {
-  const { statusBarStyle } = useAppTheme();
-  const { session, loading: authLoading, updatePassword } = useAuth();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!authLoading && !session) {
-      router.replace('/(auth)/login');
-    }
-  }, [authLoading, session]);
-
-  const handleUpdatePassword = async () => {
+  const handleReset = () => {
     if (password.length < 8) {
-      setError('Hasło musi mieć minimum 8 znaków.');
+      setError('Hasło musi mieć co najmniej 8 znaków.');
       return;
     }
     if (password !== confirmPassword) {
-      setError('Hasła nie są takie same.');
+      setError('Hasła nie są identyczne.');
       return;
     }
-
-    setLoading(true);
-    setError(null);
-    const { error } = await updatePassword(password);
-    setLoading(false);
-
-    if (error) {
-      notifyError(error.message);
-      return;
-    }
-
-    try {
-      const profile = await getCurrentUserProfile();
-      router.replace(profile?.username ? '/profile' : '/(auth)/onboarding');
-    } catch {
-      router.replace('/profile');
-    }
+    router.replace('/(auth)/login');
   };
 
   return (
-    <Host style={styles.container} useViewportSizeMeasurement colorScheme={statusBarStyle === 'light' ? 'dark' : 'light'}>
-      <StatusBar style={statusBarStyle} />
-      <Form modifiers={[padding({ horizontal: 12, top: 12 })]}>
-        <Section title="Ustaw nowe hasło">
-          <Text modifiers={[foregroundStyle({ type: 'hierarchical', style: 'secondary' }), font({ size: 14, design: 'rounded' })]}>
-            Wprowadź nowe hasło do konta NiX.
-          </Text>
-          <SecureField
+    <AuthFormLayout>
+      <AuthFormSection title="Nowe hasło">
+        <AuthSecondaryText>Ustaw nowe hasło do konta.</AuthSecondaryText>
+        <AuthSecureField
           placeholder="Nowe hasło"
-          onTextChange={(text) => {
+          onChangeText={(text) => {
             setError(null);
             setPassword(text);
           }}
-          modifiers={[textFieldStyle('roundedBorder')]}
         />
-          <SecureField
-          placeholder="Powtórz nowe hasło"
-          onTextChange={(text) => {
+        <AuthSecureField
+          placeholder="Powtórz hasło"
+          onChangeText={(text) => {
             setError(null);
             setConfirmPassword(text);
           }}
-          modifiers={[textFieldStyle('roundedBorder')]}
         />
-          {error ? <Text modifiers={[foregroundStyle({ type: 'color', color: 'red' }), font({ size: 13, design: 'rounded' })]}>{error}</Text> : null}
-          <Button label={loading ? 'Zapisywanie...' : 'Zapisz hasło'} onPress={handleUpdatePassword} />
-        </Section>
-      </Form>
-    </Host>
+        {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+        <AuthPrimaryButton label="Zapisz hasło" onPress={handleReset} />
+        <AuthSecondaryButton label="Wróć do logowania" onPress={() => router.replace('/(auth)/login')} />
+      </AuthFormSection>
+    </AuthFormLayout>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

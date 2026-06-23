@@ -17,7 +17,7 @@ import { trackEvent } from '../lib/telemetry';
 import { queryKeys } from '../lib/queryKeys';
 import { NativeButton } from '../components/ui/native-button';
 import { SHEET_CONTENT_PADDING_TOP } from '../theme/sheetLayout';
-import { SFSymbol } from '../components/ui/sf-symbol';
+import { AppIcon } from '../components/ui/app-icon';
 import { notifyError, notifyInfo, notifyShow, notifySuccess } from '../lib/appNotify';
 
 function mapConfirmationMessage(result: string, username?: string) {
@@ -276,11 +276,11 @@ export default function FriendInviteConfirmScreen() {
           {statusLine ? (
             <View style={styles.statusBlock}>
               {relationStatus === 'already_friends' ? (
-                <SFSymbol name="checkmark.circle.fill" size={22} tintColor={colors.success} />
+                <AppIcon name="checkCircle" size={22} color={colors.success} />
               ) : relationStatus === 'outgoing_pending' ? (
-                <SFSymbol name="clock.fill" size={20} tintColor={colors.textMuted} />
+                <AppIcon name="clock" size={20} color={colors.textMuted} />
               ) : (
-                <SFSymbol name="person.badge.plus" size={20} tintColor={colors.accent} />
+                <AppIcon name="personAdd" size={20} color={colors.accent} />
               )}
               <Text
                 style={[

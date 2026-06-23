@@ -260,6 +260,8 @@ PODS:
     - ExpoModulesCore
   - ExpoSymbols (56.0.6):
     - ExpoModulesCore
+  - ExpoSystemUI (56.0.5):
+    - ExpoModulesCore
   - ExpoTaskManager (56.0.19):
     - ExpoModulesCore
     - UMAppLoader
@@ -2611,6 +2613,7 @@ DEPENDENCIES:
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
+  - ExpoSystemUI (from `../node_modules/expo-system-ui/ios`)
   - ExpoTaskManager (from `../node_modules/expo-task-manager/ios`)
   - "ExpoUI (from `../node_modules/@expo/ui/ios`)"
   - ExpoVideo (from `../node_modules/expo-video/ios/ExpoVideo.podspec`)
@@ -2781,6 +2784,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-splash-screen/ios"
   ExpoSymbols:
     :path: "../node_modules/expo-symbols/ios"
+  ExpoSystemUI:
+    :path: "../node_modules/expo-system-ui/ios"
   ExpoTaskManager:
     :path: "../node_modules/expo-task-manager/ios"
   ExpoUI:
@@ -3003,6 +3008,7 @@ SPEC CHECKSUMS:
   ExpoSecureStore: f1bd083c1b7b8d4142013ffcc0082d377d9f49f4
   ExpoSplashScreen: 3fe3a57d56d7242a9109d9714a6f9fa1e256538b
   ExpoSymbols: 377747de25bcb1ab68ec68f23d81fb81d43eae83
+  ExpoSystemUI: 8f4fb641c6a6ebe2a01dda0fbd3fdd952ab5823a
   ExpoTaskManager: bb9420854e7fb41d5753bcaae3428bd42d60d5bf
   ExpoUI: cb2928f5537135cff59e7b84b4adbeb72355f9fd
   ExpoVideo: 292b8c6be12bacf0b2e5a697276788280cdccdfb

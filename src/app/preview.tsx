@@ -19,12 +19,13 @@ import { BlurView } from 'expo-blur';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { SFSymbol } from '../components/ui/sf-symbol';
+import { AppIcon } from '../components/ui/app-icon';
+import { DurationPickerSheet } from '../components/ui/duration-picker-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVideoDraft, type VideoSegmentDraft } from '../context/VideoDraftContext';
 import { configureForPlayback } from '../lib/audioSession';
 import { trackEvent } from '../lib/telemetry';
-import { selection, tap } from '../lib/haptics';
+import { tap } from '../lib/haptics';
 import {
   NIX_VIEW_DURATION_CHOICES,
   DEFAULT_NIX_VIEW_DURATION_SEC,
@@ -34,7 +35,6 @@ import {
   shortNixViewDurationLabel,
   type NixViewDurationSec,
 } from '../lib/nixViewDuration';
-import { Host, ConfirmationDialog, Button, Text as SUIText, RNHostView } from '@expo/ui/swift-ui';
 
 const TIMER_TRACK_HEIGHT = 8;
 /** Maks. czas oczekiwania na `readyToPlay` zanim wymusimy `play()` + `onReady()`. */
@@ -299,7 +299,7 @@ function PreviewVideoContent({
         ]}>
         <View style={styles.topControls}>
           <Pressable accessibilityLabel="Porzuć nagranie" accessibilityRole="button" onPress={handleDiscard} style={styles.iconButton}>
-            <SFSymbol name="xmark" size={22} tintColor={colors.cameraControlTint} />
+            <AppIcon name="close" size={22} color={colors.cameraControlTint} />
           </Pressable>
         </View>
 
@@ -310,7 +310,7 @@ function PreviewVideoContent({
             onPress={handleSendTo}
             style={({ pressed }) => [styles.sendButton, pressed && styles.sendButtonPressed]}>
             <Text style={styles.sendButtonText}>Wyślij do</Text>
-            <SFSymbol name="chevron.right" size={16} tintColor={colors.buttonPrimaryText} />
+            <AppIcon name="chevronRight" size={16} color={colors.buttonPrimaryText} />
           </Pressable>
         </View>
       </View>
@@ -396,46 +396,26 @@ export default function PreviewScreen() {
             accessibilityRole="button"
             onPress={handleDiscard}
             style={styles.iconButton}>
-            <SFSymbol name="xmark" size={22} tintColor={colors.cameraControlTint} />
+            <AppIcon name="close" size={22} color={colors.cameraControlTint} />
           </Pressable>
-          <Host matchContents>
-            <ConfirmationDialog
-              title="Czas wyświetlania"
-              isPresented={durationPickerOpen}
-              onIsPresentedChange={setDurationPickerOpen}>
-              <ConfirmationDialog.Trigger>
-                <RNHostView matchContents>
-                  <Pressable
-                    style={styles.nixDurationButton}
-                    onPress={() => setDurationPickerOpen(true)}
-                    hitSlop={10}
-                    accessibilityLabel={`Czas wyświetlania: ${formatNixViewDurationLabel(viewDurationSec)}`}>
-                    <SFSymbol name="timer" size={20} tintColor={colors.cameraControlTint} />
-                    <Text style={styles.nixDurationButtonLabel}>{shortNixViewDurationLabel(viewDurationSec)}</Text>
-                  </Pressable>
-                </RNHostView>
-              </ConfirmationDialog.Trigger>
-              <ConfirmationDialog.Message>
-                <SUIText>Jak długo zdjęcie będzie widoczne u odbiorcy po otwarciu.</SUIText>
-              </ConfirmationDialog.Message>
-              <ConfirmationDialog.Actions>
-                {NIX_VIEW_DURATION_CHOICES.map((sec) => (
-                  <Button
-                    key={sec}
-                    label={formatNixViewDurationLabel(sec)}
-                    {...(sec === viewDurationSec ? { systemImage: 'checkmark.circle.fill' as const } : {})}
-                    onPress={() => {
-                      selection();
-                      setViewDurationSec(sec);
-                      void savePreferredNixViewDuration(sec);
-                      setDurationPickerOpen(false);
-                    }}
-                  />
-                ))}
-                <Button role="cancel" label="Anuluj" onPress={() => setDurationPickerOpen(false)} />
-              </ConfirmationDialog.Actions>
-            </ConfirmationDialog>
-          </Host>
+          <Pressable
+            style={styles.nixDurationButton}
+            onPress={() => setDurationPickerOpen(true)}
+            hitSlop={10}
+            accessibilityLabel={`Czas wyświetlania: ${formatNixViewDurationLabel(viewDurationSec)}`}>
+            <AppIcon name="timer" size={20} color={colors.cameraControlTint} />
+            <Text style={styles.nixDurationButtonLabel}>{shortNixViewDurationLabel(viewDurationSec)}</Text>
+          </Pressable>
+          <DurationPickerSheet
+            isPresented={durationPickerOpen}
+            onDismiss={() => setDurationPickerOpen(false)}
+            selectedDurationSec={viewDurationSec}
+            choices={NIX_VIEW_DURATION_CHOICES}
+            onSelect={(sec) => {
+              setViewDurationSec(sec);
+              void savePreferredNixViewDuration(sec);
+            }}
+          />
         </View>
 
         <View style={styles.bottomControls}>
@@ -445,7 +425,7 @@ export default function PreviewScreen() {
             onPress={handleSendTo}
             style={({ pressed }) => [styles.sendButton, pressed && styles.sendButtonPressed]}>
             <Text style={styles.sendButtonText}>Wyślij do</Text>
-            <SFSymbol name="chevron.right" size={16} tintColor={colors.buttonPrimaryText} />
+            <AppIcon name="chevronRight" size={16} color={colors.buttonPrimaryText} />
           </Pressable>
         </View>
       </View>

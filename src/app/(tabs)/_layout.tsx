@@ -11,18 +11,18 @@ export default function TabsLayout() {
   return (
     <NativeTabs tintColor={colors.accent}>
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Icon sf="camera.fill" />
+        <NativeTabs.Trigger.Icon sf="camera.fill" md="photo_camera" />
         <NativeTabs.Trigger.Label>{t('tabs.camera')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="inbox">
-        <NativeTabs.Trigger.Icon sf="tray.fill" />
+        <NativeTabs.Trigger.Icon sf="tray.fill" md="inbox" />
         <NativeTabs.Trigger.Label>{t('tabs.inbox')}</NativeTabs.Trigger.Label>
         {count > 0 ? <NativeTabs.Trigger.Badge>{String(count)}</NativeTabs.Trigger.Badge> : null}
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="profile">
-        <NativeTabs.Trigger.Icon sf="person.crop.circle.fill" />
+        <NativeTabs.Trigger.Icon sf="person.crop.circle.fill" md="account_circle" />
         <NativeTabs.Trigger.Label>{t('tabs.profile')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>

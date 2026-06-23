@@ -1,24 +1,18 @@
-import {
-  StyleSheet,
-} from 'react-native';
-import { useState } from 'react';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { isUsernameTaken, saveUsernameForCurrentUser } from '../../services/profileService';
-import { StatusBar } from 'expo-status-bar';
-import { useAppTheme } from '../../hooks/useAppTheme';
-import { Host, Form, Section, Text, TextField, Button } from '@expo/ui/swift-ui';
 import {
-  font,
-  foregroundStyle,
-  textFieldStyle,
-  textInputAutocapitalization,
-  autocorrectionDisabled,
-  padding,
-} from '@expo/ui/swift-ui/modifiers';
+  AuthErrorText,
+  AuthFormLayout,
+  AuthFormSection,
+  AuthPrimaryButton,
+  AuthSecondaryText,
+  AuthTertiaryText,
+  AuthTextField,
+} from '../../components/ui/auth-form-layout';
 import { notifyDomainError, notifyError } from '../../lib/appNotify';
 
 export default function OnboardingScreen() {
-  const { statusBarStyle } = useAppTheme();
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,40 +44,24 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <Host style={styles.container} useViewportSizeMeasurement colorScheme={statusBarStyle === 'light' ? 'dark' : 'light'}>
-      <StatusBar style={statusBarStyle} />
-      <Form modifiers={[padding({ horizontal: 12, top: 12 })]}>
-        <Section title="Twój NiX ID">
-          <Text modifiers={[foregroundStyle({ type: 'hierarchical', style: 'secondary' }), font({ size: 14, design: 'rounded' })]}>
-            Wybierz unikalną nazwę. Nie można jej później zmienić.
-          </Text>
-          <TextField
-            placeholder="nazwa_uzytkownika"
-            onTextChange={(text) => {
-              setError(null);
-              setUsername(text.toLowerCase().replace(/[^a-z0-9_]/g, ''));
-            }}
-            modifiers={[
-              textFieldStyle('roundedBorder'),
-              textInputAutocapitalization('never'),
-              autocorrectionDisabled(true),
-            ]}
-          />
-          <Text modifiers={[foregroundStyle({ type: 'hierarchical', style: 'tertiary' }), font({ size: 12, design: 'rounded' })]}>
-            Dozwolone: litery, cyfry i podkreślenie.
-          </Text>
-
-          {error ? <Text modifiers={[foregroundStyle({ type: 'color', color: 'red' }), font({ size: 13, design: 'rounded' })]}>{error}</Text> : null}
-
-          <Button label={loading ? 'Zapisywanie...' : 'Zapisz nazwę'} onPress={handleSetUsername} />
-        </Section>
-      </Form>
-    </Host>
+    <AuthFormLayout>
+      <AuthFormSection title="Twój NiX ID">
+        <AuthSecondaryText>Wybierz unikalną nazwę. Nie można jej później zmienić.</AuthSecondaryText>
+        <AuthTextField
+          placeholder="nazwa_uzytkownika"
+          onChangeText={(text) => {
+            setError(null);
+            setUsername(text.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+          }}
+        />
+        <AuthTertiaryText>Dozwolone: litery, cyfry i podkreślenie.</AuthTertiaryText>
+        {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+        <AuthPrimaryButton
+          label={loading ? 'Zapisywanie...' : 'Zapisz nazwę'}
+          onPress={handleSetUsername}
+          disabled={loading}
+        />
+      </AuthFormSection>
+    </AuthFormLayout>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

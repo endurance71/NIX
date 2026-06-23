@@ -1,4 +1,4 @@
-name: Preview iOS (internal)
+name: Preview (internal)
 
 on:
   pull_request: {}
@@ -9,4 +9,11 @@ jobs:
     type: build
     params:
       platform: ios
+      profile: preview
+
+  build_android_preview:
+    name: Build Android preview
+    type: build
+    params:
+      platform: android
       profile: preview

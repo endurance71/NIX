@@ -1,8 +1,8 @@
 # Dokumentacja projektowa: NiX (v1.2)
 
 **Status:** W toku — stabilizacja MVP  
-**Stack:** React Native (Expo SDK 55) + Supabase  
-**Ostatnia aktualizacja:** 2026-05-07
+**Stack:** React Native (Expo SDK 56) + Supabase  
+**Ostatnia aktualizacja:** 2026-06-23
 
 ---
 
@@ -25,7 +25,7 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 1. **Prywatność:** Docelowo Sign in with Apple; obecnie Supabase Auth (e-mail wyłącznie w warstwie auth, bez kolumny e-mail w `profiles`).
 2. **Speed-to-Camera:** Szybki dostęp do kamery z zakładki głównej.
 3. **True Ephemeral:** Po obejrzeniu — cleanup mediów ze Storage i finalizacja cyklu życia wiadomości (status `cleaned`, kolejka retry).
-4. **Native-first:** RN + moduły Expo; listy ustawień/skrzynki oparte o `@expo/ui/swift-ui` tam, gdzie daje to natywny UX iOS.
+4. **Native-first:** RN + moduły Expo; UI oparte o universal `@expo/ui` (SwiftUI na iOS, Jetpack Compose na Android) z jednego kodu.
 5. **Budget-first:** Supabase Free Tier → Pro przy wzroście.
 
 ### 1.3 User Stories (P0)
@@ -59,9 +59,9 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 
 | Warstwa | Technologia | Uwagi |
 | :--- | :--- | :--- |
-| **Frontend** | React Native 0.83 + Expo SDK 55 | Tylko iOS (`platforms: ["ios"]` w `app.json`) |
+| **Frontend** | React Native 0.85 + Expo SDK 56 | iOS + Android (`platforms: ["ios", "android"]` w `app.json`) |
 | **Nawigacja** | Expo Router (`src/app`) | Stack + tabs; `experiments.typedRoutes`, `reactCompiler` |
-| **UI** | RN primitives + `@expo/ui/swift-ui` | Listy grupowane (inbox, profil); komponenty w `src/components/ui` |
+| **UI** | Universal `@expo/ui` + RN primitives | `FieldGroup`, `List`, `TextInput`, `AppIcon`; komponenty w `src/components/ui` |
 | **Stan sieci** | TanStack React Query v5 | Klucze w `src/lib/queryKeys.ts` |
 | **Backend** | Supabase | Postgres, Auth, Storage, Edge Functions |
 | **i18n** | `i18next` + `react-i18next` + `expo-localization` | |
@@ -74,9 +74,16 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 
 Pełny zestaw zależności: sekcja 5 oraz `package.json`.
 
-### 2.2 Filozofia native-first
+### 2.2 Filozofia UI (universal `@expo/ui`)
 
-Komponenty bazują na prymitywach React Native. **Wyjątek:** ekrany profilu i skrzynki osadzają natywne listy SwiftUI (`Host`, `List`, `Section`) dla spójności z iOS.
+Komponenty bazują na universal `@expo/ui` (import z root pakietu). Pod spodem: SwiftUI na iOS, Jetpack Compose na Android. Ekrany profilu i skrzynki używają natywnych list (`List`, `FieldGroup`) z osadzonymi wierszami RN przez `RNHostView`. Ikony: `AppIcon` z `Icon.select` (SF Symbols + Material Symbols XML).
+
+### 2.3 Android — środowisko developerskie
+
+- Android Studio z SDK Platform 35 (Android 15)
+- `ANDROID_HOME` wskazujący na Android SDK
+- Build dev client: `npm run android` (`expo run:android`)
+- Build EAS: profile `development` / `preview` (APK) / `production` (AAB) w `eas.json`
 
 - **Zabronione:** ogólne UI-kity (Paper, NativeBase itd.), `Animated` API (zamiast tego Reanimated), `LayoutAnimation` w ścieżkach krytycznych FPS.
 

@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 import { typography } from '../../theme/typography';
-import { SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING } from '../../theme/swiftUiEmbeddedLayout';
+import { NATIVE_GROUPED_LIST_RN_ROW_PADDING } from '../../theme/nativeListLayout';
 
 export const profileScreenRnStyles = StyleSheet.create({
   container: {
@@ -29,7 +29,7 @@ export const profileScreenRnStyles = StyleSheet.create({
   socialRow: {
     gap: 8,
     paddingVertical: 6,
-    ...SWIFT_UI_INSET_GROUPED_LIST_RN_ROW_PADDING,
+    ...NATIVE_GROUPED_LIST_RN_ROW_PADDING,
   },
   socialTitle: {
     ...typography.headline,
