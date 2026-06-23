@@ -81,6 +81,19 @@ index a901840..2982c90 100644
          return {:http => url}
      end
  
+diff --git a/node_modules/react-native/scripts/react-native-xcode.sh b/node_modules/react-native/scripts/react-native-xcode.sh
+index 1dcdf55..94fd1fb 100755
+--- a/node_modules/react-native/scripts/react-native-xcode.sh
++++ b/node_modules/react-native/scripts/react-native-xcode.sh
+@@ -148,7 +148,7 @@ if [[ -n "$CONFIG_JSON" ]]; then
+ elif [[ -n "$CONFIG_CMD" ]]; then
+   EXTRA_ARGS+=("--config-cmd" "$CONFIG_CMD")
+ else
+-  EXTRA_ARGS+=("--config-cmd" "'$NODE_BINARY' $NODE_ARGS '$REACT_NATIVE_DIR/cli.js' config")
++  EXTRA_ARGS+=("--config-cmd" "\"$NODE_BINARY\" $NODE_ARGS \"$REACT_NATIVE_DIR/cli.js\" config")
+ fi
+ 
+ # shellcheck disable=SC2086
 diff --git a/node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec b/node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec
 index e08e6c2..fa51281 100644
 --- a/node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec
