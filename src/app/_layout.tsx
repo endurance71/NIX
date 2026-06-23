@@ -89,7 +89,7 @@ function RootNavigator() {
   const { t } = useTranslation();
   const { colors, statusBarStyle } = useAppTheme();
   const { session, loading } = useAuth();
-  const segments = useSegments();
+  const segments = useSegments() as string[];
   const [gate, dispatchGate] = useReducer(profileGateReducer, {
     profileLoading: false,
     needsOnboarding: false,

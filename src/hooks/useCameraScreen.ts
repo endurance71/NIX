@@ -6,7 +6,6 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
 import { tap, notify as hapticNotify } from '../lib/haptics';
-import { useFocusEffect } from '@react-navigation/native';
 import type { AnimatedStyle } from 'react-native-reanimated';
 import {
   useSharedValue,
@@ -20,7 +19,7 @@ import {
   runOnJS,
 } from 'react-native-reanimated';
 import { Gesture } from 'react-native-gesture-handler';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from './useAppTheme';
 import { VIDEO_HOLD_THRESHOLD_MS, VIDEO_TOTAL_MAX_DURATION_MS } from '../lib/videoRecordingLimits';

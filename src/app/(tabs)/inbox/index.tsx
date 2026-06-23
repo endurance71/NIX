@@ -1,7 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text as RNText, View } from 'react-native';
-import { Stack, router } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { Stack, router, useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import { sentLifecycleSegments } from '../../../lib/nixInboxLabels';

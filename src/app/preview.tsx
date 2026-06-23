@@ -555,7 +555,7 @@ const createStyles = (colors: ThemeColors) => {
       zIndex: 12,
     },
     timerBlur: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
     },
     timerHudInner: {
       paddingHorizontal: 14,
@@ -577,11 +577,11 @@ const createStyles = (colors: ThemeColors) => {
       backgroundColor: trackSoftWhite,
     },
     segmentFill: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: trackSoftWhite,
     },
     segmentFillDone: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: progressBlue,
     },
     segmentProgressMask: {
@@ -595,11 +595,11 @@ const createStyles = (colors: ThemeColors) => {
       transformOrigin: 'left center',
     },
     dismissArea: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       zIndex: 5,
     },
     loadingOverlaySolid: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.background,
@@ -610,7 +610,7 @@ const createStyles = (colors: ThemeColors) => {
       color: colors.secondaryLabel,
     },
     errorOverlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.background,

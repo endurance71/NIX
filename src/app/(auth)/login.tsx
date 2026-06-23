@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   logoHostSwift: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'transparent',
   },
   heroTextHostSwift: {

@@ -55,10 +55,9 @@ export default function ForgotPasswordScreen() {
           </Text>
           <TextField
           placeholder="E-mail"
-          defaultValue={email}
-          onValueChange={(value) => {
+          onTextChange={(text) => {
             setError(null);
-            setEmail(value);
+            setEmail(text);
           }}
           modifiers={[
             textFieldStyle('roundedBorder'),

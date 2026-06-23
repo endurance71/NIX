@@ -23,7 +23,7 @@ export function createViewerStyles(colors: ThemeColors) {
       zIndex: 10,
     },
     timerBlur: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
     },
     timerHudInner: {
       paddingHorizontal: 14,
@@ -45,11 +45,11 @@ export function createViewerStyles(colors: ThemeColors) {
       backgroundColor: trackSoftWhite,
     },
     segmentFill: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: trackSoftWhite,
     },
     segmentFillDone: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: progressBlue,
     },
     segmentProgressMask: {
@@ -72,25 +72,25 @@ export function createViewerStyles(colors: ThemeColors) {
       backgroundColor: colors.systemBackground,
     },
     dismissArea: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       zIndex: 5,
     },
     loadingOverlaySolid: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: 'transparent',
       zIndex: 6,
     },
     errorOverlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.systemBackground,
       paddingHorizontal: 24,
     },
     captureBlurMask: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: colors.systemBackground,
       zIndex: 20,
     },

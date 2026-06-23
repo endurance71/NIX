@@ -63,19 +63,17 @@ export default function ResetPasswordScreen() {
           </Text>
           <SecureField
           placeholder="Nowe hasło"
-          defaultValue={password}
-          onValueChange={(value) => {
+          onTextChange={(text) => {
             setError(null);
-            setPassword(value);
+            setPassword(text);
           }}
           modifiers={[textFieldStyle('roundedBorder')]}
         />
           <SecureField
           placeholder="Powtórz nowe hasło"
-          defaultValue={confirmPassword}
-          onValueChange={(value) => {
+          onTextChange={(text) => {
             setError(null);
-            setConfirmPassword(value);
+            setConfirmPassword(text);
           }}
           modifiers={[textFieldStyle('roundedBorder')]}
         />

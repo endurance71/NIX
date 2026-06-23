@@ -59,10 +59,9 @@ export default function OnboardingScreen() {
           </Text>
           <TextField
             placeholder="nazwa_uzytkownika"
-            defaultValue={username}
-            onValueChange={(t) => {
+            onTextChange={(text) => {
               setError(null);
-              setUsername(t.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+              setUsername(text.toLowerCase().replace(/[^a-z0-9_]/g, ''));
             }}
             modifiers={[
               textFieldStyle('roundedBorder'),

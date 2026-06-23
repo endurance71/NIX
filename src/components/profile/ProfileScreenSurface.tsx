@@ -84,8 +84,7 @@ export default function ProfileScreenSurface() {
             <TextField
               key={`invite-input-${vm.inviteInputResetKey}`}
               placeholder="@nazwa_uzytkownika"
-              defaultValue={vm.searchUsername}
-              onValueChange={vm.setSearchUsername}
+              onTextChange={vm.setSearchUsername}
               modifiers={[
                 textFieldStyle('roundedBorder'),
                 textInputAutocapitalization('never'),

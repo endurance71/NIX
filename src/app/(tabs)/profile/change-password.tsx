@@ -135,26 +135,23 @@ export default function ChangePasswordScreen() {
           </Text>
           <SecureField
             placeholder="Nowe hasło (min. 8 znaków)"
-            defaultValue={newPassword}
-            onValueChange={(value) => {
-              dispatch({ type: 'set_new_password', value });
+            onTextChange={(text) => {
+              dispatch({ type: 'set_new_password', value: text });
             }}
             modifiers={[textFieldStyle('roundedBorder')]}
           />
           <SecureField
             placeholder="Powtórz nowe hasło"
-            defaultValue={confirmPassword}
-            onValueChange={(value) => {
-              dispatch({ type: 'set_confirm_password', value });
+            onTextChange={(text) => {
+              dispatch({ type: 'set_confirm_password', value: text });
             }}
             modifiers={[textFieldStyle('roundedBorder')]}
           />
           {requiresNonce ? (
             <SecureField
               placeholder="Kod weryfikacyjny z e-maila"
-              defaultValue={nonce}
-              onValueChange={(value) => {
-                dispatch({ type: 'set_nonce', value });
+              onTextChange={(text) => {
+                dispatch({ type: 'set_nonce', value: text });
               }}
               modifiers={[textFieldStyle('roundedBorder')]}
             />

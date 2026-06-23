@@ -44,10 +44,10 @@ export function createCameraStyles(colors: ThemeColors) {
       flex: 1,
     },
     cameraOverlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
     },
     flashOverlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: colors.background,
     },
     controlsContainer: {

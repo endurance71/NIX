@@ -123,9 +123,8 @@ export default function RegisterScreen() {
           </Text>
           <TextField
           placeholder={t('auth.emailField')}
-          defaultValue={email}
-          onValueChange={(value) => {
-            dispatch({ type: 'set_email', value });
+          onTextChange={(text) => {
+            dispatch({ type: 'set_email', value: text });
           }}
           modifiers={[
             textFieldStyle('automatic'),
@@ -136,17 +135,15 @@ export default function RegisterScreen() {
         />
           <SecureField
           placeholder={t('auth.passwordField')}
-          defaultValue={password}
-          onValueChange={(value) => {
-            dispatch({ type: 'set_password', value });
+          onTextChange={(text) => {
+            dispatch({ type: 'set_password', value: text });
           }}
           modifiers={[textFieldStyle('automatic')]}
         />
           <SecureField
           placeholder={t('auth.confirmPasswordField')}
-          defaultValue={confirmPassword}
-          onValueChange={(value) => {
-            dispatch({ type: 'set_confirm_password', value });
+          onTextChange={(text) => {
+            dispatch({ type: 'set_confirm_password', value: text });
           }}
           modifiers={[textFieldStyle('automatic')]}
         />

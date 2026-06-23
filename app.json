@@ -9,11 +9,6 @@
     "orientation": "portrait",
     "icon": "./nix-icons/icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./nix-icons/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#000000"
-    },
     "web": {
       "favicon": "./nix-icons/favicon.png"
     },
@@ -61,7 +56,16 @@
       "react-native-compressor",
       "expo-image",
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./nix-icons/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
