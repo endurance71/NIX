@@ -1,25 +1,34 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
+import { useWindowDimensions } from 'react-native';
+import { FieldGroup } from '@expo/ui';
 import { useAuth } from '../../hooks/useAuth';
+import { useTrackedEmail } from '../../hooks/useAuthCredentials';
 import {
   AuthErrorText,
   AuthFormLayout,
-  AuthFormSection,
+  AuthFormHeader,
+  AuthFormFooter,
   AuthPrimaryButton,
   AuthSecondaryButton,
-  AuthSecondaryText,
   AuthTextField,
 } from '../../components/ui/auth-form-layout';
-import { notifyError } from '../../lib/appNotify';
 
 export default function ForgotPasswordScreen() {
   const { requestPasswordReset } = useAuth();
-  const [email, setEmail] = useState('');
+  const { width: windowWidth } = useWindowDimensions();
+  const { email, onEmailChange, getTrimmedEmail } = useTrackedEmail();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const contentWidth = Math.max(260, windowWidth - 56);
+
+  const clearError = () => {
+    setError(null);
+  };
+
   const handleResetRequest = async () => {
-    const cleanedEmail = email.trim().toLowerCase();
+    const cleanedEmail = getTrimmedEmail();
     if (!cleanedEmail) {
       setError('Podaj adres e-mail.');
       return;
@@ -31,7 +40,7 @@ export default function ForgotPasswordScreen() {
     setLoading(false);
 
     if (resetError) {
-      notifyError(resetError.message);
+      setError(resetError.message);
       return;
     }
 
@@ -40,25 +49,44 @@ export default function ForgotPasswordScreen() {
 
   return (
     <AuthFormLayout>
-      <AuthFormSection title="Reset hasła">
-        <AuthSecondaryText>Wyślemy link do ustawienia nowego hasła.</AuthSecondaryText>
+      <FieldGroup.Section>
+        <FieldGroup.SectionHeader>
+          <AuthFormHeader
+            title="Reset hasła"
+            description="Wyślemy link do ustawienia nowego hasła."
+          />
+        </FieldGroup.SectionHeader>
+
         <AuthTextField
+          nativeValue={email}
           placeholder="E-mail"
-          value={email}
           keyboardType="email-address"
+          autoComplete="email"
           onChangeText={(text) => {
-            setError(null);
-            setEmail(text);
+            onEmailChange(text);
+            clearError();
           }}
         />
-        {error ? <AuthErrorText>{error}</AuthErrorText> : null}
-        <AuthPrimaryButton
-          label={loading ? 'Wysyłanie...' : 'Wyślij link resetu'}
-          onPress={handleResetRequest}
-          disabled={loading}
-        />
-        <AuthSecondaryButton label="Wróć do logowania" onPress={() => router.replace('/(auth)/login')} />
-      </AuthFormSection>
+
+        <FieldGroup.SectionFooter>
+          <AuthFormFooter>
+            {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+
+            <AuthPrimaryButton
+              label={loading ? 'Wysyłanie...' : 'Wyślij link resetu'}
+              onPress={() => void handleResetRequest()}
+              disabled={loading}
+              style={{ width: contentWidth }}
+            />
+
+            <AuthSecondaryButton
+              label="Wróć do logowania"
+              onPress={() => router.replace('/(auth)/login')}
+              style={{ width: contentWidth }}
+            />
+          </AuthFormFooter>
+        </FieldGroup.SectionFooter>
+      </FieldGroup.Section>
     </AuthFormLayout>
   );
 }

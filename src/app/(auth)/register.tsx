@@ -1,17 +1,19 @@
 import { router } from 'expo-router';
-import { useReducer } from 'react';
+import { useState } from 'react';
+import { useWindowDimensions } from 'react-native';
+import { FieldGroup } from '@expo/ui';
 import { useAuth } from '../../hooks/useAuth';
+import { useAuthRegisterCredentials } from '../../hooks/useAuthCredentials';
 import {
   AuthErrorText,
   AuthFormLayout,
-  AuthFormSection,
+  AuthFormHeader,
+  AuthFormFooter,
   AuthPrimaryButton,
   AuthSecondaryButton,
-  AuthSecondaryText,
   AuthSecureField,
   AuthTextField,
 } from '../../components/ui/auth-form-layout';
-import { notifyError } from '../../lib/appNotify';
 import { useTranslation } from 'react-i18next';
 
 function isEmailValid(email: string) {
@@ -20,75 +22,58 @@ function isEmailValid(email: string) {
 
 export default function RegisterScreen() {
   const { t } = useTranslation();
+  const { width: windowWidth } = useWindowDimensions();
   const { signUp } = useAuth();
-  const [state, dispatch] = useReducer(
-    (
-      current: {
-        email: string;
-        password: string;
-        confirmPassword: string;
-        loading: boolean;
-        error: string | null;
-      },
-      action:
-        | { type: 'set_email'; value: string }
-        | { type: 'set_password'; value: string }
-        | { type: 'set_confirm_password'; value: string }
-        | { type: 'set_error'; value: string | null }
-        | { type: 'set_loading'; value: boolean }
-    ) => {
-      switch (action.type) {
-        case 'set_email':
-          return { ...current, email: action.value, error: null };
-        case 'set_password':
-          return { ...current, password: action.value, error: null };
-        case 'set_confirm_password':
-          return { ...current, confirmPassword: action.value, error: null };
-        case 'set_error':
-          return { ...current, error: action.value };
-        case 'set_loading':
-          return { ...current, loading: action.value };
-        default:
-          return current;
-      }
-    },
-    {
-      email: '',
-      password: '',
-      confirmPassword: '',
-      loading: false,
-      error: null,
-    }
-  );
-  const { email, password, confirmPassword, loading, error } = state;
+  const {
+    email,
+    password,
+    confirmPassword,
+    onEmailChange,
+    onPasswordChange,
+    onConfirmPasswordChange,
+    getTrimmedEmail,
+    getPassword,
+    getConfirmPassword,
+  } = useAuthRegisterCredentials();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const contentWidth = Math.max(260, windowWidth - 56);
+
+  const clearError = () => {
+    setError(null);
+  };
 
   const handleRegister = async () => {
-    const cleanedEmail = email.trim().toLowerCase();
+    const cleanedEmail = getTrimmedEmail();
+    const passwordValue = getPassword();
+    const confirmPasswordValue = getConfirmPassword();
+
     if (!isEmailValid(cleanedEmail)) {
-      dispatch({ type: 'set_error', value: t('auth.invalidEmail') });
+      setError(t('auth.invalidEmail'));
       return;
     }
-    if (password.length < 8) {
-      dispatch({ type: 'set_error', value: t('auth.passwordMin') });
+    if (passwordValue.length < 8) {
+      setError(t('auth.passwordMin'));
       return;
     }
-    if (password !== confirmPassword) {
-      dispatch({ type: 'set_error', value: t('auth.passwordMismatch') });
+    if (passwordValue !== confirmPasswordValue) {
+      setError(t('auth.passwordMismatch'));
       return;
     }
 
-    dispatch({ type: 'set_loading', value: true });
-    dispatch({ type: 'set_error', value: null });
-    const { error: signUpError } = await signUp(cleanedEmail, password);
-    dispatch({ type: 'set_loading', value: false });
+    setLoading(true);
+    setError(null);
+    const { error: signUpError } = await signUp(cleanedEmail, passwordValue);
+    setLoading(false);
 
     if (signUpError) {
       if (signUpError.message.includes('User already registered')) {
-        notifyError(t('auth.accountExists'));
+        setError(t('auth.accountExists'));
       } else if (signUpError.message.includes('Password should be at least')) {
-        notifyError(t('auth.passwordMin'));
+        setError(t('auth.passwordMin'));
       } else {
-        notifyError(signUpError.message);
+        setError(signUpError.message);
       }
       return;
     }
@@ -98,35 +83,62 @@ export default function RegisterScreen() {
 
   return (
     <AuthFormLayout>
-      <AuthFormSection title={t('auth.registerHeader')}>
-        <AuthSecondaryText>{t('auth.registerDescription')}</AuthSecondaryText>
+      <FieldGroup.Section>
+        <FieldGroup.SectionHeader>
+          <AuthFormHeader
+            title={t('auth.registerHeader')}
+            description={t('auth.registerDescription')}
+          />
+        </FieldGroup.SectionHeader>
+
         <AuthTextField
+          nativeValue={email}
           placeholder={t('auth.emailField')}
           keyboardType="email-address"
+          autoComplete="email"
           onChangeText={(text) => {
-            dispatch({ type: 'set_email', value: text });
+            onEmailChange(text);
+            clearError();
           }}
         />
         <AuthSecureField
+          nativeValue={password}
           placeholder={t('auth.passwordField')}
+          autoComplete="new-password"
           onChangeText={(text) => {
-            dispatch({ type: 'set_password', value: text });
+            onPasswordChange(text);
+            clearError();
           }}
         />
         <AuthSecureField
+          nativeValue={confirmPassword}
           placeholder={t('auth.confirmPasswordField')}
+          autoComplete="new-password"
           onChangeText={(text) => {
-            dispatch({ type: 'set_confirm_password', value: text });
+            onConfirmPasswordChange(text);
+            clearError();
           }}
         />
-        {error ? <AuthErrorText>{error}</AuthErrorText> : null}
-        <AuthPrimaryButton
-          label={loading ? t('auth.registerLoading') : t('auth.registerButton')}
-          onPress={handleRegister}
-          disabled={loading}
-        />
-        <AuthSecondaryButton label={t('auth.hasAccount')} onPress={() => router.replace('/(auth)/login')} />
-      </AuthFormSection>
+
+        <FieldGroup.SectionFooter>
+          <AuthFormFooter>
+            {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+
+            <AuthPrimaryButton
+              label={loading ? t('auth.registerLoading') : t('auth.registerButton')}
+              onPress={() => void handleRegister()}
+              disabled={loading}
+              style={{ width: contentWidth }}
+            />
+
+            <AuthSecondaryButton
+              label={t('auth.hasAccount')}
+              onPress={() => router.replace('/(auth)/login')}
+              style={{ width: contentWidth }}
+            />
+          </AuthFormFooter>
+        </FieldGroup.SectionFooter>
+      </FieldGroup.Section>
     </AuthFormLayout>
   );
 }
