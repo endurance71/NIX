@@ -1,5 +1,7 @@
 # Edge Function `cleanup-nix`
 
+> Klient wywołujący funkcję to **natywna aplikacja iOS/Android** (Expo bare). Zachowanie kolejki cleanupu testuj na obu platformach — [native-platform-guidelines.md](./native-platform-guidelines.md).
+
 Lokalizacja kodu: [`supabase/functions/cleanup-nix/index.ts`](../supabase/functions/cleanup-nix/index.ts).
 
 ## Kontrakt HTTP

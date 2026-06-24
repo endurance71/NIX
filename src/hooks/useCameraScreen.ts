@@ -1,5 +1,4 @@
-import type { RefObject } from 'react';
-import { useEffect, useMemo, useReducer, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useReducer, useRef, type RefObject } from 'react';
 import type { ViewStyle } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -25,6 +24,8 @@ import { VIDEO_HOLD_THRESHOLD_MS, VIDEO_TOTAL_MAX_DURATION_MS } from '../lib/vid
 import { useVideoDraft } from '../context/VideoDraftContext';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { scheduleCameraSwitchWatchdog } from '../lib/cameraSwitchWatchdog';
+import { configureForRecording } from '../lib/audioSession';
+import { runWithFinally } from '../lib/runWithFinally';
 import { cameraUiReducer, initialCameraUiState } from '../lib/cameraUiReducer';
 import { createCameraStyles } from '../components/camera/cameraScreen.styles';
 
@@ -71,7 +72,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   const { colors, statusBarStyle } = useAppTheme();
   const { setSegments } = useVideoDraft();
   const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createCameraStyles(colors), [colors]);
+  const styles = createCameraStyles(colors);
   const [permission, requestPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const [cameraUi, dispatchCameraUi] = useReducer(cameraUiReducer, initialCameraUiState);
@@ -98,8 +99,9 @@ export function useCameraScreen(): CameraScreenViewModel {
   const recordingSessionRunningRef = useRef(false);
   const recordingStartedRef = useRef(false);
   const pressInTimeRef = useRef(0);
-  const cameraMountStartedAtRef = useRef(nowMs());
-  const zoomAtGestureStartRef = useRef(0);
+  const cameraMountStartedAtRef = useRef<number | null>(null);
+  const zoomAtGestureStart = useSharedValue(0);
+  const zoomShared = useSharedValue(0);
   const isSwitchingCameraRef = useRef(false);
   const switchWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const switchRecoveryUsedRef = useRef(false);
@@ -109,7 +111,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   const flashOpacity = useSharedValue(0);
   const recordingElapsedMs = useSharedValue(0);
 
-  const safeStopRecording = useCallback(() => {
+  const safeStopRecording = () => {
     if (!recordingStartedRef.current) return;
     try {
       cameraRef.current?.stopRecording();
@@ -121,7 +123,7 @@ export function useCameraScreen(): CameraScreenViewModel {
       }
       console.warn('stopRecording failed', err);
     }
-  }, []);
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -140,39 +142,41 @@ export function useCameraScreen(): CameraScreenViewModel {
           dispatchCameraUi({ type: 'SET_SWITCHING_CAMERA', isSwitchingCamera: false });
         }
       };
-    }, [safeStopRecording])
+    }, [])
   );
 
   useEffect(() => {
     if (!recordingVideo) {
       cancelAnimation(recordingPulseScale);
-      recordingPulseScale.value = 1;
+      recordingPulseScale.set(1);
       return;
     }
-    recordingPulseScale.value = withRepeat(
-      withSequence(
-        withTiming(1.1, { duration: 700, easing: Easing.inOut(Easing.sin) }),
-        withTiming(1, { duration: 700, easing: Easing.inOut(Easing.sin) })
-      ),
-      -1,
-      false
+    recordingPulseScale.set(
+      withRepeat(
+        withSequence(
+          withTiming(1.1, { duration: 700, easing: Easing.inOut(Easing.sin) }),
+          withTiming(1, { duration: 700, easing: Easing.inOut(Easing.sin) })
+        ),
+        -1,
+        false
+      )
     );
   }, [recordingVideo, recordingPulseScale]);
 
   const animatedShutterStyle = useAnimatedStyle<ViewStyle>(() => ({
-    transform: [{ scale: shutterScale.value * recordingPulseScale.value }],
+    transform: [{ scale: shutterScale.get() * recordingPulseScale.get() }],
   }));
 
   const animatedFlashStyle = useAnimatedStyle<ViewStyle>(() => ({
-    opacity: flashOpacity.value,
+    opacity: flashOpacity.get(),
   }));
 
-  const pushRecordingElapsedSec = useCallback((sec: number) => {
+  const pushRecordingElapsedSec = (sec: number) => {
     dispatchCameraUi({ type: 'SET_RECORDING_ELAPSED_SEC', recordingElapsedSec: sec });
-  }, []);
+  };
 
   useAnimatedReaction(
-    () => Math.floor(recordingElapsedMs.value / 1000),
+    () => Math.floor(recordingElapsedMs.get() / 1000),
     (sec, previousSec) => {
       if (sec !== previousSec) {
         runOnJS(pushRecordingElapsedSec)(sec);
@@ -180,19 +184,23 @@ export function useCameraScreen(): CameraScreenViewModel {
     }
   );
 
-  const pinchGesture = useMemo(
-    () =>
-      Gesture.Pinch()
-        .runOnJS(true)
-        .onBegin(() => {
-          zoomAtGestureStartRef.current = zoom;
-        })
-        .onUpdate((event) => {
-          const nextZoom = Math.max(0, Math.min(1, zoomAtGestureStartRef.current + (event.scale - 1) * 0.22));
-          dispatchCameraUi({ type: 'SET_ZOOM', zoom: nextZoom });
-        }),
-    [zoom]
-  );
+  useEffect(() => {
+    zoomShared.set(zoom);
+  }, [zoom, zoomShared]);
+
+  const setZoomFromGesture = (nextZoom: number) => {
+    dispatchCameraUi({ type: 'SET_ZOOM', zoom: nextZoom });
+  };
+
+  const pinchGesture = Gesture.Pinch()
+    .runOnJS(true)
+    .onBegin(() => {
+      zoomAtGestureStart.set(zoomShared.get());
+    })
+    .onUpdate((event) => {
+      const nextZoom = Math.max(0, Math.min(1, zoomAtGestureStart.get() + (event.scale - 1) * 0.22));
+      runOnJS(setZoomFromGesture)(nextZoom);
+    });
 
   useEffect(() => {
     if (permission) return;
@@ -205,13 +213,17 @@ export function useCameraScreen(): CameraScreenViewModel {
   }, [permission]);
 
   useEffect(() => {
+    const holdTimer = holdTimerRef;
+    const switchWatchdog = switchWatchdogRef;
     return () => {
-      if (holdTimerRef.current) {
-        clearTimeout(holdTimerRef.current);
+      const holdId = holdTimer.current;
+      if (holdId) {
+        clearTimeout(holdId);
       }
-      if (switchWatchdogRef.current) {
-        clearTimeout(switchWatchdogRef.current);
-        switchWatchdogRef.current = null;
+      const watchdogId = switchWatchdog.current;
+      if (watchdogId) {
+        clearTimeout(watchdogId);
+        switchWatchdog.current = null;
       }
     };
   }, []);
@@ -222,7 +234,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     cameraMountStartedAtRef.current = nowMs();
   }, [facing, cameraInstanceKey]);
 
-  const waitForCameraReady = useCallback(async (timeoutMs = 5000) => {
+  const waitForCameraReady = async (timeoutMs = 5000) => {
     const deadline = Date.now() + timeoutMs;
     // Rekurencyjny polling zamiast while+await — ten sam semantycznie, bez ostrzeżenia react-doctor.
     const poll = async (): Promise<boolean> => {
@@ -232,13 +244,13 @@ export function useCameraScreen(): CameraScreenViewModel {
       return poll();
     };
     return poll();
-  }, []);
+  };
 
-  const onCameraReady = useCallback(() => {
+  const onCameraReady = () => {
     cameraReadyRef.current = true;
     const clearSwitchingUi = isSwitchingCameraRef.current;
     dispatchCameraUi({ type: 'ON_CAMERA_READY', clearSwitchingUi });
-    trackDuration('camera_ready_ms', cameraMountStartedAtRef.current, {
+    trackDuration('camera_ready_ms', cameraMountStartedAtRef.current ?? nowMs(), {
       facing,
       screen: 'camera',
     });
@@ -256,94 +268,100 @@ export function useCameraScreen(): CameraScreenViewModel {
       isSwitchingCameraRef.current = false;
       switchRecoveryUsedRef.current = false;
     }
-  }, [facing]);
+  };
 
-  const ensureMicPermission = useCallback(async (): Promise<boolean> => {
+  const ensureMicPermission = async (): Promise<boolean> => {
     if (micPermission?.granted) return true;
     const res = await requestMicPermission();
     return res.granted;
-  }, [micPermission?.granted, requestMicPermission]);
+  };
 
-  const runVideoCaptureSession = useCallback(async () => {
+  const runVideoCaptureSession = async () => {
     dispatchCameraUi({ type: 'VIDEO_SESSION_BEGIN' });
-    recordingElapsedMs.value = 0;
-    recordingElapsedMs.value = withTiming(VIDEO_TOTAL_MAX_DURATION_MS, {
-      duration: VIDEO_TOTAL_MAX_DURATION_MS,
-      easing: Easing.linear,
-    });
-    let result: { uri?: string } | undefined;
-    let attemptedRecord = false;
-    const sessionStartedAt = nowMs();
-    try {
-      recordingStartedRef.current = false;
-      const ready = await waitForCameraReady();
-      if (!ready) {
-        console.error('recordAsync: przekroczono oczekiwanie na onCameraReady');
-        return;
-      }
-      if (!fingerDownRef.current) {
-        return;
-      }
+    recordingElapsedMs.set(0);
+    recordingElapsedMs.set(
+      withTiming(VIDEO_TOTAL_MAX_DURATION_MS, {
+        duration: VIDEO_TOTAL_MAX_DURATION_MS,
+        easing: Easing.linear,
+      })
+    );
 
-      const cam = cameraRef.current;
-      if (!cam) {
-        hapticNotify('error');
-        dispatchCameraUi({ type: 'SET_CAPTURE_ERROR', captureError: 'Kamera nie jest dostępna.' });
-        return;
-      }
+    await runWithFinally(
+      async () => {
+        let result: { uri?: string } | undefined;
+        let attemptedRecord = false;
+        const sessionStartedAt = nowMs();
+        recordingStartedRef.current = false;
+        const ready = await waitForCameraReady();
+        if (!ready) {
+          console.error('recordAsync: przekroczono oczekiwanie na onCameraReady');
+          return;
+        }
+        if (!fingerDownRef.current) {
+          return;
+        }
 
-      const maxDurSec = Math.max(1, Math.ceil(VIDEO_TOTAL_MAX_DURATION_MS / 1000));
-      attemptedRecord = true;
-      const recordStartedAt = Date.now();
-      try {
-        recordingStartedRef.current = true;
-        result = await cam.recordAsync({
-          maxDuration: maxDurSec,
-          maxFileSize: VIDEO_RECORDING_MAX_FILE_SIZE_BYTES,
-          codec: 'avc1',
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err ?? 'Unknown recordAsync error');
-        const isExpectedInterruption =
-          message.includes('An error occurred while recording a video') ||
-          message.toLowerCase().includes('recording was stopped') ||
-          message.toLowerCase().includes('no recording in progress');
+        const cam = cameraRef.current;
+        if (!cam) {
+          hapticNotify('error');
+          dispatchCameraUi({ type: 'SET_CAPTURE_ERROR', captureError: 'Kamera nie jest dostępna.' });
+          return;
+        }
 
-        if (!isExpectedInterruption) {
-          console.error('recordAsync nie powiodło się', err);
-          trackEvent('video_record_ms', {
-            status: 'failure',
-            error_message: message,
+        const maxDurSec = Math.max(1, Math.ceil(VIDEO_TOTAL_MAX_DURATION_MS / 1000));
+        attemptedRecord = true;
+        const recordStartedAt = Date.now();
+        try {
+          recordingStartedRef.current = true;
+          result = await cam.recordAsync({
+            maxDuration: maxDurSec,
+            maxFileSize: VIDEO_RECORDING_MAX_FILE_SIZE_BYTES,
+            codec: 'avc1',
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err ?? 'Unknown recordAsync error');
+          const isExpectedInterruption =
+            message.includes('An error occurred while recording a video') ||
+            message.toLowerCase().includes('recording was stopped') ||
+            message.toLowerCase().includes('no recording in progress');
+
+          if (!isExpectedInterruption) {
+            console.error('recordAsync nie powiodło się', err);
+            trackEvent('video_record_ms', {
+              status: 'failure',
+              error_message: message,
+            });
+          }
+        }
+
+        const durationMs = Math.min(Date.now() - recordStartedAt, VIDEO_TOTAL_MAX_DURATION_MS);
+        if (result?.uri) {
+          trackDuration('video_record_ms', sessionStartedAt, {
+            status: 'success',
+            duration_recorded_ms: durationMs,
+            codec: 'avc1',
+            bitrate: VIDEO_RECORDING_BITRATE,
+          });
+          setSegments([{ uri: result.uri, durationMs }]);
+          router.push({ pathname: '/preview', params: { mode: 'video' } });
+        } else if (attemptedRecord) {
+          hapticNotify('error');
+          dispatchCameraUi({
+            type: 'SET_CAPTURE_ERROR',
+            captureError: 'Nie udało się zapisać nagrania. Spróbuj ponownie.',
           });
         }
+      },
+      () => {
+        recordingStartedRef.current = false;
+        cancelAnimation(recordingElapsedMs);
+        recordingElapsedMs.set(0);
+        dispatchCameraUi({ type: 'VIDEO_SESSION_END' });
       }
+    );
+  };
 
-      const durationMs = Math.min(Date.now() - recordStartedAt, VIDEO_TOTAL_MAX_DURATION_MS);
-      if (result?.uri) {
-        trackDuration('video_record_ms', sessionStartedAt, {
-          status: 'success',
-          duration_recorded_ms: durationMs,
-          codec: 'avc1',
-          bitrate: VIDEO_RECORDING_BITRATE,
-        });
-        setSegments([{ uri: result.uri, durationMs }]);
-        router.push({ pathname: '/preview', params: { mode: 'video' } });
-      } else if (attemptedRecord) {
-        hapticNotify('error');
-        dispatchCameraUi({
-          type: 'SET_CAPTURE_ERROR',
-          captureError: 'Nie udało się zapisać nagrania. Spróbuj ponownie.',
-        });
-      }
-    } finally {
-      recordingStartedRef.current = false;
-      cancelAnimation(recordingElapsedMs);
-      recordingElapsedMs.value = 0;
-      dispatchCameraUi({ type: 'VIDEO_SESSION_END' });
-    }
-  }, [recordingElapsedMs, setSegments, waitForCameraReady]);
-
-  const startVideoCaptureFlow = useCallback(async () => {
+  const startVideoCaptureFlow = async () => {
     if (recordingSessionRunningRef.current) return;
     if (!fingerDownRef.current) return;
 
@@ -359,98 +377,109 @@ export function useCameraScreen(): CameraScreenViewModel {
     }
     if (!fingerDownRef.current) return;
 
+    await configureForRecording();
     recordingSessionRunningRef.current = true;
-    try {
-      tap('medium');
-      await runVideoCaptureSession();
-    } finally {
-      recordingSessionRunningRef.current = false;
-    }
-  }, [ensureMicPermission, runVideoCaptureSession]);
+    await runWithFinally(
+      async () => {
+        tap('medium');
+        await runVideoCaptureSession();
+      },
+      () => {
+        recordingSessionRunningRef.current = false;
+      }
+    );
+  };
 
   const takePicture = async () => {
     if (takingPicture || recordingVideo || recordingSessionRunningRef.current) return;
     dispatchCameraUi({ type: 'PREPARE_STILL_CAPTURE' });
     tap('light');
 
-    shutterScale.value = withSequence(
-      withTiming(0.85, { duration: 100, easing: Easing.out(Easing.ease) }),
-      withTiming(1, { duration: 100, easing: Easing.out(Easing.ease) })
+    shutterScale.set(
+      withSequence(
+        withTiming(0.85, { duration: 100, easing: Easing.out(Easing.ease) }),
+        withTiming(1, { duration: 100, easing: Easing.out(Easing.ease) })
+      )
     );
 
-    flashOpacity.value = withSequence(
-      withTiming(1, { duration: 50 }),
-      withTiming(0, { duration: 250, easing: Easing.out(Easing.ease) })
+    flashOpacity.set(
+      withSequence(
+        withTiming(1, { duration: 50 }),
+        withTiming(0, { duration: 250, easing: Easing.out(Easing.ease) })
+      )
     );
 
     if (cameraRef.current) {
+      const camera = cameraRef.current;
       const captureStartedAt = nowMs();
-      try {
-        const ready = await waitForCameraReady();
-        if (!ready) {
-          if (isNativeSimulator) {
-            try {
-              const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ['images'],
-                allowsEditing: false,
-                quality: 0.8,
-              });
-              if (!result.canceled) {
-                const selected = result.assets[0];
-                router.push({
-                  pathname: '/preview',
-                  params: { uri: selected.uri },
+      await runWithFinally(
+        async () => {
+          try {
+            const ready = await waitForCameraReady();
+            if (!ready) {
+              if (isNativeSimulator) {
+                try {
+                  const result = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ['images'],
+                    allowsEditing: false,
+                    quality: 0.8,
+                  });
+                  if (!result.canceled) {
+                    const selected = result.assets[0];
+                    router.push({
+                      pathname: '/preview',
+                      params: { uri: selected.uri },
+                    });
+                  }
+                } catch (err) {
+                  console.error('Symulator iOS: wybór zdjęcia z biblioteki nie powiódł się', err);
+                  hapticNotify('error');
+                  dispatchCameraUi({
+                    type: 'SET_CAPTURE_ERROR',
+                    captureError: 'Nie udało się wybrać zdjęcia z biblioteki.',
+                  });
+                }
+              } else {
+                hapticNotify('error');
+                dispatchCameraUi({
+                  type: 'SET_CAPTURE_ERROR',
+                  captureError: 'Kamera nie jest jeszcze gotowa. Spróbuj ponownie.',
                 });
               }
-            } catch (err) {
-              console.error('Symulator iOS: wybór zdjęcia z biblioteki nie powiódł się', err);
-              hapticNotify('error');
-              dispatchCameraUi({
-                type: 'SET_CAPTURE_ERROR',
-                captureError: 'Nie udało się wybrać zdjęcia z biblioteki.',
+              return;
+            }
+            const photo = await camera.takePictureAsync({
+              quality: 0.8,
+              base64: false,
+              skipProcessing: false,
+            });
+
+            if (photo) {
+              trackDuration('photo_capture_ms', captureStartedAt, {
+                status: 'success',
+                width: photo.width,
+                height: photo.height,
+              });
+              router.push({
+                pathname: '/preview',
+                params: { uri: photo.uri },
               });
             }
-          } else {
+          } catch (err) {
+            console.error('Nie udało się zrobić zdjęcia', err);
+            trackDuration('photo_capture_ms', captureStartedAt, {
+              status: 'failure',
+              error_message: err instanceof Error ? err.message : 'Unknown capture error',
+            });
             hapticNotify('error');
             dispatchCameraUi({
               type: 'SET_CAPTURE_ERROR',
-              captureError: 'Kamera nie jest jeszcze gotowa. Spróbuj ponownie.',
+              captureError: 'Nie udało się zrobić zdjęcia. Spróbuj ponownie.',
             });
           }
-          dispatchCameraUi({ type: 'SET_TAKING_PICTURE', takingPicture: false });
-          return;
-        }
-        const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.8,
-          base64: false,
-          skipProcessing: false,
-        });
-
-        if (photo) {
-          trackDuration('photo_capture_ms', captureStartedAt, {
-            status: 'success',
-            width: photo.width,
-            height: photo.height,
-          });
-          router.push({
-            pathname: '/preview',
-            params: { uri: photo.uri },
-          });
-        }
-      } catch (err) {
-        console.error('Nie udało się zrobić zdjęcia', err);
-        trackDuration('photo_capture_ms', captureStartedAt, {
-          status: 'failure',
-          error_message: err instanceof Error ? err.message : 'Unknown capture error',
-        });
-        hapticNotify('error');
-        dispatchCameraUi({
-          type: 'SET_CAPTURE_ERROR',
-          captureError: 'Nie udało się zrobić zdjęcia. Spróbuj ponownie.',
-        });
-      } finally {
-        dispatchCameraUi({ type: 'SET_TAKING_PICTURE', takingPicture: false });
-      }
+        },
+        () => dispatchCameraUi({ type: 'SET_TAKING_PICTURE', takingPicture: false })
+      );
     } else {
       hapticNotify('error');
       dispatchCameraUi({
@@ -491,7 +520,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     }
   };
 
-  const pickFromGallery = useCallback(async () => {
+  const pickFromGallery = async () => {
     if (recordingVideo || takingPicture || isSwitchingCamera) return;
     if (recordingSessionRunningRef.current) return;
     tap('light');
@@ -547,7 +576,7 @@ export function useCameraScreen(): CameraScreenViewModel {
         captureError: 'Nie udało się otworzyć galerii. Spróbuj ponownie.',
       });
     }
-  }, [recordingVideo, takingPicture, isSwitchingCamera, setSegments]);
+  };
 
   const toggleFacing = () => {
     if (recordingVideo) return;
@@ -558,7 +587,7 @@ export function useCameraScreen(): CameraScreenViewModel {
       holdTimerRef.current = null;
     }
     fingerDownRef.current = false;
-    zoomAtGestureStartRef.current = 0;
+    zoomAtGestureStart.set(0);
 
     isSwitchingCameraRef.current = true;
     switchRecoveryUsedRef.current = false;

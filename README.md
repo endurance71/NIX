@@ -1,12 +1,13 @@
 # NiX
 
-NiX to aplikacja Expo tworzona najpierw pod iOS z efemerycznym przepływem wiadomości wizualnych oparta o Supabase.
+NiX to aplikacja Expo (iOS + Android) z efemerycznym przepływem wiadomości wizualnych oparta o Supabase. **Naczelnym wyznacznikiem UI/UX są natywne rozwiązania obu platform** — szczegóły: [`docs/native-platform-guidelines.md`](docs/native-platform-guidelines.md).
 
 ## Wymagania
 
 - Node.js 20+
 - npm 10+
 - Xcode + iOS Simulator (dla `expo run:ios`)
+- Android Studio + SDK Platform 35 (dla `expo run:android`)
 
 ## Szybki start
 
@@ -18,19 +19,23 @@ NiX to aplikacja Expo tworzona najpierw pod iOS z efemerycznym przepływem wiado
    - (opcjonalnie) `EXPO_PUBLIC_SENTRY_DSN=...` — breadcrumbs telemetrii i crash reporting
 3. Uruchom aplikację:
    - `npm run start`
-4. (Opcjonalnie) build lokalny iOS:
-   - `npm run ios`
+4. (Opcjonalnie) build lokalny:
+   - iOS: `npm run ios`
+   - Android: `npm run android`
 
 ## Skrypty
 
 - `npm run start` — uruchamia Expo
 - `npm run ios` — uruchamia natywny build iOS
+- `npm run android` — uruchamia natywny build Android
 - `npm run lint` — lint projektu
 - `npm run test` — testy jednostkowe (Vitest)
 - `npm run typecheck` — TypeScript bez emit
 
 ## Dokumentacja
 
+- **Wytyczne native-first (iOS + Android):** [`docs/native-platform-guidelines.md`](docs/native-platform-guidelines.md)
+- **Design Apple (referencja HIG, nie dev):** [`docs/Design by apple/README.md`](docs/Design%20by%20apple/README.md)
 - **Główna dokumentacja produktowo-techniczna:** [`docs/NiX_Documentation_v1.2.md`](docs/NiX_Documentation_v1.2.md)
 - **Auth (e-mail + hasło):** [`docs/auth-flow.md`](docs/auth-flow.md)
 - **Zaproszenia QR:** [`docs/friend-invites-qr.md`](docs/friend-invites-qr.md)
@@ -44,7 +49,7 @@ NiX to aplikacja Expo tworzona najpierw pod iOS z efemerycznym przepływem wiado
 - **Seed grafu społecznego:** [`docs/supabase_seed_social_graph.sql`](docs/supabase_seed_social_graph.sql)
 - **Dashboard SQL uploadów:** [`docs/upload-observability-dashboard.sql`](docs/upload-observability-dashboard.sql)
 - **Przepływ pracy i testy dymne:** [`docs/development-workflow.md`](docs/development-workflow.md)
-- **Motyw iOS:** [`docs/theme-guidelines.md`](docs/theme-guidelines.md)
+- **Motyw systemowy (iOS + Android):** [`docs/theme-guidelines.md`](docs/theme-guidelines.md)
 - **i18n (PL + EN):** [`docs/i18n-guidelines.md`](docs/i18n-guidelines.md)
 - **Performance re-audit:** [`docs/performance-reaudit.md`](docs/performance-reaudit.md)
 
@@ -70,9 +75,9 @@ Jeżeli w bazie jest mniej niż 11 użytkowników, skrypt doda brakujące konta 
 - Trzeci SELECT (odchylenia) powinien zwrócić pusty wynik.
 - Skrypt jest idempotentny: można uruchamiać wielokrotnie bez tworzenia duplikatów seedowych par i seedowych nixów.
 
-## System Theme (iOS)
+## System Theme (iOS + Android)
 
-- Aplikacja używa systemowego motywu iOS (`userInterfaceStyle: automatic`).
+- Aplikacja używa **systemowego** motywu urządzenia (`userInterfaceStyle: automatic`) — light/dark na obu platformach zgodnie z [native-platform-guidelines.md](docs/native-platform-guidelines.md).
 - Kolory są zarządzane centralnie przez tokeny:
   - `src/theme/colors.ts`
   - `src/theme/theme-context.tsx`
@@ -81,9 +86,9 @@ Jeżeli w bazie jest mniej niż 11 użytkowników, skrypt doda brakujące konta 
 
 ### Jak testować
 
-1. Uruchom `npm run ios`.
-2. W iOS Simulator przełącz `Appearance` między Light i Dark.
-3. Sprawdź kluczowe flow: logowanie, onboarding, kamera, preview, send-to, inbox, viewer, profil.
+1. Uruchom `npm run ios` i/lub `npm run android`.
+2. Przełącz motyw systemowy (Light / Dark) na symulatorze lub urządzeniu.
+3. Sprawdź kluczowe flow na **obu platformach**: logowanie, onboarding, kamera, preview, send-to, inbox, viewer, profil.
 
 ## Supabase Edge Function: cleanup-nix
 

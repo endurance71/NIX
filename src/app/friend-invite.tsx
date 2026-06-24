@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer } from 'react';
+import { useEffect, useReducer } from 'react';
 import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -46,7 +46,7 @@ function inviteReducer(state: InviteState, action: InviteAction): InviteState {
 export default function FriendInviteScreen() {
   const { token, profileId } = useLocalSearchParams<{ token?: string; profileId?: string }>();
   const { colors } = useAppTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = createStyles(colors);
   const [{ loading, message }, dispatch] = useReducer(inviteReducer, {
     loading: true,
     message: null,

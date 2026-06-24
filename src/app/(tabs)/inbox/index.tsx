@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text as RNText, View } from 'react-native';
 import { Stack, router, useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -27,10 +27,11 @@ import { RNHostView } from '@expo/ui';
 import { DeletableRowMenu } from '../../../components/ui/deletable-row-menu';
 import {
   SettingsEmptyText,
-  SettingsListScreen,
   SettingsSectionTitle,
-} from '../../../components/ui/settings-list-screen';
+} from '../../../components/ui/settings-list-sections';
+import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
 import { notifyError, notifyInfo, notifySuccess } from '../../../lib/appNotify';
+import { runWithFinally } from '../../../lib/runWithFinally';
 import { useTranslation } from 'react-i18next';
 import { formatShortTime } from '../../../lib/formatters';
 import { getCurrentLocale } from '../../../lib/i18n';
@@ -40,6 +41,14 @@ async function fetchInboxNixesBundle() {
   void flushCleanupQueue().catch(() => {});
   const [inboxData, sentData] = await Promise.all([fetchInboxNixes(), fetchSentNixes()]);
   return { inboxData, sentData };
+}
+
+function openInboxNix(nix: InboxNix) {
+  if (nix.is_viewed) return;
+  router.push({
+    pathname: '/viewer',
+    params: { id: nix.id, path: nix.media_path, senderId: nix.sender_id },
+  });
 }
 
 type ThreadRowProps = {
@@ -52,7 +61,7 @@ type ThreadRowProps = {
   locale: string;
 };
 
-const ThreadRow = memo(function ThreadRow({
+function ThreadRow({
   avatarUrls,
   colors,
   item,
@@ -145,13 +154,13 @@ const ThreadRow = memo(function ThreadRow({
       )}
     </RNHostView>
   );
-});
+}
 
 export default function InboxScreen() {
   const { t } = useTranslation();
   const locale = getCurrentLocale();
   const queryClient = useQueryClient();
-  const { colors, statusBarStyle } = useAppTheme();
+  const { colors } = useAppTheme();
 
   const lastFocusRefreshAtRef = useRef(0);
   const [deletingPeerId, setDeletingPeerId] = useState<string | null>(null);
@@ -170,23 +179,21 @@ export default function InboxScreen() {
     refetchOnWindowFocus: false,
   });
 
-  const nixes = useMemo(() => nixesBundle?.inboxData ?? [], [nixesBundle?.inboxData]);
-  const sentNixes = useMemo(() => nixesBundle?.sentData ?? [], [nixesBundle?.sentData]);
+  const nixes = nixesBundle?.inboxData ?? [];
+  const sentNixes = nixesBundle?.sentData ?? [];
   const loading = nixesPending || requestsPending;
 
-  const feed = useMemo(() => buildInboxThreads(nixes, sentNixes), [nixes, sentNixes]);
+  const feed = buildInboxThreads(nixes, sentNixes);
 
-  const sortedAvatarPaths = useMemo(() => {
-    const threadPaths = feed.flatMap((item) => {
-      const path =
-        item.direction === 'received' ? item.nix.sender?.avatar_storage_path : item.nix.receiver?.avatar_storage_path;
-      return path ? [path] : [];
-    });
-    const invitePaths = requests.flatMap((request) =>
-      request.requester.avatar_storage_path ? [request.requester.avatar_storage_path] : []
-    );
-    return Array.from(new Set([...threadPaths, ...invitePaths])).sort();
-  }, [feed, requests]);
+  const threadPaths = feed.flatMap((item) => {
+    const path =
+      item.direction === 'received' ? item.nix.sender?.avatar_storage_path : item.nix.receiver?.avatar_storage_path;
+    return path ? [path] : [];
+  });
+  const invitePaths = requests.flatMap((request) =>
+    request.requester.avatar_storage_path ? [request.requester.avatar_storage_path] : []
+  );
+  const sortedAvatarPaths = Array.from(new Set([...threadPaths, ...invitePaths])).sort();
 
   const { data: avatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(sortedAvatarPaths),
@@ -197,18 +204,19 @@ export default function InboxScreen() {
 
   useEffect(() => {
     if (nixesPending) return;
-    setInboxBadgeCount(nixes.filter((nix) => nix.is_viewed !== true).length);
-  }, [nixes, nixesPending]);
+    const inbox = nixesBundle?.inboxData ?? [];
+    setInboxBadgeCount(inbox.filter((nix) => nix.is_viewed !== true).length);
+  }, [nixesBundle, nixesPending]);
 
-  const invalidateInboxQueries = useCallback(async () => {
+  const invalidateInboxQueries = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
       queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests }),
       queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests }),
     ]);
-  }, [queryClient]);
+  };
 
-  const refetchInboxIfStale = useCallback(() => {
+  const refetchInboxIfStale = () => {
     const now = Date.now();
     if (now - lastFocusRefreshAtRef.current < 2_500) return;
     lastFocusRefreshAtRef.current = now;
@@ -220,9 +228,9 @@ export default function InboxScreen() {
         return query.isStale();
       },
     });
-  }, [queryClient]);
+  };
 
-  const refetchInboxForce = useCallback(async () => {
+  const refetchInboxForce = async () => {
     try {
       await Promise.all([
         queryClient.refetchQueries({ queryKey: queryKeys.inboxNixesBundle, type: 'active' }),
@@ -232,55 +240,41 @@ export default function InboxScreen() {
     } catch (err) {
       console.error('Failed to refresh inbox', err);
     }
-  }, [queryClient]);
+  };
 
-  useFocusEffect(
-    useCallback(() => {
-      refetchInboxIfStale();
-    }, [refetchInboxIfStale])
-  );
+  useFocusEffect(() => {
+    refetchInboxIfStale();
+  });
 
-  const handleOpenNix = useCallback((nix: InboxNix) => {
-    if (nix.is_viewed) return;
-    router.push({
-      pathname: '/viewer',
-      params: { id: nix.id, path: nix.media_path, senderId: nix.sender_id },
-    });
-  }, []);
 
-  const deleteSingleThread = useCallback(
-    async (item: InboxThreadItem) => {
-      const peerId = item.direction === 'received' ? item.nix.sender_id : item.nix.receiver_id;
-      const username = item.direction === 'received' ? item.nix.sender?.username : item.nix.receiver?.username;
-      if (deletingPeerId) return;
+  const deleteSingleThread = async (item: InboxThreadItem) => {
+    const peerId = item.direction === 'received' ? item.nix.sender_id : item.nix.receiver_id;
+    const username = item.direction === 'received' ? item.nix.sender?.username : item.nix.receiver?.username;
+    if (deletingPeerId) return;
 
-      setDeletingPeerId(peerId);
-      try {
+    setDeletingPeerId(peerId);
+    await runWithFinally(
+      async () => {
         await deleteConversationWithPeer(peerId);
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
           refreshInboxBadgeCount(queryClient, { forceNetwork: true }),
         ]);
         notifySuccess(t('inbox.deleteConversationSuccess', { username: username || t('common.unknownUser') }));
-      } catch (err: any) {
-        notifyError(err?.message ?? t('inbox.deleteConversationFailure'));
-      } finally {
-        setDeletingPeerId(null);
-      }
-    },
-    [deletingPeerId, queryClient, t]
-  );
+      },
+      () => setDeletingPeerId(null)
+    ).catch((err: unknown) => {
+      notifyError((err as { message?: string })?.message ?? t('inbox.deleteConversationFailure'));
+    });
+  };
 
-  const handleNativeDelete = useCallback(
-    async (indices: number[]) => {
-      const firstIndex = indices[0];
-      if (typeof firstIndex !== 'number') return;
-      const item = feed[firstIndex];
-      if (!item) return;
-      await deleteSingleThread(item);
-    },
-    [deleteSingleThread, feed]
-  );
+  const handleNativeDelete = async (indices: number[]) => {
+    const firstIndex = indices[0];
+    if (typeof firstIndex !== 'number') return;
+    const item = feed[firstIndex];
+    if (!item) return;
+    await deleteSingleThread(item);
+  };
 
   const handleAccept = async (requestId: string) => {
     try {
@@ -368,7 +362,7 @@ export default function InboxScreen() {
                 item={threadItem}
                 avatarUrls={avatarUrls}
                 colors={colors}
-                onOpenNix={handleOpenNix}
+                onOpenNix={openInboxNix}
                 t={t}
                 locale={locale}
                 isDeleting={

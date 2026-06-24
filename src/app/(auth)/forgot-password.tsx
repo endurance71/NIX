@@ -44,6 +44,7 @@ export default function ForgotPasswordScreen() {
         <AuthSecondaryText>Wyślemy link do ustawienia nowego hasła.</AuthSecondaryText>
         <AuthTextField
           placeholder="E-mail"
+          value={email}
           keyboardType="email-address"
           onChangeText={(text) => {
             setError(null);

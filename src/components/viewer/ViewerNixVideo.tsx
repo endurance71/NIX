@@ -1,6 +1,6 @@
-import { useEffect, useEffectEvent, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { type StyleProp, type ViewStyle } from 'react-native';
-import { useEvent, useEventListener } from 'expo';
+import { useEventListener } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { trackEvent } from '../../lib/telemetry';
 
@@ -33,9 +33,13 @@ export function ViewerNixVideo({
 
   const readyEmittedRef = useRef(false);
   const errorEmittedRef = useRef(false);
+  const onReadyRef = useRef(onReady);
+  const onErrorRef = useRef(onError);
 
-  const onReadyEffect = useEffectEvent(onReady);
-  const onErrorEffect = useEffectEvent(onError);
+  useEffect(() => {
+    onReadyRef.current = onReady;
+    onErrorRef.current = onError;
+  });
 
   useEventListener(player, 'playToEnd', onPlayToEnd);
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
@@ -46,14 +50,11 @@ export function ViewerNixVideo({
     }
   });
 
-  const statusEvent = useEvent(player, 'statusChange', { status: player.status });
-  const status = statusEvent?.status ?? player.status;
-
-  useEffect(() => {
-    if (status === 'readyToPlay') {
+  useEventListener(player, 'statusChange', ({ status: nextStatus }) => {
+    if (nextStatus === 'readyToPlay') {
       if (!readyEmittedRef.current) {
         readyEmittedRef.current = true;
-        onReadyEffect();
+        onReadyRef.current();
       }
       try {
         player.play();
@@ -62,12 +63,11 @@ export function ViewerNixVideo({
       }
       return;
     }
-    if (status === 'error' && !errorEmittedRef.current) {
+    if (nextStatus === 'error' && !errorEmittedRef.current) {
       errorEmittedRef.current = true;
-      onErrorEffect();
+      onErrorRef.current();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent onReady/onError
-  }, [status, player]);
+  });
 
   useEffect(() => {
     readyEmittedRef.current = false;
@@ -87,10 +87,9 @@ export function ViewerNixVideo({
         // ignorujemy
       }
       readyEmittedRef.current = true;
-      onReadyEffect();
+      onReadyRef.current();
     }, VIEWER_VIDEO_WATCHDOG_MS);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent onReady
   }, [uri, nixId, player]);
 
   return <VideoView style={style} player={player} contentFit="cover" nativeControls={false} />;

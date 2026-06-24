@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { normalizeAvatarEmoji } from '../lib/avatarEmoji';
 import type { User } from '@supabase/supabase-js';
 
 export type CurrentUserProfileRow = {
@@ -44,11 +45,21 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfileRow | n
 
   if (error) throw error;
   if (!data) return null;
+
+  let avatarEmoji: string | null = data.avatar_emoji ?? null;
+  if (avatarEmoji) {
+    try {
+      avatarEmoji = normalizeAvatarEmoji(avatarEmoji);
+    } catch {
+      avatarEmoji = null;
+    }
+  }
+
   return {
     id: data.id,
     username: data.username,
     avatar_storage_path: data.avatar_storage_path ?? null,
-    avatar_emoji: data.avatar_emoji ?? null,
+    avatar_emoji: avatarEmoji,
   };
 }
 

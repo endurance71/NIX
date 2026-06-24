@@ -29,6 +29,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.damianmotylinski.nixapp",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSCameraUsageDescription": "NiX potrzebuje dostępu do kamery, aby przechwytywać i wysyłać wiadomości.",
         "NSMicrophoneUsageDescription": "NiX potrzebuje dostępu do mikrofonu, aby nagrywać wiadomości wideo.",
@@ -70,6 +71,7 @@
       "expo-audio",
       "expo-asset",
       "expo-status-bar",
+      "expo-apple-authentication",
       [
         "expo-splash-screen",
         {
@@ -77,7 +79,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
-      ]
+      ],
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,17 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cancelOutgoingFriendRequest,
-  createFriendInviteToken,
   getFriendInviteRelationStatus,
   listOutgoingFriendRequests,
   normalizeUsername,
   previewProfileQr,
   removeFriend,
   redeemFriendInviteToken,
-  resolveFriendshipAction,
   sendFriendRequestByProfileQr,
   sendFriendRequest,
-  type SendFriendRequestResult,
 } from './friendService';
 
 const {
@@ -66,13 +63,6 @@ function buildFriendshipSelectMock(data: unknown) {
 describe('friendService helpers', () => {
   it('normalizuje nazwę użytkownika do formatu systemowego', () => {
     expect(normalizeUsername(' @Te_st-User ')).toBe('te_stuser');
-  });
-
-  it('wykrywa odwrócone zaproszenie i wybiera auto-akceptację', () => {
-    const action = resolveFriendshipAction('me', 'friend', [
-      { id: '1', user_id: 'friend', friend_id: 'me', status: 'pending' },
-    ]);
-    expect(action).toBe<SendFriendRequestResult>('accepted_reverse_request');
   });
 });
 
@@ -141,19 +131,6 @@ describe('removeFriend', () => {
 describe('invite token flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it('tworzy token zaproszenia przez RPC', async () => {
-    mockSupabaseRpc.mockResolvedValueOnce({
-      data: [{ invite_token: 'abc123token', expires_at: '2026-01-01T10:00:00.000Z' }],
-      error: null,
-    });
-
-    const result = await createFriendInviteToken('qr');
-    expect(result.token).toBe('abc123token');
-    expect(mockSupabaseRpc).toHaveBeenCalledWith('create_friend_invite', {
-      invite_channel: 'qr',
-    });
   });
 
   it('mapuje invalid_or_expired gdy redeem zwraca błąd ważności', async () => {

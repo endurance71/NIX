@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useCallback } from 'react';
+import { useReducer, useEffect } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { clearUserCache } from '../services/profileService';
@@ -10,6 +10,10 @@ import {
   reauthenticatePasswordChange as requestPasswordReauthenticate,
   signOut as requestSignOut,
 } from '../services/authService';
+import {
+  signInWithApple as requestAppleSignIn,
+  signInWithGoogle as requestGoogleSignIn,
+} from '../services/socialAuthService';
 
 type AuthState = {
   session: Session | null;
@@ -34,6 +38,47 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
     default:
       return state;
   }
+}
+
+async function signIn(email: string, password: string) {
+  const { data, error } = await requestPasswordSignIn(email, password);
+  return { data, error };
+}
+
+async function signInWithGoogle() {
+  const { data, error } = await requestGoogleSignIn();
+  return { data, error };
+}
+
+async function signInWithApple() {
+  const { data, error } = await requestAppleSignIn();
+  return { data, error };
+}
+
+async function signUp(email: string, password: string) {
+  const { data, error } = await requestPasswordSignUp(email, password);
+  return { data, error };
+}
+
+async function requestPasswordReset(email: string) {
+  const { data, error } = await requestPasswordResetEmail(email);
+  return { data, error };
+}
+
+async function updatePassword(password: string, nonce?: string) {
+  const { data, error } = await requestPasswordUpdate(password, nonce);
+  return { data, error };
+}
+
+async function reauthenticatePasswordChange() {
+  const { data, error } = await requestPasswordReauthenticate();
+  return { data, error };
+}
+
+async function logout() {
+  clearUserCache();
+  const { error } = await requestSignOut();
+  return { error };
 }
 
 export function useAuth() {
@@ -69,42 +114,13 @@ export function useAuth() {
     };
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const { data, error } = await requestPasswordSignIn(email, password);
-    return { data, error };
-  }, []);
-
-  const signUp = useCallback(async (email: string, password: string) => {
-    const { data, error } = await requestPasswordSignUp(email, password);
-    return { data, error };
-  }, []);
-
-  const requestPasswordReset = useCallback(async (email: string) => {
-    const { data, error } = await requestPasswordResetEmail(email);
-    return { data, error };
-  }, []);
-
-  const updatePassword = useCallback(async (password: string, nonce?: string) => {
-    const { data, error } = await requestPasswordUpdate(password, nonce);
-    return { data, error };
-  }, []);
-
-  const reauthenticatePasswordChange = useCallback(async () => {
-    const { data, error } = await requestPasswordReauthenticate();
-    return { data, error };
-  }, []);
-
-  const logout = useCallback(async () => {
-    clearUserCache();
-    const { error } = await requestSignOut();
-    return { error };
-  }, []);
-
   return {
     session,
     user,
     loading,
     signIn,
+    signInWithGoogle,
+    signInWithApple,
     signUp,
     requestPasswordReset,
     updatePassword,

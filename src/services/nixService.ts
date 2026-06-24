@@ -432,7 +432,7 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
 }
 
 /** Nieobejrzane nixy od jednego nadawcy, od najstarszego (FIFO przy odtwarzaniu). */
-export function filterUnreadInboxNixesFromSender(nixes: InboxNix[], senderId: string): InboxNix[] {
+function filterUnreadInboxNixesFromSender(nixes: InboxNix[], senderId: string): InboxNix[] {
   return nixes
     .filter((s) => s.sender_id === senderId && s.is_viewed !== true)
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -505,15 +505,18 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
 
   if (error) throw mapDatabaseError(error);
 
-  return ((data ?? []) as any[]).map((nix) => ({
-    ...nix,
-    media_type: typeof nix.media_type === 'string' ? nix.media_type : 'image',
-    playback_duration_ms: typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
-    thumbnail_b64: typeof nix.thumbnail_b64 === 'string' ? nix.thumbnail_b64 : null,
-    view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
-    status: nix.status ?? (nix.is_viewed ? 'viewed' : 'sent'),
-    sender: null,
-  })) as InboxNix[];
+  return filterUnreadInboxNixesFromSender(
+    ((data ?? []) as any[]).map((nix) => ({
+      ...nix,
+      media_type: typeof nix.media_type === 'string' ? nix.media_type : 'image',
+      playback_duration_ms: typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
+      thumbnail_b64: typeof nix.thumbnail_b64 === 'string' ? nix.thumbnail_b64 : null,
+      view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
+      status: nix.status ?? (nix.is_viewed ? 'viewed' : 'sent'),
+      sender: null,
+    })) as InboxNix[],
+    senderId
+  );
 }
 
 export async function fetchSentNixes(options: NixPageOptions = {}) {
@@ -654,7 +657,7 @@ async function markNixViewed(nixId: string) {
   if (error) throw mapDatabaseError(error);
 }
 
-export async function requestNixCleanup(nixId: string, mediaPath: string) {
+async function requestNixCleanup(nixId: string, mediaPath: string) {
   const { data, error } = await supabase.functions.invoke('cleanup-nix', {
     body: { nixId, mediaPath },
   });
@@ -668,7 +671,7 @@ export async function requestNixCleanup(nixId: string, mediaPath: string) {
   }
 }
 
-export async function enqueueCleanupJob(nixId: string, mediaPath: string) {
+async function enqueueCleanupJob(nixId: string, mediaPath: string) {
   const user = await getCurrentUser();
   if (!user) return;
 

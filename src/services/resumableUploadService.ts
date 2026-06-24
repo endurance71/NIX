@@ -9,7 +9,7 @@ import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
  * Limit jednego chunka przyjmowanego przez Supabase Storage TUS.
  * Wartość >6 MB skutkuje błędem 413; pozostawiamy bezpieczny margines.
  */
-export const RESUMABLE_CHUNK_SIZE_BYTES = 6 * 1024 * 1024;
+const RESUMABLE_CHUNK_SIZE_BYTES = 6 * 1024 * 1024;
 
 /** Domyślne odstępy retry dla błędów sieciowych — łącznie 4 próby. */
 const DEFAULT_RETRY_DELAYS_MS = [0, 1_000, 3_000, 5_000];

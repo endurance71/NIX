@@ -1,5 +1,7 @@
 # iOS checklist: ochrona screenshot/nagrywania w Viewerze
 
+> Ten dokument dotyczy **iOS**. Na Androidzie ten sam flow produktowy weryfikuj osobno (`expo-screen-capture`) — patrz [capture-protection.md](capture-protection.md) i [native-platform-guidelines.md](native-platform-guidelines.md).
+
 ## Wymagania wstępne
 - Build na fizycznym iPhonie (nie tylko simulator).
 - Konto A i konto B jako znajomi.

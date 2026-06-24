@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -36,7 +36,7 @@ type FriendRecipientRowProps = {
   tintColor: string;
 };
 
-const FriendRecipientRow = memo(function FriendRecipientRow({
+function FriendRecipientRow({
   avatarUrl,
   item,
   onToggle,
@@ -72,20 +72,17 @@ const FriendRecipientRow = memo(function FriendRecipientRow({
       {selected ? <AppIcon name="checkCircle" size={24} color={tintColor} /> : null}
     </Pressable>
   );
-});
+}
 
 export default function SendToSheet() {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
-  const stylesForTheme = useMemo(() => createStyles(colors, insets.bottom), [colors, insets.bottom]);
+  const stylesForTheme = createStyles(colors, insets.bottom);
   const rawParams = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string }>();
   const uri = paramFirst(rawParams.uri);
   const mode = paramFirst(rawParams.mode);
-  const viewDurationSec = useMemo(
-    () => normalizeNixViewDurationSec(paramFirst(rawParams.viewDurationSec)),
-    [rawParams.viewDurationSec]
-  );
+  const viewDurationSec = normalizeNixViewDurationSec(paramFirst(rawParams.viewDurationSec));
   const isVideo = mode === 'video' && !uri;
   const { segments, clearSegments } = useVideoDraft();
   const { uploadNix, uploadVideoSegments } = useMediaUpload();
@@ -99,12 +96,10 @@ export default function SendToSheet() {
   const sendLockRef = useRef(false);
 
   const selectedCount = selectedIds.size;
-  const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds]);
+  const selectedIdList = Array.from(selectedIds);
 
-  const sortedFriendAvatarPaths = useMemo(() => {
-    const paths = profiles.flatMap((p) => (p.avatar_storage_path ? [p.avatar_storage_path] : []));
-    return Array.from(new Set(paths)).sort();
-  }, [profiles]);
+  const paths = profiles.flatMap((p) => (p.avatar_storage_path ? [p.avatar_storage_path] : []));
+  const sortedFriendAvatarPaths = Array.from(new Set(paths)).sort();
 
   const { data: avatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(sortedFriendAvatarPaths),
@@ -176,22 +171,19 @@ export default function SendToSheet() {
     router.dismissAll();
   };
 
-  const toggleSelection = useCallback((id: string) => {
+  const toggleSelection = (id: string) => {
     selection();
     setSelectedIds((prev) => toggleSetValue(prev, id));
-  }, []);
+  };
 
-  const renderItem = useCallback(
-    ({ item }: { item: FriendProfile }) => (
-      <FriendRecipientRow
-        item={item}
-        selected={selectedIds.has(item.id)}
-        onToggle={toggleSelection}
-        tintColor={colors.systemBlue}
-        avatarUrl={item.avatar_storage_path ? avatarUrls[item.avatar_storage_path] ?? null : null}
-      />
-    ),
-    [avatarUrls, colors.systemBlue, selectedIds, toggleSelection]
+  const renderItem = ({ item }: { item: FriendProfile }) => (
+    <FriendRecipientRow
+      item={item}
+      selected={selectedIds.has(item.id)}
+      onToggle={toggleSelection}
+      tintColor={colors.systemBlue}
+      avatarUrl={item.avatar_storage_path ? avatarUrls[item.avatar_storage_path] ?? null : null}
+    />
   );
 
   return (

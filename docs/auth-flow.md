@@ -1,5 +1,7 @@
 # Uwierzytelnianie (e-mail + hasło)
 
+> **Wyznacznik platformowy:** Ekrany auth używają natywnych formularzy `@expo/ui` (`AuthFormLayout`, `FieldGroup`, `TextInput`) — nie generycznych pól RN. Layout: [development-workflow.md](development-workflow.md), zasada ogólna: [native-platform-guidelines.md](native-platform-guidelines.md).
+
 ## Aktywny model
 
 - **Rejestracja:** `supabase.auth.signUp({ email, password })` — Supabase wysyła link potwierdzający (konfiguracja projektu Supabase Auth).
@@ -50,6 +52,16 @@ Komunikaty użytkownika często pochodzą z kluczy i18n w [`src/lib/i18n.ts`](..
 | Słabe hasło / walidacja formularza | `passwordMin`, `passwordMismatch`, `invalidEmail` |
 | Rejestracja na istniejący e-mail | `accountExists` |
 
-## Następny etap (nieaktywny)
+## Następny etap (OAuth — UI gotowe, providery nieaktywne)
 
-Sign in with Apple — po uzyskaniu Apple Developer Account i konfiguracji Supabase Auth providera (patrz [NiX_Documentation_v1.2.md](NiX_Documentation_v1.2.md)).
+Ekran logowania (`login.tsx`) używa **oficjalnych** przycisków:
+
+- **Google:** `GoogleSigninButton` (`@react-native-google-signin/google-signin`) — wariant Wide, kolor Light/Dark wg motywu
+- **Apple (iOS):** `AppleAuthenticationButton` (`expo-apple-authentication`) — typ SIGN_IN, styl Black/White wg motywu
+
+Handlery OAuth są podłączone przez `useAuth` → [`src/services/socialAuthService.ts`](../src/services/socialAuthService.ts) (stuby do czasu konfiguracji providerów).
+
+Wdrożenie produkcyjne:
+
+- **Google:** `@react-native-google-signin/google-signin` lub `expo-auth-session` → `supabase.auth.signInWithIdToken`
+- **Apple:** `expo-apple-authentication` + konto Apple Developer + provider w Supabase (Sprint 4, patrz [NiX_Documentation_v1.2.md](NiX_Documentation_v1.2.md))

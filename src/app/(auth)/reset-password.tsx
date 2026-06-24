@@ -33,6 +33,7 @@ export default function ResetPasswordScreen() {
         <AuthSecondaryText>Ustaw nowe hasło do konta.</AuthSecondaryText>
         <AuthSecureField
           placeholder="Nowe hasło"
+          value={password}
           onChangeText={(text) => {
             setError(null);
             setPassword(text);
@@ -40,6 +41,7 @@ export default function ResetPasswordScreen() {
         />
         <AuthSecureField
           placeholder="Powtórz hasło"
+          value={confirmPassword}
           onChangeText={(text) => {
             setError(null);
             setConfirmPassword(text);

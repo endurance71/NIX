@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef, useEffectEvent } from 'react';
 import type { ViewStyle } from 'react-native';
 import { unstable_batchedUpdates } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -18,9 +18,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createSignedNixUrl,
   flushCleanupQueue,
-  markNixViewedWithCleanup,
   fetchUnreadInboxQueueFromSender,
 } from '../services/nixService';
+import { markViewerSlideViewed } from '../lib/viewerSlideActions';
 import { normalizeNixViewDurationSec } from '../lib/nixViewDuration';
 import { useAppTheme } from './useAppTheme';
 import { refreshInboxBadgeCount } from '../lib/inboxBadgeStore';
@@ -72,6 +72,7 @@ export type ViewerScreenViewModel = {
   videoThumbnailOverlay: VideoThumbnail | null;
   finishCurrentSlide: () => void;
   segmentProgress: ReturnType<typeof useSharedValue<number>>;
+  onSegmentProgress: (nextProgress: number) => void;
   activeSegmentMaskStyle: AnimatedStyle<ViewStyle>;
   shouldBlurOverlay: boolean;
   onVideoReady: () => void;
@@ -86,7 +87,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
   const queryClient = useQueryClient();
   const { colors, statusBarStyle, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createViewerStyles(colors), [colors]);
+  const styles = createViewerStyles(colors);
   const raw = useLocalSearchParams<{
     id?: string;
     path?: string;
@@ -178,7 +179,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
 
   useViewerCaptureGuard(captureDenied, paramSenderId);
 
-  const signedUrlTtlSec = useMemo(() => {
+  const signedUrlTtlSec = (() => {
     const totalViewSec = queue.reduce((acc, s) => {
       if (s.media_type === 'video' && typeof s.playback_duration_ms === 'number') {
         return acc + s.playback_duration_ms / 1000;
@@ -186,7 +187,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
       return acc + (s.view_duration_sec ?? 5);
     }, 0);
     return Math.min(600, 90 + totalViewSec);
-  }, [queue]);
+  })();
 
   useEffect(() => {
     let cancelled = false;
@@ -246,8 +247,9 @@ export function useViewerScreen(): ViewerScreenViewModel {
       console.warn('Nie udało się zsynchronizować kolejki cleanup', err);
     });
 
+    const viewedCount = viewedCountRef;
     return () => {
-      if (viewedCountRef.current > 0) {
+      if (viewedCount.current > 0) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
         void refreshInboxBadgeCount(queryClient);
       }
@@ -258,7 +260,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
   const currentNix = queue[slideIndex] ?? null;
   const displayedNix = renderNix ?? currentNix;
 
-  const finishCurrentSlide = useCallback(() => {
+  const finishCurrentSlide = () => {
     if (closingRef.current) return;
     const item = queueRef.current[slideIndexRef.current];
     if (!item) return;
@@ -266,17 +268,11 @@ export function useViewerScreen(): ViewerScreenViewModel {
     lastFinishedSlideIdRef.current = item.id;
 
     cancelAnimation(segmentProgress);
-    segmentProgress.value = 1;
+    segmentProgress.set(1);
 
-    void (async () => {
-      try {
-        await markNixViewedWithCleanup(item.id, item.media_path);
-      } catch (err) {
-        console.error('Nie udało się zaktualizować statusu', err);
-      } finally {
-        viewedCountRef.current += 1;
-      }
-    })();
+    void markViewerSlideViewed(item, () => {
+      viewedCountRef.current += 1;
+    });
 
     if (slideIndexRef.current < queueRef.current.length - 1) {
       if (queueRef.current.length > 1) {
@@ -288,7 +284,11 @@ export function useViewerScreen(): ViewerScreenViewModel {
       setQueueState((current) => ({ ...current, closing: true }));
       router.back();
     }
-  }, [segmentProgress]);
+  };
+
+  const finishCurrentSlideEvent = useEffectEvent(() => {
+    finishCurrentSlide();
+  });
 
   useEffect(() => {
     const path = currentNix?.media_path;
@@ -367,7 +367,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
           error_message: err instanceof Error ? err.message : 'Unknown viewer load error',
         });
         if (!cancelled) {
-          finishCurrentSlide();
+          finishCurrentSlideEvent();
         }
       }
     })();
@@ -382,7 +382,6 @@ export function useViewerScreen(): ViewerScreenViewModel {
     queueLoading,
     closing,
     signedUrlTtlSec,
-    finishCurrentSlide,
   ]);
 
   const nextNix = queue[slideIndex + 1] ?? null;
@@ -406,34 +405,31 @@ export function useViewerScreen(): ViewerScreenViewModel {
   }, [nextNix?.media_path, nextNix?.media_type, signedUrlTtlSec, queueLoading, closing]);
 
   useEffect(() => {
-    if (!imageLoadError || closing || queueLoading) return;
-    finishCurrentSlide();
-  }, [imageLoadError, closing, queueLoading, finishCurrentSlide]);
-
-  useEffect(() => {
     if (queueLoading || closing || !queue.length) return;
     const nix = displayedNix;
     if (!nix?.media_path) return;
     if (!loading && imageUrl && imageReady && !imageLoadError) {
       const isVideo = nix.media_type === 'video';
-      segmentProgress.value = 1;
+      segmentProgress.set(1);
       if (isVideo) {
         return () => {
           cancelAnimation(segmentProgress);
         };
       }
       const slideMs = Math.max(1000, (nix.view_duration_sec ?? 5) * 1000);
-      segmentProgress.value = withTiming(
-        0,
-        {
-          duration: slideMs,
-          easing: Easing.linear,
-        },
-        (finished) => {
-          if (finished && !isVideo) {
-            runOnJS(finishCurrentSlide)();
+      segmentProgress.set(
+        withTiming(
+          0,
+          {
+            duration: slideMs,
+            easing: Easing.linear,
+          },
+          (finished) => {
+            if (finished && !isVideo) {
+              runOnJS(finishCurrentSlideEvent)();
+            }
           }
-        }
+        )
       );
     }
     return () => {
@@ -448,54 +444,59 @@ export function useViewerScreen(): ViewerScreenViewModel {
     imageUrl,
     imageReady,
     imageLoadError,
-    finishCurrentSlide,
     segmentProgress,
   ]);
 
   const activeSegmentMaskStyle = useAnimatedStyle<ViewStyle>(() => ({
-    transform: [{ scaleX: Math.max(0, 1 - segmentProgress.value) }],
+    transform: [{ scaleX: Math.max(0, 1 - segmentProgress.get()) }],
   }));
 
-  const onVideoReady = useCallback(() => {
+  const onSegmentProgress = (nextProgress: number) => {
+    segmentProgress.set(nextProgress);
+  };
+
+  const onVideoReady = () => {
     trackEvent('viewer_media_ready_ms', {
       media_type: 'video',
       status: 'success',
     });
     setMediaState((current) => ({ ...current, imageReady: true, imageLoadError: null }));
-  }, []);
+  };
 
-  const onVideoError = useCallback(() => {
+  const onVideoError = () => {
     setMediaState((current) => ({
       ...current,
       imageReady: false,
       imageLoadError: 'Nie udało się wczytać wideo.',
     }));
-  }, []);
+    finishCurrentSlide();
+  };
 
-  const onPrimaryImageLoad = useCallback(() => {
+  const onPrimaryImageLoad = () => {
     trackEvent('viewer_media_ready_ms', {
       media_type: 'image',
       status: 'success',
     });
     setMediaState((current) => ({ ...current, imageReady: true, imageLoadError: null }));
-  }, []);
+  };
 
-  const onPrimaryImageError = useCallback((event: unknown) => {
+  const onPrimaryImageError = (event: unknown) => {
     console.warn('expo-image load error, fallback to native image', event);
     setMediaState((current) => ({ ...current, imageReady: false, useNativeFallback: true }));
-  }, []);
+  };
 
-  const onFallbackImageLoad = useCallback(() => {
+  const onFallbackImageLoad = () => {
     setMediaState((current) => ({ ...current, imageReady: true, imageLoadError: null }));
-  }, []);
+  };
 
-  const onFallbackImageError = useCallback(() => {
+  const onFallbackImageError = () => {
     setMediaState((current) => ({
       ...current,
       imageReady: false,
       imageLoadError: 'Nie udało się wczytać zdjęcia.',
     }));
-  }, []);
+    finishCurrentSlide();
+  };
 
   const isBootLoading = queueLoading || (!queue.length && !closing);
 
@@ -520,6 +521,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
     videoThumbnailOverlay,
     finishCurrentSlide,
     segmentProgress,
+    onSegmentProgress,
     activeSegmentMaskStyle,
     shouldBlurOverlay,
     onVideoReady,

@@ -33,14 +33,6 @@ export async function reauthenticatePasswordChange() {
   return supabase.auth.reauthenticate();
 }
 
-export async function signInWithAppleIdToken(token: string, nonce?: string) {
-  return supabase.auth.signInWithIdToken({
-    provider: 'apple',
-    token,
-    nonce,
-  });
-}
-
 export async function signOut() {
   return supabase.auth.signOut();
 }

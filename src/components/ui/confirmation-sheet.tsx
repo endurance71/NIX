@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { AvatarCircle } from './avatar-circle';
@@ -32,7 +32,7 @@ export function ConfirmationSheet({
   onConfirm,
 }: ConfirmationSheetProps) {
   const { colors } = useAppTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = createStyles(colors);
   const [loading, setLoading] = useState(false);
 
   const handleConfirm = async () => {

@@ -5,7 +5,6 @@ import {
   requestPasswordReset,
   updatePassword,
   reauthenticatePasswordChange,
-  signInWithAppleIdToken,
   signOut,
 } from './authService';
 
@@ -92,18 +91,6 @@ describe('authService', () => {
     await reauthenticatePasswordChange();
 
     expect(mockAuth.reauthenticate).toHaveBeenCalledTimes(1);
-  });
-
-  it('loguje przez Apple Id token', async () => {
-    mockAuth.signInWithIdToken.mockResolvedValue({ data: null, error: null });
-
-    await signInWithAppleIdToken('token-value', 'nonce-value');
-
-    expect(mockAuth.signInWithIdToken).toHaveBeenCalledWith({
-      provider: 'apple',
-      token: 'token-value',
-      nonce: 'nonce-value',
-    });
   });
 
   it('wywołuje signOut', async () => {

@@ -1,14 +1,16 @@
 # NiX Performance Re-Audit
 
+> **Wyznacznik platformowy:** Audyt wydajności obejmuje **iOS i Android** — hot path (kamera, viewer, listy) musi być zgodny z native-first ([native-platform-guidelines.md](./native-platform-guidelines.md)).
+
 ## Zakres Ponownego Audytu
-Audyt należy wykonać po wdrożeniu i smoke testach na urządzeniu iOS. Obejmuje te same obszary co pierwszy przegląd:
+Audyt należy wykonać po wdrożeniu i smoke testach na urządzeniu **iOS i Android**. Obejmuje te same obszary co pierwszy przegląd:
 
 1. Kamera i nagrywanie wideo.
 2. Kompresja mediów.
 3. Upload do Supabase Storage.
 4. Download i viewer mediów.
 5. Profile, inbox i listy użytkowników.
-6. iOS performance i pamięć.
+6. Wydajność i pamięć na **iOS i Android**.
 7. Metryki i monitoring.
 8. Architektura i jakość kodu.
 
@@ -28,7 +30,7 @@ Status po implementacji kodowej:
 - `npm run typecheck`: przechodzi.
 - `npm test`: 9 plików testów, 53 testy przechodzą.
 - `expo lint` oraz zawężony `eslint` zawiesiły się bez diagnostyki; diagnostyka IDE dla zmienionych plików nie pokazuje błędów.
-- Metryki runtime p50/p95 wymagają testów na fizycznym iPhonie po uruchomieniu aplikacji z nowymi eventami telemetry.
+- Metryki runtime p50/p95 wymagają testów na fizycznym **iPhonie i urządzeniu Android** po uruchomieniu aplikacji z nowymi eventami telemetry.
 
 Do uzupełnienia po testach urządzeniowych:
 
@@ -43,7 +45,7 @@ Do uzupełnienia po testach urządzeniowych:
 
 ## Stan na 2026-05-07 (zsynchronizowany z kodem)
 
-**Dostarczone w codebase (do potwierdzenia na fizycznym iPhonie):**
+**Dostarczone w codebase (do potwierdzenia na fizycznym iPhonie i urządzeniu Android):**
 
 - Resumable upload wideo (TUS, chunk 6 MB, ~14–20 MB szczytowo RAM) — [`src/services/resumableUploadService.ts`](../src/services/resumableUploadService.ts).
 - Embedded `thumbnail_b64` + viewer „thumbnail-first” — [`src/services/mediaService.ts`](../src/services/mediaService.ts), [`src/app/viewer.tsx`](../src/app/viewer.tsx).

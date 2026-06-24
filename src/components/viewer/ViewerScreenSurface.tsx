@@ -63,9 +63,7 @@ export function ViewerScreenSurface() {
                 onReady={vm.onVideoReady}
                 onError={vm.onVideoError}
                 onPlayToEnd={vm.finishCurrentSlide}
-                onProgress={(nextProgress) => {
-                  vm.segmentProgress.value = nextProgress;
-                }}
+                onProgress={vm.onSegmentProgress}
                 style={vm.styles.image}
               />
             </View>

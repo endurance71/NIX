@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useReducer } from 'react';
+import { useReducer } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -19,6 +19,7 @@ import { NativeButton } from '../components/ui/native-button';
 import { SHEET_CONTENT_PADDING_TOP } from '../theme/sheetLayout';
 import { AppIcon } from '../components/ui/app-icon';
 import { notifyError, notifyInfo, notifyShow, notifySuccess } from '../lib/appNotify';
+import { runWithFinally } from '../lib/runWithFinally';
 
 function mapConfirmationMessage(result: string, username?: string) {
   if (result === 'request_sent') return `Zaproszenie do @${username ?? 'użytkownika'} zostało wysłane.`;
@@ -43,7 +44,7 @@ export default function FriendInviteConfirmScreen() {
     username?: string;
   }>();
   const { colors } = useAppTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = createStyles(colors);
 
   const [state, dispatch] = useReducer(
     (
@@ -116,9 +117,8 @@ export default function FriendInviteConfirmScreen() {
   );
   const { friendProfile, avatarUrl, profileLoading, profileError, relationStatus, actionLoading } = state;
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!profileId) {
+  useFocusEffect(() => {
+    if (!profileId) {
         dispatch({ type: 'profile_error', profileError: 'Brak ID profilu.' });
         return;
       }
@@ -172,8 +172,7 @@ export default function FriendInviteConfirmScreen() {
       return () => {
         cancelled = true;
       };
-    }, [profileId])
-  );
+  });
 
   const displayUsername =
     friendProfile?.username ??
@@ -196,44 +195,47 @@ export default function FriendInviteConfirmScreen() {
     }
 
     dispatch({ type: 'set_action_loading', actionLoading: true });
-    try {
-      const result = await sendFriendRequestByProfileQr(profileId);
-      trackEvent('friend_invite_redeem', {
-        channel: 'qr',
-        status: 'success',
-        result: result.result,
-      });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests });
-      const message = mapConfirmationMessage(result.result, result.profile?.username ?? displayUsername);
-      switch (result.result) {
-        case 'request_sent':
-        case 'already_friends':
-        case 'accepted_reverse_request':
-          notifySuccess('Potwierdzenie', { message });
-          break;
-        case 'already_requested':
-          notifyInfo('Potwierdzenie', { message });
-          break;
-        case 'own_profile':
-        case 'invalid_profile':
-          notifyError('Potwierdzenie', { message });
-          break;
-        default:
-          notifyShow({ title: 'Potwierdzenie', message });
-      }
-      router.back();
-    } catch (err: any) {
+    await runWithFinally(
+      async () => {
+        const result = await sendFriendRequestByProfileQr(profileId);
+        trackEvent('friend_invite_redeem', {
+          channel: 'qr',
+          status: 'success',
+          result: result.result,
+        });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests });
+        const message = mapConfirmationMessage(result.result, result.profile?.username ?? displayUsername);
+        switch (result.result) {
+          case 'request_sent':
+          case 'already_friends':
+          case 'accepted_reverse_request':
+            notifySuccess('Potwierdzenie', { message });
+            break;
+          case 'already_requested':
+            notifyInfo('Potwierdzenie', { message });
+            break;
+          case 'own_profile':
+          case 'invalid_profile':
+            notifyError('Potwierdzenie', { message });
+            break;
+          default:
+            notifyShow({ title: 'Potwierdzenie', message });
+        }
+        router.back();
+      },
+      () => dispatch({ type: 'set_action_loading', actionLoading: false })
+    ).catch((err: unknown) => {
       trackEvent('friend_invite_redeem', {
         channel: 'qr',
         status: 'fail',
-        errorCode: err?.message ?? 'unknown',
+        errorCode: (err as { message?: string })?.message ?? 'unknown',
       });
-      notifyError('Błąd', { message: err?.message ?? 'Nie udało się wysłać zaproszenia.' });
-    } finally {
-      dispatch({ type: 'set_action_loading', actionLoading: false });
-    }
+      notifyError('Błąd', {
+        message: (err as { message?: string })?.message ?? 'Nie udało się wysłać zaproszenia.',
+      });
+    });
   };
 
   /** fitToContents na iOS uwzględnia dolny inset — stały, mały padding treści */

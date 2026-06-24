@@ -101,7 +101,7 @@ function toFriendlyError(error: unknown) {
   return new Error(mapFriendshipErrorMessage(error));
 }
 
-export function resolveFriendshipAction(
+function resolveFriendshipAction(
   currentUserId: string,
   friendId: string,
   existing: FriendshipRow[]
@@ -426,26 +426,6 @@ export async function sendFriendRequestByProfileQr(profileId: string): Promise<{
 
   const result = await sendFriendRequest(preview.profile.id);
   return { result, profile: preview.profile };
-}
-
-export async function createFriendInviteToken(
-  channel: InviteChannel
-): Promise<FriendInviteTokenPayload> {
-  const { data, error } = await supabase.rpc('create_friend_invite', {
-    invite_channel: channel,
-  });
-
-  if (error) throw toFriendlyError(error);
-
-  const payload = Array.isArray(data) ? data[0] : data;
-  if (!payload?.invite_token || !payload?.expires_at) {
-    throw new Error('Nie udało się utworzyć zaproszenia. Spróbuj ponownie.');
-  }
-
-  return {
-    token: payload.invite_token as string,
-    expiresAt: payload.expires_at as string,
-  };
 }
 
 export async function redeemFriendInviteToken(token: string): Promise<{

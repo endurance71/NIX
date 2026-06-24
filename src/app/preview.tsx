@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Image } from 'expo-image';
-import { useEvent, useEventListener } from 'expo';
+import { useEventListener } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { StatusBar } from 'expo-status-bar';
 import Animated, {
@@ -55,6 +55,28 @@ function paramFirst(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
+function discardVideoPreview(clearDraft: () => void) {
+  clearDraft();
+  router.back();
+}
+
+function openSendToVideo() {
+  tap('light');
+  router.push({ pathname: '/send-to', params: { mode: 'video' } });
+}
+
+function discardPhotoPreview() {
+  router.back();
+}
+
+function openSendToPhoto(uri: string, viewDurationSec: number) {
+  tap('light');
+  router.push({
+    pathname: '/send-to',
+    params: { uri, mode: 'image', viewDurationSec: String(viewDurationSec) },
+  });
+}
+
 function PreviewSegmentVideo({
   uri,
   segmentIndex,
@@ -81,33 +103,23 @@ function PreviewSegmentVideo({
   const readyEmittedRef = useRef(false);
   const errorEmittedRef = useRef(false);
   const watchdogFiredRef = useRef(false);
-
-  const onReadyEffect = useEffectEvent(onReady);
-  const onPlaybackErrorEffect = useEffectEvent(onPlaybackError);
-
-  const statusEvent = useEvent(player, 'statusChange', { status: player.status });
-  const status = statusEvent?.status ?? player.status;
-
-  useEventListener(player, 'timeUpdate', ({ currentTime }) => {
-    const dur = player.duration;
-    if (dur > 0) {
-      const nextProgress = Math.max(0, Math.min(1, 1 - currentTime / dur));
-      segmentProgress.value = withTiming(nextProgress, {
-        duration: 90,
-        easing: Easing.linear,
-      });
-    }
-  });
+  const onReadyRef = useRef(onReady);
+  const onPlaybackErrorRef = useRef(onPlaybackError);
 
   useEffect(() => {
-    if (status === 'readyToPlay') {
+    onReadyRef.current = onReady;
+    onPlaybackErrorRef.current = onPlaybackError;
+  });
+
+  useEventListener(player, 'statusChange', ({ status: nextStatus }) => {
+    if (nextStatus === 'readyToPlay') {
       if (!readyEmittedRef.current) {
         readyEmittedRef.current = true;
         trackEvent('preview_video_status_change', {
-          status,
+          status: nextStatus,
           segment_index: segmentIndex,
         });
-        onReadyEffect();
+        onReadyRef.current();
       }
       try {
         player.play();
@@ -116,16 +128,28 @@ function PreviewSegmentVideo({
       }
       return;
     }
-    if (status === 'error' && !errorEmittedRef.current) {
+    if (nextStatus === 'error' && !errorEmittedRef.current) {
       errorEmittedRef.current = true;
       trackEvent('preview_video_status_change', {
-        status,
+        status: nextStatus,
         segment_index: segmentIndex,
       });
-      onPlaybackErrorEffect();
+      onPlaybackErrorRef.current();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent (onReady / onPlaybackError)
-  }, [status, segmentIndex, player]);
+  });
+
+  useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    const dur = player.duration;
+    if (dur > 0) {
+      const nextProgress = Math.max(0, Math.min(1, 1 - currentTime / dur));
+      segmentProgress.set(
+        withTiming(nextProgress, {
+          duration: 90,
+          easing: Easing.linear,
+        })
+      );
+    }
+  });
 
   useEffect(() => {
     readyEmittedRef.current = false;
@@ -147,10 +171,9 @@ function PreviewSegmentVideo({
         // ignorujemy
       }
       readyEmittedRef.current = true;
-      onReadyEffect();
+      onReadyRef.current();
     }, PREVIEW_VIDEO_WATCHDOG_MS);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent onReady
   }, [uri, segmentIndex, player]);
 
   return <VideoView style={style} player={player} contentFit="cover" nativeControls={false} />;
@@ -165,13 +188,14 @@ function PreviewVideoContent({
 }) {
   const { colors, statusBarStyle, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = createStyles(colors);
   const [clipIndex, setClipIndex] = useState(0);
   const [videoReady, setVideoReady] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const segmentProgress = useSharedValue(1);
 
   const current = segments[clipIndex];
+  const clipKey = `${clipIndex}:${current.uri}`;
 
   useEffect(() => {
     void configureForPlayback().catch((error) => {
@@ -179,41 +203,25 @@ function PreviewVideoContent({
     });
   }, []);
 
-  useEffect(() => {
-    setVideoReady(false);
-    setVideoError(null);
-    cancelAnimation(segmentProgress);
-    segmentProgress.value = 1;
-  }, [clipIndex, current.uri, segmentProgress]);
-
   const activeSegmentMaskStyle = useAnimatedStyle(() => ({
-    transform: [{ scaleX: Math.max(0, 1 - segmentProgress.value) }],
+    transform: [{ scaleX: Math.max(0, 1 - segmentProgress.get()) }],
   }));
 
-  const advanceClip = useCallback(() => {
+  const advanceClip = () => {
+    cancelAnimation(segmentProgress);
+    segmentProgress.set(1);
     setClipIndex((i) => (i + 1) % segments.length);
-  }, [segments.length]);
-
-  const handleVideoReady = useCallback(() => {
-    setVideoReady(true);
+    setVideoReady(false);
     setVideoError(null);
-  }, []);
-
-  const handleVideoPlaybackError = useCallback(() => {
-    setVideoError('Nie udało się odtworzyć nagrania.');
-  }, []);
-
-  const handleDiscard = () => {
-    clearDraft();
-    router.back();
   };
 
-  const handleSendTo = () => {
-    tap('light');
-    router.push({
-      pathname: '/send-to',
-      params: { mode: 'video' },
-    });
+  const handleVideoReady = () => {
+    setVideoReady(true);
+    setVideoError(null);
+  };
+
+  const handleVideoPlaybackError = () => {
+    setVideoError('Nie udało się odtworzyć nagrania.');
   };
 
   return (
@@ -250,7 +258,7 @@ function PreviewVideoContent({
       </View>
 
       <PreviewSegmentVideo
-        key={`${clipIndex}-${current.uri}`}
+        key={clipKey}
         uri={current.uri}
         segmentIndex={clipIndex}
         segmentProgress={segmentProgress}
@@ -277,7 +285,7 @@ function PreviewVideoContent({
       {videoError ? (
         <View style={styles.errorOverlay}>
           <Text style={styles.errorText}>{videoError}</Text>
-          <Pressable style={styles.backButton} onPress={handleDiscard}>
+          <Pressable style={styles.backButton} onPress={() => discardVideoPreview(clearDraft)}>
             <Text style={styles.backButtonText}>Wróć</Text>
           </Pressable>
         </View>
@@ -298,7 +306,7 @@ function PreviewVideoContent({
           },
         ]}>
         <View style={styles.topControls}>
-          <Pressable accessibilityLabel="Porzuć nagranie" accessibilityRole="button" onPress={handleDiscard} style={styles.iconButton}>
+          <Pressable accessibilityLabel="Porzuć nagranie" accessibilityRole="button" onPress={() => discardVideoPreview(clearDraft)} style={styles.iconButton}>
             <AppIcon name="close" size={22} color={colors.cameraControlTint} />
           </Pressable>
         </View>
@@ -307,7 +315,7 @@ function PreviewVideoContent({
           <Pressable
             accessibilityLabel="Wyślij nagranie"
             accessibilityRole="button"
-            onPress={handleSendTo}
+            onPress={openSendToVideo}
             style={({ pressed }) => [styles.sendButton, pressed && styles.sendButtonPressed]}>
             <Text style={styles.sendButtonText}>Wyślij do</Text>
             <AppIcon name="chevronRight" size={16} color={colors.buttonPrimaryText} />
@@ -321,7 +329,7 @@ function PreviewVideoContent({
 export default function PreviewScreen() {
   const { colors, statusBarStyle } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = createStyles(colors);
   const raw = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string }>();
   const mode = paramFirst(raw.mode);
   const uri = paramFirst(raw.uri);
@@ -371,18 +379,6 @@ export default function PreviewScreen() {
     );
   }
 
-  const handleDiscard = () => {
-    router.back();
-  };
-
-  const handleSendTo = () => {
-    tap('light');
-    router.push({
-      pathname: '/send-to',
-      params: { uri, mode: 'image', viewDurationSec: String(viewDurationSec) },
-    });
-  };
-
   return (
     <Animated.View style={styles.container} entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)}>
       <StatusBar style={statusBarStyle} hidden />
@@ -394,7 +390,7 @@ export default function PreviewScreen() {
           <Pressable
             accessibilityLabel="Odrzuć zdjęcie"
             accessibilityRole="button"
-            onPress={handleDiscard}
+            onPress={discardPhotoPreview}
             style={styles.iconButton}>
             <AppIcon name="close" size={22} color={colors.cameraControlTint} />
           </Pressable>
@@ -422,7 +418,7 @@ export default function PreviewScreen() {
           <Pressable
             accessibilityLabel="Wybierz odbiorców zdjęcia"
             accessibilityRole="button"
-            onPress={handleSendTo}
+            onPress={() => openSendToPhoto(uri, viewDurationSec)}
             style={({ pressed }) => [styles.sendButton, pressed && styles.sendButtonPressed]}>
             <Text style={styles.sendButtonText}>Wyślij do</Text>
             <AppIcon name="chevronRight" size={16} color={colors.buttonPrimaryText} />

@@ -1,5 +1,7 @@
 # Przepływ pracy deweloperskiej
 
+> **Wyznacznik platformowy:** Naczelnym kryterium jakości frontendu są **natywne rozwiązania iOS i Android**. Przed merge zmian UI sprawdź [native-platform-guidelines.md](./native-platform-guidelines.md) (hierarchia wyboru, antywzorce, checklista PR).
+
 ## Standard pracy
 
 1. Twórz małe, tematyczne zmiany (stabilizacja → refaktor → docs).
@@ -7,14 +9,52 @@
    - `npm run lint`
    - `npm run typecheck`
    - `npm run test`
+   - `npx expo-doctor@latest` (oczekiwane: 21/21 — patrz sekcja „Bare workflow” poniżej)
    - `npm run knip` (opcjonalnie: nieużywane pliki zależne od entry — patrz [`knip.json`](../knip.json))
    - `npm run react-doctor:diff` lub `npm run react-doctor:score` (regresje jakości React/RN — patrz [`docs/react-doctor-baseline.md`](./react-doctor-baseline.md))
 3. Opisz w PR:
    - zakres zmian,
    - ryzyka,
-   - krótki plan testów manualnych (jeśli dotyczy).
+   - krótki plan testów manualnych (jeśli dotyczy),
+   - potwierdzenie smoke **iOS + Android** przy zmianach UI (patrz [native-platform-guidelines.md](./native-platform-guidelines.md)).
+
+## Native-first — szybka ściąga
+
+- **UI:** universal `@expo/ui` przed RN primitives; zakaz ogólnych UI-kitów (Paper, NativeBase).
+- **Tab bar:** `NativeTabs` — nie JS tabs.
+- **Ikony:** `AppIcon` / `Icon.select` (SF Symbols + Material Symbols XML).
+- **Motyw:** tokeny `useAppTheme()` — bez hardcoded kolorów.
+- **Animacje:** Reanimated 4 — bez legacy `Animated` / `LayoutAnimation` na hot path.
+
+## `@expo/ui` — layout formularzy auth
+
+- **Pełny ekran** (`register`, `forgot-password`, `onboarding`): `AuthFormLayout` → `AppHost useViewportSizeMeasurement` + `FieldGroup`.
+- **Login (karta w ScrollView):** tylko `FieldGroup.Section` w `AppHost matchContents` — **bez** owijki `FieldGroup`.
+- **Antywzorzec:** `FieldGroup` wewnątrz RN `ScrollView` lub ze sztywną `height` — na Androidzie powoduje zagnieżdżony scroll pól (`LazyColumn`).
+
+## Bare workflow (`android/` + `ios/` w repo)
+
+Projekt używa bare workflow: foldery natywne są commitowane, a `app.json` nadal opisuje konfigurację prebuild (plugins, uprawnienia, scheme). EAS Build **nie synchronizuje** automatycznie pól z `app.json` do natywnych projektów, gdy `android/` i `ios/` istnieją w repo.
+
+Po każdej zmianie w `app.json` dotyczącej:
+
+- `plugins`
+- `ios.infoPlist` / `android.permissions`
+- `scheme`
+- `locales`
+- `icon` / splash
+
+wykonaj:
+
+1. `npx expo prebuild --no-install` lokalnie.
+2. Ręcznie zreviewuj diff w `android/` i `ios/` przed commitem.
+3. Zweryfikuj pola wysokiego ryzyka: uprawnienia kamery/mikrofonu, URL scheme `nix`, splash, adaptive icon.
+
+Check `appConfigFieldsNotSyncedCheck` jest wyłączony w `package.json` (`expo.doctor`) — to oficjalna opcja dla bare workflow; dyscyplina sync pozostaje obowiązkowa.
 
 ## Lista testów dymnych (manualnie)
+
+Testy wykonuj na **iOS i Android** (symulator/emulator lub urządzenie). Krytyczne flow UI muszą być zgodne z natywnymi konwencjami platform — patrz [native-platform-guidelines.md](./native-platform-guidelines.md).
 
 ### Uwierzytelnianie (e-mail + hasło)
 
@@ -51,7 +91,7 @@
 
 ### Ochrona capture (viewer)
 
-- [ ] Domyślnie: przy próbie screenshotu w viewerze — blokada / toast (iOS, urządzenie fizyczne zalecane).
+- [ ] Domyślnie: przy próbie screenshotu w viewerze — blokada / toast (iOS — urządzenie fizyczne zalecane; Android — wg wersji API i `expo-screen-capture`).
 - [ ] W profilu: „zezwalaj od @X” → viewer bez blokady; ponowne wyłączenie przywraca blokadę.
 - [ ] Checklista: `docs/capture_protection_ios_checklist.md`.
 

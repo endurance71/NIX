@@ -8,9 +8,9 @@ import { profileScreenRnStyles as styles } from './profileScreen.styles';
 import { DeletableRowMenu } from '../ui/deletable-row-menu';
 import {
   SettingsEmptyText,
-  SettingsListScreen,
   SettingsSectionTitle,
-} from '../ui/settings-list-screen';
+} from '../ui/settings-list-sections';
+import { SettingsListScreen } from '../ui/settings-list-screen';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();

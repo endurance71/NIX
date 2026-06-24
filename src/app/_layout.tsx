@@ -21,7 +21,7 @@ import { configureForPlayback } from '../lib/audioSession';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initBackgroundTaskService } from '../services/backgroundTaskService';
 import { useTranslation } from 'react-i18next';
-import '../lib/i18n';
+import { runWithFinally } from '../lib/runWithFinally';
 
 // Initialize monitoring at module load (runs once).
 initMonitoring();
@@ -109,24 +109,27 @@ function RootNavigator() {
       }
 
       dispatchGate({ type: 'fetch_start' });
-      try {
-        const timeoutPromise = new Promise<Awaited<ReturnType<typeof getCurrentUserProfile>> | null>(
-          (resolve) => {
-            profileRaceTimeoutId = setTimeout(() => resolve(null), 5000);
+      await runWithFinally(
+        async () => {
+          const timeoutPromise = new Promise<Awaited<ReturnType<typeof getCurrentUserProfile>> | null>(
+            (resolve) => {
+              profileRaceTimeoutId = setTimeout(() => resolve(null), 5000);
+            }
+          );
+          const profile = await Promise.race([getCurrentUserProfile(), timeoutPromise]);
+          if (!mounted) return;
+          dispatchGate({ type: 'resolved', profile });
+        },
+        () => {
+          if (profileRaceTimeoutId !== undefined) {
+            clearTimeout(profileRaceTimeoutId);
+            profileRaceTimeoutId = undefined;
           }
-        );
-        const profile = await Promise.race([getCurrentUserProfile(), timeoutPromise]);
-        if (!mounted) return;
-        dispatchGate({ type: 'resolved', profile });
-      } catch {
+        }
+      ).catch(() => {
         if (!mounted) return;
         dispatchGate({ type: 'fetch_error' });
-      } finally {
-        if (profileRaceTimeoutId !== undefined) {
-          clearTimeout(profileRaceTimeoutId);
-          profileRaceTimeoutId = undefined;
-        }
-      }
+      });
     };
 
     void checkProfile();
@@ -137,19 +140,16 @@ function RootNavigator() {
   }, [session]);
 
   useEffect(() => {
-    if (loading || profileLoading) {
-      setBootstrapTimedOut(false);
-    }
-  }, [loading, profileLoading]);
-
-  useEffect(() => {
     if (!loading && !profileLoading) return;
 
     const timer = setTimeout(() => {
       setBootstrapTimedOut(true);
     }, 4000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      setBootstrapTimedOut(false);
+    };
   }, [loading, profileLoading]);
 
   const appReady = !loading && !profileLoading;

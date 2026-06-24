@@ -1,5 +1,7 @@
 # Ochrona przed screenshotem i nagrywaniem ekranu (viewer)
 
+> **Wyznacznik platformowy:** Blokada capture używa **`expo-screen-capture`** (API natywne per platforma). Zachowanie i skuteczność różnią się między iOS a Android — testuj na obu. Zasada ogólna: [native-platform-guidelines.md](./native-platform-guidelines.md).
+
 ## Semantyka produktowa
 
 - **Odbiorca** decyduje, czy pozwala na capture treści **od konkretnego nadawcy** (znajomego).
@@ -26,8 +28,9 @@
 - `viewer_capture_block_enabled` — aktywowano blokadę w viewerze.
 - `viewer_capture_attempt` — wykryta próba screenshotu/nagrywania (platforma zależna).
 
-## Testy manualne iOS
+## Testy manualne
 
-Checklista: [capture_protection_ios_checklist.md](capture_protection_ios_checklist.md).
+- **iOS:** checklista [capture_protection_ios_checklist.md](capture_protection_ios_checklist.md) (urządzenie fizyczne zalecane).
+- **Android:** ten sam flow viewer + przełącznik capture w profilu; weryfikacja `expo-screen-capture` na docelowej wersji API.
 
-**Ograniczenie:** pełna skuteczność capture API zależy od wersji iOS i polityki Apple; dokumentacja opisuje zachowanie zaimplementowane w aplikacji, nie „kryptograficzne niemożność” zrzutu ekranu na każdym urządzeniu.
+**Ograniczenie:** pełna skuteczność capture API zależy od wersji systemu i polityki platformy (Apple / Google); dokumentacja opisuje zachowanie zaimplementowane w aplikacji, nie „kryptograficzną niemożność” zrzutu ekranu na każdym urządzeniu.

@@ -12,18 +12,33 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Column, Host, Spacer, Text as UiText, TextInput, Button } from '@expo/ui';
+import { Column, FieldGroup, Host, Spacer, Text as UiText } from '@expo/ui';
+import {
+  AuthErrorText,
+  AuthFormDivider,
+  AuthPrimaryButton,
+  AuthSecureField,
+  AuthTextField,
+} from '../../components/ui/auth-form-layout';
+import {
+  AuthAppleSignInButton,
+  AuthGoogleSignInButton,
+} from '../../components/ui/auth-social-sign-in-buttons';
+import { AppHost } from '../../components/ui/app-host';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import type { ThemeColors } from '../../theme/colors';
 import { APP_FONT_FAMILY } from '../../theme/typography';
 import { notifyError } from '../../lib/appNotify';
+import { isSocialAuthNotConfiguredError } from '../../services/socialAuthService';
+import type { SocialAuthProvider } from '../../services/socialAuthService';
 import { useTranslation } from 'react-i18next';
 
 const GAP_MD = 16;
 const GAP_SM = 12;
 const LOGO_MARK_SIZE = 204;
 const LOGO_TEXT_SIZE = 64;
+const CARD_PADDING = GAP_MD + 2;
 const CARD_RADIUS = 26;
 
 function getAuthErrorMessage(message: string, t: (key: string) => string) {
@@ -35,15 +50,18 @@ function getAuthErrorMessage(message: string, t: (key: string) => string) {
 function LoginHero({
   colors,
   isDark,
+  isIos,
   contentWidth,
   t,
 }: {
   colors: ThemeColors;
   isDark: boolean;
+  isIos: boolean;
   contentWidth: number;
   t: (key: string) => string;
 }) {
   const scheme = isDark ? 'dark' : 'light';
+  const borderColor = isIos && !isDark ? PlatformColor('separator') : colors.borderStrong;
 
   return (
     <View style={[styles.heroWrap, { width: contentWidth }]}>
@@ -55,13 +73,15 @@ function LoginHero({
             height: LOGO_MARK_SIZE,
             borderRadius: LOGO_MARK_SIZE / 2,
             backgroundColor: colors.surface,
-            borderColor: isDark ? colors.borderStrong : PlatformColor('separator'),
+            borderColor,
             borderWidth: StyleSheet.hairlineWidth,
           },
         ]}>
         <Host matchContents ignoreSafeArea="all" style={styles.logoHost} colorScheme={scheme}>
           <Column style={{ width: LOGO_MARK_SIZE, height: LOGO_MARK_SIZE }} alignment="center">
+            <Spacer flexible />
             <UiText textStyle={{ fontSize: LOGO_TEXT_SIZE, fontWeight: '700', color: colors.textPrimary }}>NiX</UiText>
+            <Spacer flexible />
           </Column>
         </Host>
       </View>
@@ -77,7 +97,7 @@ function LoginHero({
             }}>
             {t('auth.tagline')}
           </UiText>
-          <UiText textStyle={{ fontSize: 22, fontWeight: '600', color: colors.textPrimary }}>
+          <UiText textStyle={{ fontSize: 22, fontWeight: '600', color: colors.textPrimary, textAlign: 'center' }}>
             {t('auth.loginTitle')}
           </UiText>
         </Column>
@@ -94,10 +114,15 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<SocialAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle, signInWithApple } = useAuth();
 
   const isIos = process.env.EXPO_OS === 'ios';
+  const authBusy = loading || socialLoading !== null;
+  const contentWidth = Math.max(260, windowWidth - GAP_MD * 2);
+  const formInnerWidth = contentWidth - CARD_PADDING * 2;
+  const cardBorderColor = isIos ? PlatformColor('separator') : colors.borderStrong;
 
   const handleSignIn = async () => {
     if (!email.trim()) {
@@ -119,9 +144,28 @@ export default function LoginScreen() {
     }
   };
 
-  const cardBorderColor = isIos ? PlatformColor('separator') : colors.borderStrong;
-  const contentWidth = Math.max(260, windowWidth - GAP_MD * 2);
-  const scheme = isDark ? 'dark' : 'light';
+  const getSocialAuthNotConfiguredMessage = (provider: SocialAuthProvider) =>
+    provider === 'google' ? t('auth.socialAuthNotConfiguredGoogle') : t('auth.socialAuthNotConfiguredApple');
+
+  const handleSocialSignIn = async (provider: SocialAuthProvider) => {
+    if (authBusy) return;
+
+    setError(null);
+    setSocialLoading(provider);
+
+    const { error: socialError } =
+      provider === 'google' ? await signInWithGoogle() : await signInWithApple();
+
+    setSocialLoading(null);
+
+    if (socialError) {
+      if (isSocialAuthNotConfiguredError(socialError.message)) {
+        notifyError(getSocialAuthNotConfiguredMessage(provider));
+        return;
+      }
+      notifyError(socialError.message);
+    }
+  };
 
   const scrollContentStyle = [
     styles.scrollContent,
@@ -144,59 +188,71 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           contentContainerStyle={scrollContentStyle}>
-          <LoginHero colors={colors} isDark={isDark} contentWidth={contentWidth} t={t} />
+          <LoginHero colors={colors} isDark={isDark} isIos={isIos} contentWidth={contentWidth} t={t} />
 
           <View
             style={[
               styles.card,
               {
+                width: contentWidth,
+                alignSelf: 'center',
                 backgroundColor: colors.surface,
                 borderColor: cardBorderColor,
                 ...(isDark ? {} : { boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)' }),
               },
             ]}>
-            <Host matchContents colorScheme={scheme} style={{ width: '100%' }}>
-              <TextInput
-                placeholder={t('auth.emailPlaceholder')}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                onChangeText={(value) => {
-                  setError(null);
-                  setEmail(value);
-                }}
-              />
-              <TextInput
-                placeholder={t('auth.passwordPlaceholder')}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-                onChangeText={(value) => {
-                  setError(null);
-                  setPassword(value);
-                }}
-              />
-              <Spacer />
-              {error ? (
-                <Text selectable style={[styles.errorText, { color: colors.error }]}>
-                  {error}
-                </Text>
-              ) : null}
-              <Button
-                label={loading ? t('auth.loginLoading') : t('auth.loginButton')}
-                onPress={loading ? undefined : handleSignIn}
-                variant="filled"
-              />
-            </Host>
+            <AppHost matchContents style={{ width: formInnerWidth }}>
+              <FieldGroup.Section>
+                <AuthTextField
+                  placeholder={t('auth.emailPlaceholder')}
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="email-address"
+                  onChangeText={(value) => {
+                    setError(null);
+                    setEmail(value);
+                  }}
+                />
+                <AuthSecureField
+                  placeholder={t('auth.passwordPlaceholder')}
+                  placeholderTextColor={colors.textMuted}
+                  onChangeText={(value) => {
+                    setError(null);
+                    setPassword(value);
+                  }}
+                />
+                <FieldGroup.SectionFooter>
+                  <Column spacing={GAP_SM} style={{ width: formInnerWidth }}>
+                    {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+                    <AuthPrimaryButton
+                      label={loading ? t('auth.loginLoading') : t('auth.loginButton')}
+                      onPress={handleSignIn}
+                      disabled={authBusy}
+                      style={{ width: formInnerWidth }}
+                    />
+                    <AuthFormDivider label={t('auth.orContinueWith')} />
+                    <AuthGoogleSignInButton
+                      width={formInnerWidth}
+                      disabled={authBusy}
+                      onPress={() => handleSocialSignIn('google')}
+                    />
+                    <AuthAppleSignInButton
+                      width={formInnerWidth}
+                      disabled={authBusy}
+                      onPress={() => handleSocialSignIn('apple')}
+                    />
+                  </Column>
+                </FieldGroup.SectionFooter>
+              </FieldGroup.Section>
+            </AppHost>
+          </View>
 
-            <View style={styles.links}>
-              <Pressable onPress={() => router.push('/(auth)/forgot-password')} hitSlop={8}>
-                <Text style={[styles.linkLabel, { color: colors.accent }]}>{t('auth.forgotPassword')}</Text>
-              </Pressable>
-              <Pressable onPress={() => router.push('/(auth)/register')} hitSlop={8}>
-                <Text style={[styles.linkLabel, { color: colors.accent }]}>{t('auth.noAccount')}</Text>
-              </Pressable>
-            </View>
+          <View style={styles.links}>
+            <Pressable onPress={() => router.push('/(auth)/forgot-password')} hitSlop={8}>
+              <Text style={[styles.linkLabel, { color: colors.accent }]}>{t('auth.forgotPassword')}</Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/(auth)/register')} hitSlop={8}>
+              <Text style={[styles.linkLabel, { color: colors.accent }]}>{t('auth.noAccount')}</Text>
+            </Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -210,6 +266,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    justifyContent: 'center',
     paddingHorizontal: GAP_MD,
     paddingTop: GAP_SM,
   },
@@ -237,13 +294,8 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     borderRadius: CARD_RADIUS,
     borderWidth: StyleSheet.hairlineWidth,
-    padding: GAP_MD + 2,
+    padding: CARD_PADDING,
     gap: GAP_MD,
-  },
-  errorText: {
-    fontSize: 13,
-    fontFamily: APP_FONT_FAMILY,
-    lineHeight: 18,
   },
   links: {
     gap: GAP_SM,

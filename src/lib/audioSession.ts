@@ -54,11 +54,12 @@ async function waitMs(ms: number): Promise<void> {
 }
 
 async function applyMode(mode: AudioSessionMode, modeConfig: Partial<AudioMode>) {
+  const previousMode = getCurrentAudioSessionMode();
   const tryAttempt = async (attempt: number): Promise<void> => {
     try {
       await setAudioModeAsync(modeConfig);
       lastConfiguredMode = mode;
-      trackEvent('audio_session_set', { mode, status: 'success', attempts: attempt });
+      trackEvent('audio_session_set', { mode, status: 'success', attempts: attempt, previous_mode: previousMode });
     } catch (error) {
       const retriable = isInsufficientPriorityError(error) && attempt < MAX_RETRY_ATTEMPTS;
 

@@ -2,7 +2,13 @@
 
 **Status:** W toku — stabilizacja MVP  
 **Stack:** React Native (Expo SDK 56) + Supabase  
-**Ostatnia aktualizacja:** 2026-06-23
+**Ostatnia aktualizacja:** 2026-06-24
+
+---
+
+> [!IMPORTANT]
+> **Native-first (iOS + Android)**  
+> Naczelnym wyznacznikiem aplikacji są **natywne rozwiązania platform iOS i Android** (SwiftUI / Jetpack Compose przez `@expo/ui`, moduły Expo, systemowy motyw). Pełne wytyczne: [native-platform-guidelines.md](native-platform-guidelines.md).
 
 ---
 
@@ -25,7 +31,7 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 1. **Prywatność:** Docelowo Sign in with Apple; obecnie Supabase Auth (e-mail wyłącznie w warstwie auth, bez kolumny e-mail w `profiles`).
 2. **Speed-to-Camera:** Szybki dostęp do kamery z zakładki głównej.
 3. **True Ephemeral:** Po obejrzeniu — cleanup mediów ze Storage i finalizacja cyklu życia wiadomości (status `cleaned`, kolejka retry).
-4. **Native-first:** RN + moduły Expo; UI oparte o universal `@expo/ui` (SwiftUI na iOS, Jetpack Compose na Android) z jednego kodu.
+4. **Native-first (naczelny wyznacznik):** Każda warstwa UI i UX jest oceniana pod kątem natywnych konwencji **iOS i Android**. Domyślnie universal `@expo/ui` (SwiftUI / Jetpack Compose), moduły Expo z mostem natywnym, systemowy motyw; RN primitives tylko tam, gdzie natywna warstwa nie wystarcza. Szczegóły: [native-platform-guidelines.md](native-platform-guidelines.md).
 5. **Budget-first:** Supabase Free Tier → Pro przy wzroście.
 
 ### 1.3 User Stories (P0)
@@ -55,6 +61,20 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 
 ## 2. Dokument techniczny (TDD)
 
+### 2.0 Zasada platformowa (native-first)
+
+**Naczelnym wyznacznikiem NiX są natywne rozwiązania iOS i Android** — nie web ani generyczne UI-kity RN.
+
+| Obszar | Zasada |
+| :--- | :--- |
+| UI | Universal `@expo/ui` → platform-specific `@expo/ui` → RN primitive (wyjątek) |
+| Nawigacja | Expo Router + `NativeTabs` (natywny tab bar) |
+| Media / hardware | Moduły Expo (`expo-camera`, `expo-video`, `expo-screen-capture`…) |
+| Motyw | Systemowy light/dark na obu platformach — [theme-guidelines.md](theme-guidelines.md) |
+| Testy | Smoke manualny na iOS **i** Android przed merge zmian UI |
+
+Pełna hierarchia wyboru, antywzorce i checklista PR: [native-platform-guidelines.md](native-platform-guidelines.md).
+
 ### 2.1 Architektura systemu
 
 | Warstwa | Technologia | Uwagi |
@@ -76,7 +96,52 @@ Pełny zestaw zależności: sekcja 5 oraz `package.json`.
 
 ### 2.2 Filozofia UI (universal `@expo/ui`)
 
-Komponenty bazują na universal `@expo/ui` (import z root pakietu). Pod spodem: SwiftUI na iOS, Jetpack Compose na Android. Ekrany profilu i skrzynki używają natywnych list (`List`, `FieldGroup`) z osadzonymi wierszami RN przez `RNHostView`. Ikony: `AppIcon` z `Icon.select` (SF Symbols + Material Symbols XML).
+**Native-first:** użytkownik na iOS i Android ma widzieć UI zgodne z HIG i Material — osiągane przez universal `@expo/ui`, nie przez „jeden wygląd na wszystkie platformy”.
+
+Komponenty bazują na universal `@expo/ui` (import z root pakietu). Pod spodem: SwiftUI na iOS, Jetpack Compose na Android. Ekrany profilu i skrzynki używają natywnych list (`List`, `FieldGroup`) z osadzonymi wierszami RN przez `RNHostView`. Ikony w UI: `AppIcon` → `Icon.select` (szczegóły: §2.2.1). Przy nowych ekranach stosuj [drzewo decyzyjne](native-platform-guidelines.md#drzewo-decyzyjne-nowy-ekran--komponent) z wytycznych platformowych.
+
+**Layout auth:** ekrany ustawień (`register`, `forgot-password`, `onboarding`) — `AuthFormLayout` z pełnym `FieldGroup` na ekranie. Login — RN `ScrollView` + karta + wyłącznie `FieldGroup.Section` w `AppHost matchContents` (bez owijki `FieldGroup`). Nie zagnieżdżaj `FieldGroup` w `ScrollView` ani nie ustawiaj mu sztywnej wysokości (na Androidzie `FieldGroup` = `LazyColumn` z własnym scrollem).
+
+#### 2.2.1 Ikony uniwersalne (SDK 56)
+
+W projekcie są **dwa osobne API ikon** — nie wymieniaj ich:
+
+| Kontekst | API | Plik |
+| :--- | :--- | :--- |
+| **Tab bar** | `NativeTabs.Trigger.Icon` z `sf` (iOS) + `md` (Android) jako **nazwy** symboli | `src/app/(tabs)/_layout.tsx` |
+| **Reszta UI** (kamera, preview, inbox, send-to…) | `Icon` z `@expo/ui` + `Icon.select` + `@expo/material-symbols/*.xml` | `src/theme/app-icons.ts`, `src/components/ui/app-icon.tsx` |
+
+**Wzorzec dla ekranów** (źródło prawdy: [Expo UI — Icon](https://docs.expo.dev/versions/latest/sdk/ui/universal/icon/)):
+
+```tsx
+// src/theme/app-icons.ts — każda ikona jako hoisted Icon.select z literałem obiektu
+const APP_ICONS = {
+  inbox: Icon.select({
+    ios: 'tray.fill',
+    android: import('@expo/material-symbols/inbox.xml'),
+  }),
+};
+
+// src/components/ui/app-icon.tsx
+<Icon name={resolveAppIconName('inbox')} size={24} color={color} />
+```
+
+Zasady:
+
+1. **Android:** `import('@expo/material-symbols/nazwa.xml')` — zawsze z rozszerzeniem `.xml` (subpath pakietu, nie `assets/`).
+2. **iOS:** string SF Symbol (np. `'tray.fill'`).
+3. **`Icon.select` musi być wywołane z literałem `{ ios, android }` na poziomie modułu** — plugin Babel `@expo/ui/babel-plugin` (auto przez `babel-preset-expo`) zamienia `import()` → `require()` i tree-shakuje nieużywaną platformę. Pośrednie opakowanie (`Icon.select({ ios: spec.ios, android: spec.android })`) **nie działa** — Metro nie rozwiąże modułów.
+4. **Tab bar:** tylko `sf` + `md` (np. `md="photo_camera"`), bez importów XML.
+
+**Nie używać** w nowym kodzie UI:
+
+- `SymbolView` / `expo-symbols` (stary model iOS-only)
+- `@expo/ui/swift-ui` → `Image(systemName:)` do ikon współdzielonych z Androidem
+- ręczne pliki `.xml` w `assets/` (stary flow Jetpack Compose-only)
+- `{ ios, android: require(...) }` zamiast `Icon.select` — nie tree-shakuje bundle
+- `@expo/vector-icons` / Ionicons
+
+Nową ikonę dodaj w `AppIconName` + `APP_ICONS` w `app-icons.ts`. Nazwy Material: [Material Symbols](https://fonts.google.com/icons) (w pakiecie tylko styl **outlined**).
 
 ### 2.3 Android — środowisko developerskie
 
@@ -178,7 +243,7 @@ src/
     friend-*.tsx       # QR, invite, confirm
   api/
   components/
-    ui/                # przyciski, avatar, SF Symbol, ...
+    ui/                # AppHost, AppIcon, auth-form-layout, settings-list, ...
     friend/            # QR card, lista zaproszeń
   context/             # VideoDraftContext
   hooks/
@@ -193,6 +258,8 @@ src/
 
 | Plik | Odpowiedzialność |
 | :--- | :--- |
+| `src/theme/app-icons.ts` | Mapowanie `AppIconName` → `Icon.select` (SF + Material Symbols XML) |
+| `src/components/ui/app-icon.tsx` | Cienki wrapper nad universal `Icon` |
 | `src/app/_layout.tsx` | Providerzy (Query, theme, toast, video draft), DeepLink, bootstrap sesji / onboarding |
 | `src/lib/deepLink.ts` | Auth URL + zaproszenia znajomych → routing |
 | `src/lib/supabase.ts` | Klient Supabase |
@@ -212,7 +279,7 @@ src/
 
 - Expo Router, TypeScript, Reanimated, GH, Supabase client
 - Auth e-mail+hasło, onboarding username
-- Motyw iOS, podstawowa nawigacja
+- Motyw systemowy (iOS + Android), natywna nawigacja (`NativeTabs`)
 
 ### Sprint 2: Media Engine — **zakończony**
 
@@ -261,7 +328,7 @@ Instalacja typowa: `npx expo install <pakiet>` dla modułów Expo.
 
 ## 6. Konfiguracja `app.json` (skrót)
 
-- **platforms:** `["ios"]`
+- **platforms:** `["ios", "android"]`
 - **scheme:** `nix`
 - **userInterfaceStyle:** `automatic`
 - **expo-router:** `root: ./src/app`
@@ -295,13 +362,15 @@ Pełny plik: [app.json](../app.json) w katalogu głównym repo.
 
 ## 8. Baseline jakości (release readiness)
 
+Wytyczne platformowe (native-first): [native-platform-guidelines.md](native-platform-guidelines.md).
+
 ```bash
 npm run lint
 npm run typecheck
 npm run test
 ```
 
-Smoke P0 (manualnie — rozszerzone o [development-workflow.md](development-workflow.md)):
+Smoke P0 (manualnie — rozszerzone o [development-workflow.md](development-workflow.md); **iOS + Android** — [native-platform-guidelines.md](native-platform-guidelines.md)):
 
 - Rejestracja → e-mail confirm → logowanie → onboarding username / istniejący użytkownik → `(tabs)`
 - Reset hasła (link) → `reset-password`; zmiana hasła z profilu

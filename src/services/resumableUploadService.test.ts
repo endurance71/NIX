@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RESUMABLE_CHUNK_SIZE_BYTES, uploadResumable } from './resumableUploadService';
+import { uploadResumable } from './resumableUploadService';
+
+const RESUMABLE_CHUNK_SIZE_BYTES = 6 * 1024 * 1024;
 
 const { mockReadAsStringAsync, mockGetSession, mockUploadCtor } = vi.hoisted(() => ({
   mockReadAsStringAsync: vi.fn(),

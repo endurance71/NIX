@@ -242,7 +242,8 @@ CREATE POLICY "nixes_insert"
 -- Tylko odbiorca może oznaczyć nix jako przeczytany
 CREATE POLICY "nixes_update_viewed"
   ON public.nixes FOR UPDATE
-  USING (auth.uid() = receiver_id);
+  USING (auth.uid() = receiver_id)
+  WITH CHECK (auth.uid() = receiver_id);
 
 
 -- 2.3 Friendships
@@ -270,7 +271,8 @@ CREATE POLICY "friendships_insert"
 -- Użytkownik może zaakceptować zaproszenie (gdzie jest friend_id)
 CREATE POLICY "friendships_update"
   ON public.friendships FOR UPDATE
-  USING (auth.uid() = friend_id);
+  USING (auth.uid() = friend_id)
+  WITH CHECK (auth.uid() = friend_id);
 
 -- Obie strony mogą usunąć znajomość
 CREATE POLICY "friendships_delete"
@@ -599,19 +601,6 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.list_public_profiles()
-RETURNS TABLE(id UUID, username TEXT, avatar_storage_path TEXT, avatar_emoji TEXT)
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT p.id, p.username, p.avatar_storage_path, p.avatar_emoji
-  FROM public.profiles p
-  WHERE p.username IS NOT NULL
-  ORDER BY p.username ASC;
-$$;
-
 CREATE OR REPLACE FUNCTION public.get_capture_policy_for_sender(sender_id UUID)
 RETURNS TEXT
 LANGUAGE sql
@@ -733,7 +722,6 @@ REVOKE ALL ON FUNCTION public.get_public_profile_by_username(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_public_profiles_by_ids(UUID[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.create_friend_invite(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.redeem_friend_invite(TEXT) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.list_public_profiles() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_capture_policy_for_sender(UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.list_accepted_friends_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.fetch_inbox_nixes_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
@@ -745,12 +733,10 @@ GRANT EXECUTE ON FUNCTION public.get_public_profile_by_username(TEXT) TO authent
 GRANT EXECUTE ON FUNCTION public.get_public_profiles_by_ids(UUID[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_friend_invite(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.redeem_friend_invite(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.list_public_profiles() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_capture_policy_for_sender(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.list_accepted_friends_paginated(INT, TIMESTAMPTZ) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.fetch_inbox_nixes_paginated(INT, TIMESTAMPTZ) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.fetch_sent_nixes_paginated(INT, TIMESTAMPTZ) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.can_send_nix(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.log_cleanup_audit(UUID, UUID, TEXT, TEXT, TEXT) TO service_role;
 GRANT EXECUTE ON FUNCTION public.delete_my_conversation_with_peer(UUID) TO authenticated;
 
@@ -766,6 +752,7 @@ CREATE TRIGGER prevent_username_update
   FOR EACH ROW
   EXECUTE PROCEDURE public.prevent_username_change();
 
+DROP TRIGGER IF EXISTS protect_snap_payload ON public.nixes;
 DROP TRIGGER IF EXISTS protect_nix_payload ON public.nixes;
 CREATE TRIGGER protect_nix_payload
   BEFORE UPDATE ON public.nixes
@@ -814,6 +801,20 @@ CREATE POLICY "storage_select"
       WHERE s.media_path = name
         AND (s.sender_id = auth.uid() OR s.receiver_id = auth.uid())
     )
+  );
+
+-- Nadawca może nadpisywać własne uploady (TUS/resumable upsert wymaga UPDATE)
+CREATE POLICY "storage_update"
+  ON storage.objects FOR UPDATE
+  USING (
+    bucket_id = 'media-vault'
+    AND auth.role() = 'authenticated'
+    AND name LIKE ('nixes/' || auth.uid() || '/%')
+  )
+  WITH CHECK (
+    bucket_id = 'media-vault'
+    AND auth.role() = 'authenticated'
+    AND name LIKE ('nixes/' || auth.uid() || '/%')
   );
 
 -- Tylko serwis (service_role) może usuwać — wywołuje Edge Function
@@ -878,6 +879,19 @@ CREATE POLICY "avatars_storage_select"
           )
       )
     )
+  );
+
+CREATE POLICY "avatars_storage_update"
+  ON storage.objects FOR UPDATE
+  USING (
+    bucket_id = 'avatars'
+    AND auth.role() = 'authenticated'
+    AND split_part(name, '/', 1)::uuid = auth.uid()
+  )
+  WITH CHECK (
+    bucket_id = 'avatars'
+    AND auth.role() = 'authenticated'
+    AND split_part(name, '/', 1)::uuid = auth.uid()
   );
 
 CREATE POLICY "avatars_storage_delete"

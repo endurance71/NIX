@@ -1,0 +1,34 @@
+---
+description: Native-first (iOS + Android) — naczelny wyznacznik UI/UX i architektury frontendu NiX
+alwaysApply: true
+---
+
+# Native-first (iOS + Android)
+
+Źródło prawdy: `docs/native-platform-guidelines.md`. Przy sprzeczności — obowiązuje ten dokument.
+
+## Zasada
+
+Naczelnym wyznacznikiem jakości frontendu są **natywne rozwiązania iOS i Android** — nie web ani generyczne UI-kity RN.
+
+## Hierarchia wyboru UI
+
+1. Universal `@expo/ui` (import z root) — domyślnie
+2. `@expo/ui/swift-ui` lub `@expo/ui/jetpack-compose` — gdy universal nie wystarcza
+3. Moduły Expo z mostem natywnym (`expo-camera`, `expo-video`, `expo-screen-capture`…)
+4. RN primitives + `useAppTheme()` — tylko wyjątki (kamera, viewer, custom overlay)
+5. **Zabronione:** Paper, NativeBase, `@expo/vector-icons`, legacy `Animated` / `LayoutAnimation` na hot path
+
+## Konwencje NiX
+
+- Tab bar: `NativeTabs` — nie JS tabs
+- Ikony UI: `AppIcon` → `Icon.select` w `src/theme/app-icons.ts` (SF Symbols + Material XML)
+- Formularze auth: `AuthFormLayout` + `FieldGroup` / `TextInput` z `@expo/ui`
+- **Nie** owijaj `FieldGroup` w `ScrollView` ani nie ustawiaj mu sztywnej `height`
+- Kolory: tokeny `useAppTheme()` — bez hardcoded hexów
+- Animacje: Reanimated 4 + Gesture Handler
+
+## Przed merge zmian UI
+
+- Smoke manualny na **iOS i Android**
+- Light i dark na obu platformach

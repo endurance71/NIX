@@ -1,14 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   deleteConversationWithPeer,
-  enqueueCleanupJob,
   fetchSentNixes,
-  filterUnreadInboxNixesFromSender,
   flushCleanupQueue,
   insertNix,
   markNixViewedWithCleanup,
-  requestNixCleanup,
-  type InboxNix,
 } from './nixService';
 
 const {
@@ -102,49 +98,6 @@ vi.mock('../lib/supabase', () => ({
   },
 }));
 
-function inboxStub(partial: Partial<InboxNix> & Pick<InboxNix, 'id' | 'sender_id' | 'created_at'>): InboxNix {
-  return {
-    media_path: 'p.jpg',
-    is_viewed: false,
-    media_type: 'image',
-    playback_duration_ms: null,
-    view_duration_sec: 5,
-    status: 'sent',
-    sender: null,
-    ...partial,
-  };
-}
-
-describe('filterUnreadInboxNixesFromSender', () => {
-  it('zwraca tylko nieprzeczytane od danego nadawcy posortowane rosnąco po created_at', () => {
-    const sender = 'user-a';
-    const nixes: InboxNix[] = [
-      inboxStub({ id: '3', sender_id: sender, created_at: '2026-01-03T00:00:00.000Z' }),
-      inboxStub({ id: '1', sender_id: sender, created_at: '2026-01-01T00:00:00.000Z' }),
-      inboxStub({ id: '2', sender_id: sender, created_at: '2026-01-02T00:00:00.000Z' }),
-      inboxStub({ id: 'x', sender_id: 'other', created_at: '2026-01-01T12:00:00.000Z' }),
-      inboxStub({ id: '4', sender_id: sender, created_at: '2026-01-04T00:00:00.000Z', is_viewed: true }),
-    ];
-    const q = filterUnreadInboxNixesFromSender(nixes, sender);
-    expect(q.map((s) => s.id)).toEqual(['1', '2', '3']);
-  });
-
-  it('pomija wpisy z is_viewed wyłącznie przez !== true', () => {
-    const sender = 'user-b';
-    const nixes: InboxNix[] = [
-      inboxStub({ id: 'a', sender_id: sender, created_at: '2026-01-01T00:00:00.000Z', is_viewed: false as any }),
-      inboxStub({
-        id: 'b',
-        sender_id: sender,
-        created_at: '2026-01-02T00:00:00.000Z',
-        is_viewed: undefined as unknown as boolean,
-      }),
-    ];
-    const q = filterUnreadInboxNixesFromSender(nixes, sender);
-    expect(q.map((s) => s.id)).toEqual(['a', 'b']);
-  });
-});
-
 describe('nixService cleanup flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -237,14 +190,17 @@ describe('nixService cleanup flow', () => {
     expect(mockQueueUpdateEq).toHaveBeenCalledWith('nix_id', 'nix-retry');
   });
 
-  it('enqueueCleanupJob dodaje pozycję do kolejki', async () => {
-    await enqueueCleanupJob('nix-3', 'nixes/receiver-1/queued2.jpg');
+  it('markNixViewedWithCleanup dodaje job do kolejki przed cleanup', async () => {
+    mockInvoke.mockResolvedValue({ data: { ok: true }, error: null });
+
+    await markNixViewedWithCleanup('nix-3', 'nixes/receiver-1/queued2.jpg');
     expect(mockQueueUpsert).toHaveBeenCalled();
   });
 
-  it('requestNixCleanup zgłasza błąd dla niepoprawnej odpowiedzi', async () => {
+  it('markNixViewedWithCleanup zgłasza błąd cleanup edge przy niepoprawnej odpowiedzi', async () => {
     mockInvoke.mockResolvedValue({ data: { ok: false }, error: null });
-    await expect(requestNixCleanup('nix-4', 'nixes/receiver-1/a.jpg')).rejects.toThrow();
+    await markNixViewedWithCleanup('nix-4', 'nixes/receiver-1/a.jpg');
+    expect(mockQueueUpdate).toHaveBeenCalled();
   });
 
   it('deleteConversationWithPeer wywołuje poprawne RPC', async () => {

@@ -1,5 +1,7 @@
 # Pipeline multimediów (zdjęcie i wideo)
 
+> **Wyznacznik platformowy:** Kamera, kompresja, odtwarzanie i miniatury opierają się na **modułach z mostem natywnym** (`expo-camera`, `expo-video`, `expo-image-manipulator`, `react-native-compressor`) — nie na rozwiązaniach webowych ani czysto JS. Zasada ogólna: [native-platform-guidelines.md](./native-platform-guidelines.md).
+
 ## Kamera (`src/app/(tabs)/index.tsx`)
 
 - **Zdjęcie:** krótki tap na migawkę.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { unstable_batchedUpdates } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { toDomainError } from '../services/errors';
@@ -15,6 +15,7 @@ import {
   writeUploadQueueNixeshot,
 } from '../lib/uploadQueuePersistence';
 import { trackEvent } from '../lib/telemetry';
+import { runWithFinally } from '../lib/runWithFinally';
 
 type UploadQueueTask = UploadTask;
 
@@ -60,6 +61,21 @@ function mapUploadStage(progress: SupabaseUploadProgress): UploadTaskStage {
   }
 }
 
+function persistUploadQueueNixeshot(
+  nextJobs: UploadQueueTask[],
+  nextActiveTaskId: string | null,
+  paused: boolean
+) {
+  const nixeshot = {
+    version: 1 as const,
+    tasks: nextJobs.slice(-MAX_PERSISTED_TASKS),
+    activeTaskId: nextActiveTaskId,
+    paused,
+    updatedAt: Date.now(),
+  };
+  void writeUploadQueueNixeshot(nixeshot).catch(() => {});
+}
+
 export function useMediaUpload() {
   const [isUploading, setIsUploading] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -67,256 +83,259 @@ export function useMediaUpload() {
   const [error, setError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<UploadQueueTask[]>([]);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const abortControllersRef = useRef(new Map<string, AbortController>());
-  const inFlightTaskIdsRef = useRef(new Set<string>());
+  const abortControllersRef = useRef<Map<string, AbortController> | null>(null);
+  const inFlightTaskIdsRef = useRef<Set<string> | null>(null);
   const processingRef = useRef(false);
   const jobsRef = useRef<UploadQueueTask[]>([]);
-  const hydratedPausedRef = useRef<boolean | null>(null);
-  const completionWaitersRef = useRef(
-    new Map<string, { resolve: (value: TaskCompletionResult) => void; timeoutId: ReturnType<typeof setTimeout> }>()
-  );
+  const completionWaitersRef = useRef<
+    Map<string, { resolve: (value: TaskCompletionResult) => void; timeoutId: ReturnType<typeof setTimeout> }> | null
+  >(null);
 
-  const resolveTaskCompletion = useCallback((taskId: string, result: TaskCompletionResult) => {
-    const waiter = completionWaitersRef.current.get(taskId);
+  const abortControllers = () => {
+    if (!abortControllersRef.current) {
+      abortControllersRef.current = new Map();
+    }
+    return abortControllersRef.current;
+  };
+
+  const inFlightTaskIds = () => {
+    if (!inFlightTaskIdsRef.current) {
+      inFlightTaskIdsRef.current = new Set();
+    }
+    return inFlightTaskIdsRef.current;
+  };
+
+  const completionWaiters = () => {
+    if (!completionWaitersRef.current) {
+      completionWaitersRef.current = new Map();
+    }
+    return completionWaitersRef.current;
+  };
+
+  const resolveTaskCompletion = (taskId: string, result: TaskCompletionResult) => {
+    const waiter = completionWaiters().get(taskId);
     if (!waiter) return;
     clearTimeout(waiter.timeoutId);
-    completionWaitersRef.current.delete(taskId);
+    completionWaiters().delete(taskId);
     waiter.resolve(result);
-  }, []);
+  };
 
-  const waitForTaskCompletion = useCallback((taskId: string, timeoutMs = 120_000) => {
+  const waitForTaskCompletion = (taskId: string, timeoutMs = 120_000) => {
     return new Promise<TaskCompletionResult>((resolve) => {
       const timeoutId = setTimeout(() => {
-        completionWaitersRef.current.delete(taskId);
+        completionWaiters().delete(taskId);
         resolve({ success: false, error: 'Przekroczono czas oczekiwania na potwierdzenie wysyłki.' });
       }, timeoutMs);
-      completionWaitersRef.current.set(taskId, { resolve, timeoutId });
+      completionWaiters().set(taskId, { resolve, timeoutId });
     });
-  }, []);
-  const persistNixeshot = useCallback((nextJobs: UploadQueueTask[], nextActiveTaskId: string | null, paused: boolean) => {
-    const nixeshot = {
-      version: 1 as const,
-      tasks: nextJobs.slice(-MAX_PERSISTED_TASKS),
-      activeTaskId: nextActiveTaskId,
-      paused,
-      updatedAt: Date.now(),
+  };
+
+  const setJobsAndPersist = (updater: (current: UploadQueueTask[]) => UploadQueueTask[]) => {
+    setJobs((current) => {
+      const next = updater(current);
+      persistUploadQueueNixeshot(next, activeTaskId, isPaused);
+      return next;
+    });
+  };
+
+  const upsertJob = (job: UploadQueueTask) => {
+    setJobsAndPersist((current) => {
+      const next = current.some((item) => item.id === job.id)
+        ? current.map((item) => (item.id === job.id ? job : item))
+        : [...current, job];
+      return next;
+    });
+  };
+
+  const patchJob = (jobId: string, patch: Partial<UploadQueueTask>) => {
+    setJobsAndPersist((current) => {
+      const next = current.map((job) => {
+        if (job.id !== jobId) return job;
+        const nextJob = { ...job, ...patch, updatedAt: Date.now() };
+        if (patch.progress?.stage && patch.progress.stage !== job.progress.stage) {
+          trackEvent('upload_queue_state_transition', {
+            task_id: job.id,
+            upload_flow_id: job.uploadFlowId,
+            from_stage: job.progress.stage,
+            to_stage: patch.progress.stage,
+            attempt: patch.progress.attempt ?? job.progress.attempt,
+            media_type: job.mediaType,
+          });
+        }
+        return nextJob;
+      });
+      return next;
+    });
+  };
+
+  const makeProgressHandler = (jobId: string) => (progress: SupabaseUploadProgress) => {
+    const nextProgress: UploadTaskProgress = {
+      stage: mapUploadStage(progress),
+      progress: progress.progress,
+      attempt: progress.attempt ?? 1,
+      bytesSent: progress.bytesSent,
+      bytesTotal: progress.bytesTotal,
     };
-    void writeUploadQueueNixeshot(nixeshot).catch(() => {});
-  }, []);
+    patchJob(jobId, {
+      progress: nextProgress,
+    });
+  };
 
-  const setJobsAndPersist = useCallback(
-    (updater: (current: UploadQueueTask[]) => UploadQueueTask[]) => {
-      setJobs((current) => {
-        const next = updater(current);
-        persistNixeshot(next, activeTaskId, isPaused);
-        return next;
-      });
-    },
-    [activeTaskId, isPaused, persistNixeshot]
-  );
+  const enqueueTask = (task: UploadQueueTask) => {
+    const duplicate = jobsRef.current.find((job) => {
+      const samePayload =
+        job.receiverId === task.receiverId &&
+        job.fileUri === task.fileUri &&
+        job.mediaType === task.mediaType;
+      const recent = Date.now() - job.createdAt < TASK_DEDUP_WINDOW_MS;
+      const active =
+        job.progress.stage === 'queued' ||
+        job.progress.stage === 'upload_preparing' ||
+        job.progress.stage === 'uploading' ||
+        job.progress.stage === 'persisting_metadata' ||
+        job.progress.stage === 'cleanup';
+      return samePayload && recent && active;
+    });
+    if (duplicate) return;
+    upsertJob(task);
+  };
 
-  const upsertJob = useCallback(
-    (job: UploadQueueTask) => {
-      setJobsAndPersist((current) => {
-        const next = current.some((item) => item.id === job.id)
-          ? current.map((item) => (item.id === job.id ? job : item))
-          : [...current, job];
-        return next;
-      });
-    },
-    [setJobsAndPersist]
-  );
-
-  const patchJob = useCallback(
-    (jobId: string, patch: Partial<UploadQueueTask>) => {
-      setJobsAndPersist((current) => {
-        const next = current.map((job) => {
-          if (job.id !== jobId) return job;
-          const nextJob = { ...job, ...patch, updatedAt: Date.now() };
-          if (patch.progress?.stage && patch.progress.stage !== job.progress.stage) {
-            trackEvent('upload_queue_state_transition', {
-              task_id: job.id,
-              upload_flow_id: job.uploadFlowId,
-              from_stage: job.progress.stage,
-              to_stage: patch.progress.stage,
-              attempt: patch.progress.attempt ?? job.progress.attempt,
-              media_type: job.mediaType,
-            });
-          }
-          return nextJob;
-        });
-        return next;
-      });
-    },
-    [setJobsAndPersist]
-  );
-
-  const makeProgressHandler = useCallback(
-    (jobId: string) => (progress: SupabaseUploadProgress) => {
-      const nextProgress: UploadTaskProgress = {
-        stage: mapUploadStage(progress),
-        progress: progress.progress,
-        attempt: progress.attempt ?? 1,
-        bytesSent: progress.bytesSent,
-        bytesTotal: progress.bytesTotal,
-      };
-      patchJob(jobId, {
-        progress: nextProgress,
-      });
-    },
-    [patchJob]
-  );
-
-  const enqueueTask = useCallback(
-    (task: UploadQueueTask) => {
-      const duplicate = jobsRef.current.find((job) => {
-        const samePayload =
-          job.receiverId === task.receiverId &&
-          job.fileUri === task.fileUri &&
-          job.mediaType === task.mediaType;
-        const recent = Date.now() - job.createdAt < TASK_DEDUP_WINDOW_MS;
-        const active =
-          job.progress.stage === 'queued' ||
-          job.progress.stage === 'upload_preparing' ||
-          job.progress.stage === 'uploading' ||
-          job.progress.stage === 'persisting_metadata' ||
-          job.progress.stage === 'cleanup';
-        return samePayload && recent && active;
-      });
-      if (duplicate) return;
-      upsertJob(task);
-    },
-    [upsertJob]
-  );
-
-  const processTask = useCallback(
-    async (task: UploadQueueTask) => {
+  const processTask = async (task: UploadQueueTask) => {
       const abortController = new AbortController();
-      abortControllersRef.current.set(task.id, abortController);
+      abortControllers().set(task.id, abortController);
       patchJob(task.id, { startedAt: Date.now() });
       setIsUploading(true);
       setError(null);
 
-      try {
-        if (task.mediaType === 'video') {
-          await uploadVideoWithMetadata({
-            fileUri: task.fileUri,
-            receiverId: task.receiverId,
-            uploadId: task.id,
-            uploadFlowId: task.uploadFlowId,
-            signal: abortController.signal,
-            viewDurationSec: task.viewDurationSec,
-            playbackDurationMs: task.segmentDurationMs ?? 3000,
-            onProgress: makeProgressHandler(task.id),
-          });
-        } else {
-          await uploadImageWithMetadata({
-            fileUri: task.fileUri,
-            receiverId: task.receiverId,
-            uploadId: task.id,
-            uploadFlowId: task.uploadFlowId,
-            signal: abortController.signal,
-            viewDurationSec: task.viewDurationSec,
-            onProgress: makeProgressHandler(task.id),
-          });
-        }
+      await runWithFinally(
+        async () => {
+          try {
+            if (task.mediaType === 'video') {
+              await uploadVideoWithMetadata({
+                fileUri: task.fileUri,
+                receiverId: task.receiverId,
+                uploadId: task.id,
+                uploadFlowId: task.uploadFlowId,
+                signal: abortController.signal,
+                viewDurationSec: task.viewDurationSec,
+                playbackDurationMs: task.segmentDurationMs ?? 3000,
+                onProgress: makeProgressHandler(task.id),
+              });
+            } else {
+              await uploadImageWithMetadata({
+                fileUri: task.fileUri,
+                receiverId: task.receiverId,
+                uploadId: task.id,
+                uploadFlowId: task.uploadFlowId,
+                signal: abortController.signal,
+                viewDurationSec: task.viewDurationSec,
+                onProgress: makeProgressHandler(task.id),
+              });
+            }
 
-        patchJob(task.id, {
-          progress: { stage: 'success', progress: 1, attempt: task.retryCount + 1 },
-          error: null,
-          finishedAt: Date.now(),
-        });
-        trackEvent('video_upload_completed', {
-          task_id: task.id,
-          upload_flow_id: task.uploadFlowId,
-          media_type: task.mediaType,
-          retry_count: task.retryCount,
-          end_to_end_ms: Date.now() - (task.startedAt ?? task.createdAt),
-        });
-        setJobsAndPersist((current) => current.filter((job) => job.id !== task.id));
-        resolveTaskCompletion(task.id, { success: true });
-      } catch (err) {
-        const domainError = toDomainError(err, 'Nie udało się przesłać wiadomości.');
-        const latestTask = jobsRef.current.find((job) => job.id === task.id);
-        const currentRetryCount = latestTask?.retryCount ?? task.retryCount;
-        const nextRetryCount = currentRetryCount + 1;
-        const isSchemaMismatch =
-          domainError.code === 'UNKNOWN' &&
-          typeof domainError.message === 'string' &&
-          domainError.message.includes('client_upload_id');
-        const retryable =
-          !isSchemaMismatch && !NON_RETRYABLE_ERROR_CODES.has(domainError.code) && nextRetryCount <= MAX_RETRIES;
-
-        trackEvent('video_upload_failed', {
-          task_id: task.id,
-          upload_flow_id: task.uploadFlowId,
-          retry_count: nextRetryCount,
-          stage: task.progress.stage,
-          error_message: domainError.message,
-        });
-
-        if (retryable) {
-          patchJob(task.id, {
-            retryCount: nextRetryCount,
-            progress: {
-              stage: 'queued',
-              progress: 0,
-              attempt: nextRetryCount + 1,
-              message: `Ponawianie próby ${nextRetryCount}/${MAX_RETRIES}`,
-            },
-            error: null,
-          });
-          const delay = RETRY_DELAY_MS[Math.min(nextRetryCount - 1, RETRY_DELAY_MS.length - 1)];
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        } else {
-          const terminalStage: UploadTaskStage = domainError.code === 'CANCELLED' ? 'cancelled' : 'failed';
-          patchJob(task.id, {
-            progress: {
-              stage: terminalStage,
-              progress: 1,
-              attempt: nextRetryCount,
-              message: domainError.message,
-            },
-            finishedAt: Date.now(),
-            error: domainError.message,
-          });
-          setError(domainError.message);
-          // Nie trzymamy nieretryowalnych tasków w kolejce po błędzie.
-          if (!retryable) {
+            patchJob(task.id, {
+              progress: { stage: 'success', progress: 1, attempt: task.retryCount + 1 },
+              error: null,
+              finishedAt: Date.now(),
+            });
+            trackEvent('video_upload_completed', {
+              task_id: task.id,
+              upload_flow_id: task.uploadFlowId,
+              media_type: task.mediaType,
+              retry_count: task.retryCount,
+              end_to_end_ms: Date.now() - (task.startedAt ?? task.createdAt),
+            });
             setJobsAndPersist((current) => current.filter((job) => job.id !== task.id));
-            resolveTaskCompletion(task.id, { success: false, error: domainError.message });
-          }
-        }
-      } finally {
-        abortControllersRef.current.delete(task.id);
-        setIsUploading(false);
-      }
-    },
-    [makeProgressHandler, patchJob, resolveTaskCompletion, setJobsAndPersist]
-  );
+            resolveTaskCompletion(task.id, { success: true });
+          } catch (err) {
+            const domainError = toDomainError(err, 'Nie udało się przesłać wiadomości.');
+            const latestTask = jobsRef.current.find((job) => job.id === task.id);
+            const currentRetryCount = latestTask?.retryCount ?? task.retryCount;
+            const nextRetryCount = currentRetryCount + 1;
+            const isSchemaMismatch =
+              domainError.code === 'UNKNOWN' &&
+              typeof domainError.message === 'string' &&
+              domainError.message.includes('client_upload_id');
+            const retryable =
+              !isSchemaMismatch && !NON_RETRYABLE_ERROR_CODES.has(domainError.code) && nextRetryCount <= MAX_RETRIES;
 
-  const processQueue = useCallback(async () => {
+            trackEvent('video_upload_failed', {
+              task_id: task.id,
+              upload_flow_id: task.uploadFlowId,
+              retry_count: nextRetryCount,
+              stage: task.progress.stage,
+              error_message: domainError.message,
+            });
+
+            if (retryable) {
+              patchJob(task.id, {
+                retryCount: nextRetryCount,
+                progress: {
+                  stage: 'queued',
+                  progress: 0,
+                  attempt: nextRetryCount + 1,
+                  message: `Ponawianie próby ${nextRetryCount}/${MAX_RETRIES}`,
+                },
+                error: null,
+              });
+              const delay = RETRY_DELAY_MS[Math.min(nextRetryCount - 1, RETRY_DELAY_MS.length - 1)];
+              await new Promise((resolve) => setTimeout(resolve, delay));
+            } else {
+              const terminalStage: UploadTaskStage = domainError.code === 'CANCELLED' ? 'cancelled' : 'failed';
+              patchJob(task.id, {
+                progress: {
+                  stage: terminalStage,
+                  progress: 1,
+                  attempt: nextRetryCount,
+                  message: domainError.message,
+                },
+                finishedAt: Date.now(),
+                error: domainError.message,
+              });
+              setError(domainError.message);
+              if (!retryable) {
+                setJobsAndPersist((current) => current.filter((job) => job.id !== task.id));
+                resolveTaskCompletion(task.id, { success: false, error: domainError.message });
+              }
+            }
+          }
+        },
+        () => {
+          abortControllers().delete(task.id);
+          setIsUploading(false);
+        }
+      );
+  };
+
+  const processQueue = async () => {
     if (!isQueueReady || processingRef.current || isPaused) return;
     const nextTask = jobsRef.current.find(
-      (job) => job.progress.stage === 'queued' && !inFlightTaskIdsRef.current.has(job.id)
+      (job) => job.progress.stage === 'queued' && !inFlightTaskIds().has(job.id)
     );
     if (!nextTask) return;
 
     processingRef.current = true;
-    inFlightTaskIdsRef.current.add(nextTask.id);
+    inFlightTaskIds().add(nextTask.id);
     setActiveTaskId(nextTask.id);
     patchJob(nextTask.id, {
       progress: { ...nextTask.progress, stage: 'upload_preparing', progress: 0.01 },
     });
 
-    try {
-      await processTask({ ...nextTask, progress: { ...nextTask.progress, stage: 'upload_preparing', progress: 0.01 } });
-    } finally {
-      inFlightTaskIdsRef.current.delete(nextTask.id);
-      setActiveTaskId(null);
-      processingRef.current = false;
-    }
-  }, [isPaused, isQueueReady, patchJob, processTask]);
+    await runWithFinally(
+      async () => {
+        await processTask({ ...nextTask, progress: { ...nextTask.progress, stage: 'upload_preparing', progress: 0.01 } });
+      },
+      () => {
+        inFlightTaskIds().delete(nextTask.id);
+        setActiveTaskId(null);
+        processingRef.current = false;
+      }
+    );
+  };
+
+  const processQueueEvent = useEffectEvent(() => {
+    void processQueue();
+  });
 
   const uploadNix = async (
     fileUri: string,
@@ -396,28 +415,22 @@ export function useMediaUpload() {
     }
   };
 
-  const cancelUpload = useCallback(
-    (jobId: string) => {
-      abortControllersRef.current.get(jobId)?.abort();
-      patchJob(jobId, {
-        progress: { stage: 'cancelled', progress: 1, attempt: 1, message: 'Wysyłka została anulowana.' },
-        error: 'Wysyłka została anulowana.',
-      });
-      resolveTaskCompletion(jobId, { success: false, error: 'Wysyłka została anulowana.' });
-    },
-    [patchJob, resolveTaskCompletion]
-  );
+  const cancelUpload = (jobId: string) => {
+    abortControllers().get(jobId)?.abort();
+    patchJob(jobId, {
+      progress: { stage: 'cancelled', progress: 1, attempt: 1, message: 'Wysyłka została anulowana.' },
+      error: 'Wysyłka została anulowana.',
+    });
+    resolveTaskCompletion(jobId, { success: false, error: 'Wysyłka została anulowana.' });
+  };
 
-  const retryUpload = useCallback(
-    (jobId: string) => {
-      patchJob(jobId, {
-        retryCount: 0,
-        error: null,
-        progress: { stage: 'queued', progress: 0, attempt: 1 },
-      });
-    },
-    [patchJob]
-  );
+  const retryUpload = (jobId: string) => {
+    patchJob(jobId, {
+      retryCount: 0,
+      error: null,
+      progress: { stage: 'queued', progress: 0, attempt: 1 },
+    });
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -451,7 +464,7 @@ export function useMediaUpload() {
               });
             }
             setJobs(nextJobs);
-          hydratedPausedRef.current = nixeshot.paused;
+            setIsPaused(nixeshot.paused);
           }
           setIsQueueReady(true);
         });
@@ -463,10 +476,10 @@ export function useMediaUpload() {
   }, []);
 
   useEffect(() => {
-    const completionWaiters = completionWaitersRef.current;
+    const waiters = completionWaiters();
     return () => {
-      completionWaiters.forEach((waiter) => clearTimeout(waiter.timeoutId));
-      completionWaiters.clear();
+      waiters.forEach((waiter) => clearTimeout(waiter.timeoutId));
+      waiters.clear();
     };
   }, []);
 
@@ -476,19 +489,12 @@ export function useMediaUpload() {
 
   useEffect(() => {
     if (!isQueueReady) return;
-    if (hydratedPausedRef.current === null) return;
-    setIsPaused(hydratedPausedRef.current);
-    hydratedPausedRef.current = null;
-  }, [isQueueReady]);
+    persistUploadQueueNixeshot(jobs, activeTaskId, isPaused);
+  }, [activeTaskId, isPaused, isQueueReady, jobs]);
 
   useEffect(() => {
-    if (!isQueueReady) return;
-    persistNixeshot(jobs, activeTaskId, isPaused);
-  }, [activeTaskId, isPaused, isQueueReady, jobs, persistNixeshot]);
-
-  useEffect(() => {
-    void processQueue();
-  }, [jobs, isPaused, isQueueReady, processQueue]);
+    void processQueueEvent();
+  }, [jobs, isPaused, isQueueReady]);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -509,25 +515,21 @@ export function useMediaUpload() {
     return () => unsubscribe();
   }, []);
 
-  const activeJobs = useMemo(
-    () =>
-      jobs.filter(
-        (job) =>
-          job.progress.stage !== 'success' &&
-          job.progress.stage !== 'failed' &&
-          job.progress.stage !== 'cancelled'
-      ),
-    [jobs]
+  const activeJobs = jobs.filter(
+    (job) =>
+      job.progress.stage !== 'success' &&
+      job.progress.stage !== 'failed' &&
+      job.progress.stage !== 'cancelled'
   );
 
-  const clearQueueNow = useCallback(async () => {
+  const clearQueueNow = async () => {
     setJobs([]);
     setActiveTaskId(null);
-    inFlightTaskIdsRef.current.clear();
-    abortControllersRef.current.forEach((controller) => controller.abort());
-    abortControllersRef.current.clear();
+    inFlightTaskIds().clear();
+    abortControllers().forEach((controller) => controller.abort());
+    abortControllers().clear();
     await clearUploadQueueNixeshot();
-  }, []);
+  };
 
   return {
     uploadNix,

@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setAudioModeAsync } from 'expo-audio';
 import {
+  __resetAudioSessionForTests,
   configureForPlayback,
   configureForRecording,
   getCurrentAudioSessionMode,
-  __resetAudioSessionForTests,
 } from './audioSession';
 import { trackEvent, setTelemetrySink } from './telemetry';
 
@@ -32,7 +32,7 @@ describe('audioSession', () => {
     });
     expect(getCurrentAudioSessionMode()).toBe('playback');
     expect(events).toEqual([
-      { event: 'audio_session_set', payload: { mode: 'playback', status: 'success', attempts: 1 } },
+      { event: 'audio_session_set', payload: { mode: 'playback', status: 'success', attempts: 1, previous_mode: null } },
     ]);
   });
 

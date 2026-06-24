@@ -1,5 +1,7 @@
 # i18n Guidelines (PL + EN)
 
+> **Wyznacznik platformowy:** Teksty UI muszą działać poprawnie na **iOS i Android** (długość stringów, łamanie linii, locale dat). Testuj krytyczne flow na obu platformach — [native-platform-guidelines.md](./native-platform-guidelines.md).
+
 ## Zakres
 
 - Aplikacja wspiera `pl` i `en`, z fallbackiem do `en`.
@@ -33,5 +35,5 @@
 - `npm run lint`
 - `npm run typecheck`
 - `npm run test`
-- Manualny smoke test krytycznych flow dla `pl` i `en`:
+- Manualny smoke test krytycznych flow dla `pl` i `en` na **iOS i Android**:
   - auth, inbox, profile, send/viewer, friend flows (w tym QR).

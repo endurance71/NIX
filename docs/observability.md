@@ -1,5 +1,7 @@
 # Observability (telemetria, Sentry, logi)
 
+> **Wyznacznik platformowy:** Przy analizie metryk uwzględniaj wymiar **platformy** (`ios` / `android`) — regresje native UI często są platform-specific. Zasada ogólna produktu: [native-platform-guidelines.md](./native-platform-guidelines.md).
+
 ## Warstwa telemetrii
 
 [`src/lib/telemetry.ts`](../src/lib/telemetry.ts):

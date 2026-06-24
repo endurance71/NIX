@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -8,7 +7,7 @@ import { SHEET_CONTENT_PADDING_TOP } from '../theme/sheetLayout';
 
 export default function FriendScanQrSheet() {
   const { colors } = useAppTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = createStyles(colors);
 
   return (
     <View style={styles.container}>

@@ -1,47 +1,32 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Keyboard } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from './useAuth';
 import {
-  acceptFriendRequest,
-  cancelOutgoingFriendRequest,
-  findProfileByUsername,
   listAcceptedFriends,
   listIncomingFriendRequests,
   listOutgoingFriendRequests,
-  removeFriend,
-  rejectFriendRequest,
-  sendFriendRequest,
 } from '../services/friendService';
-import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls, uploadProfileAvatarFromUri } from '../services/avatarService';
+import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../services/avatarService';
 import { getCurrentUserProfile } from '../services/profileService';
 import { useAppTheme } from './useAppTheme';
 import { useProfileQrPayload } from './useProfileQrPayload';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
-import { notifyDomainError, notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
+import { notifyError } from '../lib/appNotify';
 import { useTranslation } from 'react-i18next';
-import {
-  listCapturePoliciesForFriends,
-  upsertCapturePolicyForFriend,
-  type CapturePolicy,
-} from '../services/capturePolicyService';
+import { listCapturePoliciesForFriends, type CapturePolicy } from '../services/capturePolicyService';
 import { resolveCapturePolicyForFriend } from '../lib/capturePolicy';
-
-type NativeCropResult = { path: string };
-type NativeCropPickerModule = {
-  openPicker: (options: {
-    mediaType: 'photo';
-    cropping: true;
-    cropperCircleOverlay: true;
-    width: number;
-    height: number;
-    compressImageQuality: number;
-    cropperChooseText?: string;
-    cropperCancelText?: string;
-  }) => Promise<NativeCropResult>;
-};
+import { runWithFinally } from '../lib/runWithFinally';
+import {
+  acceptProfileFriendRequest,
+  cancelProfileOutgoingRequest,
+  handleProfileAvatarPickError,
+  pickProfileAvatarPhoto,
+  rejectProfileFriendRequest,
+  removeProfileFriend,
+  sendProfileInvite,
+  toggleProfileFriendCapture,
+} from '../lib/profileScreenActions';
 
 export function useProfileScreen() {
   const { t } = useTranslation();
@@ -75,38 +60,23 @@ export function useProfileScreen() {
   const [avatarBusy, setAvatarBusy] = useState(false);
 
   const profileUsername = profileRow?.username ?? null;
-  const avatarPaths = useMemo(
-    () => (profileRow?.avatar_storage_path ? [profileRow.avatar_storage_path] : []),
-    [profileRow?.avatar_storage_path]
+  const avatarPaths = profileRow?.avatar_storage_path ? [profileRow.avatar_storage_path] : [];
+  const outgoingAvatarPaths = Array.from(
+    new Set(
+      outgoingRequests.flatMap((request) =>
+        request.recipient.avatar_storage_path ? [request.recipient.avatar_storage_path] : []
+      )
+    )
   );
-  const outgoingAvatarPaths = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          outgoingRequests.flatMap((request) =>
-            request.recipient.avatar_storage_path ? [request.recipient.avatar_storage_path] : []
-          )
-        )
-      ),
-    [outgoingRequests]
+  const incomingAvatarPaths = Array.from(
+    new Set(
+      requests.flatMap((request) =>
+        request.requester.avatar_storage_path ? [request.requester.avatar_storage_path] : []
+      )
+    )
   );
-  const incomingAvatarPaths = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          requests.flatMap((request) =>
-            request.requester.avatar_storage_path ? [request.requester.avatar_storage_path] : []
-          )
-        )
-      ),
-    [requests]
-  );
-  const friendAvatarPaths = useMemo(
-    () =>
-      Array.from(
-        new Set(friends.flatMap((friend) => (friend.avatar_storage_path ? [friend.avatar_storage_path] : [])))
-      ),
-    [friends]
+  const friendAvatarPaths = Array.from(
+    new Set(friends.flatMap((friend) => (friend.avatar_storage_path ? [friend.avatar_storage_path] : [])))
   );
   const { data: avatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(avatarPaths),
@@ -133,11 +103,8 @@ export function useProfileScreen() {
     enabled: friendAvatarPaths.length > 0,
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
-  const friendIds = useMemo(() => friends.map((friend) => friend.id), [friends]);
-  const friendCapturePoliciesQueryKey = useMemo(
-    () => queryKeys.friendCapturePolicies(friendIds),
-    [friendIds]
-  );
+  const friendIds = friends.map((friend) => friend.id);
+  const friendCapturePoliciesQueryKey = queryKeys.friendCapturePolicies(friendIds);
   const { data: friendCapturePolicies = {} } = useQuery({
     queryKey: friendCapturePoliciesQueryKey,
     queryFn: () => listCapturePoliciesForFriends(friendIds),
@@ -150,16 +117,16 @@ export function useProfileScreen() {
     router.replace('/(auth)/login');
   };
 
-  const invalidateSocialQueries = useCallback(async () => {
+  const invalidateSocialQueries = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests }),
       queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests }),
       queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
       queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile }),
     ]);
-  }, [queryClient]);
+  };
 
-  const handleListRefresh = useCallback(async () => {
+  const handleListRefresh = async () => {
     try {
       await Promise.all([
         queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
@@ -171,150 +138,66 @@ export function useProfileScreen() {
       console.error('Profile social refresh failed', err);
       notifyError(t('notify.refreshFailedTitle'), { message: t('notify.refreshFailedBody') });
     }
-  }, [queryClient, t]);
+  };
 
-  useFocusEffect(
-    useCallback(() => {
-      void queryClient.refetchQueries({
-        type: 'active',
-        predicate: (query) => {
-          const key = query.queryKey[0];
-          if (
-            key !== queryKeys.currentUserProfile[0] &&
-            key !== queryKeys.incomingFriendRequests[0] &&
-            key !== queryKeys.outgoingFriendRequests[0] &&
-            key !== queryKeys.acceptedFriends[0]
-          ) {
-            return false;
-          }
-          return query.isStale();
-        },
-      });
-    }, [queryClient])
-  );
+  useFocusEffect(() => {
+    void queryClient.refetchQueries({
+      type: 'active',
+      predicate: (query) => {
+        const key = query.queryKey[0];
+        if (
+          key !== queryKeys.currentUserProfile[0] &&
+          key !== queryKeys.incomingFriendRequests[0] &&
+          key !== queryKeys.outgoingFriendRequests[0] &&
+          key !== queryKeys.acceptedFriends[0]
+        ) {
+          return false;
+        }
+        return query.isStale();
+      },
+    });
+  });
 
   const handlePickAvatarPhoto = async () => {
     setAvatarBusy(true);
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        notifyError('Brak dostępu do zdjęć.', {
-          message: 'Zezwól w ustawieniach systemowych.',
-        });
-        return;
-      }
-      let pickedUri: string | null = null;
-      try {
-        const nativeCropPickerModule = await import('react-native-image-crop-picker');
-        const nativeCropPicker = nativeCropPickerModule.default as NativeCropPickerModule;
-        const result = await nativeCropPicker.openPicker({
-          mediaType: 'photo',
-          cropping: true,
-          cropperCircleOverlay: true,
-          width: 512,
-          height: 512,
-          compressImageQuality: 0.85,
-          cropperChooseText: 'Wybierz',
-          cropperCancelText: 'Anuluj',
-        });
-        pickedUri = result.path.startsWith('file://') ? result.path : `file://${result.path}`;
-      } catch (nativeErr: unknown) {
-        const code = (nativeErr as { code?: string })?.code;
-        const message = String((nativeErr as { message?: string })?.message ?? '');
-        if (code === 'E_PICKER_CANCELLED') return;
-        const nativeModuleUnavailable =
-          message.includes('RNCImageCropPicker') ||
-          message.includes('could not be found') ||
-          message.includes('Cannot find module');
-
-        if (!nativeModuleUnavailable) throw nativeErr;
-
-        const fallbackResult = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.85,
-        });
-        if (fallbackResult.canceled || !fallbackResult.assets[0]?.uri) return;
-        pickedUri = fallbackResult.assets[0].uri;
-      }
-
-      if (!pickedUri) return;
-      await uploadProfileAvatarFromUri(pickedUri);
-      await invalidateSocialQueries();
-      notifySuccess('Awatar zapisany.');
-    } catch (err: unknown) {
-      if ((err as { code?: string })?.code === 'E_PICKER_CANCELLED') {
-        return;
-      }
-      notifyDomainError(err, 'Nie udało się zapisać zdjęcia.');
-    } finally {
-      setAvatarBusy(false);
-    }
+    await runWithFinally(
+      () => pickProfileAvatarPhoto(invalidateSocialQueries),
+      () => setAvatarBusy(false)
+    ).catch(handleProfileAvatarPickError);
   };
 
   const handleSendInvite = async () => {
-    Keyboard.dismiss();
-    const normalized = searchUsername.trim();
-    if (!normalized) {
-      notifyInfo('Podaj nazwę użytkownika.', { message: 'Np. @nix_friend.' });
-      return;
-    }
-
     setActionLoadingId('invite');
-    try {
-      const profile = await findProfileByUsername(normalized);
-      if (!profile) {
-        notifyError('Nie znaleziono użytkownika o takiej nazwie.');
-        return;
-      }
-
-      const result = await sendFriendRequest(profile.id);
-      if (result === 'request_sent') {
-        notifySuccess('Zaproszenie wysłane.', { message: `Do @${profile.username}.` });
-      } else if (result === 'already_requested') {
-        notifyInfo('Zaproszenie już wysłane.', { message: 'Oczekuje na akceptację.' });
-      } else if (result === 'already_friends') {
-        notifyInfo('Już znajomi.', { message: `Z @${profile.username}.` });
-      } else if (result === 'accepted_reverse_request') {
-        notifySuccess('Zaproszenie zaakceptowane.', { message: `Od @${profile.username}.` });
-      }
-
-      setSearchUsername('');
-      setInviteInputResetKey((prev) => prev + 1);
-      Keyboard.dismiss();
-      await invalidateSocialQueries();
-    } catch (err: any) {
-      notifyError(err?.message ?? 'Nie udało się wysłać zaproszenia.');
-    } finally {
-      setActionLoadingId(null);
-    }
+    await runWithFinally(
+      () =>
+        sendProfileInvite(searchUsername, invalidateSocialQueries, () => {
+          setSearchUsername('');
+          setInviteInputResetKey((prev) => prev + 1);
+        }),
+      () => setActionLoadingId(null)
+    ).catch((err: unknown) => {
+      notifyError((err as { message?: string })?.message ?? 'Nie udało się wysłać zaproszenia.');
+    });
   };
 
   const handleAccept = async (requestId: string) => {
     setActionLoadingId(requestId);
-    try {
-      await acceptFriendRequest(requestId);
-      await invalidateSocialQueries();
-      notifySuccess('Zaproszenie zaakceptowane.');
-    } catch (err: any) {
-      notifyError(err?.message ?? 'Nie udało się zaakceptować zaproszenia.');
-    } finally {
-      setActionLoadingId(null);
-    }
+    await runWithFinally(
+      () => acceptProfileFriendRequest(requestId, invalidateSocialQueries),
+      () => setActionLoadingId(null)
+    ).catch((err: unknown) => {
+      notifyError((err as { message?: string })?.message ?? 'Nie udało się zaakceptować zaproszenia.');
+    });
   };
 
   const handleReject = async (requestId: string) => {
     setActionLoadingId(requestId);
-    try {
-      await rejectFriendRequest(requestId);
-      await invalidateSocialQueries();
-      notifyInfo('Zaproszenie usunięte.');
-    } catch (err: any) {
-      notifyError(err?.message ?? 'Nie udało się odrzucić zaproszenia.');
-    } finally {
-      setActionLoadingId(null);
-    }
+    await runWithFinally(
+      () => rejectProfileFriendRequest(requestId, invalidateSocialQueries),
+      () => setActionLoadingId(null)
+    ).catch((err: unknown) => {
+      notifyError((err as { message?: string })?.message ?? 'Nie udało się odrzucić zaproszenia.');
+    });
   };
 
   const handleNativeIncomingDelete = async (indices: number[]) => {
@@ -328,15 +211,12 @@ export function useProfileScreen() {
 
   const handleCancelOutgoing = async (requestId: string) => {
     setActionLoadingId(`outgoing-${requestId}`);
-    try {
-      await cancelOutgoingFriendRequest(requestId);
-      await invalidateSocialQueries();
-      notifyInfo('Zaproszenie usunięte.');
-    } catch (err: any) {
-      notifyError(err?.message ?? 'Nie udało się usunąć zaproszenia.');
-    } finally {
-      setActionLoadingId(null);
-    }
+    await runWithFinally(
+      () => cancelProfileOutgoingRequest(requestId, invalidateSocialQueries),
+      () => setActionLoadingId(null)
+    ).catch((err: unknown) => {
+      notifyError((err as { message?: string })?.message ?? 'Nie udało się usunąć zaproszenia.');
+    });
   };
 
   const handleNativeOutgoingDelete = async (indices: number[]) => {
@@ -358,49 +238,30 @@ export function useProfileScreen() {
     if (actionLoadingId === loadingId) return;
 
     setActionLoadingId(loadingId);
-    try {
-      await removeFriend(friend.id);
-      await invalidateSocialQueries();
-      notifySuccess(`Usunięto @${friend.username} ze znajomych.`);
-    } catch (err: any) {
-      notifyError(err?.message ?? 'Nie udało się usunąć znajomego.');
-    } finally {
-      setActionLoadingId(null);
-    }
+    await runWithFinally(
+      () => removeProfileFriend(friend.id, friend.username, invalidateSocialQueries),
+      () => setActionLoadingId(null)
+    ).catch((err: unknown) => {
+      notifyError((err as { message?: string })?.message ?? 'Nie udało się usunąć znajomego.');
+    });
   };
 
   const hasAvatar = Boolean(profileRow?.avatar_storage_path || profileRow?.avatar_emoji);
   const initialLetter = (profileUsername ?? user?.email ?? '?').replace(/^@/, '').charAt(0).toUpperCase();
-  const resolveFriendCapturePolicy = useCallback(
-    (friendId: string): CapturePolicy => resolveCapturePolicyForFriend(friendCapturePolicies, friendId),
-    [friendCapturePolicies]
-  );
+  const resolveFriendCapturePolicy = (friendId: string): CapturePolicy =>
+    resolveCapturePolicyForFriend(friendCapturePolicies, friendId);
 
-  const handleToggleFriendCapture = useCallback(
-    async (friendId: string, nextAllowed: boolean) => {
-      const nextPolicy: CapturePolicy = nextAllowed ? 'allow' : 'deny';
-      const loadingId = `capture-${friendId}`;
-      if (actionLoadingId === loadingId) return;
+  const handleToggleFriendCapture = async (friendId: string, nextAllowed: boolean) => {
+    const nextPolicy: CapturePolicy = nextAllowed ? 'allow' : 'deny';
+    const loadingId = `capture-${friendId}`;
+    if (actionLoadingId === loadingId) return;
 
-      const previousPolicies = (queryClient.getQueryData(friendCapturePoliciesQueryKey) as Record<string, CapturePolicy>) ?? {};
-      queryClient.setQueryData(friendCapturePoliciesQueryKey, {
-        ...previousPolicies,
-        [friendId]: nextPolicy,
-      });
-      setActionLoadingId(loadingId);
-
-      try {
-        await upsertCapturePolicyForFriend(friendId, nextPolicy);
-        await queryClient.invalidateQueries({ queryKey: friendCapturePoliciesQueryKey });
-      } catch (err: any) {
-        queryClient.setQueryData(friendCapturePoliciesQueryKey, previousPolicies);
-        notifyError(err?.message ?? 'Nie udało się zapisać preferencji screenshotów.');
-      } finally {
-        setActionLoadingId(null);
-      }
-    },
-    [actionLoadingId, friendCapturePoliciesQueryKey, queryClient]
-  );
+    setActionLoadingId(loadingId);
+    await runWithFinally(
+      () => toggleProfileFriendCapture(friendId, nextPolicy, queryClient, friendCapturePoliciesQueryKey),
+      () => setActionLoadingId(null)
+    ).catch(() => {});
+  };
 
   return {
     profilePending,

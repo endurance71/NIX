@@ -1,5 +1,7 @@
 # Zaproszenia znajomych przez QR
 
+> **Wyznacznik platformowy:** Skan QR i uprawnienia kamery korzystają z **natywnego stacku** (`expo-camera`, uprawnienia per platforma w `app.json` / `ios/` / `android/`). UI ekranów QR — `@expo/ui` tam gdzie to możliwe. Zasada ogólna: [native-platform-guidelines.md](./native-platform-guidelines.md).
+
 ## Model danych
 
 Tabela `friend_invites` (patrz [supabase_setup.sql](supabase_setup.sql)):
