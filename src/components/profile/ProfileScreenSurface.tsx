@@ -33,7 +33,7 @@ export default function ProfileScreenSurface() {
 
   if (vm.profilePending) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: vm.colors.secondarySystemBackground }]}>
+      <View style={[styles.loadingContainer, { backgroundColor: vm.colors.background }]}>
         <StatusBar style={vm.statusBarStyle} />
         <ActivityIndicator color={vm.colors.label} />
       </View>
@@ -45,7 +45,7 @@ export default function ProfileScreenSurface() {
       <Stack.Screen options={{ headerShown: true, headerLargeTitle: true, title: vm.t('profile.title') }} />
       <StatusBar style={vm.statusBarStyle} />
       <ScrollView
-        style={[styles.container, { backgroundColor: vm.colors.secondarySystemBackground }]}
+        style={[styles.container, { backgroundColor: vm.colors.background }]}
         contentContainerStyle={[
           styles.content,
           {
