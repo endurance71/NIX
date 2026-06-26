@@ -19,20 +19,17 @@ import { BlurView } from 'expo-blur';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { AppIcon } from '../components/ui/app-icon';
-import { DurationPickerSheet } from '../components/ui/duration-picker-sheet';
+import { NativeChromeIconButton } from '../components/ui/native-chrome-icon-button';
+import { NativePreviewSendButton } from '../components/ui/native-preview-send-button';
+import PreviewDurationMenu from '../components/ui/preview-duration-menu';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { useVideoDraft, type VideoSegmentDraft } from '../context/VideoDraftContext';
 import { configureForPlayback } from '../lib/audioSession';
 import { trackEvent } from '../lib/telemetry';
 import { tap } from '../lib/haptics';
 import {
-  NIX_VIEW_DURATION_CHOICES,
   DEFAULT_NIX_VIEW_DURATION_SEC,
-  formatNixViewDurationLabel,
   loadPreferredNixViewDuration,
-  savePreferredNixViewDuration,
-  shortNixViewDurationLabel,
   type NixViewDurationSec,
 } from '../lib/nixViewDuration';
 
@@ -306,20 +303,23 @@ function PreviewVideoContent({
           },
         ]}>
         <View style={styles.topControls}>
-          <Pressable accessibilityLabel="Porzuć nagranie" accessibilityRole="button" onPress={() => discardVideoPreview(clearDraft)} style={styles.iconButton}>
-            <AppIcon name="close" size={22} color={colors.cameraControlTint} />
-          </Pressable>
+          <NativeChromeIconButton
+            name="close"
+            accessibilityLabel="Porzuć nagranie"
+            onPress={() => discardVideoPreview(clearDraft)}
+            backgroundColor={colors.cameraControlBackground}
+            tintColor={colors.cameraControlTint}
+          />
         </View>
 
         <View style={styles.bottomControls}>
-          <Pressable
+          <NativePreviewSendButton
+            label="Wyślij do"
             accessibilityLabel="Wyślij nagranie"
-            accessibilityRole="button"
             onPress={openSendToVideo}
-            style={({ pressed }) => [styles.sendButton, pressed && styles.sendButtonPressed]}>
-            <Text style={styles.sendButtonText}>Wyślij do</Text>
-            <AppIcon name="chevronRight" size={16} color={colors.buttonPrimaryText} />
-          </Pressable>
+            backgroundColor={colors.buttonPrimaryBg}
+            tintColor={colors.buttonPrimaryText}
+          />
         </View>
       </View>
     </Animated.View>
@@ -335,7 +335,6 @@ export default function PreviewScreen() {
   const uri = paramFirst(raw.uri);
 
   const [viewDurationSec, setViewDurationSec] = useState<NixViewDurationSec>(DEFAULT_NIX_VIEW_DURATION_SEC);
-  const [durationPickerOpen, setDurationPickerOpen] = useState(false);
 
   const { segments, clearSegments } = useVideoDraft();
 
@@ -387,42 +386,28 @@ export default function PreviewScreen() {
 
       <View style={[styles.overlay, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16, paddingHorizontal: 24 }]}>
         <View style={[styles.topControls, styles.photoPreviewTopControls]}>
-          <Pressable
+          <NativeChromeIconButton
+            name="close"
             accessibilityLabel="Odrzuć zdjęcie"
-            accessibilityRole="button"
             onPress={discardPhotoPreview}
-            style={styles.iconButton}>
-            <AppIcon name="close" size={22} color={colors.cameraControlTint} />
-          </Pressable>
-          <Pressable
-            style={styles.nixDurationButton}
-            onPress={() => setDurationPickerOpen(true)}
-            hitSlop={10}
-            accessibilityLabel={`Czas wyświetlania: ${formatNixViewDurationLabel(viewDurationSec)}`}>
-            <AppIcon name="timer" size={20} color={colors.cameraControlTint} />
-            <Text style={styles.nixDurationButtonLabel}>{shortNixViewDurationLabel(viewDurationSec)}</Text>
-          </Pressable>
-          <DurationPickerSheet
-            isPresented={durationPickerOpen}
-            onDismiss={() => setDurationPickerOpen(false)}
+            backgroundColor={colors.cameraControlBackground}
+            tintColor={colors.cameraControlTint}
+          />
+          <PreviewDurationMenu
             selectedDurationSec={viewDurationSec}
-            choices={NIX_VIEW_DURATION_CHOICES}
-            onSelect={(sec) => {
-              setViewDurationSec(sec);
-              void savePreferredNixViewDuration(sec);
-            }}
+            onSelect={setViewDurationSec}
+            colors={colors}
           />
         </View>
 
         <View style={styles.bottomControls}>
-          <Pressable
+          <NativePreviewSendButton
+            label="Wyślij do"
             accessibilityLabel="Wybierz odbiorców zdjęcia"
-            accessibilityRole="button"
             onPress={() => openSendToPhoto(uri, viewDurationSec)}
-            style={({ pressed }) => [styles.sendButton, pressed && styles.sendButtonPressed]}>
-            <Text style={styles.sendButtonText}>Wyślij do</Text>
-            <AppIcon name="chevronRight" size={16} color={colors.buttonPrimaryText} />
-          </Pressable>
+            backgroundColor={colors.buttonPrimaryBg}
+            tintColor={colors.buttonPrimaryText}
+          />
         </View>
       </View>
     </Animated.View>
@@ -472,55 +457,15 @@ const createStyles = (colors: ThemeColors) => {
       justifyContent: 'flex-start',
     },
     photoPreviewTopControls: {
-      justifyContent: 'space-between',
+      justifyContent: 'flex-start',
       alignItems: 'center',
       alignSelf: 'stretch',
-    },
-    nixDurationButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      height: 48,
-      paddingHorizontal: 14,
-      borderRadius: 24,
-      backgroundColor: colors.cameraControlBackground,
-    },
-    nixDurationButtonLabel: {
-      color: colors.cameraControlTint,
-      ...typography.footnote,
-      fontWeight: '600',
-      fontVariant: ['tabular-nums'],
-    },
-    iconButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: colors.cameraControlBackground,
-      justifyContent: 'center',
-      alignItems: 'center',
+      gap: 12,
     },
     bottomControls: {
       flexDirection: 'row',
       justifyContent: 'flex-end',
       alignItems: 'center',
-    },
-    sendButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.buttonPrimaryBg,
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderRadius: 24,
-      gap: 4,
-    },
-    sendButtonPressed: {
-      opacity: 0.8,
-    },
-    sendButtonText: {
-      ...typography.callout,
-      color: colors.buttonPrimaryText,
-      fontWeight: '700',
-      letterSpacing: 0.3,
     },
     timerHudShell: {
       position: 'absolute',

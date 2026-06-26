@@ -1,7 +1,6 @@
-import { use } from 'react';
-import { HeaderHeightContext } from 'expo-router/react-navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  NATIVE_TAB_BAR_CAMERA_OFFSET,
   SHEET_BOTTOM_MIN_PADDING,
   SHEET_TOP_PADDING,
   type ScreenInsetPolicy,
@@ -20,7 +19,6 @@ export type ScreenInsetsResult = {
 
 export function useScreenInsets(policy: ScreenInsetPolicy): ScreenInsetsResult {
   const insets = useSafeAreaInsets();
-  const headerHeight = use(HeaderHeightContext) ?? 0;
 
   switch (policy) {
     case 'fullscreen':
@@ -43,18 +41,7 @@ export function useScreenInsets(policy: ScreenInsetPolicy): ScreenInsetsResult {
         bottomContentInset: insets.bottom,
       };
 
-    case 'tabStackList': {
-      if (process.env.EXPO_OS === 'ios') {
-        const topContentInset = Math.max(insets.top, headerHeight);
-        return {
-          top: insets.top,
-          bottom: insets.bottom,
-          left: insets.left,
-          right: insets.right,
-          topContentInset,
-          bottomContentInset: insets.bottom,
-        };
-      }
+    case 'tabStackList':
       return {
         top: insets.top,
         bottom: insets.bottom,
@@ -63,7 +50,6 @@ export function useScreenInsets(policy: ScreenInsetPolicy): ScreenInsetsResult {
         topContentInset: 0,
         bottomContentInset: insets.bottom,
       };
-    }
 
     case 'cameraTab':
       return {
@@ -72,7 +58,7 @@ export function useScreenInsets(policy: ScreenInsetPolicy): ScreenInsetsResult {
         left: insets.left,
         right: insets.right,
         topContentInset: insets.top,
-        bottomContentInset: insets.bottom,
+        bottomContentInset: insets.bottom + NATIVE_TAB_BAR_CAMERA_OFFSET,
       };
 
     case 'sheet':

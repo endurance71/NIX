@@ -1,6 +1,5 @@
-import type { ReactElement, ReactNode } from 'react';
-import { Button, FieldGroup, ListItem, Switch, Text } from '@expo/ui';
-import { AppRnHostView } from './app-rn-host-view';
+import type { ReactNode } from 'react';
+import { Button, FieldGroup, ListItem, Text } from '@expo/ui';
 import { useAppTheme } from '../../hooks/useAppTheme';
 
 type NativeSettingsSectionProps = {
@@ -59,20 +58,6 @@ export function NativeSettingsActionRow({
   );
 }
 
-export function NativeSettingsSwitchRow({
-  title,
-  value,
-  disabled,
-  onValueChange,
-}: {
-  title: string;
-  value: boolean;
-  disabled?: boolean;
-  onValueChange: (value: boolean) => void;
-}) {
-  return <Switch label={title} value={value} onValueChange={onValueChange} disabled={disabled} />;
-}
-
 export function NativeSettingsEmptyRow({ text }: { text: string }) {
   const { colors } = useAppTheme();
   return (
@@ -80,8 +65,4 @@ export function NativeSettingsEmptyRow({ text }: { text: string }) {
       {text}
     </Text>
   );
-}
-
-export function NativeMediaBlock({ children }: { children: ReactElement }) {
-  return <AppRnHostView matchContents>{children}</AppRnHostView>;
 }

@@ -109,14 +109,6 @@ export function createCameraStyles(colors: ThemeColors) {
       width: 60,
       alignItems: 'center',
     },
-    iconButton: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: colors.cameraControlBackground,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
     shutterStack: {
       alignItems: 'center',
       gap: 10,

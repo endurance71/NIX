@@ -141,18 +141,6 @@ export default function InboxScreen() {
     });
   };
 
-  const refetchInboxForce = async () => {
-    try {
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: queryKeys.inboxNixesBundle, type: 'active' }),
-        queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
-      ]);
-      await refreshInboxBadgeCount(queryClient);
-    } catch (err) {
-      console.error('Failed to refresh inbox', err);
-    }
-  };
-
   useFocusEffect(() => {
     refetchInboxIfStale();
   });
@@ -231,7 +219,7 @@ export default function InboxScreen() {
 
   return (
     <>
-      <SettingsListScreen onRefresh={refetchInboxForce}>
+      <SettingsListScreen>
         {requests.length > 0 ? (
           <NativeSettingsSection title={t('inbox.invitesSection', { count: requests.length })}>
             {requests.flatMap((request) => [

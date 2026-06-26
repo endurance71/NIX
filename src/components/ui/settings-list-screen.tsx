@@ -7,13 +7,12 @@ import { AppHost } from './app-host';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
 
 type SettingsListScreenProps = PropsWithChildren<{
-  onRefresh?: () => Promise<void>;
   loading?: boolean;
 }>;
 
-export function SettingsListScreen({ children, onRefresh, loading }: SettingsListScreenProps) {
+export function SettingsListScreen({ children, loading }: SettingsListScreenProps) {
   const { colors, statusBarStyle } = useAppTheme();
-  const { topContentInset, bottomContentInset } = useScreenInsets('tabStackList');
+  const { bottomContentInset } = useScreenInsets('tabStackList');
 
   if (loading) {
     return (
@@ -29,11 +28,7 @@ export function SettingsListScreen({ children, onRefresh, loading }: SettingsLis
       <StatusBar style={statusBarStyle} />
       <FieldGroup
         style={{
-          paddingTop: topContentInset,
           paddingBottom: bottomContentInset,
-        }}
-        onAppear={() => {
-          void onRefresh?.();
         }}>
         {children}
       </FieldGroup>

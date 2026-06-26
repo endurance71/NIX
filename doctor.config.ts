@@ -17,6 +17,12 @@ export default {
         rules: ['react-doctor/react-compiler-no-manual-memoization'],
       },
       {
+        // Native tab avatar preparation is intentionally sequential:
+        // download remote avatar -> resize local file -> move resized PNG into cache.
+        files: ['src/services/nativeTabAvatarIcon.ts'],
+        rules: ['react-doctor/async-parallel'],
+      },
+      {
         // Platform-specific modules, Expo Router route modules, and shared design tokens
         // are resolved outside react-doctor's import graph but are used at runtime.
         files: [

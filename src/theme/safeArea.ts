@@ -1,6 +1,7 @@
 export const SCREEN_HORIZONTAL_GUTTER = 20;
 export const SHEET_TOP_PADDING = 24;
 export const SHEET_BOTTOM_MIN_PADDING = 16;
+export const NATIVE_TAB_BAR_CAMERA_OFFSET = 24;
 
 export type ScreenInsetPolicy = 'fullscreen' | 'stackHeader' | 'tabStackList' | 'cameraTab' | 'sheet' | 'mediaChrome';
 

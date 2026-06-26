@@ -18,8 +18,7 @@ import {
 } from 'react-native-reanimated';
 import { Gesture } from 'react-native-gesture-handler';
 import { router, useFocusEffect } from 'expo-router';
-import { useScreenInsets } from './useScreenInsets';
-import type { EdgeInsets } from '../theme/safeArea';
+import { useScreenInsets, type ScreenInsetsResult } from './useScreenInsets';
 import { useAppTheme } from './useAppTheme';
 import { VIDEO_HOLD_THRESHOLD_MS, VIDEO_TOTAL_MAX_DURATION_MS } from '../lib/videoRecordingLimits';
 import { useVideoDraft } from '../context/VideoDraftContext';
@@ -41,7 +40,7 @@ export type CameraScreenViewModel = {
   styles: ReturnType<typeof createCameraStyles>;
   colors: ReturnType<typeof useAppTheme>['colors'];
   statusBarStyle: ReturnType<typeof useAppTheme>['statusBarStyle'];
-  insets: EdgeInsets;
+  insets: ScreenInsetsResult;
   facing: 'back' | 'front';
   flash: 'off' | 'on';
   recordAudioMuted: boolean;

@@ -1,6 +1,6 @@
+import { View } from 'react-native';
 import { MyProfileQrCard } from '../friend/my-profile-qr-card';
 import type { ThemeColors } from '../../theme/colors';
-import { NativeMediaBlock } from '../ui/native-settings';
 
 type Props = {
   colors: ThemeColors;
@@ -20,7 +20,7 @@ export function ProfileQrAvatarSection({
   initialLetter,
 }: Props) {
   return (
-    <NativeMediaBlock>
+    <View>
       <MyProfileQrCard
         payload={qrPayload}
         colors={colors}
@@ -30,6 +30,6 @@ export function ProfileQrAvatarSection({
         avatarEmoji={avatarEmoji}
         fallbackInitial={initialLetter}
       />
-    </NativeMediaBlock>
+    </View>
   );
 }

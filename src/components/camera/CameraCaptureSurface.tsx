@@ -5,7 +5,7 @@ import Animated from 'react-native-reanimated';
 import { GestureDetector } from 'react-native-gesture-handler';
 import type { CameraScreenViewModel } from '../../hooks/useCameraScreen';
 import { VIDEO_RECORDING_BITRATE } from '../../hooks/useCameraScreen';
-import { AppIcon } from '../ui/app-icon';
+import { NativeChromeIconButton } from '../ui/native-chrome-icon-button';
 import { VIDEO_TOTAL_MAX_DURATION_MS } from '../../lib/videoRecordingLimits';
 
 type Props = {
@@ -56,7 +56,8 @@ export function CameraCaptureSurface({ vm }: Props) {
           facing={facing}
           mode={captureMode}
           mute={recordAudioMuted}
-          enableTorch={flash === 'on'}
+          flash={flash}
+          enableTorch={recordingVideo && flash === 'on' && facing === 'back'}
           onCameraReady={onCameraReady}
           active={cameraActive}
           zoom={zoom}
@@ -68,7 +69,11 @@ export function CameraCaptureSurface({ vm }: Props) {
       <View style={styles.cameraOverlay}>
         <Animated.View style={[styles.flashOverlay, animatedFlashStyle]} pointerEvents="none" />
 
-        <View style={[styles.controlsContainer, { paddingTop: insets.top + 12, paddingBottom: insets.bottom }]}>
+        <View
+          style={[
+            styles.controlsContainer,
+            { paddingTop: insets.top + 12, paddingBottom: insets.bottomContentInset },
+          ]}>
           <View style={styles.topControls}>
             {recordingVideo ? (
               <>
@@ -87,31 +92,25 @@ export function CameraCaptureSurface({ vm }: Props) {
             ) : (
               <>
                 <View style={styles.topLeadingCluster}>
-                  <Pressable
+                  <NativeChromeIconButton
+                    name={recordAudioMuted ? 'micOff' : 'mic'}
                     onPress={toggleRecordingMicMuted}
-                    style={styles.iconButton}
                     accessibilityLabel={
                       recordAudioMuted ? 'Włącz nagrywanie dźwięku' : 'Wycisz nagrywanie dźwięku'
                     }
-                    hitSlop={15}>
-                    <AppIcon
-                      name={recordAudioMuted ? 'micOff' : 'mic'}
-                      size={22}
-                      color={colors.cameraControlTint}
-                    />
-                  </Pressable>
+                    backgroundColor={colors.cameraControlBackground}
+                    tintColor={colors.cameraControlTint}
+                  />
                   {facing === 'back' ? (
-                    <Pressable
+                    <NativeChromeIconButton
+                      name={flash === 'on' ? 'flash' : 'flashOff'}
                       onPress={toggleFlash}
-                      style={styles.iconButton}
-                      accessibilityLabel={flash === 'on' ? 'Wyłącz latarkę' : 'Włącz latarkę'}
-                      hitSlop={15}>
-                      <AppIcon
-                        name={flash === 'on' ? 'flash' : 'flashOff'}
-                        size={22}
-                        color={colors.cameraControlTint}
-                      />
-                    </Pressable>
+                      accessibilityLabel={
+                        flash === 'on' ? 'Wyłącz lampę błyskową' : 'Włącz lampę błyskową'
+                      }
+                      backgroundColor={colors.cameraControlBackground}
+                      tintColor={colors.cameraControlTint}
+                    />
                   ) : (
                     <View style={styles.topControlTrailingSpacer} />
                   )}
@@ -122,16 +121,14 @@ export function CameraCaptureSurface({ vm }: Props) {
 
           <View style={styles.bottomControls}>
             <View style={styles.sideButtonContainer}>
-              <Pressable
+              <NativeChromeIconButton
+                name="photoLibrary"
                 onPress={() => void pickFromGallery()}
-                style={styles.iconButton}
                 accessibilityLabel="Wybierz z galerii"
-                accessibilityRole="button"
-                accessibilityState={{ disabled: recordingVideo || isSwitchingCamera || takingPicture }}
-                hitSlop={15}
-                disabled={recordingVideo || isSwitchingCamera || takingPicture}>
-                <AppIcon name="photoLibrary" size={22} color={colors.cameraControlTint} />
-              </Pressable>
+                disabled={recordingVideo || isSwitchingCamera || takingPicture}
+                backgroundColor={colors.cameraControlBackground}
+                tintColor={colors.cameraControlTint}
+              />
             </View>
 
             <View style={styles.shutterStack}>
@@ -166,15 +163,14 @@ export function CameraCaptureSurface({ vm }: Props) {
             </View>
 
             <View style={styles.sideButtonContainer}>
-              <Pressable
+              <NativeChromeIconButton
+                name="cameraRotate"
                 onPress={toggleFacing}
-                style={styles.iconButton}
                 accessibilityLabel="Zmień kamerę"
-                accessibilityState={{ disabled: recordingVideo || isSwitchingCamera }}
-                hitSlop={15}
-                disabled={recordingVideo || isSwitchingCamera}>
-                <AppIcon name="cameraRotate" size={22} color={colors.cameraControlTint} />
-              </Pressable>
+                disabled={recordingVideo || isSwitchingCamera}
+                backgroundColor={colors.cameraControlBackground}
+                tintColor={colors.cameraControlTint}
+              />
             </View>
           </View>
         </View>
