@@ -234,7 +234,10 @@ export function useCameraScreen(): CameraScreenViewModel {
     cameraReadyRef.current = false;
     dispatchCameraUi({ type: 'REMOUNT_CAMERA_PREVIEW' });
     cameraMountStartedAtRef.current = nowMs();
-  }, [facing, cameraInstanceKey, captureMode]);
+    // captureMode jest celowo pominięty: zmiana trybu (picture → video) przy starcie nagrania
+    // nie remounteuje kamery (key się nie zmienia), więc onCameraReady nie nastąpi ponownie.
+    // Resetowanie ref tutaj powodowało 8-sekundowy timeout w runVideoCaptureSession.
+  }, [facing, cameraInstanceKey]);
 
   const waitForCameraReady = async (timeoutMs = 5000) => {
     const deadline = Date.now() + timeoutMs;
@@ -279,7 +282,14 @@ export function useCameraScreen(): CameraScreenViewModel {
   };
 
   const runVideoCaptureSession = async () => {
-    cameraReadyRef.current = false;
+    // Jeśli kamera jest w trybie picture (domyślnym), natywna CameraView musi zreinicjalizować
+    // pipeline po zmianie mode prop na 'video'. Resetujemy ref SYNCHRONICZNIE przed dispatch —
+    // eliminuje race condition gdzie useEffect([captureMode]) resetował ref już PO tym, jak
+    // onCameraReady ustawiło go na true. Kiedy captureMode już jest 'video' (kolejne nagrania
+    // bez pośrednich zdjęć), pomijamy reset i nagrywanie startuje natychmiast.
+    if (captureMode === 'picture') {
+      cameraReadyRef.current = false;
+    }
     dispatchCameraUi({ type: 'VIDEO_SESSION_BEGIN' });
     recordingElapsedMs.set(0);
     recordingElapsedMs.set(
@@ -295,7 +305,7 @@ export function useCameraScreen(): CameraScreenViewModel {
         let attemptedRecord = false;
         const sessionStartedAt = nowMs();
         recordingStartedRef.current = false;
-        const ready = await waitForCameraReady(8000);
+        const ready = await waitForCameraReady(5000);
         if (!ready) {
           console.error('recordAsync: przekroczono oczekiwanie na onCameraReady');
           return;

@@ -105,18 +105,6 @@ export default function ProfileScreenSurface() {
           />
         </ProfileSection>
 
-        <ProfileSectionTitle colors={vm.colors}>{vm.t('profile.myQrCode')}</ProfileSectionTitle>
-        <View style={[styles.qrCard, { backgroundColor: vm.colors.tertiarySystemBackground }]}>
-          <ProfileQrAvatarSection
-            colors={vm.colors}
-            qrPayload={vm.qrPayload}
-            avatarSignedUrl={vm.avatarSignedUrl}
-            avatarStoragePath={vm.profileRow?.avatar_storage_path ?? null}
-            avatarEmoji={vm.profileRow?.avatar_emoji ?? null}
-            initialLetter={vm.initialLetter}
-          />
-        </View>
-
         <ProfileSectionTitle colors={vm.colors}>{vm.t('profile.addFriend')}</ProfileSectionTitle>
         <ProfileSection colors={vm.colors}>
           <ProfileActionRow

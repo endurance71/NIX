@@ -1,4 +1,4 @@
-import { PropsWithChildren, ReactNode } from 'react';
+import { PropsWithChildren, ReactNode, ReactElement } from 'react';
 import { StyleSheet, Text as RNText, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Button, Column, FieldGroup, Text, TextInput } from '@expo/ui';
@@ -28,9 +28,38 @@ const AUTH_PRIMARY_BUTTON_IOS_MODIFIERS = [
 // Never nest `FieldGroup` inside RN `ScrollView` or give it a fixed height (Android LazyColumn scrolls).
 // `FieldGroup` must be a direct child of `AppHost` — do not wrap it in RN `View` siblings.
 
-export function AuthFormLayout({ children }: PropsWithChildren) {
+type AuthFormLayoutProps = PropsWithChildren<{
+  /**
+   * Pure React Native element rendered above the FieldGroup.
+   * Use this for content that contains RNHostView (e.g. brand logo + tagline)
+   * to avoid the broken SectionHeader + RNHostView overlap bug on iOS.
+   */
+  header?: ReactElement;
+}>;
+
+export function AuthFormLayout({ children, header }: AuthFormLayoutProps) {
   const { statusBarStyle } = useAppTheme();
   const { topContentInset, bottomContentInset } = useScreenInsets('fullscreen');
+
+  if (header) {
+    return (
+      <View style={layoutStyles.screenWrap}>
+        <StatusBar style={statusBarStyle} />
+        <View style={[layoutStyles.headerSlot, { paddingTop: topContentInset + 8 }]}>
+          {header}
+        </View>
+        <AppHost safeAreaMode="keyboardOnly" useViewportSizeMeasurement style={layoutStyles.hostFill}>
+          <FieldGroup
+            style={{
+              ...styles.form,
+              paddingBottom: bottomContentInset + 32,
+            }}>
+            {children}
+          </FieldGroup>
+        </AppHost>
+      </View>
+    );
+  }
 
   return (
     <AppHost safeAreaMode="keyboardOnly" useViewportSizeMeasurement>
@@ -264,6 +293,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: AUTH_FORM_HORIZONTAL_PADDING,
   },
 });
+
+const layoutStyles = StyleSheet.create({
+  screenWrap: {
+    flex: 1,
+  },
+  hostFill: {
+    flex: 1,
+  },
+  headerSlot: {
+    width: '100%',
+    alignItems: 'center',
+    paddingHorizontal: AUTH_FORM_HORIZONTAL_PADDING,
+    paddingBottom: 8,
+  },
+});
+
 
 const headerStyles = StyleSheet.create({
   wrap: {

@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './useAuth';
-import { useAuthCredentials } from './useAuthCredentials';
 import { isSocialAuthNotConfiguredError } from '../services/socialAuthService';
 import type { SocialAuthProvider } from '../services/socialAuthService';
 import { tap, notify } from '../lib/haptics';
@@ -27,19 +26,20 @@ function goToRegister() {
 export function useLoginScreen() {
   const { t } = useTranslation();
   const { width: windowWidth } = useWindowDimensions();
-  const {
-    email,
-    password,
-    onEmailChange,
-    onPasswordChange,
-    getTrimmedEmail,
-    getPassword,
-  } = useAuthCredentials();
   const { signIn, signInWithGoogle, signInWithApple } = useAuth();
+
+  // Pure RN state — no @expo/ui ObservableState
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const emailRef = useRef('');
+  const passwordRef = useRef('');
+
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<SocialAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [appleSignInAvailable, setAppleSignInAvailable] = useState(process.env.EXPO_OS === 'ios');
+  const [appleSignInAvailable, setAppleSignInAvailable] = useState(
+    process.env.EXPO_OS === 'ios',
+  );
 
   useEffect(() => {
     if (process.env.EXPO_OS !== 'ios') return;
@@ -48,8 +48,17 @@ export function useLoginScreen() {
 
   const contentWidth = getAuthContentWidth(windowWidth);
   const authBusy = loading || socialLoading !== null;
-  const showSocialDivider =
-    process.env.EXPO_OS === 'ios' && appleSignInAvailable;
+  const showSocialDivider = process.env.EXPO_OS === 'ios' && appleSignInAvailable;
+
+  const onEmailChange = (text: string) => {
+    emailRef.current = text;
+    setEmail(text);
+  };
+
+  const onPasswordChange = (text: string) => {
+    passwordRef.current = text;
+    setPassword(text);
+  };
 
   const clearError = () => {
     setError(null);
@@ -57,11 +66,13 @@ export function useLoginScreen() {
   };
 
   const getSocialAuthNotConfiguredMessage = (provider: SocialAuthProvider) =>
-    provider === 'google' ? t('auth.socialAuthNotConfiguredGoogle') : t('auth.socialAuthNotConfiguredApple');
+    provider === 'google'
+      ? t('auth.socialAuthNotConfiguredGoogle')
+      : t('auth.socialAuthNotConfiguredApple');
 
-  const handleSignIn = async (passwordOverride?: string) => {
-    const trimmedEmail = getTrimmedEmail();
-    const passwordValue = passwordOverride ?? getPassword();
+  const handleSignIn = async () => {
+    const trimmedEmail = emailRef.current.trim().toLowerCase();
+    const passwordValue = passwordRef.current;
 
     if (!trimmedEmail) {
       setError(t('auth.emailRequired'));
