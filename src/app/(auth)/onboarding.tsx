@@ -1,37 +1,35 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { useWindowDimensions } from 'react-native';
-import { FieldGroup, useNativeState } from '@expo/ui';
+import { FieldGroup } from '@expo/ui';
+import { useTranslation } from 'react-i18next';
 import { isUsernameTaken, saveUsernameForCurrentUser } from '../../services/profileService';
 import {
-  AuthErrorText,
-  AuthFormLayout,
+  AuthActionsSection,
   AuthFormHeader,
-  AuthFormFooter,
+  AuthFormLayout,
   AuthPrimaryButton,
   AuthTertiaryText,
   AuthTextField,
 } from '../../components/ui/auth-form-layout';
+import { useTrackedUsername } from '../../hooks/useAuthCredentials';
 import { notifyDomainError } from '../../lib/appNotify';
 import { normalizeUsername } from '../../services/friendService';
 import { runWithFinally } from '../../lib/runWithFinally';
 
 export default function OnboardingScreen() {
-  const { width: windowWidth } = useWindowDimensions();
-  const username = useNativeState('');
+  const { t } = useTranslation();
+  const { username, onUsernameChange, getUsername } = useTrackedUsername();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const contentWidth = Math.max(260, windowWidth - 56);
 
   const clearError = () => {
     setError(null);
   };
 
   const handleSetUsername = async () => {
-    const cleaned = normalizeUsername(username.value);
+    const cleaned = normalizeUsername(getUsername());
     if (cleaned.length < 3) {
-      setError('Nazwa użytkownika musi mieć co najmniej 3 znaki (litery, cyfry, _)');
+      setError(t('auth.onboardingUsernameMin'));
       return;
     }
 
@@ -42,7 +40,7 @@ export default function OnboardingScreen() {
       async () => {
         const taken = await isUsernameTaken(cleaned);
         if (taken) {
-          setError('Ta nazwa jest już zajęta. Wybierz inną.');
+          setError(t('auth.onboardingUsernameTaken'));
           return;
         }
 
@@ -51,7 +49,7 @@ export default function OnboardingScreen() {
       },
       () => setLoading(false)
     ).catch((err: unknown) => {
-      notifyDomainError(err, 'Nie udało się zapisać nazwy użytkownika.');
+      notifyDomainError(err, t('auth.onboardingSaveFailed'));
     });
   };
 
@@ -60,33 +58,33 @@ export default function OnboardingScreen() {
       <FieldGroup.Section>
         <FieldGroup.SectionHeader>
           <AuthFormHeader
-            title="Twój NiX ID"
-            description="Wybierz unikalną nazwę. Nie można jej później zmienić."
+            title={t('auth.onboardingHeader')}
+            description={t('auth.onboardingDescription')}
           />
         </FieldGroup.SectionHeader>
 
         <AuthTextField
           nativeValue={username}
-          placeholder="nazwa_uzytkownika"
+          placeholder={t('auth.onboardingPlaceholder')}
           autoCapitalize="none"
           autoCorrect={false}
-          onChangeText={clearError}
+          onChangeText={(text) => {
+            onUsernameChange(text);
+            clearError();
+          }}
         />
+      </FieldGroup.Section>
 
-        <FieldGroup.SectionFooter>
-          <AuthFormFooter>
-            <AuthTertiaryText>Dozwolone: litery, cyfry i podkreślenie.</AuthTertiaryText>
-            {error ? <AuthErrorText>{error}</AuthErrorText> : null}
-            <AuthPrimaryButton
-              label={loading ? 'Zapisywanie...' : 'Zapisz nazwę'}
-              onPress={() => void handleSetUsername()}
-              disabled={loading}
-              style={{ width: contentWidth }}
-            />
-          </AuthFormFooter>
-        </FieldGroup.SectionFooter>
+      <FieldGroup.Section>
+        <AuthTertiaryText>{t('auth.onboardingHint')}</AuthTertiaryText>
+        <AuthActionsSection error={error}>
+          <AuthPrimaryButton
+            label={loading ? t('auth.onboardingLoading') : t('auth.onboardingSubmit')}
+            onPress={() => void handleSetUsername()}
+            disabled={loading}
+          />
+        </AuthActionsSection>
       </FieldGroup.Section>
     </AuthFormLayout>
   );
 }
-

@@ -1,27 +1,25 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { useWindowDimensions } from 'react-native';
 import { FieldGroup } from '@expo/ui';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { useTrackedEmail } from '../../hooks/useAuthCredentials';
 import {
-  AuthErrorText,
-  AuthFormLayout,
+  AuthActionsSection,
+  AuthFooterPrompt,
   AuthFormHeader,
-  AuthFormFooter,
+  AuthFormLayout,
   AuthPrimaryButton,
-  AuthSecondaryButton,
   AuthTextField,
 } from '../../components/ui/auth-form-layout';
+import { AuthRnBridge } from '../../components/ui/auth-rn-bridge';
 
 export default function ForgotPasswordScreen() {
+  const { t } = useTranslation();
   const { requestPasswordReset } = useAuth();
-  const { width: windowWidth } = useWindowDimensions();
   const { email, onEmailChange, getTrimmedEmail } = useTrackedEmail();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const contentWidth = Math.max(260, windowWidth - 56);
 
   const clearError = () => {
     setError(null);
@@ -30,7 +28,7 @@ export default function ForgotPasswordScreen() {
   const handleResetRequest = async () => {
     const cleanedEmail = getTrimmedEmail();
     if (!cleanedEmail) {
-      setError('Podaj adres e-mail.');
+      setError(t('auth.emailRequired'));
       return;
     }
 
@@ -52,14 +50,14 @@ export default function ForgotPasswordScreen() {
       <FieldGroup.Section>
         <FieldGroup.SectionHeader>
           <AuthFormHeader
-            title="Reset hasła"
-            description="Wyślemy link do ustawienia nowego hasła."
+            title={t('auth.forgotPasswordHeader')}
+            description={t('auth.forgotPasswordDescription')}
           />
         </FieldGroup.SectionHeader>
 
         <AuthTextField
           nativeValue={email}
-          placeholder="E-mail"
+          placeholder={t('auth.emailField')}
           keyboardType="email-address"
           autoComplete="email"
           onChangeText={(text) => {
@@ -67,24 +65,23 @@ export default function ForgotPasswordScreen() {
             clearError();
           }}
         />
+      </FieldGroup.Section>
 
+      <FieldGroup.Section>
+        <AuthActionsSection error={error}>
+          <AuthPrimaryButton
+            label={loading ? t('auth.forgotPasswordLoading') : t('auth.forgotPasswordSubmit')}
+            onPress={() => void handleResetRequest()}
+            disabled={loading}
+          />
+        </AuthActionsSection>
         <FieldGroup.SectionFooter>
-          <AuthFormFooter>
-            {error ? <AuthErrorText>{error}</AuthErrorText> : null}
-
-            <AuthPrimaryButton
-              label={loading ? 'Wysyłanie...' : 'Wyślij link resetu'}
-              onPress={() => void handleResetRequest()}
-              disabled={loading}
-              style={{ width: contentWidth }}
-            />
-
-            <AuthSecondaryButton
-              label="Wróć do logowania"
+          <AuthRnBridge>
+            <AuthFooterPrompt
+              linkLabel={t('auth.forgotPasswordBack')}
               onPress={() => router.replace('/(auth)/login')}
-              style={{ width: contentWidth }}
             />
-          </AuthFormFooter>
+          </AuthRnBridge>
         </FieldGroup.SectionFooter>
       </FieldGroup.Section>
     </AuthFormLayout>

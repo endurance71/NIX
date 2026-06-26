@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import QRCode from 'react-native-qrcode-svg';
-import { ThemeColors } from '../../theme/colors';
+import { ThemeColors, lightColors } from '../../theme/colors';
 import { APP_FONT_FAMILY } from '../../theme/typography';
 
 type MyProfileQrCardProps = {
@@ -36,16 +36,19 @@ export function MyProfileQrCard({
   const avatarLoadFailed = Boolean(avatarUrl) && failedForAvatarUrl === avatarUrl;
   const shouldShowAvatarImage = Boolean(avatarUrl) && !avatarLoadFailed;
   const normalizedInitial = (fallbackInitial ?? '?').trim().charAt(0).toUpperCase();
+  const qrSurface = lightColors.systemBackground;
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: qrSurface }]}>
         {payload ? (
           <View style={styles.qrWrapper}>
             <QRCode value={payload} size={size} />
-            <View style={[styles.logoBackdrop, { width: logoSize, height: logoSize, borderRadius: logoSize / 2 }]}>
+            <View style={[styles.logoBackdrop, { width: logoSize, height: logoSize, borderRadius: logoSize / 2, backgroundColor: qrSurface }]}>
               {shouldShowAvatarImage ? (
                 <ExpoImage
+                  key={avatarStoragePath ?? avatarUrl ?? 'qr-avatar'}
+                  recyclingKey={avatarStoragePath ?? avatarUrl ?? null}
                   cachePolicy="memory-disk"
                   source={{
                     uri: avatarUrl ?? '',
@@ -53,6 +56,7 @@ export function MyProfileQrCard({
                   }}
                   style={{ width: innerContentSize, height: innerContentSize, borderRadius: innerContentSize / 2 }}
                   contentFit="cover"
+                  transition={0}
                   onError={() => setFailedForAvatarUrl(avatarUrl ?? null)}
                 />
               ) : avatarEmoji ? (
@@ -65,9 +69,11 @@ export function MyProfileQrCard({
                 </Text>
               ) : (
                 <ExpoImage
-                  source={require('../../../nix-icons/icon.png')}
+                  recyclingKey="qr-fallback-logo"
+                  source={require('../../../assets/brand/app/ios-light.png')}
                   style={{ width: innerContentSize, height: innerContentSize, borderRadius: innerContentSize / 4 }}
                   contentFit="cover"
+                  transition={0}
                 />
               )}
             </View>
@@ -88,7 +94,6 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     borderRadius: 18,
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -98,7 +103,6 @@ const styles = StyleSheet.create({
   },
   logoBackdrop: {
     position: 'absolute',
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,13 +1,14 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAppTheme } from '../hooks/useAppTheme';
+import { useScreenInsets } from '../hooks/useScreenInsets';
 import { ThemeColors } from '../theme/colors';
 import { APP_FONT_FAMILY } from '../theme/typography';
-import { SHEET_CONTENT_PADDING_TOP } from '../theme/sheetLayout';
 
 export default function FriendScanQrSheet() {
   const { colors } = useAppTheme();
-  const styles = createStyles(colors);
+  const { topContentInset, bottomContentInset } = useScreenInsets('sheet');
+  const styles = createStyles(colors, topContentInset, bottomContentInset);
 
   return (
     <View style={styles.container}>
@@ -26,15 +27,15 @@ export default function FriendScanQrSheet() {
   );
 }
 
-const createStyles = (colors: ThemeColors) =>
+const createStyles = (colors: ThemeColors, paddingTop: number, paddingBottom: number) =>
   StyleSheet.create({
     container: {
       width: '96%',
       alignSelf: 'center',
       alignItems: 'stretch',
       paddingHorizontal: 22,
-      paddingTop: SHEET_CONTENT_PADDING_TOP,
-      paddingBottom: 16,
+      paddingTop,
+      paddingBottom,
       backgroundColor: 'transparent',
       borderRadius: 34,
       gap: 14,

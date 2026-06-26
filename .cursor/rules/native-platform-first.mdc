@@ -21,7 +21,7 @@ Naczelnym wyznacznikiem jakości frontendu są **natywne rozwiązania iOS i Andr
 
 ## Konwencje NiX
 
-- Tab bar: `NativeTabs` — nie JS tabs
+- Tab bar: **iOS** `NativeTabs` (ikony bez podpisów, `Trigger.Label hidden`); **Android** `expo-router/ui` custom tabs (`FloatingTabBar`, ikony bez podpisów) — nie JS `Tabs`
 - Ikony UI: `AppIcon` → `Icon.select` w `src/theme/app-icons.ts` (SF Symbols + Material XML)
 - Formularze auth: `AuthFormLayout` + `FieldGroup` / `TextInput` z `@expo/ui`
 - **Nie** owijaj `FieldGroup` w `ScrollView` ani nie ustawiaj mu sztywnej `height`

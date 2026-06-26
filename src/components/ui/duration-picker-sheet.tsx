@@ -1,5 +1,6 @@
 import { BottomSheet, Button, Column, Text } from '@expo/ui';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { AppHost } from './app-host';
 import { selection } from '../../lib/haptics';
 import {
   formatNixViewDurationLabel,
@@ -24,8 +25,9 @@ export function DurationPickerSheet({
   const { colors } = useAppTheme();
 
   return (
-    <BottomSheet isPresented={isPresented} onDismiss={onDismiss} snapPoints={['half']}>
-      <Column spacing={8} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+    <AppHost matchContents>
+      <BottomSheet isPresented={isPresented} onDismiss={onDismiss} snapPoints={['half']}>
+        <Column spacing={8} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
         <Text textStyle={{ fontSize: 17, fontWeight: '600', color: colors.textPrimary }}>
           Czas wyświetlania
         </Text>
@@ -47,5 +49,6 @@ export function DurationPickerSheet({
         <Button label="Anuluj" variant="text" onPress={onDismiss} />
       </Column>
     </BottomSheet>
+    </AppHost>
   );
 }

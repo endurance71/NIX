@@ -1,9 +1,10 @@
 import { PropsWithChildren } from 'react';
 import { ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { List } from '@expo/ui';
+import { FieldGroup } from '@expo/ui';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { AppHost } from './app-host';
+import { useScreenInsets } from '../../hooks/useScreenInsets';
 
 type SettingsListScreenProps = PropsWithChildren<{
   onRefresh?: () => Promise<void>;
@@ -12,6 +13,7 @@ type SettingsListScreenProps = PropsWithChildren<{
 
 export function SettingsListScreen({ children, onRefresh, loading }: SettingsListScreenProps) {
   const { colors, statusBarStyle } = useAppTheme();
+  const { topContentInset, bottomContentInset } = useScreenInsets('tabStackList');
 
   if (loading) {
     return (
@@ -25,7 +27,16 @@ export function SettingsListScreen({ children, onRefresh, loading }: SettingsLis
   return (
     <AppHost style={styles.container} useViewportSizeMeasurement>
       <StatusBar style={statusBarStyle} />
-      <List onRefresh={onRefresh}>{children}</List>
+      <FieldGroup
+        style={{
+          paddingTop: topContentInset,
+          paddingBottom: bottomContentInset,
+        }}
+        onAppear={() => {
+          void onRefresh?.();
+        }}>
+        {children}
+      </FieldGroup>
     </AppHost>
   );
 }

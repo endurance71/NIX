@@ -68,7 +68,7 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 | Obszar | Zasada |
 | :--- | :--- |
 | UI | Universal `@expo/ui` → platform-specific `@expo/ui` → RN primitive (wyjątek) |
-| Nawigacja | Expo Router + `NativeTabs` (natywny tab bar) |
+| Nawigacja | Expo Router + custom tabs (`expo-router/ui`, floating pill) |
 | Media / hardware | Moduły Expo (`expo-camera`, `expo-video`, `expo-screen-capture`…) |
 | Motyw | Systemowy light/dark na obu platformach — [theme-guidelines.md](theme-guidelines.md) |
 | Testy | Smoke manualny na iOS **i** Android przed merge zmian UI |
@@ -100,7 +100,7 @@ Pełny zestaw zależności: sekcja 5 oraz `package.json`.
 
 Komponenty bazują na universal `@expo/ui` (import z root pakietu). Pod spodem: SwiftUI na iOS, Jetpack Compose na Android. Ekrany profilu i skrzynki używają natywnych list (`List`, `FieldGroup`) z osadzonymi wierszami RN przez `RNHostView`. Ikony w UI: `AppIcon` → `Icon.select` (szczegóły: §2.2.1). Przy nowych ekranach stosuj [drzewo decyzyjne](native-platform-guidelines.md#drzewo-decyzyjne-nowy-ekran--komponent) z wytycznych platformowych.
 
-**Layout auth:** ekrany ustawień (`register`, `forgot-password`, `onboarding`) — `AuthFormLayout` z pełnym `FieldGroup` na ekranie. Login — RN `ScrollView` + karta + wyłącznie `FieldGroup.Section` w `AppHost matchContents` (bez owijki `FieldGroup`). Nie zagnieżdżaj `FieldGroup` w `ScrollView` ani nie ustawiaj mu sztywnej wysokości (na Androidzie `FieldGroup` = `LazyColumn` z własnym scrollem).
+**Layout auth:** wszystkie ekrany auth (`login`, `register`, `forgot-password`, `onboarding`) — `AuthFormLayout` z pełnym `FieldGroup` jako jedynym kontenerem scrolla. Login dodaje `AuthBrandHeader` (ikona aplikacji) i sekcję credentials w `LoginScreenSurface`. Nie zagnieżdżaj `FieldGroup` w RN `ScrollView` ani nie ustawiaj mu sztywnej wysokości (na Androidzie `FieldGroup` = `LazyColumn` z własnym scrollem). Pola formularza: `useNativeState` + `AuthTextField` / `AuthSecureField` (`nativeValue`).
 
 #### 2.2.1 Ikony uniwersalne (SDK 56)
 
@@ -108,7 +108,7 @@ W projekcie są **dwa osobne API ikon** — nie wymieniaj ich:
 
 | Kontekst | API | Plik |
 | :--- | :--- | :--- |
-| **Tab bar** | `NativeTabs.Trigger.Icon` z `sf` (iOS) + `md` (Android) jako **nazwy** symboli | `src/app/(tabs)/_layout.tsx` |
+| **Tab bar** | `AppIcon` w `FloatingTabButton` (`Icon.select` + Material XML) | `src/components/navigation/` |
 | **Reszta UI** (kamera, preview, inbox, send-to…) | `Icon` z `@expo/ui` + `Icon.select` + `@expo/material-symbols/*.xml` | `src/theme/app-icons.ts`, `src/components/ui/app-icon.tsx` |
 
 **Wzorzec dla ekranów** (źródło prawdy: [Expo UI — Icon](https://docs.expo.dev/versions/latest/sdk/ui/universal/icon/)):
@@ -131,7 +131,7 @@ Zasady:
 1. **Android:** `import('@expo/material-symbols/nazwa.xml')` — zawsze z rozszerzeniem `.xml` (subpath pakietu, nie `assets/`).
 2. **iOS:** string SF Symbol (np. `'tray.fill'`).
 3. **`Icon.select` musi być wywołane z literałem `{ ios, android }` na poziomie modułu** — plugin Babel `@expo/ui/babel-plugin` (auto przez `babel-preset-expo`) zamienia `import()` → `require()` i tree-shakuje nieużywaną platformę. Pośrednie opakowanie (`Icon.select({ ios: spec.ios, android: spec.android })`) **nie działa** — Metro nie rozwiąże modułów.
-4. **Tab bar:** tylko `sf` + `md` (np. `md="photo_camera"`), bez importów XML.
+4. **Tab bar:** `AppIcon` / `Icon.select` w `FloatingTabButton` (jak reszta UI).
 
 **Nie używać** w nowym kodzie UI:
 
@@ -279,7 +279,7 @@ src/
 
 - Expo Router, TypeScript, Reanimated, GH, Supabase client
 - Auth e-mail+hasło, onboarding username
-- Motyw systemowy (iOS + Android), natywna nawigacja (`NativeTabs`)
+- Motyw systemowy (iOS + Android), custom tabs (`expo-router/ui`, experimental)
 
 ### Sprint 2: Media Engine — **zakończony**
 

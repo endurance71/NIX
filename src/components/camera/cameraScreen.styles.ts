@@ -71,7 +71,7 @@ export function createCameraStyles(colors: ThemeColors) {
       width: 10,
       height: 10,
       borderRadius: 5,
-      backgroundColor: '#FF3B30',
+      backgroundColor: colors.destructive,
     },
     recordingHudText: {
       ...typography.callout,
@@ -156,7 +156,7 @@ export function createCameraStyles(colors: ThemeColors) {
       alignItems: 'center',
     },
     shutterRecording: {
-      borderColor: '#FF3B30',
+      borderColor: colors.destructive,
     },
     shutterInner: {
       width: 62,
@@ -168,7 +168,7 @@ export function createCameraStyles(colors: ThemeColors) {
       borderRadius: 12,
       width: 44,
       height: 44,
-      backgroundColor: '#FF3B30',
+      backgroundColor: colors.destructive,
     },
     shutterDisabled: {
       opacity: 0.55,

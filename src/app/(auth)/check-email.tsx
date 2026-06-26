@@ -1,53 +1,51 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useWindowDimensions } from 'react-native';
 import { FieldGroup } from '@expo/ui';
+import { useTranslation } from 'react-i18next';
 import {
-  AuthFormLayout,
+  AuthActionsSection,
+  AuthFooterPrompt,
   AuthFormHeader,
-  AuthFormFooter,
+  AuthFormLayout,
   AuthPrimaryButton,
-  AuthSecondaryButton,
 } from '../../components/ui/auth-form-layout';
+import { AuthRnBridge } from '../../components/ui/auth-rn-bridge';
 
 export default function CheckEmailScreen() {
+  const { t } = useTranslation();
   const { email, mode } = useLocalSearchParams<{ email?: string; mode?: 'signup' | 'recovery' }>();
-  const { width: windowWidth } = useWindowDimensions();
   const isRecovery = mode === 'recovery';
+  const emailLabel = email ?? t('auth.emailPlaceholder');
 
-  const contentWidth = Math.max(260, windowWidth - 56);
-
-  const title = isRecovery ? 'Sprawdź e-mail resetu' : 'Potwierdź e-mail';
+  const title = isRecovery ? t('auth.checkEmailRecoveryTitle') : t('auth.checkEmailSignupTitle');
   const description = isRecovery
-    ? `Wysłaliśmy link do resetu hasła na ${email ?? 'podany adres'}. Otwórz go na tym urządzeniu.`
-    : `Wysłaliśmy link aktywacyjny na ${email ?? 'podany adres'}. Kliknij link, aby aktywować konto.`;
+    ? t('auth.checkEmailRecoveryBody', { email: emailLabel })
+    : t('auth.checkEmailSignupBody', { email: emailLabel });
 
   return (
     <AuthFormLayout>
       <FieldGroup.Section>
         <FieldGroup.SectionHeader>
-          <AuthFormHeader
-            title={title}
-            description={description}
-          />
+          <AuthFormHeader title={title} description={description} />
         </FieldGroup.SectionHeader>
+      </FieldGroup.Section>
 
+      <FieldGroup.Section>
+        <AuthActionsSection>
+          <AuthPrimaryButton
+            label={t('auth.checkEmailBackToLogin')}
+            onPress={() => router.replace('/(auth)/login')}
+          />
+        </AuthActionsSection>
         <FieldGroup.SectionFooter>
-          <AuthFormFooter>
-            <AuthPrimaryButton
-              label="Wróć do logowania"
-              onPress={() => router.replace('/(auth)/login')}
-              style={{ width: contentWidth }}
-            />
-
-            <AuthSecondaryButton
-              label="Nie masz konta? Zarejestruj się"
+          <AuthRnBridge>
+            <AuthFooterPrompt
+              prompt={t('auth.checkEmailNoAccountPrompt')}
+              linkLabel={t('auth.checkEmailNoAccountLink')}
               onPress={() => router.replace('/(auth)/register')}
-              style={{ width: contentWidth }}
             />
-          </AuthFormFooter>
+          </AuthRnBridge>
         </FieldGroup.SectionFooter>
       </FieldGroup.Section>
     </AuthFormLayout>
   );
 }
-

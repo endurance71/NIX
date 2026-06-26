@@ -1,5 +1,5 @@
 import { ColorValue } from 'react-native';
-import { Icon } from '@expo/ui';
+import { Host, Icon } from '@expo/ui';
 import { resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 
 type AppIconProps = {
@@ -8,6 +8,11 @@ type AppIconProps = {
   color?: ColorValue;
 };
 
+/** Web / fallback: keep Host wrapper for API parity with native platform files. */
 export function AppIcon({ name, size, color }: AppIconProps) {
-  return <Icon name={resolveAppIconName(name)} size={size} color={color} />;
+  return (
+    <Host matchContents>
+      <Icon name={resolveAppIconName(name)} size={size} color={color} />
+    </Host>
+  );
 }

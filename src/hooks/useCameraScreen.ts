@@ -18,7 +18,8 @@ import {
 } from 'react-native-reanimated';
 import { Gesture } from 'react-native-gesture-handler';
 import { router, useFocusEffect } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScreenInsets } from './useScreenInsets';
+import type { EdgeInsets } from '../theme/safeArea';
 import { useAppTheme } from './useAppTheme';
 import { VIDEO_HOLD_THRESHOLD_MS, VIDEO_TOTAL_MAX_DURATION_MS } from '../lib/videoRecordingLimits';
 import { useVideoDraft } from '../context/VideoDraftContext';
@@ -40,7 +41,7 @@ export type CameraScreenViewModel = {
   styles: ReturnType<typeof createCameraStyles>;
   colors: ReturnType<typeof useAppTheme>['colors'];
   statusBarStyle: ReturnType<typeof useAppTheme>['statusBarStyle'];
-  insets: ReturnType<typeof useSafeAreaInsets>;
+  insets: EdgeInsets;
   facing: 'back' | 'front';
   flash: 'off' | 'on';
   recordAudioMuted: boolean;
@@ -51,6 +52,7 @@ export type CameraScreenViewModel = {
   zoom: number;
   isSwitchingCamera: boolean;
   cameraInstanceKey: number;
+  captureMode: 'picture' | 'video';
   takingPicture: boolean;
   captureError: string | null;
   isNativeSimulator: boolean;
@@ -71,7 +73,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   const isNativeSimulator = !Constants.isDevice;
   const { colors, statusBarStyle } = useAppTheme();
   const { setSegments } = useVideoDraft();
-  const insets = useSafeAreaInsets();
+  const insets = useScreenInsets('cameraTab');
   const styles = createCameraStyles(colors);
   const [permission, requestPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
@@ -90,6 +92,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     zoom,
     isSwitchingCamera,
     cameraInstanceKey,
+    captureMode,
   } = cameraUi;
 
   const cameraRef = useRef<CameraView>(null);
@@ -232,7 +235,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     cameraReadyRef.current = false;
     dispatchCameraUi({ type: 'REMOUNT_CAMERA_PREVIEW' });
     cameraMountStartedAtRef.current = nowMs();
-  }, [facing, cameraInstanceKey]);
+  }, [facing, cameraInstanceKey, captureMode]);
 
   const waitForCameraReady = async (timeoutMs = 5000) => {
     const deadline = Date.now() + timeoutMs;
@@ -277,6 +280,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   };
 
   const runVideoCaptureSession = async () => {
+    cameraReadyRef.current = false;
     dispatchCameraUi({ type: 'VIDEO_SESSION_BEGIN' });
     recordingElapsedMs.set(0);
     recordingElapsedMs.set(
@@ -292,7 +296,7 @@ export function useCameraScreen(): CameraScreenViewModel {
         let attemptedRecord = false;
         const sessionStartedAt = nowMs();
         recordingStartedRef.current = false;
-        const ready = await waitForCameraReady();
+        const ready = await waitForCameraReady(8000);
         if (!ready) {
           console.error('recordAsync: przekroczono oczekiwanie na onCameraReady');
           return;
@@ -391,7 +395,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   };
 
   const takePicture = async () => {
-    if (takingPicture || recordingVideo || recordingSessionRunningRef.current) return;
+    if (takingPicture || recordingVideo || recordingSessionRunningRef.current || isSwitchingCamera) return;
     dispatchCameraUi({ type: 'PREPARE_STILL_CAPTURE' });
     tap('light');
 
@@ -415,6 +419,20 @@ export function useCameraScreen(): CameraScreenViewModel {
       await runWithFinally(
         async () => {
           try {
+            if (captureMode !== 'picture') {
+              cameraReadyRef.current = false;
+              dispatchCameraUi({ type: 'SET_CAPTURE_MODE', captureMode: 'picture' });
+              const modeReady = await waitForCameraReady(8000);
+              if (!modeReady) {
+                hapticNotify('error');
+                dispatchCameraUi({
+                  type: 'SET_CAPTURE_ERROR',
+                  captureError: 'Kamera nie jest jeszcze gotowa. Spróbuj ponownie.',
+                });
+                return;
+              }
+            }
+
             const ready = await waitForCameraReady();
             if (!ready) {
               if (isNativeSimulator) {
@@ -653,6 +671,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     zoom,
     isSwitchingCamera,
     cameraInstanceKey,
+    captureMode,
     takingPicture,
     captureError,
     isNativeSimulator,

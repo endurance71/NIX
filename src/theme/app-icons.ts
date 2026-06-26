@@ -10,12 +10,15 @@ export type AppIconName =
   | 'checkCircle'
   | 'clock'
   | 'close'
+  | 'email'
   | 'flash'
   | 'flashOff'
   | 'inbox'
+  | 'lock'
   | 'mic'
   | 'micOff'
   | 'personAdd'
+  | 'profile'
   | 'photoLibrary'
   | 'send'
   | 'timer';
@@ -45,6 +48,10 @@ const APP_ICONS: Record<AppIconName, IconName> = {
     ios: 'xmark',
     android: import('@expo/material-symbols/close.xml'),
   }),
+  email: Icon.select({
+    ios: 'envelope',
+    android: import('@expo/material-symbols/mail.xml'),
+  }),
   flash: Icon.select({
     ios: 'bolt.fill',
     android: import('@expo/material-symbols/flash_on.xml'),
@@ -57,6 +64,10 @@ const APP_ICONS: Record<AppIconName, IconName> = {
     ios: 'tray.fill',
     android: import('@expo/material-symbols/inbox.xml'),
   }),
+  lock: Icon.select({
+    ios: 'lock',
+    android: import('@expo/material-symbols/lock.xml'),
+  }),
   mic: Icon.select({
     ios: 'mic.fill',
     android: import('@expo/material-symbols/mic.xml'),
@@ -68,6 +79,10 @@ const APP_ICONS: Record<AppIconName, IconName> = {
   personAdd: Icon.select({
     ios: 'person.badge.plus',
     android: import('@expo/material-symbols/person_add.xml'),
+  }),
+  profile: Icon.select({
+    ios: 'person.crop.circle.fill',
+    android: import('@expo/material-symbols/account_circle.xml'),
   }),
   photoLibrary: Icon.select({
     ios: 'photo.on.rectangle.angled',

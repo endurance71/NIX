@@ -16,7 +16,7 @@ import { createSignedAvatarUrl } from '../services/avatarService';
 import { trackEvent } from '../lib/telemetry';
 import { queryKeys } from '../lib/queryKeys';
 import { NativeButton } from '../components/ui/native-button';
-import { SHEET_CONTENT_PADDING_TOP } from '../theme/sheetLayout';
+import { useScreenInsets } from '../hooks/useScreenInsets';
 import { AppIcon } from '../components/ui/app-icon';
 import { notifyError, notifyInfo, notifyShow, notifySuccess } from '../lib/appNotify';
 import { runWithFinally } from '../lib/runWithFinally';
@@ -44,7 +44,8 @@ export default function FriendInviteConfirmScreen() {
     username?: string;
   }>();
   const { colors } = useAppTheme();
-  const styles = createStyles(colors);
+  const { topContentInset, bottomContentInset } = useScreenInsets('sheet');
+  const styles = createStyles(colors, topContentInset, bottomContentInset);
 
   const [state, dispatch] = useReducer(
     (
@@ -325,7 +326,11 @@ export default function FriendInviteConfirmScreen() {
   );
 }
 
-const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
+const createStyles = (
+  colors: ReturnType<typeof useAppTheme>['colors'],
+  paddingTop: number,
+  paddingBottom: number
+) =>
   StyleSheet.create({
     /** Ładowanie / błąd — wyśrodkowanie na dostępnej wysokości */
     screenRootFill: {
@@ -347,7 +352,7 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
       backgroundColor: 'transparent',
     },
     loaderWrapWithInsets: {
-      paddingTop: SHEET_CONTENT_PADDING_TOP,
+      paddingTop,
     },
     loaderLabel: {
       fontSize: 15,
@@ -364,8 +369,8 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
       width: '96%',
       alignSelf: 'center',
       paddingHorizontal: 22,
-      paddingTop: SHEET_CONTENT_PADDING_TOP,
-      paddingBottom: 14,
+      paddingTop,
+      paddingBottom: Math.max(paddingBottom, 14),
       backgroundColor: 'transparent',
       gap: 12,
     },

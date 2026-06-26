@@ -21,7 +21,7 @@ import { ThemeColors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { AppIcon } from '../components/ui/app-icon';
 import { DurationPickerSheet } from '../components/ui/duration-picker-sheet';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScreenInsets } from '../hooks/useScreenInsets';
 import { useVideoDraft, type VideoSegmentDraft } from '../context/VideoDraftContext';
 import { configureForPlayback } from '../lib/audioSession';
 import { trackEvent } from '../lib/telemetry';
@@ -187,7 +187,7 @@ function PreviewVideoContent({
   clearDraft: () => void;
 }) {
   const { colors, statusBarStyle, isDark } = useAppTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useScreenInsets('mediaChrome');
   const styles = createStyles(colors);
   const [clipIndex, setClipIndex] = useState(0);
   const [videoReady, setVideoReady] = useState(false);
@@ -328,7 +328,7 @@ function PreviewVideoContent({
 
 export default function PreviewScreen() {
   const { colors, statusBarStyle } = useAppTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useScreenInsets('mediaChrome');
   const styles = createStyles(colors);
   const raw = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string }>();
   const mode = paramFirst(raw.mode);

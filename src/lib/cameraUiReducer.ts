@@ -1,4 +1,5 @@
 type CameraFacing = 'back' | 'front';
+export type CameraCaptureMode = 'picture' | 'video';
 
 export type CameraUiState = {
   facing: CameraFacing;
@@ -14,6 +15,8 @@ export type CameraUiState = {
   zoom: number;
   isSwitchingCamera: boolean;
   cameraInstanceKey: number;
+  /** Android: ImageCapture jest podpięty tylko w trybie picture; video wymaga osobnego use case. */
+  captureMode: CameraCaptureMode;
 };
 
 export const initialCameraUiState: CameraUiState = {
@@ -30,6 +33,7 @@ export const initialCameraUiState: CameraUiState = {
   zoom: 0,
   isSwitchingCamera: false,
   cameraInstanceKey: 0,
+  captureMode: 'picture',
 };
 
 export type CameraUiAction =
@@ -45,6 +49,7 @@ export type CameraUiAction =
   | { type: 'VIDEO_SESSION_BEGIN' }
   | { type: 'VIDEO_SESSION_END' }
   | { type: 'PREPARE_STILL_CAPTURE' }
+  | { type: 'SET_CAPTURE_MODE'; captureMode: CameraCaptureMode }
   | { type: 'SET_CAPTURE_ERROR'; captureError: string | null }
   | { type: 'SET_TAKING_PICTURE'; takingPicture: boolean }
   | { type: 'SET_RECORDING_ELAPSED_SEC'; recordingElapsedSec: number }
@@ -83,15 +88,21 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
         recordingVideo: true,
         recordingElapsedSec: 0,
         captureError: null,
+        captureMode: 'video',
       };
     case 'VIDEO_SESSION_END':
       return {
         ...state,
         recordingVideo: false,
         recordingElapsedSec: 0,
+        captureMode: 'picture',
       };
     case 'PREPARE_STILL_CAPTURE':
       return { ...state, takingPicture: true, captureError: null };
+    case 'SET_CAPTURE_MODE':
+      return state.captureMode === action.captureMode
+        ? state
+        : { ...state, captureMode: action.captureMode };
     case 'SET_CAPTURE_ERROR':
       return state.captureError === action.captureError ? state : { ...state, captureError: action.captureError };
     case 'SET_TAKING_PICTURE':

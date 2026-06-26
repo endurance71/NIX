@@ -1,6 +1,9 @@
 import Stack from 'expo-router/stack';
+import { useTranslation } from 'react-i18next';
 
 export default function ProfileTabLayout() {
+  const { t } = useTranslation();
+
   return (
     <Stack
       screenOptions={{
@@ -11,20 +14,20 @@ export default function ProfileTabLayout() {
         headerLargeTitleShadowVisible: false,
         headerStyle: { backgroundColor: 'transparent' },
         headerLargeStyle: { backgroundColor: 'transparent' },
-        title: 'Profil',
+        title: t('profile.title'),
       }}>
       <Stack.Screen name="index" />
       <Stack.Screen
         name="change-password"
         options={{
-          title: 'Zmień hasło',
+          title: t('profile.changePassword'),
           headerLargeTitle: false,
         }}
       />
       <Stack.Screen
         name="remove-friend"
         options={{
-          title: 'Usuń znajomego',
+          title: t('profile.removeFriendTitle'),
           presentation: 'formSheet',
           headerShown: false,
           sheetAllowedDetents: 'fitToContents',
@@ -35,7 +38,7 @@ export default function ProfileTabLayout() {
       <Stack.Screen
         name="remove-avatar"
         options={{
-          title: 'Usuń awatar',
+          title: t('profile.removeAvatarTitle'),
           presentation: 'formSheet',
           headerShown: false,
           sheetAllowedDetents: 'fitToContents',

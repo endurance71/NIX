@@ -28,6 +28,7 @@ export function CameraCaptureSurface({ vm }: Props) {
     zoom,
     isSwitchingCamera,
     cameraInstanceKey,
+    captureMode,
     takingPicture,
     captureError,
     isNativeSimulator,
@@ -53,7 +54,7 @@ export function CameraCaptureSurface({ vm }: Props) {
           ref={cameraRef}
           style={styles.camera}
           facing={facing}
-          mode="video"
+          mode={captureMode}
           mute={recordAudioMuted}
           enableTorch={flash === 'on'}
           onCameraReady={onCameraReady}
@@ -67,7 +68,7 @@ export function CameraCaptureSurface({ vm }: Props) {
       <View style={styles.cameraOverlay}>
         <Animated.View style={[styles.flashOverlay, animatedFlashStyle]} pointerEvents="none" />
 
-        <View style={[styles.controlsContainer, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 14 }]}>
+        <View style={[styles.controlsContainer, { paddingTop: insets.top + 12, paddingBottom: insets.bottom }]}>
           <View style={styles.topControls}>
             {recordingVideo ? (
               <>

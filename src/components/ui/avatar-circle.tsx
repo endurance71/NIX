@@ -36,15 +36,19 @@ export function AvatarCircle({
         ...(storagePath ? { cacheKey: storagePath } : {}),
       }
     : null;
+  const recyclingKey = storagePath ?? url ?? null;
 
   return (
     <View style={[styles.circle, { backgroundColor: colors.surfaceAlt }]}>
       {imageSource ? (
         <ExpoImage
+          key={recyclingKey ?? 'avatar'}
+          recyclingKey={recyclingKey}
           cachePolicy="memory-disk"
           source={imageSource}
           style={styles.image}
           contentFit="cover"
+          transition={0}
           onError={() => setFailedForUrl(url ?? null)}
         />
       ) : emoji ? (

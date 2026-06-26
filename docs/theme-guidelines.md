@@ -30,7 +30,7 @@ Ten projekt używa systemowego motywu (`light`/`dark`, `userInterfaceStyle: auto
 
 - `StatusBar` ustawiaj dynamicznie: `style={statusBarStyle}`.
 - Dla tabów używaj koloru z tokenów (`colors.accent`) zamiast stałych wartości.
-- Tab bar: `NativeTabs` — nie nadpisuj wyglądu JS tab barem odcinającym się od systemu.
+- Tab bar: **iOS** `NativeTabs` (`app-tabs-layout.ios.tsx`, ikony bez podpisów); **Android** custom tabs (`FloatingTabBar`, floating pill, ikony bez podpisów). Nie używaj JS `Tabs` z React Navigation do głównej nawigacji.
 
 ## Checklista dla nowego ekranu
 

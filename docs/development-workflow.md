@@ -21,15 +21,17 @@
 ## Native-first — szybka ściąga
 
 - **UI:** universal `@expo/ui` przed RN primitives; zakaz ogólnych UI-kitów (Paper, NativeBase).
-- **Tab bar:** `NativeTabs` — nie JS tabs.
+- **Tab bar:** **iOS** `NativeTabs` (ikony bez podpisów); **Android** `expo-router/ui` custom tabs (`FloatingTabBar`, ikony bez podpisów) — nie JS `Tabs`.
 - **Ikony:** `AppIcon` / `Icon.select` (SF Symbols + Material Symbols XML).
 - **Motyw:** tokeny `useAppTheme()` — bez hardcoded kolorów.
 - **Animacje:** Reanimated 4 — bez legacy `Animated` / `LayoutAnimation` na hot path.
 
 ## `@expo/ui` — layout formularzy auth
 
-- **Pełny ekran** (`register`, `forgot-password`, `onboarding`): `AuthFormLayout` → `AppHost useViewportSizeMeasurement` + `FieldGroup`.
-- **Login (karta w ScrollView):** tylko `FieldGroup.Section` w `AppHost matchContents` — **bez** owijki `FieldGroup`.
+- **Wszystkie ekrany auth** (`login`, `register`, `forgot-password`, `onboarding`): `AuthFormLayout` → `AppHost useViewportSizeMeasurement` + pełny `FieldGroup`.
+- **Login:** `LoginScreenSurface` + `AuthBrandHeader`; logika w `useLoginScreen`. Dwa `FieldGroup.Section`: (1) marka + pola, (2) akcje. Przyciski CTA/linki — natywne `@expo/ui` `Button` w **treści sekcji** (nie `SectionFooter`, nie sibling poza `FieldGroup`). Social w `AuthRnBridge`. Bez `flex: 1` na `FieldGroup` — inaczej sibling footer nakłada się na formularz (iOS).
+- **RN w FieldGroup:** `AuthRnBridge` tylko gdy universal API nie wystarcza (marka z `expo-image`, social auth, divider). Nagłówki — natywne `Column`/`Text` (`AuthFormHeader`).
+- **Pola:** `useNativeState` z `@expo/ui` — przekazywane jako `nativeValue` do `AuthTextField` / `AuthSecureField`; odczyt wartości przy submit przez `.value`.
 - **Antywzorzec:** `FieldGroup` wewnątrz RN `ScrollView` lub ze sztywną `height` — na Androidzie powoduje zagnieżdżony scroll pól (`LazyColumn`).
 
 ## Bare workflow (`android/` + `ios/` w repo)
@@ -56,8 +58,18 @@ Check `appConfigFieldsNotSyncedCheck` jest wyłączony w `package.json` (`expo.d
 
 Testy wykonuj na **iOS i Android** (symulator/emulator lub urządzenie). Krytyczne flow UI muszą być zgodne z natywnymi konwencjami platform — patrz [native-platform-guidelines.md](./native-platform-guidelines.md).
 
+### Safe area (iOS + Android, light/dark)
+
+- [ ] **Inbox / Profil:** treść nie nachodzi na status bar; na iOS large title scrolluje pod transparentnym headerem; na Androidzie opaque header + lista wyrównana do lewej (edge-to-edge).
+- [ ] **Auth (login):** pola i CTA nie chowają się pod notchem; klawiatura nie zasłania przycisku logowania (Android `keyboardOnly` na `AppHost`).
+- [ ] **formSheet** (`send-to`, `remove-friend`, `remove-avatar`, `friend-invite-confirm`): przyciski nad home indicator / gesture nav.
+- [ ] **Kamera:** podgląd full-bleed; kontrolki nagrywania w safe area (góra/dół).
+- [ ] **Bootstrap:** spinner startowy nie nachodzi na status bar przy długim ładowaniu sesji.
+
 ### Uwierzytelnianie (e-mail + hasło)
 
+- [ ] Login: natywny `FieldGroup` (bez RN karty/ScrollView); ikona marki, tagline, pola z autofill (`autoComplete`).
+- [ ] Login: klawiatura nie powoduje zagnieżdżonego scrolla (Android).
 - [ ] Rejestracja: poprawny e-mail i hasło → ekran „sprawdź e-mail” / komunikat zgodny z konfiguracją Supabase.
 - [ ] Po potwierdzeniu e-maila: logowanie prowadzi do onboardingu (nowy user) lub kart (istniejący).
 - [ ] Logowanie: błędne hasło → komunikat `invalidCredentials`; niepotwierdzony e-mail → `emailNotConfirmed`.

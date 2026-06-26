@@ -1,6 +1,7 @@
 import { useEffect, useReducer } from 'react';
 import { router } from 'expo-router';
-import { Button, RNHostView } from '@expo/ui';
+import { Button } from '@expo/ui';
+import { AppRnHostView } from '../components/ui/app-rn-host-view';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useProfileQrPayload } from '../hooks/useProfileQrPayload';
 import { MyProfileQrCard } from '../components/friend/my-profile-qr-card';
@@ -82,7 +83,7 @@ export default function FriendMyCodeScreen() {
         <AuthSecondaryText>
           To jest stały kod QR Twojego profilu. Znajomy może go zeskanować, aby wysłać zaproszenie.
         </AuthSecondaryText>
-        <RNHostView matchContents>
+        <AppRnHostView matchContents>
           <MyProfileQrCard
             payload={payload}
             colors={colors}
@@ -92,7 +93,7 @@ export default function FriendMyCodeScreen() {
             avatarEmoji={profileRow?.avatar_emoji}
             fallbackInitial={fallbackInitial}
           />
-        </RNHostView>
+        </AppRnHostView>
         <Button label="Skanuj QR" onPress={() => router.push('/friend-scan-qr')} />
       </AuthFormSection>
     </AuthFormLayout>

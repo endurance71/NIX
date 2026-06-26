@@ -13,7 +13,8 @@ import {
   runOnJS,
   cancelAnimation,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScreenInsets } from './useScreenInsets';
+import type { EdgeInsets } from '../theme/safeArea';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createSignedNixUrl,
@@ -57,7 +58,7 @@ export type ViewerScreenViewModel = {
   colors: ReturnType<typeof useAppTheme>['colors'];
   statusBarStyle: ReturnType<typeof useAppTheme>['statusBarStyle'];
   isDark: boolean;
-  insets: ReturnType<typeof useSafeAreaInsets>;
+  insets: EdgeInsets;
   queue: NixQueueItem[];
   slideIndex: number;
   closing: boolean;
@@ -86,7 +87,7 @@ export type ViewerScreenViewModel = {
 export function useViewerScreen(): ViewerScreenViewModel {
   const queryClient = useQueryClient();
   const { colors, statusBarStyle, isDark } = useAppTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useScreenInsets('mediaChrome');
   const styles = createViewerStyles(colors);
   const raw = useLocalSearchParams<{
     id?: string;

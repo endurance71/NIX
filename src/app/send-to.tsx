@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,7 +16,7 @@ import { AppIcon } from '../components/ui/app-icon';
 import { AvatarCircle } from '../components/ui/avatar-circle';
 import { normalizeNixViewDurationSec } from '../lib/nixViewDuration';
 import { toggleSetValue } from '../lib/selection';
-import { SHEET_CONTENT_PADDING_TOP } from '../theme/sheetLayout';
+import { useScreenInsets } from '../hooks/useScreenInsets';
 import { notifyError, notifySuccess } from '../lib/appNotify';
 import { selection, tap } from '../lib/haptics';
 
@@ -76,9 +75,9 @@ function FriendRecipientRow({
 
 export default function SendToSheet() {
   const queryClient = useQueryClient();
-  const insets = useSafeAreaInsets();
+  const { topContentInset, bottomContentInset } = useScreenInsets('sheet');
   const { colors } = useAppTheme();
-  const stylesForTheme = createStyles(colors, insets.bottom);
+  const stylesForTheme = createStyles(colors, topContentInset, bottomContentInset);
   const rawParams = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string }>();
   const uri = paramFirst(rawParams.uri);
   const mode = paramFirst(rawParams.mode);
@@ -269,12 +268,12 @@ const styles = StyleSheet.create({
   },
 });
 
-const createStyles = (colors: ThemeColors, bottomInset: number) =>
+const createStyles = (colors: ThemeColors, paddingTop: number, bottomInset: number) =>
   StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: 'transparent',
-      paddingTop: SHEET_CONTENT_PADDING_TOP,
+      paddingTop,
     },
     listContent: {
       paddingBottom: Math.max(bottomInset, 12),
@@ -325,7 +324,7 @@ const createStyles = (colors: ThemeColors, bottomInset: number) =>
     },
     emptyState: {
       paddingHorizontal: 24,
-      paddingTop: SHEET_CONTENT_PADDING_TOP,
+      paddingTop: paddingTop,
     },
     emptyStateText: {
       ...typography.callout,

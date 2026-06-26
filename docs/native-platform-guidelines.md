@@ -38,8 +38,8 @@ Szczegóły implementacji universal UI: [NiX_Documentation_v1.2.md §2.2](NiX_Do
 ### iOS
 
 - Komponenty renderowane przez **SwiftUI** (`@expo/ui`, `Host`, `FieldGroup`, `List`, `TextInput`, `Button`…).
-- Ikony: **SF Symbols** (`Icon.select` z kluczem `ios`, tab bar: `NativeTabs.Trigger.Icon` + `sf`).
-- Nawigacja dolna: **`NativeTabs`** (nie JS tab bar).
+- Ikony: **SF Symbols** (`Icon.select` z kluczem `ios`; tab bar: `NativeTabs.Trigger.Icon`).
+- Nawigacja dolna: **`NativeTabs`** (`expo-router/unstable-native-tabs`) — tylko ikony (`Trigger.Label hidden`), badge na inbox.
 - Motyw: **systemowy light/dark** (`userInterfaceStyle: automatic`) — tokeny mapowane na role iOS (`label`, `systemBackground`, `destructive`…).
 - Animacje interakcji: **Reanimated 4** na UI thread (nie legacy `Animated` API).
 - Gestykulacja: **react-native-gesture-handler** zgodnie z oczekiwaniami iOS.
@@ -47,7 +47,8 @@ Szczegóły implementacji universal UI: [NiX_Documentation_v1.2.md §2.2](NiX_Do
 ### Android
 
 - Komponenty renderowane przez **Jetpack Compose** (ten sam universal `@expo/ui`).
-- Ikony: **Material Symbols** (`Icon.select` z `import('@expo/material-symbols/….xml')`, tab bar: `md`).
+- Ikony: **Material Symbols** (`Icon.select` z `import('@expo/material-symbols/….xml')`; tab bar: `AppIcon` w `FloatingTabButton`).
+- Nawigacja dolna: **`expo-router/ui` custom tabs** (floating pill, tylko ikony) — API **experimental**; gdy `NativeTabs` nie wystarcza wizualnie.
 - Listy ustawień: `FieldGroup` = `LazyColumn` — **bez zagnieżdżania w RN `ScrollView`** i bez sztywnej `height`.
 - Motyw: ten sam systemowy light/dark przez tokeny (`useAppTheme`) — wizualnie zgodny z Material / systemowym schematem kolorów urządzenia.
 - Build i test: `npm run android` (`expo run:android`), Android Studio SDK 35+.
@@ -64,7 +65,7 @@ Szczegóły implementacji universal UI: [NiX_Documentation_v1.2.md §2.2](NiX_Do
 
 | Obszar | Natywne podejście w NiX | Dokumentacja |
 | :--- | :--- | :--- |
-| **Nawigacja** | Expo Router + `NativeTabs` | [NiX_Documentation §2.1](NiX_Documentation_v1.2.md) |
+| **Nawigacja** | iOS: `NativeTabs`; Android: custom tabs (`expo-router/ui`) | [NiX_Documentation §2.1](NiX_Documentation_v1.2.md) |
 | **Formularze auth / ustawienia** | `AuthFormLayout`, `FieldGroup`, `TextInput` z `@expo/ui` | [development-workflow.md](development-workflow.md), [auth-flow.md](auth-flow.md) |
 | **Listy (inbox, profil)** | SwiftUI `List` / Compose listy + `RNHostView` dla wierszy RN | [NiX_Documentation §2.2](NiX_Documentation_v1.2.md) |
 | **Motyw i typografia** | Tokeny systemowe, `useAppTheme()` | [theme-guidelines.md](theme-guidelines.md) |
@@ -128,7 +129,7 @@ Nowy element UI
 ## Checklista PR (UI / UX)
 
 - [ ] Wybrano najwyższą możliwą warstwę natywną (universal `@expo/ui` przed RN primitive).
-- [ ] Ikony przez `AppIcon` / `Icon.select` lub `NativeTabs` (`sf` + `md`).
+- [ ] Ikony przez `AppIcon` / `Icon.select` (Android: `FloatingTabBar`; iOS: `NativeTabs.Trigger.Icon`).
 - [ ] Kolory i typografia z `useAppTheme()` — bez hardcoded hexów.
 - [ ] Brak zagnieżdżonego scrolla `FieldGroup` w `ScrollView`.
 - [ ] Animacje na Reanimated 4 (bez `Animated` / `LayoutAnimation` na hot path).

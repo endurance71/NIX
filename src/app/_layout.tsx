@@ -5,6 +5,7 @@ import { useEffect, useReducer, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { View, ActivityIndicator, Text, Pressable } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useScreenInsets } from '../hooks/useScreenInsets';
 import { getCurrentUserProfile } from '../services/profileService';
 import { supabase } from '../lib/supabase';
 import { DeepLinkHandler } from '../lib/deepLink';
@@ -19,12 +20,14 @@ import { initMonitoring } from '../lib/monitoring';
 import { configureMediaCache } from '../lib/mediaCache';
 import { configureForPlayback } from '../lib/audioSession';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { enableFreeze } from 'react-native-screens';
 import { initBackgroundTaskService } from '../services/backgroundTaskService';
 import { useTranslation } from 'react-i18next';
 import { runWithFinally } from '../lib/runWithFinally';
 
 // Initialize monitoring at module load (runs once).
 initMonitoring();
+enableFreeze(true);
 
 type ProfileGateState = {
   profileLoading: boolean;
@@ -96,6 +99,8 @@ function RootNavigator() {
   });
   const { profileLoading, needsOnboarding } = gate;
   const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false);
+
+  const { topContentInset, bottomContentInset } = useScreenInsets('fullscreen');
 
   useEffect(() => {
     let mounted = true;
@@ -178,7 +183,16 @@ function RootNavigator() {
 
   if (loading || profileLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, paddingHorizontal: 24 }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: colors.background,
+          paddingHorizontal: 24,
+          paddingTop: topContentInset,
+          paddingBottom: bottomContentInset,
+        }}>
         <ActivityIndicator color={colors.textPrimary} />
         {bootstrapTimedOut && (
           <>

@@ -8,15 +8,17 @@
       "android"
     ],
     "orientation": "portrait",
-    "icon": "./nix-icons/icon.png",
+    "icon": "./assets/brand/app/android-legacy-1024.png",
     "userInterfaceStyle": "automatic",
     "web": {
-      "favicon": "./nix-icons/favicon.png"
+      "favicon": "./assets/brand/web/favicon-48.png"
     },
     "android": {
       "package": "com.damianmotylinski.nixapp",
+      "icon": "./assets/brand/app/android-legacy-1024.png",
       "adaptiveIcon": {
-        "foregroundImage": "./nix-icons/icon.png",
+        "foregroundImage": "./assets/brand/android/adaptive-foreground.png",
+        "monochromeImage": "./assets/brand/android/adaptive-monochrome.png",
         "backgroundColor": "#000000"
       },
       "permissions": [
@@ -29,6 +31,11 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.damianmotylinski.nixapp",
+      "icon": {
+        "light": "./assets/brand/app/ios-light.png",
+        "dark": "./assets/brand/app/ios-dark.png",
+        "tinted": "./assets/brand/app/ios-tinted.png"
+      },
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSCameraUsageDescription": "NiX potrzebuje dostępu do kamery, aby przechwytywać i wysyłać wiadomości.",
@@ -45,6 +52,19 @@
     "scheme": "nix",
     "plugins": [
       "expo-localization",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "extraPods": [
+              {
+                "name": "AppCheckCore",
+                "version": "11.2.0"
+              }
+            ]
+          }
+        }
+      ],
       [
         "expo-router",
         {
@@ -75,12 +95,14 @@
       [
         "expo-splash-screen",
         {
-          "image": "./nix-icons/splash.png",
+          "image": "./assets/brand/splash/splash-mark.png",
+          "imageWidth": 160,
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
       ],
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      "./plugins/withIosXcodeSpacesInPathFix.js"
     ],
     "experiments": {
       "typedRoutes": true,

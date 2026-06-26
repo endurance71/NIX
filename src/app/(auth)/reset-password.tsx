@@ -1,19 +1,20 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { useWindowDimensions } from 'react-native';
 import { FieldGroup } from '@expo/ui';
+import { useTranslation } from 'react-i18next';
 import {
-  AuthErrorText,
-  AuthFormLayout,
+  AuthActionsSection,
+  AuthFooterPrompt,
   AuthFormHeader,
-  AuthFormFooter,
+  AuthFormLayout,
   AuthPrimaryButton,
-  AuthSecondaryButton,
   AuthSecureField,
 } from '../../components/ui/auth-form-layout';
+import { AuthRnBridge } from '../../components/ui/auth-rn-bridge';
 import { useAuthPasswordPair } from '../../hooks/useAuthCredentials';
 
 export default function ResetPasswordScreen() {
+  const { t } = useTranslation();
   const {
     password,
     confirmPassword,
@@ -22,10 +23,7 @@ export default function ResetPasswordScreen() {
     getPassword,
     getConfirmPassword,
   } = useAuthPasswordPair();
-  const { width: windowWidth } = useWindowDimensions();
   const [error, setError] = useState<string | null>(null);
-
-  const contentWidth = Math.max(260, windowWidth - 56);
 
   const clearError = () => {
     setError(null);
@@ -36,11 +34,11 @@ export default function ResetPasswordScreen() {
     const confirmPasswordValue = getConfirmPassword();
 
     if (passwordValue.length < 8) {
-      setError('Hasło musi mieć co najmniej 8 znaków.');
+      setError(t('auth.passwordMin'));
       return;
     }
     if (passwordValue !== confirmPasswordValue) {
-      setError('Hasła nie są identyczne.');
+      setError(t('auth.resetPasswordMismatch'));
       return;
     }
     router.replace('/(auth)/login');
@@ -51,14 +49,14 @@ export default function ResetPasswordScreen() {
       <FieldGroup.Section>
         <FieldGroup.SectionHeader>
           <AuthFormHeader
-            title="Nowe hasło"
-            description="Ustaw nowe hasło do konta."
+            title={t('auth.resetPasswordHeader')}
+            description={t('auth.resetPasswordDescription')}
           />
         </FieldGroup.SectionHeader>
 
         <AuthSecureField
           nativeValue={password}
-          placeholder="Nowe hasło"
+          placeholder={t('auth.resetPasswordField')}
           autoComplete="new-password"
           onChangeText={(text) => {
             onPasswordChange(text);
@@ -67,30 +65,26 @@ export default function ResetPasswordScreen() {
         />
         <AuthSecureField
           nativeValue={confirmPassword}
-          placeholder="Powtórz hasło"
+          placeholder={t('auth.resetPasswordConfirmField')}
           autoComplete="new-password"
           onChangeText={(text) => {
             onConfirmPasswordChange(text);
             clearError();
           }}
         />
+      </FieldGroup.Section>
 
+      <FieldGroup.Section>
+        <AuthActionsSection error={error}>
+          <AuthPrimaryButton label={t('auth.resetPasswordSubmit')} onPress={handleReset} />
+        </AuthActionsSection>
         <FieldGroup.SectionFooter>
-          <AuthFormFooter>
-            {error ? <AuthErrorText>{error}</AuthErrorText> : null}
-
-            <AuthPrimaryButton
-              label="Zapisz hasło"
-              onPress={handleReset}
-              style={{ width: contentWidth }}
-            />
-
-            <AuthSecondaryButton
-              label="Wróć do logowania"
+          <AuthRnBridge>
+            <AuthFooterPrompt
+              linkLabel={t('auth.forgotPasswordBack')}
               onPress={() => router.replace('/(auth)/login')}
-              style={{ width: contentWidth }}
             />
-          </AuthFormFooter>
+          </AuthRnBridge>
         </FieldGroup.SectionFooter>
       </FieldGroup.Section>
     </AuthFormLayout>

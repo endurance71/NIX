@@ -1,20 +1,19 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { useWindowDimensions } from 'react-native';
 import { FieldGroup } from '@expo/ui';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthRegisterCredentials } from '../../hooks/useAuthCredentials';
 import {
-  AuthErrorText,
-  AuthFormLayout,
+  AuthActionsSection,
+  AuthFooterPrompt,
   AuthFormHeader,
-  AuthFormFooter,
+  AuthFormLayout,
   AuthPrimaryButton,
-  AuthSecondaryButton,
   AuthSecureField,
   AuthTextField,
 } from '../../components/ui/auth-form-layout';
-import { useTranslation } from 'react-i18next';
+import { AuthRnBridge } from '../../components/ui/auth-rn-bridge';
 
 function isEmailValid(email: string) {
   return /\S+@\S+\.\S+/.test(email);
@@ -22,7 +21,6 @@ function isEmailValid(email: string) {
 
 export default function RegisterScreen() {
   const { t } = useTranslation();
-  const { width: windowWidth } = useWindowDimensions();
   const { signUp } = useAuth();
   const {
     email,
@@ -37,8 +35,6 @@ export default function RegisterScreen() {
   } = useAuthRegisterCredentials();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const contentWidth = Math.max(260, windowWidth - 56);
 
   const clearError = () => {
     setError(null);
@@ -119,24 +115,24 @@ export default function RegisterScreen() {
             clearError();
           }}
         />
+      </FieldGroup.Section>
 
+      <FieldGroup.Section>
+        <AuthActionsSection error={error}>
+          <AuthPrimaryButton
+            label={loading ? t('auth.registerLoading') : t('auth.registerButton')}
+            onPress={() => void handleRegister()}
+            disabled={loading}
+          />
+        </AuthActionsSection>
         <FieldGroup.SectionFooter>
-          <AuthFormFooter>
-            {error ? <AuthErrorText>{error}</AuthErrorText> : null}
-
-            <AuthPrimaryButton
-              label={loading ? t('auth.registerLoading') : t('auth.registerButton')}
-              onPress={() => void handleRegister()}
-              disabled={loading}
-              style={{ width: contentWidth }}
-            />
-
-            <AuthSecondaryButton
-              label={t('auth.hasAccount')}
+          <AuthRnBridge>
+            <AuthFooterPrompt
+              prompt={t('auth.hasAccountPrompt')}
+              linkLabel={t('auth.hasAccountLink')}
               onPress={() => router.replace('/(auth)/login')}
-              style={{ width: contentWidth }}
             />
-          </AuthFormFooter>
+          </AuthRnBridge>
         </FieldGroup.SectionFooter>
       </FieldGroup.Section>
     </AuthFormLayout>

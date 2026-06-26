@@ -44,10 +44,6 @@ target 'NiX' do
 
   config = use_native_modules!(config_command)
 
-  # Google Sign-In — required modular headers when linking as static libraries
-  pod 'GoogleUtilities', :modular_headers => true
-  pod 'RecaptchaInterop', :modular_headers => true
-
   use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
   use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
 

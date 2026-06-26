@@ -1,1 +1,3 @@
-export { default } from './camera-tab';
+import CameraScreenRoot from '../../components/camera/CameraScreenRoot';
+
+export default CameraScreenRoot;

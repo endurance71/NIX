@@ -1,216 +1,177 @@
-import { Pressable, Text as RNText, View } from 'react-native';
+import { useEffect } from 'react';
 import { Stack, router } from 'expo-router';
-import { Button, RNHostView, Switch, Text, TextInput } from '@expo/ui';
+import { Text, TextInput } from '@expo/ui';
 import { ProfileQrAvatarSection } from './ProfileQrAvatarSection';
-import { AvatarCircle } from '../ui/avatar-circle';
 import { useProfileScreen } from '../../hooks/useProfileScreen';
-import { profileScreenRnStyles as styles } from './profileScreen.styles';
-import { DeletableRowMenu } from '../ui/deletable-row-menu';
 import {
-  SettingsEmptyText,
-  SettingsSectionTitle,
-} from '../ui/settings-list-sections';
+  NativeSettingsActionRow,
+  NativeSettingsEmptyRow,
+  NativeSettingsRow,
+  NativeSettingsSection,
+  NativeSettingsSwitchRow,
+} from '../ui/native-settings';
 import { SettingsListScreen } from '../ui/settings-list-screen';
+import { registerTabScrollToTop } from '../../lib/tabBarScrollActions';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
 
+  useEffect(() => {
+    return registerTabScrollToTop('profile', () => {
+      router.replace('/(tabs)/profile');
+    });
+  }, []);
+
   return (
     <>
       <SettingsListScreen onRefresh={vm.handleListRefresh} loading={vm.profilePending}>
-        <View style={{ paddingHorizontal: 20, paddingTop: 8, gap: 4 }}>
+        <NativeSettingsSection>
           <Text textStyle={{ fontSize: 22, fontWeight: '700', color: vm.colors.label }}>
             {`@${vm.profileUsername ?? 'brak_nazwy_uzytkownika'}`}
           </Text>
           <Text textStyle={{ fontSize: 14, color: vm.colors.secondaryLabel }}>{vm.user?.email ?? '—'}</Text>
-        </View>
+        </NativeSettingsSection>
 
-        <SettingsSectionTitle>{vm.t('profile.myQrCode')}</SettingsSectionTitle>
-        <ProfileQrAvatarSection
-          colors={vm.colors}
-          qrPayload={vm.qrPayload}
-          avatarSignedUrl={vm.avatarSignedUrl}
-          avatarStoragePath={vm.profileRow?.avatar_storage_path ?? null}
-          avatarEmoji={vm.profileRow?.avatar_emoji ?? null}
-          initialLetter={vm.initialLetter}
-          avatarBusy={vm.avatarBusy}
-          hasAvatar={vm.hasAvatar}
-          styles={{
-            avatarActions: styles.avatarActions,
-            avatarLink: styles.avatarLink,
-            avatarLinkPressed: styles.avatarLinkPressed,
-            avatarLinkText: styles.avatarLinkText,
-          }}
-          onPickAvatarPhoto={vm.handlePickAvatarPhoto}
-        />
+        <NativeSettingsSection title={vm.t('profile.myQrCode')}>
+          <ProfileQrAvatarSection
+            colors={vm.colors}
+            qrPayload={vm.qrPayload}
+            avatarSignedUrl={vm.avatarSignedUrl}
+            avatarStoragePath={vm.profileRow?.avatar_storage_path ?? null}
+            avatarEmoji={vm.profileRow?.avatar_emoji ?? null}
+            initialLetter={vm.initialLetter}
+          />
+          <NativeSettingsActionRow
+            title={vm.avatarBusy ? 'Przetwarzanie…' : 'Zdjęcie z biblioteki'}
+            onPress={vm.handlePickAvatarPhoto}
+            disabled={vm.avatarBusy}
+          />
+          <NativeSettingsActionRow
+            title="Usuń awatar"
+            destructive
+            disabled={vm.avatarBusy || !vm.hasAvatar}
+            onPress={() =>
+              router.push({
+                pathname: '/profile/remove-avatar',
+                params: {
+                  avatarUrl: vm.avatarSignedUrl ?? undefined,
+                  avatarStoragePath: vm.profileRow?.avatar_storage_path ?? undefined,
+                  avatarEmoji: vm.profileRow?.avatar_emoji ?? undefined,
+                  fallbackInitial: vm.initialLetter,
+                },
+              })
+            }
+          />
+        </NativeSettingsSection>
 
-        <SettingsSectionTitle>{vm.t('profile.addFriend')}</SettingsSectionTitle>
-        <Button label={vm.t('profile.scanQr')} onPress={() => router.push('/friend-scan-qr')} />
-        <TextInput
-          key={`invite-input-${vm.inviteInputResetKey}`}
-          placeholder="@nazwa_uzytkownika"
-          autoCapitalize="none"
-          autoCorrect={false}
-          onChangeText={vm.setSearchUsername}
-        />
-        <Button
-          label={
-            vm.actionLoadingId === 'invite' ? vm.t('profile.sendInviteLoading') : vm.t('profile.sendInvite')
-          }
-          onPress={vm.handleSendInvite}
-        />
+        <NativeSettingsSection title={vm.t('profile.addFriend')}>
+          <NativeSettingsActionRow title={vm.t('profile.scanQr')} onPress={() => router.push('/friend-scan-qr')} />
+          <TextInput
+            key={`invite-input-${vm.inviteInputResetKey}`}
+            placeholder="@nazwa_uzytkownika"
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={vm.setSearchUsername}
+          />
+          <NativeSettingsActionRow
+            title={
+              vm.actionLoadingId === 'invite' ? vm.t('profile.sendInviteLoading') : vm.t('profile.sendInvite')
+            }
+            onPress={vm.handleSendInvite}
+            disabled={vm.actionLoadingId === 'invite'}
+          />
+        </NativeSettingsSection>
 
         {vm.requests.length > 0 ? (
-          <>
-            <SettingsSectionTitle>{vm.t('profile.incomingInvites', { count: vm.requests.length })}</SettingsSectionTitle>
-            {vm.requests.map((request) => {
-              const avatarPath = request.requester.avatar_storage_path ?? null;
-              const avatarUrl = avatarPath ? vm.incomingAvatarUrls[avatarPath] ?? null : null;
-              const fallbackInitial = request.requester.username.replace(/^@/, '').charAt(0).toUpperCase();
-              return (
-                <DeletableRowMenu
-                  key={request.id}
-                  deleteLabel="Usuń zaproszenie"
-                  disabled={vm.actionLoadingId === request.id}
-                  onDelete={() => void vm.handleReject(request.id)}>
-                  <RNHostView matchContents>
-                    <View style={[styles.socialRow, vm.actionLoadingId === request.id && styles.rowDisabled]}>
-                      <View style={styles.outgoingHeader}>
-                        <AvatarCircle
-                          size={36}
-                          url={avatarUrl}
-                          storagePath={avatarPath}
-                          emoji={request.requester.avatar_emoji}
-                          fallbackInitial={fallbackInitial}
-                        />
-                        <RNText
-                          numberOfLines={1}
-                          style={[styles.socialTitle, { color: vm.colors.label, flex: 1 }]}>
-                          @{request.requester.username}
-                        </RNText>
-                      </View>
-                      <View style={styles.socialActions}>
-                        <Pressable onPress={() => vm.handleAccept(request.id)} hitSlop={8}>
-                          <RNText style={[styles.socialActionLabel, { color: vm.colors.accent }]}>Przyjmij</RNText>
-                        </Pressable>
-                      </View>
-                    </View>
-                  </RNHostView>
-                </DeletableRowMenu>
-              );
-            })}
-          </>
+          <NativeSettingsSection title={vm.t('profile.incomingInvites', { count: vm.requests.length })}>
+            {vm.requests.flatMap((request) => [
+              <NativeSettingsRow
+                key={`${request.id}:row`}
+                title={`@${request.requester.username}`}
+                supportingText="Zaproszenie przychodzące"
+              />,
+              <NativeSettingsActionRow
+                key={`${request.id}:accept`}
+                title="Przyjmij"
+                disabled={vm.actionLoadingId === request.id}
+                onPress={() => void vm.handleAccept(request.id)}
+              />,
+              <NativeSettingsActionRow
+                key={`${request.id}:reject`}
+                title="Usuń zaproszenie"
+                destructive
+                disabled={vm.actionLoadingId === request.id}
+                onPress={() => void vm.handleReject(request.id)}
+              />,
+            ])}
+          </NativeSettingsSection>
         ) : null}
 
         {vm.outgoingRequests.length > 0 ? (
-          <>
-            <SettingsSectionTitle>
-              {vm.t('profile.outgoingInvites', { count: vm.outgoingRequests.length })}
-            </SettingsSectionTitle>
-            {vm.outgoingRequests.map((request) => {
-              const avatarPath = request.recipient.avatar_storage_path ?? null;
-              const avatarUrl = avatarPath ? vm.outgoingAvatarUrls[avatarPath] ?? null : null;
-              const fallbackInitial = request.recipient.username.replace(/^@/, '').charAt(0).toUpperCase();
-              return (
-                <DeletableRowMenu
-                  key={request.id}
-                  deleteLabel="Anuluj zaproszenie"
-                  disabled={vm.actionLoadingId === `outgoing-${request.id}`}
-                  onDelete={() => void vm.handleCancelOutgoing(request.id)}>
-                  <RNHostView matchContents>
-                    <View
-                      style={[
-                        styles.socialRow,
-                        vm.actionLoadingId === `outgoing-${request.id}` && styles.rowDisabled,
-                      ]}>
-                      <View style={styles.outgoingHeader}>
-                        <AvatarCircle
-                          size={36}
-                          url={avatarUrl}
-                          storagePath={avatarPath}
-                          emoji={request.recipient.avatar_emoji}
-                          fallbackInitial={fallbackInitial}
-                        />
-                        <RNText
-                          numberOfLines={1}
-                          style={[styles.socialTitle, { color: vm.colors.label, flex: 1 }]}>
-                          @{request.recipient.username}
-                        </RNText>
-                      </View>
-                      <RNText style={[styles.outgoingStatusLabel, { color: vm.colors.tertiaryLabel }]}>
-                        {vm.actionLoadingId === `outgoing-${request.id}`
-                          ? 'Usuwanie…'
-                          : 'Oczekuje na akceptację'}
-                      </RNText>
-                    </View>
-                  </RNHostView>
-                </DeletableRowMenu>
-              );
-            })}
-          </>
+          <NativeSettingsSection title={vm.t('profile.outgoingInvites', { count: vm.outgoingRequests.length })}>
+            {vm.outgoingRequests.flatMap((request) => [
+              <NativeSettingsRow
+                key={`${request.id}:row`}
+                title={`@${request.recipient.username}`}
+                supportingText={
+                  vm.actionLoadingId === `outgoing-${request.id}` ? 'Usuwanie…' : 'Oczekuje na akceptację'
+                }
+              />,
+              <NativeSettingsActionRow
+                key={`${request.id}:cancel`}
+                title="Anuluj zaproszenie"
+                destructive
+                disabled={vm.actionLoadingId === `outgoing-${request.id}`}
+                onPress={() => void vm.handleCancelOutgoing(request.id)}
+              />,
+            ])}
+          </NativeSettingsSection>
         ) : null}
 
-        <SettingsSectionTitle>{vm.t('profile.friends', { count: vm.friends.length })}</SettingsSectionTitle>
-        {vm.friends.length === 0 ? (
-          <SettingsEmptyText>Nie masz jeszcze znajomych.</SettingsEmptyText>
-        ) : (
-          vm.friends.map((friend) => {
+        <NativeSettingsSection title={vm.t('profile.friends', { count: vm.friends.length })}>
+          {vm.friends.length === 0 ? (
+            <NativeSettingsEmptyRow text="Nie masz jeszcze znajomych." />
+          ) : null}
+          {vm.friends.flatMap((friend) => {
             const avatarPath = friend.avatar_storage_path ?? null;
-            const avatarUrl = avatarPath ? vm.friendAvatarUrls[avatarPath] ?? null : null;
-            const fallbackInitial = friend.username.replace(/^@/, '').charAt(0).toUpperCase();
             const captureLoadingId = `capture-${friend.id}`;
             const isCaptureUpdating = vm.actionLoadingId === captureLoadingId;
-            return (
-              <DeletableRowMenu
-                key={friend.id}
-                deleteLabel="Usuń ze znajomych"
+            return [
+              <NativeSettingsRow
+                key={`${friend.id}:row`}
+                title={`@${friend.username}`}
+                supportingText={avatarPath ? 'Avatar ustawiony' : 'Brak avatara'}
+              />,
+              <NativeSettingsSwitchRow
+                key={`${friend.id}:capture`}
+                title="Zezwalaj na screenshoty"
+                value={vm.resolveFriendCapturePolicy(friend.id) === 'allow'}
+                onValueChange={(next) => {
+                  void vm.handleToggleFriendCapture(friend.id, next);
+                }}
+                disabled={isCaptureUpdating}
+              />,
+              <NativeSettingsActionRow
+                key={`${friend.id}:delete`}
+                title="Usuń ze znajomych"
+                destructive
                 disabled={vm.actionLoadingId === `friend-${friend.id}`}
-                onDelete={() => {
+                onPress={() => {
                   const index = vm.friends.findIndex((f) => f.id === friend.id);
                   if (index >= 0) void vm.handleNativeFriendDelete([index]);
-                }}>
-                <RNHostView matchContents>
-                  <View
-                    style={[styles.socialRow, vm.actionLoadingId === `friend-${friend.id}` && styles.rowDisabled]}>
-                    <View style={styles.outgoingHeader}>
-                      <AvatarCircle
-                        size={36}
-                        url={avatarUrl}
-                        storagePath={avatarPath}
-                        emoji={friend.avatar_emoji}
-                        fallbackInitial={fallbackInitial}
-                      />
-                      <RNText numberOfLines={1} style={[styles.socialTitle, { color: vm.colors.label, flex: 1 }]}>
-                        @{friend.username}
-                      </RNText>
-                    </View>
-                    <View style={styles.captureToggleRow}>
-                      <RNText
-                        numberOfLines={2}
-                        style={[styles.captureToggleLabel, { color: vm.colors.secondaryLabel }]}>
-                        Zezwalaj na screenshoty
-                      </RNText>
-                      <Switch
-                        value={vm.resolveFriendCapturePolicy(friend.id) === 'allow'}
-                        onValueChange={(next) => {
-                          void vm.handleToggleFriendCapture(friend.id, next);
-                        }}
-                        disabled={isCaptureUpdating}
-                      />
-                    </View>
-                  </View>
-                </RNHostView>
-              </DeletableRowMenu>
-            );
-          })
-        )}
+                }}
+              />,
+            ];
+          })}
+        </NativeSettingsSection>
 
-        <SettingsSectionTitle>{vm.t('profile.account')}</SettingsSectionTitle>
-        <Button
-          label={vm.t('profile.changePassword')}
-          onPress={() => router.push('/profile/change-password')}
-        />
-        <Button label={vm.t('profile.signOut')} onPress={vm.handleSignOut} />
+        <NativeSettingsSection title={vm.t('profile.account')}>
+          <NativeSettingsActionRow
+            title={vm.t('profile.changePassword')}
+            onPress={() => router.push('/profile/change-password')}
+          />
+          <NativeSettingsActionRow title={vm.t('profile.signOut')} onPress={vm.handleSignOut} />
+        </NativeSettingsSection>
       </SettingsListScreen>
       <Stack.Screen.Title large>{vm.t('profile.title')}</Stack.Screen.Title>
     </>

@@ -1,27 +1,54 @@
-import { PropsWithChildren } from 'react';
-import { StyleSheet, Text as RNText, View, Pressable } from 'react-native';
+import { PropsWithChildren, ReactNode } from 'react';
+import { StyleSheet, Text as RNText, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { FieldGroup, Row, TextInput } from '@expo/ui';
+import { Button, Column, FieldGroup, Text, TextInput } from '@expo/ui';
+import { defaultMinSize, fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
+import { buttonBorderShape, controlSize, frame } from '@expo/ui/swift-ui/modifiers';
 import type { ComponentProps } from 'react';
 import type { ObservableState } from '@expo/ui';
-import { AppIcon } from './app-icon';
-import type { AppIconName } from '../../theme/app-icons';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { AppHost } from './app-host';
-import { APP_FONT_FAMILY } from '../../theme/typography';
-import { AUTH_FORM_HORIZONTAL_PADDING } from '../../theme/authLayout';
+import { useScreenInsets } from '../../hooks/useScreenInsets';
+import {
+  AUTH_FORM_HORIZONTAL_PADDING,
+  AUTH_PRIMARY_BUTTON_MIN_HEIGHT,
+} from '../../theme/authLayout';
+import { authRnTextStyle, authTextStyle } from '../../theme/authTypography';
+
+const AUTH_PRIMARY_BUTTON_IOS_MODIFIERS = [
+  frame({ maxWidth: 10_000 }),
+  buttonBorderShape('roundedRectangle', 14),
+  controlSize('large'),
+  frame({ minHeight: AUTH_PRIMARY_BUTTON_MIN_HEIGHT }),
+] as const;
+
+const AUTH_PRIMARY_BUTTON_ANDROID_MODIFIERS = [
+  fillMaxWidth(),
+  defaultMinSize({ minHeight: AUTH_PRIMARY_BUTTON_MIN_HEIGHT }),
+] as const;
 
 // Auth screens use full-screen `AuthFormLayout` → `FieldGroup` as the only scroll container.
 // Never nest `FieldGroup` inside RN `ScrollView` or give it a fixed height (Android LazyColumn scrolls).
 
-export function AuthFormLayout({ children, header }: PropsWithChildren<{ header?: React.ReactNode }>) {
+// Auth screens use full-screen `AuthFormLayout` → `FieldGroup` as the only scroll container.
+// Never nest `FieldGroup` inside RN `ScrollView` or give it a fixed height (Android LazyColumn scrolls).
+// `FieldGroup` must be a direct child of `AppHost` — do not wrap it in RN `View` siblings.
+
+export function AuthFormLayout({ children }: PropsWithChildren) {
   const { statusBarStyle } = useAppTheme();
+  const { topContentInset, bottomContentInset } = useScreenInsets('fullscreen');
 
   return (
-    <AppHost useViewportSizeMeasurement>
+    <AppHost safeAreaMode="keyboardOnly" useViewportSizeMeasurement>
       <StatusBar style={statusBarStyle} />
-      {header}
-      <FieldGroup style={styles.form}>{children}</FieldGroup>
+      <FieldGroup
+        style={{
+          ...styles.form,
+          paddingTop: topContentInset + 8,
+          paddingBottom: bottomContentInset + 32,
+        }}>
+        {children}
+      </FieldGroup>
     </AppHost>
   );
 }
@@ -39,13 +66,23 @@ export function AuthFormHeader({
 }) {
   const { colors } = useAppTheme();
 
+  const headerStyle =
+    process.env.EXPO_OS === 'android'
+      ? headerStyles.wrap
+      : { ...headerStyles.wrap, ...headerStyles.wrapFullWidth };
+
   return (
-    <View style={headerStyles.wrap}>
-      <RNText style={[headerStyles.title, { color: colors.textPrimary }]}>{title}</RNText>
+    <Column
+      spacing={8}
+      modifiers={process.env.EXPO_OS === 'android' ? [fillMaxWidth()] : undefined}
+      style={headerStyle}>
+      <Text textStyle={{ ...authTextStyle('screenTitle', colors), textAlign: 'center' }}>{title}</Text>
       {description ? (
-        <RNText style={[headerStyles.description, { color: colors.textSecondary }]}>{description}</RNText>
+        <Text textStyle={{ ...authTextStyle('screenSubtitle', colors), textAlign: 'center' }}>
+          {description}
+        </Text>
       ) : null}
-    </View>
+    </Column>
   );
 }
 
@@ -56,40 +93,37 @@ export function AuthFormFooter({ children }: PropsWithChildren) {
 export function AuthSecondaryText({ children }: { children: string }) {
   const { colors } = useAppTheme();
   return (
-    <RNText style={[textStyles.secondary, { color: colors.textSecondary }]}>
+    <Text textStyle={{ ...authTextStyle('screenSubtitle', colors), textAlign: 'center' }}>
       {children}
-    </RNText>
+    </Text>
   );
 }
 
 export function AuthTertiaryText({ children }: { children: string }) {
   const { colors } = useAppTheme();
   return (
-    <RNText style={[textStyles.tertiary, { color: colors.tertiaryLabel }]}>
+    <Text textStyle={{ ...authTextStyle('fieldLabel', colors), textAlign: 'center' }}>
       {children}
-    </RNText>
+    </Text>
   );
 }
 
 export function AuthErrorText({ children }: { children: string }) {
   const { colors } = useAppTheme();
   return (
-    <RNText style={[textStyles.error, { color: colors.error }]}>
-      {children}
-    </RNText>
+    <Text textStyle={{ ...authTextStyle('error', colors), textAlign: 'center' }}>{children}</Text>
   );
 }
 
 type AuthFieldProps = Omit<ComponentProps<typeof TextInput>, 'value' | 'onChangeText'> & {
   nativeValue?: ObservableState<string>;
   onChangeText?: (text: string) => void;
-  icon?: AppIconName;
 };
 
-export function AuthTextField({ nativeValue, onChangeText, placeholder, icon, ...rest }: AuthFieldProps) {
+export function AuthTextField({ nativeValue, onChangeText, placeholder, ...rest }: AuthFieldProps) {
   const { colors } = useAppTheme();
 
-  const inputEl = (
+  return (
     <TextInput
       autoCapitalize="none"
       autoCorrect={false}
@@ -100,23 +134,12 @@ export function AuthTextField({ nativeValue, onChangeText, placeholder, icon, ..
       {...rest}
     />
   );
-
-  if (icon) {
-    return (
-      <Row spacing={8} style={{ paddingVertical: 4 }}>
-        <AppIcon name={icon} size={20} color={colors.textSecondary} />
-        {inputEl}
-      </Row>
-    );
-  }
-
-  return inputEl;
 }
 
-export function AuthSecureField({ nativeValue, onChangeText, placeholder, icon, ...rest }: AuthFieldProps) {
+export function AuthSecureField({ nativeValue, onChangeText, placeholder, ...rest }: AuthFieldProps) {
   const { colors } = useAppTheme();
 
-  const inputEl = (
+  return (
     <TextInput
       secureTextEntry
       autoCapitalize="none"
@@ -128,78 +151,50 @@ export function AuthSecureField({ nativeValue, onChangeText, placeholder, icon, 
       {...rest}
     />
   );
-
-  if (icon) {
-    return (
-      <Row spacing={8} style={{ paddingVertical: 4 }}>
-        <AppIcon name={icon} size={20} color={colors.textSecondary} />
-        {inputEl}
-      </Row>
-    );
-  }
-
-  return inputEl;
 }
 
 export function AuthPrimaryButton({
   label,
   onPress,
   disabled,
-  style,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
-  style?: any;
+  style?: unknown;
 }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.primaryButton,
-        {
-          opacity: disabled ? 0.45 : pressed ? 0.8 : 1,
-        },
-        style,
-      ]}
-    >
-      <RNText style={styles.primaryButtonLabel}>{label}</RNText>
-    </Pressable>
-  );
+  const modifiers =
+    process.env.EXPO_OS === 'ios'
+      ? [...AUTH_PRIMARY_BUTTON_IOS_MODIFIERS]
+      : process.env.EXPO_OS === 'android'
+        ? [...AUTH_PRIMARY_BUTTON_ANDROID_MODIFIERS]
+        : undefined;
+
+  // Android Compose modifiers expect numeric dp — never pass `width: '100%'` via `style`.
+  return <Button label={label} onPress={onPress} disabled={disabled} modifiers={modifiers} />;
+}
+
+export function AuthTextLinkButton({
+  label,
+  onPress,
+}: {
+  label: string;
+  onPress: () => void;
+}) {
+  return <Button label={label} variant="text" onPress={onPress} />;
 }
 
 export function AuthOutlinedButton({
   label,
   onPress,
   disabled,
-  style,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
-  style?: any;
+  style?: unknown;
 }) {
-  const { colors } = useAppTheme();
-
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.outlinedButton,
-        {
-          borderColor: colors.buttonPrimaryBg ?? '#0A84FF',
-          opacity: disabled ? 0.45 : pressed ? 0.8 : 1,
-        },
-        style,
-      ]}
-    >
-      <RNText style={[styles.outlinedButtonLabel, { color: colors.buttonPrimaryBg ?? '#0A84FF' }]}>
-        {label}
-      </RNText>
-    </Pressable>
-  );
+  return <Button label={label} variant="outlined" onPress={onPress} disabled={disabled} />;
 }
 
 export function AuthFormDivider({ label }: { label: string }) {
@@ -208,7 +203,7 @@ export function AuthFormDivider({ label }: { label: string }) {
   return (
     <View style={dividerStyles.row}>
       <View style={[dividerStyles.line, { backgroundColor: colors.separator }]} />
-      <RNText style={[dividerStyles.label, { color: colors.textMuted }]}>{label}</RNText>
+      <RNText style={[dividerStyles.label, authRnTextStyle('divider', colors)]}>{label}</RNText>
       <View style={[dividerStyles.line, { backgroundColor: colors.separator }]} />
     </View>
   );
@@ -217,75 +212,67 @@ export function AuthFormDivider({ label }: { label: string }) {
 export function AuthSecondaryButton({
   label,
   onPress,
-  style,
 }: {
   label: string;
   onPress: () => void;
-  style?: any;
+  style?: unknown;
+}) {
+  return <Button label={label} variant="text" onPress={onPress} />;
+}
+
+export function AuthInlineLink({ label, onPress }: { label: string; onPress: () => void }) {
+  return <AuthTextLinkButton label={label} onPress={onPress} />;
+}
+
+export function AuthFooterPrompt({
+  prompt,
+  linkLabel,
+  onPress,
+}: {
+  prompt?: string;
+  linkLabel: string;
+  onPress: () => void;
+}) {
+  const { colors } = useAppTheme();
+
+  return (
+    <View style={footerPromptStyles.wrap}>
+      <RNText style={authRnTextStyle('footerPrompt', colors)}>
+        {prompt ? (
+          <>
+            {prompt}{' '}
+            <RNText onPress={onPress} style={authRnTextStyle('footerLink', colors)}>
+              {linkLabel}
+            </RNText>
+          </>
+        ) : (
+          <RNText onPress={onPress} style={authRnTextStyle('footerLink', colors)}>
+            {linkLabel}
+          </RNText>
+        )}
+      </RNText>
+    </View>
+  );
+}
+
+export function AuthActionsSection({
+  error,
+  children,
+}: {
+  error?: string | null;
+  children: ReactNode;
 }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.secondaryButton,
-        {
-          opacity: pressed ? 0.7 : 1,
-        },
-        style,
-      ]}
-    >
-      <RNText style={styles.secondaryButtonText}>
-        {label}
-      </RNText>
-    </Pressable>
+    <>
+      {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+      {children}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   form: {
-    flex: 1,
     paddingHorizontal: AUTH_FORM_HORIZONTAL_PADDING,
-    paddingTop: 12,
-  },
-  primaryButton: {
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0A84FF',
-    width: '100%',
-  },
-  primaryButtonLabel: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: APP_FONT_FAMILY,
-  },
-  outlinedButton: {
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 1.5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-    width: '100%',
-  },
-  outlinedButtonLabel: {
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: APP_FONT_FAMILY,
-  },
-  secondaryButton: {
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryButtonText: {
-    fontSize: 15,
-    fontFamily: APP_FONT_FAMILY,
-    textAlign: 'center',
-    color: '#0A84FF',
-    fontWeight: '600',
   },
 });
 
@@ -293,23 +280,12 @@ const headerStyles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
     justifyContent: 'center',
+    paddingTop: 8,
+    paddingBottom: 12,
+    paddingHorizontal: 8,
+  },
+  wrapFullWidth: {
     width: '100%',
-    paddingTop: 24,
-    paddingBottom: 8,
-    gap: 8,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    fontFamily: APP_FONT_FAMILY,
-    textAlign: 'center',
-  },
-  description: {
-    fontSize: 14,
-    fontFamily: APP_FONT_FAMILY,
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 16,
   },
 });
 
@@ -318,31 +294,7 @@ const footerStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    paddingTop: 12,
-    paddingBottom: 24,
     gap: 16,
-  },
-});
-
-const textStyles = StyleSheet.create({
-  secondary: {
-    fontSize: 14,
-    fontFamily: APP_FONT_FAMILY,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-  tertiary: {
-    fontSize: 12,
-    fontFamily: APP_FONT_FAMILY,
-    lineHeight: 16,
-    textAlign: 'center',
-  },
-  error: {
-    fontSize: 13,
-    fontFamily: APP_FONT_FAMILY,
-    lineHeight: 18,
-    textAlign: 'center',
-    fontWeight: '600',
   },
 });
 
@@ -350,19 +302,25 @@ const dividerStyles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     width: '100%',
-    marginVertical: 4,
+    marginVertical: 12,
   },
   line: {
     flex: 1,
     height: StyleSheet.hairlineWidth,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '500',
-    fontFamily: APP_FONT_FAMILY,
     textTransform: 'lowercase',
   },
 });
 
+const footerPromptStyles = StyleSheet.create({
+  wrap: {
+    width: '100%',
+    alignItems: 'center',
+    paddingTop: 4,
+    paddingBottom: 4,
+    paddingHorizontal: 4,
+  },
+});

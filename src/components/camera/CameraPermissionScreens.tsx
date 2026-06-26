@@ -1,4 +1,6 @@
-import { Pressable, Text, View, type ViewStyle, type TextStyle } from 'react-native';
+import { type ReactNode } from 'react';
+import { Pressable, Text, View, type TextStyle, type ViewStyle } from 'react-native';
+import { useScreenInsets } from '../../hooks/useScreenInsets';
 
 export type CameraPermissionStyles = {
   permissionContainer: ViewStyle;
@@ -7,6 +9,26 @@ export type CameraPermissionStyles = {
   permissionButton: ViewStyle;
   permissionButtonText: TextStyle;
 };
+
+function PermissionShell({
+  styles,
+  children,
+}: {
+  styles: CameraPermissionStyles;
+  children: ReactNode;
+}) {
+  const { topContentInset, bottomContentInset } = useScreenInsets('fullscreen');
+
+  return (
+    <View
+      style={[
+        styles.permissionContainer,
+        { paddingTop: topContentInset, paddingBottom: bottomContentInset },
+      ]}>
+      {children}
+    </View>
+  );
+}
 
 export function CameraInitializingPlaceholder({
   timedOut,
@@ -18,7 +40,7 @@ export function CameraInitializingPlaceholder({
   styles: CameraPermissionStyles;
 }) {
   return (
-    <View style={styles.permissionContainer}>
+    <PermissionShell styles={styles}>
       <Text style={styles.permissionText}>Inicjalizacja kamery…</Text>
       {timedOut ? (
         <>
@@ -30,7 +52,7 @@ export function CameraInitializingPlaceholder({
           </Pressable>
         </>
       ) : null}
-    </View>
+    </PermissionShell>
   );
 }
 
@@ -42,11 +64,11 @@ export function CameraPermissionDeniedPlaceholder({
   styles: CameraPermissionStyles;
 }) {
   return (
-    <View style={styles.permissionContainer}>
+    <PermissionShell styles={styles}>
       <Text style={styles.permissionText}>NiX potrzebuje dostępu do kamery, aby uchwycić momenty.</Text>
       <Pressable style={styles.permissionButton} onPress={onRequestPermission}>
         <Text style={styles.permissionButtonText}>Udziel dostępu</Text>
       </Pressable>
-    </View>
+    </PermissionShell>
   );
 }

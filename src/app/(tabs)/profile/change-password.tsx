@@ -1,6 +1,8 @@
-import { useEffect, useReducer } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
+import { useNativeState } from '@expo/ui';
 import { useAuth } from '../../../hooks/useAuth';
+import { useAuthPasswordPair } from '../../../hooks/useAuthCredentials';
 import {
   AuthErrorText,
   AuthFormLayout,
@@ -28,51 +30,23 @@ function getPasswordUpdateErrorMessage(message: string) {
 
 export default function ChangePasswordScreen() {
   const { session, loading: authLoading, updatePassword, reauthenticatePasswordChange } = useAuth();
-  const [state, dispatch] = useReducer(
-    (
-      current: {
-        newPassword: string;
-        confirmPassword: string;
-        nonce: string;
-        requiresNonce: boolean;
-        loading: boolean;
-        error: string | null;
-      },
-      action:
-        | { type: 'set_new_password'; value: string }
-        | { type: 'set_confirm_password'; value: string }
-        | { type: 'set_nonce'; value: string }
-        | { type: 'set_requires_nonce'; value: boolean }
-        | { type: 'set_loading'; value: boolean }
-        | { type: 'set_error'; value: string | null }
-    ) => {
-      switch (action.type) {
-        case 'set_new_password':
-          return { ...current, newPassword: action.value, error: null };
-        case 'set_confirm_password':
-          return { ...current, confirmPassword: action.value, error: null };
-        case 'set_nonce':
-          return { ...current, nonce: action.value, error: null };
-        case 'set_requires_nonce':
-          return { ...current, requiresNonce: action.value };
-        case 'set_loading':
-          return { ...current, loading: action.value };
-        case 'set_error':
-          return { ...current, error: action.value };
-        default:
-          return current;
-      }
-    },
-    {
-      newPassword: '',
-      confirmPassword: '',
-      nonce: '',
-      requiresNonce: false,
-      loading: false,
-      error: null,
-    }
-  );
-  const { newPassword, confirmPassword, nonce, requiresNonce, loading, error } = state;
+  const {
+    password: newPassword,
+    confirmPassword,
+    onPasswordChange,
+    onConfirmPasswordChange,
+    getPassword,
+    getConfirmPassword,
+  } = useAuthPasswordPair();
+  const nonce = useNativeState('');
+  const nonceSnapshot = useRef('');
+  const [requiresNonce, setRequiresNonce] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const clearError = () => {
+    setError(null);
+  };
 
   useEffect(() => {
     if (!authLoading && !session) {
@@ -81,48 +55,49 @@ export default function ChangePasswordScreen() {
   }, [authLoading, session]);
 
   const handleSubmit = async () => {
-    if (newPassword.length < 8) {
-      dispatch({ type: 'set_error', value: 'Nowe hasło musi mieć minimum 8 znaków.' });
+    const newPasswordValue = getPassword();
+    const confirmPasswordValue = getConfirmPassword();
+    const nonceValue = nonceSnapshot.current.trim();
+
+    if (newPasswordValue.length < 8) {
+      setError('Nowe hasło musi mieć minimum 8 znaków.');
       return;
     }
-    if (newPassword !== confirmPassword) {
-      dispatch({ type: 'set_error', value: 'Hasła nie są takie same.' });
+    if (newPasswordValue !== confirmPasswordValue) {
+      setError('Hasła nie są takie same.');
       return;
     }
-    if (requiresNonce && !nonce.trim()) {
-      dispatch({ type: 'set_error', value: 'Wpisz kod weryfikacyjny z e-maila.' });
+    if (requiresNonce && !nonceValue) {
+      setError('Wpisz kod weryfikacyjny z e-maila.');
       return;
     }
 
-    dispatch({ type: 'set_loading', value: true });
-    dispatch({ type: 'set_error', value: null });
+    setLoading(true);
+    setError(null);
 
-    const { error: updateErr } = await updatePassword(newPassword, requiresNonce ? nonce.trim() : undefined);
+    const { error: updateErr } = await updatePassword(newPasswordValue, requiresNonce ? nonceValue : undefined);
 
     if (updateErr) {
       if (!requiresNonce && isReauthenticationNeededError(updateErr)) {
         const { error: reauthError } = await reauthenticatePasswordChange();
         if (reauthError) {
-          dispatch({ type: 'set_error', value: getPasswordUpdateErrorMessage(reauthError.message) });
-          dispatch({ type: 'set_loading', value: false });
+          setError(getPasswordUpdateErrorMessage(reauthError.message));
+          setLoading(false);
           return;
         }
 
-        dispatch({ type: 'set_requires_nonce', value: true });
-        dispatch({ type: 'set_loading', value: false });
-        dispatch({
-          type: 'set_error',
-          value: 'Wysłaliśmy kod weryfikacyjny na e-mail. Wpisz go poniżej i zapisz hasło ponownie.',
-        });
+        setRequiresNonce(true);
+        setLoading(false);
+        setError('Wysłaliśmy kod weryfikacyjny na e-mail. Wpisz go poniżej i zapisz hasło ponownie.');
         return;
       }
 
-      dispatch({ type: 'set_loading', value: false });
-      dispatch({ type: 'set_error', value: getPasswordUpdateErrorMessage(updateErr.message) });
+      setLoading(false);
+      setError(getPasswordUpdateErrorMessage(updateErr.message));
       return;
     }
 
-    dispatch({ type: 'set_loading', value: false });
+    setLoading(false);
     notifySuccess('Hasło zostało zmienione.');
     router.replace('/profile');
   };
@@ -134,29 +109,38 @@ export default function ChangePasswordScreen() {
           Ustaw nowe hasło. Gdy Supabase poprosi o dodatkową weryfikację, wpisz kod przesłany e-mailem.
         </AuthSecondaryText>
         <AuthSecureField
+          nativeValue={newPassword}
           placeholder="Nowe hasło (min. 8 znaków)"
+          autoComplete="new-password"
           onChangeText={(text) => {
-            dispatch({ type: 'set_new_password', value: text });
+            onPasswordChange(text);
+            clearError();
           }}
         />
         <AuthSecureField
+          nativeValue={confirmPassword}
           placeholder="Powtórz nowe hasło"
+          autoComplete="new-password"
           onChangeText={(text) => {
-            dispatch({ type: 'set_confirm_password', value: text });
+            onConfirmPasswordChange(text);
+            clearError();
           }}
         />
         {requiresNonce ? (
           <AuthSecureField
+            nativeValue={nonce}
             placeholder="Kod weryfikacyjny z e-maila"
+            autoComplete="one-time-code"
             onChangeText={(text) => {
-              dispatch({ type: 'set_nonce', value: text });
+              nonceSnapshot.current = text;
+              clearError();
             }}
           />
         ) : null}
         {error ? <AuthErrorText>{error}</AuthErrorText> : null}
         <AuthPrimaryButton
           label={loading ? 'Zapisywanie...' : 'Zapisz nowe hasło'}
-          onPress={handleSubmit}
+          onPress={() => void handleSubmit()}
           disabled={loading}
         />
       </AuthFormSection>

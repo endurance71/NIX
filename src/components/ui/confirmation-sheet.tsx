@@ -5,7 +5,7 @@ import { AvatarCircle } from './avatar-circle';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { APP_FONT_FAMILY } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/colors';
-import { SHEET_CONTENT_PADDING_TOP } from '../../theme/sheetLayout';
+import { useScreenInsets } from '../../hooks/useScreenInsets';
 import { tap } from '../../lib/haptics';
 
 type ConfirmationSheetProps = {
@@ -32,7 +32,8 @@ export function ConfirmationSheet({
   onConfirm,
 }: ConfirmationSheetProps) {
   const { colors } = useAppTheme();
-  const styles = createStyles(colors);
+  const { topContentInset, bottomContentInset } = useScreenInsets('sheet');
+  const styles = createStyles(colors, topContentInset, bottomContentInset);
   const [loading, setLoading] = useState(false);
 
   const handleConfirm = async () => {
@@ -79,14 +80,14 @@ export function ConfirmationSheet({
   );
 }
 
-const createStyles = (colors: ThemeColors) =>
+const createStyles = (colors: ThemeColors, paddingTop: number, paddingBottom: number) =>
   StyleSheet.create({
     container: {
       width: '96%',
       alignSelf: 'center',
       paddingHorizontal: 22,
-      paddingTop: SHEET_CONTENT_PADDING_TOP,
-      paddingBottom: 16,
+      paddingTop,
+      paddingBottom,
       backgroundColor: 'transparent',
       borderRadius: 34,
       gap: 14,
