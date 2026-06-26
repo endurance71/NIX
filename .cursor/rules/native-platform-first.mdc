@@ -1,28 +1,28 @@
 ---
-description: Native-first (iOS + Android) — naczelny wyznacznik UI/UX i architektury frontendu NiX
+description: Native-first (iOS) — naczelny wyznacznik UI/UX i architektury frontendu NiX na iOS
 alwaysApply: true
 ---
 
-# Native-first (iOS + Android)
+# Native-first (iOS)
 
 Źródło prawdy: `docs/native-platform-guidelines.md`. Przy sprzeczności — obowiązuje ten dokument.
 
 ## Zasada
 
-Naczelnym wyznacznikiem jakości frontendu są **natywne rozwiązania iOS i Android** — nie web ani generyczne UI-kity RN.
+Naczelnym wyznacznikiem jakości frontendu są **natywne rozwiązania iOS (SwiftUI / SF Symbols)** — nie web ani generyczne UI-kity RN.
 
 ## Hierarchia wyboru UI
 
 1. Universal `@expo/ui` (import z root) — domyślnie
-2. `@expo/ui/swift-ui` lub `@expo/ui/jetpack-compose` — gdy universal nie wystarcza
+2. `@expo/ui/swift-ui` — gdy universal nie wystarcza (bezpośrednie użycie SwiftUI modifiers i widoków)
 3. Moduły Expo z mostem natywnym (`expo-camera`, `expo-video`, `expo-screen-capture`…)
 4. RN primitives + `useAppTheme()` — tylko wyjątki (kamera, viewer, custom overlay)
 5. **Zabronione:** Paper, NativeBase, `@expo/vector-icons`, legacy `Animated` / `LayoutAnimation` na hot path
 
 ## Konwencje NiX
 
-- Tab bar: **iOS** `NativeTabs` (ikony bez podpisów, `Trigger.Label hidden`); **Android** `expo-router/ui` custom tabs (`FloatingTabBar`, ikony bez podpisów) — nie JS `Tabs`
-- Ikony UI: `AppIcon` → `Icon.select` w `src/theme/app-icons.ts` (SF Symbols + Material XML)
+- Tab bar: **iOS** `NativeTabs` (ikony bez podpisów za pomocą SF Symbols, `Trigger.Label hidden`) — nie JS `Tabs`
+- Ikony UI: `AppIcon` → SwiftUI `Image(systemName:)` za pomocą SF Symbols w `src/components/ui/app-icon.tsx` (zmapowane w `src/theme/app-icons.ts`)
 - Formularze auth: `AuthFormLayout` + `FieldGroup` / `TextInput` z `@expo/ui`
 - **Nie** owijaj `FieldGroup` w `ScrollView` ani nie ustawiaj mu sztywnej `height`
 - Kolory: tokeny `useAppTheme()` — bez hardcoded hexów
@@ -30,5 +30,5 @@ Naczelnym wyznacznikiem jakości frontendu są **natywne rozwiązania iOS i Andr
 
 ## Przed merge zmian UI
 
-- Smoke manualny na **iOS i Android**
-- Light i dark na obu platformach
+- Smoke manualny na **iOS**
+- Light i dark na iOS

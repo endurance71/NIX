@@ -28,8 +28,6 @@ export default {
         files: [
           'src/components/navigation/app-tabs-layout.tsx',
           'src/components/ui/app-icon.tsx',
-          'src/components/ui/app-icon.android.tsx',
-          'src/components/ui/app-icon.ios.tsx',
           'src/components/ui/auth-form-layout.tsx',
           'src/components/ui/settings-list-screen.tsx',
           'src/theme/authLayout.ts',

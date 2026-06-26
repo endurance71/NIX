@@ -76,18 +76,6 @@ describe('haptics', () => {
     expect(notificationAsync).toHaveBeenNthCalledWith(3, 'Error');
   });
 
-  it('tap działa też na Androidzie', async () => {
-    process.env.EXPO_OS = 'android';
-    vi.resetModules();
-    const m = await import('./haptics');
-    m.tap('medium');
-    m.selection();
-    m.notify('error');
-    expect(impactAsync).toHaveBeenCalledWith('Medium');
-    expect(selectionAsync).toHaveBeenCalledTimes(1);
-    expect(notificationAsync).toHaveBeenCalledWith('Error');
-  });
-
   it('odrzucony Promise z impactAsync nie propaguje (catch wewnętrzny)', async () => {
     impactAsync.mockRejectedValueOnce(new Error('haptics unavailable'));
     expect(() => tap('light')).not.toThrow();

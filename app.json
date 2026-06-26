@@ -4,29 +4,13 @@
     "slug": "nix-app",
     "version": "1.0.0",
     "platforms": [
-      "ios",
-      "android"
+      "ios"
     ],
     "orientation": "portrait",
-    "icon": "./assets/brand/app/android-legacy-1024.png",
+    "icon": "./assets/brand/app/ios-light.png",
     "userInterfaceStyle": "automatic",
     "web": {
       "favicon": "./assets/brand/web/favicon-48.png"
-    },
-    "android": {
-      "package": "com.damianmotylinski.nixapp",
-      "icon": "./assets/brand/app/android-legacy-1024.png",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/brand/android/adaptive-foreground.png",
-        "monochromeImage": "./assets/brand/android/adaptive-monochrome.png",
-        "backgroundColor": "#000000"
-      },
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_MEDIA_VIDEO"
-      ]
     },
     "ios": {
       "supportsTablet": false,

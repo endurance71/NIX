@@ -2,7 +2,6 @@ import { PropsWithChildren, ReactNode } from 'react';
 import { StyleSheet, Text as RNText, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Button, Column, FieldGroup, Text, TextInput } from '@expo/ui';
-import { defaultMinSize, fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 import { buttonBorderShape, controlSize, frame } from '@expo/ui/swift-ui/modifiers';
 import type { ComponentProps } from 'react';
 import type { ObservableState } from '@expo/ui';
@@ -20,11 +19,6 @@ const AUTH_PRIMARY_BUTTON_IOS_MODIFIERS = [
   buttonBorderShape('roundedRectangle', 14),
   controlSize('large'),
   frame({ minHeight: AUTH_PRIMARY_BUTTON_MIN_HEIGHT }),
-] as const;
-
-const AUTH_PRIMARY_BUTTON_ANDROID_MODIFIERS = [
-  fillMaxWidth(),
-  defaultMinSize({ minHeight: AUTH_PRIMARY_BUTTON_MIN_HEIGHT }),
 ] as const;
 
 // Auth screens use full-screen `AuthFormLayout` → `FieldGroup` as the only scroll container.
@@ -66,15 +60,11 @@ export function AuthFormHeader({
 }) {
   const { colors } = useAppTheme();
 
-  const headerStyle =
-    process.env.EXPO_OS === 'android'
-      ? headerStyles.wrap
-      : { ...headerStyles.wrap, ...headerStyles.wrapFullWidth };
+  const headerStyle = { ...headerStyles.wrap, ...headerStyles.wrapFullWidth };
 
   return (
     <Column
       spacing={8}
-      modifiers={process.env.EXPO_OS === 'android' ? [fillMaxWidth()] : undefined}
       style={headerStyle}>
       <Text textStyle={{ ...authTextStyle('screenTitle', colors), textAlign: 'center' }}>{title}</Text>
       {description ? (
@@ -163,15 +153,14 @@ export function AuthPrimaryButton({
   disabled?: boolean;
   style?: unknown;
 }) {
-  const modifiers =
-    process.env.EXPO_OS === 'ios'
-      ? [...AUTH_PRIMARY_BUTTON_IOS_MODIFIERS]
-      : process.env.EXPO_OS === 'android'
-        ? [...AUTH_PRIMARY_BUTTON_ANDROID_MODIFIERS]
-        : undefined;
-
-  // Android Compose modifiers expect numeric dp — never pass `width: '100%'` via `style`.
-  return <Button label={label} onPress={onPress} disabled={disabled} modifiers={modifiers} />;
+  return (
+    <Button
+      label={label}
+      onPress={onPress}
+      disabled={disabled}
+      modifiers={[...AUTH_PRIMARY_BUTTON_IOS_MODIFIERS]}
+    />
+  );
 }
 
 export function AuthTextLinkButton({

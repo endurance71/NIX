@@ -1,7 +1,4 @@
-import type { ComponentProps } from 'react';
-import { Icon } from '@expo/ui';
-
-type IconName = ComponentProps<typeof Icon>['name'];
+import type { SFSymbol } from 'sf-symbols-typescript';
 
 export type AppIconName =
   | 'camera'
@@ -23,81 +20,27 @@ export type AppIconName =
   | 'send'
   | 'timer';
 
-const APP_ICONS: Record<AppIconName, IconName> = {
-  camera: Icon.select({
-    ios: 'camera.fill',
-    android: import('@expo/material-symbols/photo_camera.xml'),
-  }),
-  cameraRotate: Icon.select({
-    ios: 'camera.rotate.fill',
-    android: import('@expo/material-symbols/flip_camera_ios.xml'),
-  }),
-  chevronRight: Icon.select({
-    ios: 'chevron.right',
-    android: import('@expo/material-symbols/chevron_right.xml'),
-  }),
-  checkCircle: Icon.select({
-    ios: 'checkmark.circle.fill',
-    android: import('@expo/material-symbols/check_circle.xml'),
-  }),
-  clock: Icon.select({
-    ios: 'clock.fill',
-    android: import('@expo/material-symbols/schedule.xml'),
-  }),
-  close: Icon.select({
-    ios: 'xmark',
-    android: import('@expo/material-symbols/close.xml'),
-  }),
-  email: Icon.select({
-    ios: 'envelope',
-    android: import('@expo/material-symbols/mail.xml'),
-  }),
-  flash: Icon.select({
-    ios: 'bolt.fill',
-    android: import('@expo/material-symbols/flash_on.xml'),
-  }),
-  flashOff: Icon.select({
-    ios: 'bolt.slash.fill',
-    android: import('@expo/material-symbols/flash_off.xml'),
-  }),
-  inbox: Icon.select({
-    ios: 'tray.fill',
-    android: import('@expo/material-symbols/inbox.xml'),
-  }),
-  lock: Icon.select({
-    ios: 'lock',
-    android: import('@expo/material-symbols/lock.xml'),
-  }),
-  mic: Icon.select({
-    ios: 'mic.fill',
-    android: import('@expo/material-symbols/mic.xml'),
-  }),
-  micOff: Icon.select({
-    ios: 'mic.slash.fill',
-    android: import('@expo/material-symbols/mic_off.xml'),
-  }),
-  personAdd: Icon.select({
-    ios: 'person.badge.plus',
-    android: import('@expo/material-symbols/person_add.xml'),
-  }),
-  profile: Icon.select({
-    ios: 'person.crop.circle.fill',
-    android: import('@expo/material-symbols/account_circle.xml'),
-  }),
-  photoLibrary: Icon.select({
-    ios: 'photo.on.rectangle.angled',
-    android: import('@expo/material-symbols/photo_library.xml'),
-  }),
-  send: Icon.select({
-    ios: 'paperplane.fill',
-    android: import('@expo/material-symbols/send.xml'),
-  }),
-  timer: Icon.select({
-    ios: 'timer',
-    android: import('@expo/material-symbols/timer.xml'),
-  }),
+const APP_ICONS: Record<AppIconName, SFSymbol> = {
+  camera: 'camera.fill',
+  cameraRotate: 'camera.rotate.fill',
+  chevronRight: 'chevron.right',
+  checkCircle: 'checkmark.circle.fill',
+  clock: 'clock.fill',
+  close: 'xmark',
+  email: 'envelope',
+  flash: 'bolt.fill',
+  flashOff: 'bolt.slash.fill',
+  inbox: 'tray.fill',
+  lock: 'lock',
+  mic: 'mic.fill',
+  micOff: 'mic.slash.fill',
+  personAdd: 'person.badge.plus',
+  profile: 'person.crop.circle.fill',
+  photoLibrary: 'photo.on.rectangle.angled',
+  send: 'paperplane.fill',
+  timer: 'timer',
 };
 
-export function resolveAppIconName(name: AppIconName): IconName {
+export function resolveAppIconName(name: AppIconName): SFSymbol {
   return APP_ICONS[name];
 }

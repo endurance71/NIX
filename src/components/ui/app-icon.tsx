@@ -1,5 +1,7 @@
 import { ColorValue } from 'react-native';
-import { Host, Icon } from '@expo/ui';
+import type { SFSymbol } from 'sf-symbols-typescript';
+import { Host, Image } from '@expo/ui/swift-ui';
+import { imageScale } from '@expo/ui/swift-ui/modifiers';
 import { resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 
 type AppIconProps = {
@@ -8,11 +10,18 @@ type AppIconProps = {
   color?: ColorValue;
 };
 
-/** Web / fallback: keep Host wrapper for API parity with native platform files. */
+/** iOS: SwiftUI symbols must live under `Host`, including inside RN `Pressable` / `RNHostView`. */
 export function AppIcon({ name, size, color }: AppIconProps) {
+  const systemName = resolveAppIconName(name) as SFSymbol;
+
   return (
     <Host matchContents>
-      <Icon name={resolveAppIconName(name)} size={size} color={color} />
+      <Image
+        systemName={systemName}
+        size={size}
+        color={color}
+        modifiers={[imageScale('small')]}
+      />
     </Host>
   );
 }

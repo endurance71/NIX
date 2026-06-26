@@ -13,9 +13,3 @@ jobs:
       platform: ios
       profile: production
 
-  build_android:
-    name: Build Android production
-    type: build
-    params:
-      platform: android
-      profile: production

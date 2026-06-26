@@ -34,12 +34,12 @@ export default function AppTabsLayout() {
   return (
     <NativeTabs tintColor={colors.accent}>
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Icon sf="camera.fill" md="photo_camera" />
+        <NativeTabs.Trigger.Icon sf="camera.fill" />
         <NativeTabs.Trigger.Label hidden />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="inbox">
-        <NativeTabs.Trigger.Icon sf="tray.fill" md="inbox" />
+        <NativeTabs.Trigger.Icon sf="tray.fill" />
         <NativeTabs.Trigger.Label hidden />
         {count > 0 ? <NativeTabs.Trigger.Badge>{String(count)}</NativeTabs.Trigger.Badge> : null}
       </NativeTabs.Trigger>
@@ -48,7 +48,7 @@ export default function AppTabsLayout() {
         {tabAvatarIconSource ? (
           <NativeTabs.Trigger.Icon src={tabAvatarIconSource} renderingMode="original" />
         ) : (
-          <NativeTabs.Trigger.Icon sf="person.crop.circle.fill" md="account_circle" />
+          <NativeTabs.Trigger.Icon sf="person.crop.circle.fill" />
         )}
         <NativeTabs.Trigger.Label hidden />
       </NativeTabs.Trigger>

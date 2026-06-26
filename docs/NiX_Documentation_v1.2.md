@@ -79,7 +79,7 @@ Pełna hierarchia wyboru, antywzorce i checklista PR: [native-platform-guideline
 
 | Warstwa | Technologia | Uwagi |
 | :--- | :--- | :--- |
-| **Frontend** | React Native 0.85 + Expo SDK 56 | iOS + Android (`platforms: ["ios", "android"]` w `app.json`) |
+| **Frontend** | React Native 0.85 + Expo SDK 56 | iOS only (`platforms: ["ios"]` w `app.json`) |
 | **Nawigacja** | Expo Router (`src/app`) | Stack + tabs; `experiments.typedRoutes`, `reactCompiler` |
 | **UI** | Universal `@expo/ui` + RN primitives | `FieldGroup`, `List`, `TextInput`, `AppIcon`; komponenty w `src/components/ui` |
 | **Stan sieci** | TanStack React Query v5 | Klucze w `src/lib/queryKeys.ts` |
@@ -96,59 +96,34 @@ Pełny zestaw zależności: sekcja 5 oraz `package.json`.
 
 ### 2.2 Filozofia UI (universal `@expo/ui`)
 
-**Native-first:** użytkownik na iOS i Android ma widzieć UI zgodne z HIG i Material — osiągane przez universal `@expo/ui`, nie przez „jeden wygląd na wszystkie platformy”.
+**Native-first:** użytkownik na iOS ma widzieć UI zgodne z HIG — osiągane przez universal `@expo/ui` oraz `@expo/ui/swift-ui`.
 
-Komponenty bazują na universal `@expo/ui` (import z root pakietu). Pod spodem: SwiftUI na iOS, Jetpack Compose na Android. Ekrany profilu i skrzynki używają natywnych list (`List`, `FieldGroup`) z osadzonymi wierszami RN przez `RNHostView`. Ikony w UI: `AppIcon` → `Icon.select` (szczegóły: §2.2.1). Przy nowych ekranach stosuj [drzewo decyzyjne](native-platform-guidelines.md#drzewo-decyzyjne-nowy-ekran--komponent) z wytycznych platformowych.
+Komponenty bazują na universal `@expo/ui` (import z root pakietu) oraz SwiftUI. Ekrany profilu i skrzynki używają natywnych list (`List`, `FieldGroup`) z osadzonymi wierszami RN przez `RNHostView`. Ikony w UI: `AppIcon` (szczegóły: §2.2.1). Przy nowych ekranach stosuj [drzewo decyzyjne](native-platform-guidelines.md#drzewo-decyzyjne-nowy-ekran--komponent) z wytycznych platformowych.
 
-**Layout auth:** wszystkie ekrany auth (`login`, `register`, `forgot-password`, `onboarding`) — `AuthFormLayout` z pełnym `FieldGroup` jako jedynym kontenerem scrolla. Login dodaje `AuthBrandHeader` (ikona aplikacji) i sekcję credentials w `LoginScreenSurface`. Nie zagnieżdżaj `FieldGroup` w RN `ScrollView` ani nie ustawiaj mu sztywnej wysokości (na Androidzie `FieldGroup` = `LazyColumn` z własnym scrollem). Pola formularza: `useNativeState` + `AuthTextField` / `AuthSecureField` (`nativeValue`).
+**Layout auth:** wszystkie ekrany auth (`login`, `register`, `forgot-password`, `onboarding`) — `AuthFormLayout` z pełnym `FieldGroup` jako jedynym kontenerem scrolla. Login dodaje `AuthBrandHeader` (ikona aplikacji) i sekcję credentials w `LoginScreenSurface`. Pola formularza: `useNativeState` + `AuthTextField` / `AuthSecureField` (`nativeValue`).
 
-#### 2.2.1 Ikony uniwersalne (SDK 56)
+#### 2.2.1 Ikony (SF Symbols)
 
-W projekcie są **dwa osobne API ikon** — nie wymieniaj ich:
-
-| Kontekst | API | Plik |
-| :--- | :--- | :--- |
-| **Tab bar** | `AppIcon` w `FloatingTabButton` (`Icon.select` + Material XML) | `src/components/navigation/` |
-| **Reszta UI** (kamera, preview, inbox, send-to…) | `Icon` z `@expo/ui` + `Icon.select` + `@expo/material-symbols/*.xml` | `src/theme/app-icons.ts`, `src/components/ui/app-icon.tsx` |
-
-**Wzorzec dla ekranów** (źródło prawdy: [Expo UI — Icon](https://docs.expo.dev/versions/latest/sdk/ui/universal/icon/)):
+W projekcie ikony są obsługiwane natywnie za pomocą **SF Symbols** poprzez komponent `AppIcon` z `@expo/ui/swift-ui`:
 
 ```tsx
-// src/theme/app-icons.ts — każda ikona jako hoisted Icon.select z literałem obiektu
+// src/theme/app-icons.ts — mapowanie ikon na nazwy SF Symbols
 const APP_ICONS = {
-  inbox: Icon.select({
-    ios: 'tray.fill',
-    android: import('@expo/material-symbols/inbox.xml'),
-  }),
+  inbox: 'tray.fill',
 };
 
 // src/components/ui/app-icon.tsx
-<Icon name={resolveAppIconName('inbox')} size={24} color={color} />
+// Pod spodem używa Image z systemName z @expo/ui/swift-ui
+<AppIcon name="inbox" size={24} color={color} />
 ```
 
 Zasady:
-
-1. **Android:** `import('@expo/material-symbols/nazwa.xml')` — zawsze z rozszerzeniem `.xml` (subpath pakietu, nie `assets/`).
-2. **iOS:** string SF Symbol (np. `'tray.fill'`).
-3. **`Icon.select` musi być wywołane z literałem `{ ios, android }` na poziomie modułu** — plugin Babel `@expo/ui/babel-plugin` (auto przez `babel-preset-expo`) zamienia `import()` → `require()` i tree-shakuje nieużywaną platformę. Pośrednie opakowanie (`Icon.select({ ios: spec.ios, android: spec.android })`) **nie działa** — Metro nie rozwiąże modułów.
-4. **Tab bar:** `AppIcon` / `Icon.select` w `FloatingTabButton` (jak reszta UI).
+1. Wszystkie ikony muszą być poprawnymi nazwami SF Symbols.
+2. Nowe ikony należy dodawać do typu `AppIconName` oraz mapy `APP_ICONS` w `app-icons.ts`.
 
 **Nie używać** w nowym kodzie UI:
-
-- `SymbolView` / `expo-symbols` (stary model iOS-only)
-- `@expo/ui/swift-ui` → `Image(systemName:)` do ikon współdzielonych z Androidem
-- ręczne pliki `.xml` w `assets/` (stary flow Jetpack Compose-only)
-- `{ ios, android: require(...) }` zamiast `Icon.select` — nie tree-shakuje bundle
-- `@expo/vector-icons` / Ionicons
-
-Nową ikonę dodaj w `AppIconName` + `APP_ICONS` w `app-icons.ts`. Nazwy Material: [Material Symbols](https://fonts.google.com/icons) (w pakiecie tylko styl **outlined**).
-
-### 2.3 Android — środowisko developerskie
-
-- Android Studio z SDK Platform 35 (Android 15)
-- `ANDROID_HOME` wskazujący na Android SDK
-- Build dev client: `npm run android` (`expo run:android`)
-- Build EAS: profile `development` / `preview` (APK) / `production` (AAB) w `eas.json`
+- `@expo/vector-icons` / Ionicons.
+- legacy `Icon` lub custom SVG tam, gdzie SF Symbols wystarczają.
 
 - **Zabronione:** ogólne UI-kity (Paper, NativeBase itd.), `Animated` API (zamiast tego Reanimated), `LayoutAnimation` w ścieżkach krytycznych FPS.
 
@@ -279,7 +254,7 @@ src/
 
 - Expo Router, TypeScript, Reanimated, GH, Supabase client
 - Auth e-mail+hasło, onboarding username
-- Motyw systemowy (iOS + Android), custom tabs (`expo-router/ui`, experimental)
+- Motyw systemowy (iOS), NativeTabs
 
 ### Sprint 2: Media Engine — **zakończony**
 
@@ -328,7 +303,7 @@ Instalacja typowa: `npx expo install <pakiet>` dla modułów Expo.
 
 ## 6. Konfiguracja `app.json` (skrót)
 
-- **platforms:** `["ios", "android"]`
+- **platforms:** `["ios"]`
 - **scheme:** `nix`
 - **userInterfaceStyle:** `automatic`
 - **expo-router:** `root: ./src/app`
@@ -370,7 +345,7 @@ npm run typecheck
 npm run test
 ```
 
-Smoke P0 (manualnie — rozszerzone o [development-workflow.md](development-workflow.md); **iOS + Android** — [native-platform-guidelines.md](native-platform-guidelines.md)):
+Smoke P0 (manualnie — rozszerzone o [development-workflow.md](development-workflow.md); **iOS** — [native-platform-guidelines.md](native-platform-guidelines.md)):
 
 - Rejestracja → e-mail confirm → logowanie → onboarding username / istniejący użytkownik → `(tabs)`
 - Reset hasła (link) → `reset-password`; zmiana hasła z profilu
