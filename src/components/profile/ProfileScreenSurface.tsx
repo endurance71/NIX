@@ -42,7 +42,7 @@ export default function ProfileScreenSurface() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, headerLargeTitle: true, title: vm.t('profile.title') }} />
+      <Stack.Screen options={{ headerShown: true, headerLargeTitle: false, title: vm.t('profile.title') }} />
       <StatusBar style={vm.statusBarStyle} />
       <ScrollView
         style={[styles.container, { backgroundColor: vm.colors.background }]}
@@ -56,15 +56,15 @@ export default function ProfileScreenSurface() {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
-        <View style={[styles.card, { backgroundColor: vm.colors.secondarySystemBackground }]}>
-          <Text style={[styles.accountUsername, { color: vm.colors.label }]} numberOfLines={1}>
-            {`@${vm.profileUsername ?? 'brak_nazwy_uzytkownika'}`}
-          </Text>
-          <View style={[styles.separator, { backgroundColor: vm.colors.separator }]} />
-          <Text style={[styles.accountEmail, { color: vm.colors.secondaryLabel }]} numberOfLines={1}>
-            {vm.user?.email ?? '-'}
-          </Text>
-        </View>
+        <ProfileHero
+          colors={vm.colors}
+          username={`@${vm.profileUsername ?? 'brak_nazwy_uzytkownika'}`}
+          email={vm.user?.email ?? '-'}
+          avatarUrl={vm.avatarSignedUrl}
+          avatarStoragePath={vm.profileRow?.avatar_storage_path ?? null}
+          avatarEmoji={vm.profileRow?.avatar_emoji ?? null}
+          fallbackInitial={vm.initialLetter}
+        />
 
         <ProfileSectionTitle colors={vm.colors}>{vm.t('profile.myQrCode')}</ProfileSectionTitle>
         <View style={[styles.qrCard, { backgroundColor: vm.colors.secondarySystemBackground }]}>
@@ -116,7 +116,7 @@ export default function ProfileScreenSurface() {
           />
           <TextInput
             key={`invite-input-${vm.inviteInputResetKey}`}
-            style={[styles.input, { color: vm.colors.label }]}
+            style={[styles.input, { color: vm.colors.label, borderBottomColor: vm.colors.separator }]}
             placeholder="@nazwa_uzytkownika"
             placeholderTextColor={vm.colors.tertiaryLabel}
             autoCapitalize="none"
@@ -273,6 +273,42 @@ function ProfileSectionTitle({ children, colors }: { children: string; colors: T
   return <Text style={[styles.sectionTitle, { color: colors.secondaryLabel }]}>{children}</Text>;
 }
 
+function ProfileHero({
+  colors,
+  username,
+  email,
+  avatarUrl,
+  avatarStoragePath,
+  avatarEmoji,
+  fallbackInitial,
+}: {
+  colors: ThemeColors;
+  username: string;
+  email: string;
+  avatarUrl: string | null;
+  avatarStoragePath: string | null;
+  avatarEmoji: string | null;
+  fallbackInitial: string;
+}) {
+  return (
+    <View style={styles.hero}>
+      <AvatarCircle
+        size={104}
+        url={avatarUrl}
+        storagePath={avatarStoragePath}
+        emoji={avatarEmoji}
+        fallbackInitial={fallbackInitial}
+      />
+      <Text selectable style={[styles.heroTitle, { color: colors.label }]} numberOfLines={1}>
+        {username}
+      </Text>
+      <Text selectable style={[styles.heroSubtitle, { color: colors.secondaryLabel }]} numberOfLines={1}>
+        {email}
+      </Text>
+    </View>
+  );
+}
+
 function ProfileSection({
   children,
   colors,
@@ -302,7 +338,7 @@ function ProfileInfoRow({
   };
 }) {
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, { borderBottomColor: colors.separator }]}>
       <View style={styles.rowContent}>
         {avatar ? (
           <View style={styles.avatarWrapper}>
@@ -315,8 +351,8 @@ function ProfileInfoRow({
             />
           </View>
         ) : icon ? (
-          <View style={styles.iconWrapper}>
-            <AppIcon name={icon} size={20} color={colors.label} />
+          <View style={[styles.iconTile, { backgroundColor: colors.systemFill }]}>
+            <AppIcon name={icon} size={17} color={colors.label} />
           </View>
         ) : null}
         <View style={{ flex: 1 }}>
@@ -329,6 +365,7 @@ function ProfileInfoRow({
             </Text>
           ) : null}
         </View>
+        <AppIcon name="chevronRight" size={15} color={colors.tertiaryLabel} />
       </View>
     </View>
   );
@@ -357,13 +394,17 @@ function ProfileActionRow({
       disabled={disabled}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
-      style={({ pressed }) => [styles.row, pressed && !disabled ? { backgroundColor: colors.systemFill } : null]}>
+      style={({ pressed }) => [
+        styles.row,
+        { borderBottomColor: colors.separator },
+        pressed && !disabled ? { backgroundColor: colors.systemFill } : null,
+      ]}>
       <View style={styles.rowContent}>
         {icon ? (
-          <View style={styles.iconWrapper}>
+          <View style={[styles.iconTile, { backgroundColor: colors.systemFill }]}>
             <AppIcon
               name={icon}
-              size={20}
+              size={17}
               color={disabled ? colors.tertiaryLabel : foregroundColor}
             />
           </View>
@@ -377,6 +418,7 @@ function ProfileActionRow({
           numberOfLines={1}>
           {title}
         </Text>
+        <AppIcon name="chevronRight" size={15} color={disabled ? colors.tertiaryLabel : colors.tertiaryLabel} />
       </View>
     </Pressable>
   );
@@ -398,11 +440,11 @@ function ProfileSwitchRow({
   icon?: AppIconName;
 }) {
   return (
-    <View style={styles.switchRow}>
+    <View style={[styles.switchRow, { borderBottomColor: colors.separator }]}>
       <View style={styles.rowContent}>
         {icon ? (
-          <View style={styles.iconWrapper}>
-            <AppIcon name={icon} size={20} color={colors.label} />
+          <View style={[styles.iconTile, { backgroundColor: colors.systemFill }]}>
+            <AppIcon name={icon} size={17} color={colors.label} />
           </View>
         ) : null}
         <Text style={[styles.rowTitle, { color: disabled ? colors.tertiaryLabel : colors.label }]}>{title}</Text>
@@ -422,33 +464,37 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 28,
   },
   card: {
     borderRadius: 28,
     overflow: 'hidden',
+    borderCurve: 'continuous',
   },
-  accountUsername: {
+  hero: {
+    alignItems: 'center',
+    paddingTop: 22,
+    paddingBottom: 28,
+  },
+  heroTitle: {
+    ...typography.largeTitle,
+    maxWidth: '100%',
+    marginTop: 18,
+    textAlign: 'center',
+  },
+  heroSubtitle: {
     ...typography.title2,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 14,
-  },
-  accountEmail: {
-    ...typography.body,
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 18,
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: 20,
+    maxWidth: '100%',
+    marginTop: 2,
+    fontWeight: '400',
+    textAlign: 'center',
   },
   sectionTitle: {
-    ...typography.title2,
+    ...typography.footnote,
     marginTop: 28,
-    marginBottom: 10,
-    paddingHorizontal: 20,
+    marginBottom: 8,
+    paddingHorizontal: 24,
+    textTransform: 'uppercase',
   },
   qrCard: {
     minHeight: 312,
@@ -458,27 +504,32 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   sectionCard: {
-    marginTop: 16,
+    marginTop: 20,
   },
   row: {
-    minHeight: 54,
+    minHeight: 72,
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#54545866',
   },
   rowContent: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  iconWrapper: {
-    marginRight: 12,
-    width: 24,
+  iconTile: {
+    marginRight: 16,
+    width: 31,
+    height: 31,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    borderCurve: 'continuous',
   },
   avatarWrapper: {
-    marginRight: 12,
+    marginRight: 16,
     width: 32,
     alignItems: 'center',
     justifyContent: 'center',
@@ -489,8 +540,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#54545866',
   },
   rowTitle: {
     ...typography.body,
@@ -504,9 +557,10 @@ const styles = StyleSheet.create({
   },
   input: {
     ...typography.body,
-    minHeight: 54,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    minHeight: 56,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   emptyText: {
     fontSize: 15,
