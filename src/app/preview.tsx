@@ -317,8 +317,8 @@ function PreviewVideoContent({
             label="Wyślij do"
             accessibilityLabel="Wyślij nagranie"
             onPress={openSendToVideo}
-            backgroundColor={colors.buttonPrimaryBg}
-            tintColor={colors.buttonPrimaryText}
+            backgroundColor={colors.cameraControlBackground}
+            tintColor={colors.cameraControlTint}
           />
         </View>
       </View>
@@ -405,8 +405,8 @@ export default function PreviewScreen() {
             label="Wyślij do"
             accessibilityLabel="Wybierz odbiorców zdjęcia"
             onPress={() => openSendToPhoto(uri, viewDurationSec)}
-            backgroundColor={colors.buttonPrimaryBg}
-            tintColor={colors.buttonPrimaryText}
+            backgroundColor={colors.cameraControlBackground}
+            tintColor={colors.cameraControlTint}
           />
         </View>
       </View>

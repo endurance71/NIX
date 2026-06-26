@@ -6,7 +6,7 @@
 
 - **Zdjęcie:** krótki tap na migawkę.
 - **Wideo:** przytrzymanie — po progu [`VIDEO_HOLD_THRESHOLD_MS`](../src/lib/videoRecordingLimits.ts) (220 ms) start nagrania.
-- **Limit czasu:** segment pojedynczy do **30 s** (`VIDEO_SEGMENT_MAX_DURATION_SEC`); przy dłuższym nagraniu łańcuch segmentów z małą przerwą (`VIDEO_CHAIN_GAP_MS`); **łącznie do 180 s** (`VIDEO_TOTAL_MAX_DURATION_MS`).
+- **Limit czasu:** pojedynczy klip do **180 s** (`VIDEO_TOTAL_MAX_DURATION_MS`); po przytrzymaniu kamera przełącza się w tryb `video`, czeka na nowe `onCameraReady`, a dopiero potem startuje `recordAsync`.
 - **Bitrate nagrania:** ~2.5 Mbps (`VIDEO_RECORDING_BITRATE`); limit rozmiaru pliku podczas nagrywania ~90 MB (strażnik kamery) — finalny limit uploadu patrz niżej.
 - **Mikrofon:** możliwość nagrywania bez dźwięku (mute) przy użyciu `CameraView`.
 - **Telemetria:** m.in. `video_record_ms`, `camera_switch_*`.

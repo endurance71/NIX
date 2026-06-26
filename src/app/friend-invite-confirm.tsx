@@ -1,4 +1,4 @@
-import { useReducer } from 'react';
+import { useCallback, useReducer } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -37,12 +37,22 @@ function relationStatusCopy(status: FriendInviteRelationStatus): string | null {
   return null;
 }
 
+function paramFirst(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export default function FriendInviteConfirmScreen() {
   const queryClient = useQueryClient();
-  const { profileId, username: usernameParam } = useLocalSearchParams<{
+  const rawParams = useLocalSearchParams<{
     profileId?: string;
     username?: string;
+    avatarStoragePath?: string;
+    avatarEmoji?: string;
   }>();
+  const profileId = paramFirst(rawParams.profileId);
+  const usernameParam = paramFirst(rawParams.username);
+  const avatarStoragePathParam = paramFirst(rawParams.avatarStoragePath);
+  const avatarEmojiParam = paramFirst(rawParams.avatarEmoji);
   const { colors } = useAppTheme();
   const { topContentInset, bottomContentInset } = useScreenInsets('sheet');
   const styles = createStyles(colors, topContentInset, bottomContentInset);
@@ -118,8 +128,9 @@ export default function FriendInviteConfirmScreen() {
   );
   const { friendProfile, avatarUrl, profileLoading, profileError, relationStatus, actionLoading } = state;
 
-  useFocusEffect(() => {
-    if (!profileId) {
+  useFocusEffect(
+    useCallback(() => {
+      if (!profileId) {
         dispatch({ type: 'profile_error', profileError: 'Brak ID profilu.' });
         return;
       }
@@ -143,8 +154,16 @@ export default function FriendInviteConfirmScreen() {
             return;
           }
 
+          const fallbackAvatarPath = avatarStoragePathParam ?? null;
+          const fallbackAvatarEmoji = avatarEmojiParam ?? null;
+          const mergedProfile: FriendProfile = {
+            ...preview.profile,
+            avatar_storage_path: preview.profile.avatar_storage_path ?? fallbackAvatarPath,
+            avatar_emoji: preview.profile.avatar_emoji ?? fallbackAvatarEmoji,
+          };
+
           let nextAvatarUrl: string | null = null;
-          const path = preview.profile.avatar_storage_path;
+          const path = mergedProfile.avatar_storage_path;
           if (path) {
             nextAvatarUrl = await createSignedAvatarUrl(path);
           }
@@ -159,7 +178,7 @@ export default function FriendInviteConfirmScreen() {
           if (cancelled) return;
           dispatch({
             type: 'profile_loaded',
-            friendProfile: preview.profile,
+            friendProfile: mergedProfile,
             avatarUrl: nextAvatarUrl,
             relationStatus: nextRelationStatus,
           });
@@ -173,7 +192,8 @@ export default function FriendInviteConfirmScreen() {
       return () => {
         cancelled = true;
       };
-  });
+    }, [avatarEmojiParam, avatarStoragePathParam, profileId])
+  );
 
   const displayUsername =
     friendProfile?.username ??

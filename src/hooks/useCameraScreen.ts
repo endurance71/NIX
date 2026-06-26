@@ -44,6 +44,7 @@ export type CameraScreenViewModel = {
   facing: 'back' | 'front';
   flash: 'off' | 'on';
   recordAudioMuted: boolean;
+  videoPreparing: boolean;
   recordingVideo: boolean;
   recordingElapsedSec: number;
   cameraReady: boolean;
@@ -84,6 +85,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     permissionLoadingTimedOut,
     takingPicture,
     captureError,
+    videoPreparing,
     recordingVideo,
     recordingElapsedSec,
     cameraReady,
@@ -234,9 +236,8 @@ export function useCameraScreen(): CameraScreenViewModel {
     cameraReadyRef.current = false;
     dispatchCameraUi({ type: 'REMOUNT_CAMERA_PREVIEW' });
     cameraMountStartedAtRef.current = nowMs();
-    // captureMode jest celowo pominięty: zmiana trybu (picture → video) przy starcie nagrania
-    // nie remounteuje kamery (key się nie zmienia), więc onCameraReady nie nastąpi ponownie.
-    // Resetowanie ref tutaj powodowało 8-sekundowy timeout w runVideoCaptureSession.
+    // captureMode jest obsługiwany jawnie przy start/stop wideo, bo zmiana trybu
+    // remountuje CameraView przez jego key.
   }, [facing, cameraInstanceKey]);
 
   const waitForCameraReady = async (timeoutMs = 5000) => {
@@ -282,22 +283,9 @@ export function useCameraScreen(): CameraScreenViewModel {
   };
 
   const runVideoCaptureSession = async () => {
-    // Jeśli kamera jest w trybie picture (domyślnym), natywna CameraView musi zreinicjalizować
-    // pipeline po zmianie mode prop na 'video'. Resetujemy ref SYNCHRONICZNIE przed dispatch —
-    // eliminuje race condition gdzie useEffect([captureMode]) resetował ref już PO tym, jak
-    // onCameraReady ustawiło go na true. Kiedy captureMode już jest 'video' (kolejne nagrania
-    // bez pośrednich zdjęć), pomijamy reset i nagrywanie startuje natychmiast.
-    if (captureMode === 'picture') {
-      cameraReadyRef.current = false;
-    }
-    dispatchCameraUi({ type: 'VIDEO_SESSION_BEGIN' });
-    recordingElapsedMs.set(0);
-    recordingElapsedMs.set(
-      withTiming(VIDEO_TOTAL_MAX_DURATION_MS, {
-        duration: VIDEO_TOTAL_MAX_DURATION_MS,
-        easing: Easing.linear,
-      })
-    );
+    cameraReadyRef.current = false;
+    cameraMountStartedAtRef.current = nowMs();
+    dispatchCameraUi({ type: 'VIDEO_PREPARE_BEGIN' });
 
     await runWithFinally(
       async () => {
@@ -308,6 +296,15 @@ export function useCameraScreen(): CameraScreenViewModel {
         const ready = await waitForCameraReady(5000);
         if (!ready) {
           console.error('recordAsync: przekroczono oczekiwanie na onCameraReady');
+          trackEvent('video_record_ms', {
+            status: 'failure',
+            phase: 'camera_ready_timeout',
+          });
+          hapticNotify('error');
+          dispatchCameraUi({
+            type: 'SET_CAPTURE_ERROR',
+            captureError: 'Kamera nie zdążyła przygotować nagrywania. Spróbuj ponownie.',
+          });
           return;
         }
         if (!fingerDownRef.current) {
@@ -326,6 +323,14 @@ export function useCameraScreen(): CameraScreenViewModel {
         const recordStartedAt = Date.now();
         try {
           recordingStartedRef.current = true;
+          dispatchCameraUi({ type: 'VIDEO_RECORDING_BEGIN' });
+          recordingElapsedMs.set(0);
+          recordingElapsedMs.set(
+            withTiming(VIDEO_TOTAL_MAX_DURATION_MS, {
+              duration: VIDEO_TOTAL_MAX_DURATION_MS,
+              easing: Easing.linear,
+            })
+          );
           result = await cam.recordAsync({
             maxDuration: maxDurSec,
             maxFileSize: VIDEO_RECORDING_MAX_FILE_SIZE_BYTES,
@@ -369,6 +374,7 @@ export function useCameraScreen(): CameraScreenViewModel {
         recordingStartedRef.current = false;
         cancelAnimation(recordingElapsedMs);
         recordingElapsedMs.set(0);
+        cameraReadyRef.current = false;
         dispatchCameraUi({ type: 'VIDEO_SESSION_END' });
       }
     );
@@ -378,19 +384,37 @@ export function useCameraScreen(): CameraScreenViewModel {
     if (recordingSessionRunningRef.current) return;
     if (!fingerDownRef.current) return;
 
-    const micOk = await ensureMicPermission();
-    if (!micOk) {
+    if (!recordAudioMuted) {
+      const micOk = await ensureMicPermission();
+      if (!micOk) {
+        hapticNotify('error');
+        dispatchCameraUi({
+          type: 'SET_CAPTURE_ERROR',
+          captureError: 'NiX potrzebuje dostępu do mikrofonu, aby nagrywać wideo z dźwiękiem.',
+        });
+        fingerDownRef.current = false;
+        return;
+      }
+    }
+    if (!fingerDownRef.current) return;
+
+    try {
+      await configureForRecording();
+    } catch (error) {
       hapticNotify('error');
+      trackEvent('video_record_ms', {
+        status: 'failure',
+        phase: 'audio_session',
+        error_message: error instanceof Error ? error.message : 'Unknown audio session error',
+      });
       dispatchCameraUi({
         type: 'SET_CAPTURE_ERROR',
-        captureError: 'NiX potrzebuje dostępu do mikrofonu, aby nagrywać wideo.',
+        captureError: 'Nie udało się przygotować dźwięku do nagrywania. Spróbuj ponownie.',
       });
       fingerDownRef.current = false;
       return;
     }
     if (!fingerDownRef.current) return;
-
-    await configureForRecording();
     recordingSessionRunningRef.current = true;
     await runWithFinally(
       async () => {
@@ -404,7 +428,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   };
 
   const takePicture = async () => {
-    if (takingPicture || recordingVideo || recordingSessionRunningRef.current || isSwitchingCamera) return;
+    if (takingPicture || videoPreparing || recordingVideo || recordingSessionRunningRef.current || isSwitchingCamera) return;
     dispatchCameraUi({ type: 'PREPARE_STILL_CAPTURE' });
     tap('light');
 
@@ -548,7 +572,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   };
 
   const pickFromGallery = async () => {
-    if (recordingVideo || takingPicture || isSwitchingCamera) return;
+    if (videoPreparing || recordingVideo || takingPicture || isSwitchingCamera) return;
     if (recordingSessionRunningRef.current) return;
     tap('light');
     dispatchCameraUi({ type: 'SET_CAPTURE_ERROR', captureError: null });
@@ -606,7 +630,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   };
 
   const toggleFacing = () => {
-    if (recordingVideo) return;
+    if (videoPreparing || recordingVideo) return;
     if (isSwitchingCameraRef.current) return;
 
     if (holdTimerRef.current) {
@@ -650,12 +674,12 @@ export function useCameraScreen(): CameraScreenViewModel {
   };
 
   const toggleFlash = () => {
-    if (recordingVideo) return;
+    if (videoPreparing || recordingVideo) return;
     dispatchCameraUi({ type: 'TOGGLE_FLASH' });
   };
 
   const toggleRecordingMicMuted = () => {
-    if (recordingVideo || recordingSessionRunningRef.current) return;
+    if (videoPreparing || recordingVideo || recordingSessionRunningRef.current) return;
     dispatchCameraUi({ type: 'TOGGLE_RECORD_AUDIO_MUTED' });
   };
 
@@ -673,6 +697,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     facing,
     flash,
     recordAudioMuted,
+    videoPreparing,
     recordingVideo,
     recordingElapsedSec,
     cameraReady,

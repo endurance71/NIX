@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Stack, router, useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { sentLifecycleSegments } from '../../../lib/nixInboxLabels';
@@ -127,7 +127,7 @@ export default function InboxScreen() {
     ]);
   };
 
-  const refetchInboxIfStale = () => {
+  const refetchInboxIfStale = useCallback(() => {
     const now = Date.now();
     if (now - lastFocusRefreshAtRef.current < 2_500) return;
     lastFocusRefreshAtRef.current = now;
@@ -139,11 +139,9 @@ export default function InboxScreen() {
         return query.isStale();
       },
     });
-  };
+  }, [queryClient]);
 
-  useFocusEffect(() => {
-    refetchInboxIfStale();
-  });
+  useFocusEffect(refetchInboxIfStale);
 
   useEffect(() => {
     return registerTabScrollToTop('inbox', () => {

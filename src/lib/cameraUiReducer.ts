@@ -8,6 +8,7 @@ export type CameraUiState = {
   permissionLoadingTimedOut: boolean;
   takingPicture: boolean;
   captureError: string | null;
+  videoPreparing: boolean;
   recordingVideo: boolean;
   recordingElapsedSec: number;
   cameraReady: boolean;
@@ -26,6 +27,7 @@ export const initialCameraUiState: CameraUiState = {
   permissionLoadingTimedOut: false,
   takingPicture: false,
   captureError: null,
+  videoPreparing: false,
   recordingVideo: false,
   recordingElapsedSec: 0,
   cameraReady: false,
@@ -46,7 +48,8 @@ export type CameraUiAction =
       clearSwitchingUi: boolean;
     }
   | { type: 'SET_ZOOM'; zoom: number }
-  | { type: 'VIDEO_SESSION_BEGIN' }
+  | { type: 'VIDEO_PREPARE_BEGIN' }
+  | { type: 'VIDEO_RECORDING_BEGIN' }
   | { type: 'VIDEO_SESSION_END' }
   | { type: 'PREPARE_STILL_CAPTURE' }
   | { type: 'SET_CAPTURE_MODE'; captureMode: CameraCaptureMode }
@@ -82,19 +85,31 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
     }
     case 'SET_ZOOM':
       return state.zoom === action.zoom ? state : { ...state, zoom: action.zoom };
-    case 'VIDEO_SESSION_BEGIN':
+    case 'VIDEO_PREPARE_BEGIN':
       return {
         ...state,
+        videoPreparing: true,
+        recordingVideo: false,
+        recordingElapsedSec: 0,
+        captureError: null,
+        cameraReady: false,
+        captureMode: 'video',
+      };
+    case 'VIDEO_RECORDING_BEGIN':
+      return {
+        ...state,
+        videoPreparing: false,
         recordingVideo: true,
         recordingElapsedSec: 0,
         captureError: null,
-        captureMode: 'video',
       };
     case 'VIDEO_SESSION_END':
       return {
         ...state,
+        videoPreparing: false,
         recordingVideo: false,
         recordingElapsedSec: 0,
+        cameraReady: false,
         captureMode: 'picture',
       };
     case 'PREPARE_STILL_CAPTURE':
@@ -102,7 +117,7 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
     case 'SET_CAPTURE_MODE':
       return state.captureMode === action.captureMode
         ? state
-        : { ...state, captureMode: action.captureMode };
+        : { ...state, cameraReady: false, captureMode: action.captureMode };
     case 'SET_CAPTURE_ERROR':
       return state.captureError === action.captureError ? state : { ...state, captureError: action.captureError };
     case 'SET_TAKING_PICTURE':

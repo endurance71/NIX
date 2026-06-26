@@ -21,6 +21,7 @@ export function CameraCaptureSurface({ vm }: Props) {
     facing,
     flash,
     recordAudioMuted,
+    videoPreparing,
     recordingVideo,
     recordingElapsedSec,
     cameraReady,
@@ -50,7 +51,7 @@ export function CameraCaptureSurface({ vm }: Props) {
       <StatusBar style={statusBarStyle} hidden />
       <GestureDetector gesture={pinchGesture}>
         <CameraView
-          key={`${facing}:${cameraInstanceKey}`}
+          key={`${facing}:${captureMode}:${cameraInstanceKey}`}
           ref={cameraRef}
           style={styles.camera}
           facing={facing}
@@ -98,6 +99,7 @@ export function CameraCaptureSurface({ vm }: Props) {
                     accessibilityLabel={
                       recordAudioMuted ? 'Włącz nagrywanie dźwięku' : 'Wycisz nagrywanie dźwięku'
                     }
+                    disabled={videoPreparing}
                     backgroundColor={colors.cameraControlBackground}
                     tintColor={colors.cameraControlTint}
                   />
@@ -108,6 +110,7 @@ export function CameraCaptureSurface({ vm }: Props) {
                       accessibilityLabel={
                         flash === 'on' ? 'Wyłącz lampę błyskową' : 'Włącz lampę błyskową'
                       }
+                      disabled={videoPreparing}
                       backgroundColor={colors.cameraControlBackground}
                       tintColor={colors.cameraControlTint}
                     />
@@ -125,17 +128,17 @@ export function CameraCaptureSurface({ vm }: Props) {
                 name="photoLibrary"
                 onPress={() => void pickFromGallery()}
                 accessibilityLabel="Wybierz z galerii"
-                disabled={recordingVideo || isSwitchingCamera || takingPicture}
+                disabled={videoPreparing || recordingVideo || isSwitchingCamera || takingPicture}
                 backgroundColor={colors.cameraControlBackground}
                 tintColor={colors.cameraControlTint}
               />
             </View>
 
             <View style={styles.shutterStack}>
-              {isSwitchingCamera ? (
-                <Text style={styles.captureHint}>Przełączanie kamery…</Text>
-              ) : captureError ? (
-                <Text style={styles.captureError}>{captureError}</Text>
+              {captureError ? (
+                <View style={styles.captureStatusSlot} pointerEvents="none">
+                  <Text style={styles.captureError}>{captureError}</Text>
+                </View>
               ) : null}
               <Pressable
                 onPressIn={onShutterPressIn}
@@ -144,10 +147,14 @@ export function CameraCaptureSurface({ vm }: Props) {
                 accessibilityRole="button"
                 accessibilityState={{
                   disabled:
-                    takingPicture || isSwitchingCamera || (!isNativeSimulator && !cameraReady && !recordingVideo),
+                    takingPicture ||
+                    isSwitchingCamera ||
+                    (!isNativeSimulator && !cameraReady && !videoPreparing && !recordingVideo),
                 }}
                 disabled={
-                  takingPicture || isSwitchingCamera || (!isNativeSimulator && !cameraReady && !recordingVideo)
+                  takingPicture ||
+                  isSwitchingCamera ||
+                  (!isNativeSimulator && !cameraReady && !videoPreparing && !recordingVideo)
                 }
                 hitSlop={15}>
                 <Animated.View
@@ -167,7 +174,7 @@ export function CameraCaptureSurface({ vm }: Props) {
                 name="cameraRotate"
                 onPress={toggleFacing}
                 accessibilityLabel="Zmień kamerę"
-                disabled={recordingVideo || isSwitchingCamera}
+                disabled={videoPreparing || recordingVideo || isSwitchingCamera}
                 backgroundColor={colors.cameraControlBackground}
                 tintColor={colors.cameraControlTint}
               />

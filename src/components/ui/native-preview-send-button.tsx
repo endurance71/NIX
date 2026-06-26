@@ -8,6 +8,7 @@ import {
   buttonStyle,
   foregroundStyle,
   frame,
+  glassEffect,
   padding,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
@@ -48,11 +49,17 @@ export function NativePreviewSendButton({
         onPress={onPress}
         modifiers={[
           buttonStyle('plain'),
-          background(backgroundColor, shapes.capsule()),
-          padding({ leading: 20, trailing: 16, top: 12, bottom: 12 }),
           swiftAccessibilityLabel(accessibilityLabel),
         ]}>
-        <HStack spacing={4} alignment="center" modifiers={[frame({ minHeight: 24 })]}>
+        <HStack
+          spacing={6}
+          alignment="center"
+          modifiers={[
+            frame({ minWidth: 136, height: 48 }),
+            padding({ leading: 18, trailing: 14 }),
+            background(backgroundColor, shapes.capsule()),
+            glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'capsule' }),
+          ]}>
           <SwiftText modifiers={[foregroundStyle(tintColor as string), bold()]}>{label}</SwiftText>
           <SwiftImage systemName="chevron.right" size={16} color={tintColor} />
         </HStack>

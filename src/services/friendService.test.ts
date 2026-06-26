@@ -176,13 +176,21 @@ describe('profile QR flow', () => {
   it('previewProfileQr zwraca profil dla poprawnego profileId', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'me' });
     mockSupabaseRpc.mockResolvedValueOnce({
-      data: [{ id: 'friend-1', username: 'friend_user' }],
+      data: [
+        {
+          id: 'friend-1',
+          username: 'friend_user',
+          avatar_storage_path: 'friend-1/avatar.jpg',
+          avatar_emoji: null,
+        },
+      ],
       error: null,
     });
 
     const result = await previewProfileQr('friend-1');
     expect(result.status).toBe('ok');
     expect(result.profile?.username).toBe('friend_user');
+    expect(result.profile?.avatar_storage_path).toBe('friend-1/avatar.jpg');
   });
 
   it('sendFriendRequestByProfileQr wysyła zaproszenie na podstawie profileId', async () => {

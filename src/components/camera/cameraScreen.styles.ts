@@ -6,7 +6,7 @@ export function createCameraStyles(colors: ThemeColors) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.background,
+      backgroundColor: '#000000',
     },
     permissionContainer: {
       flex: 1,
@@ -42,13 +42,14 @@ export function createCameraStyles(colors: ThemeColors) {
     },
     camera: {
       flex: 1,
+      backgroundColor: '#000000',
     },
     cameraOverlay: {
       ...StyleSheet.absoluteFill,
     },
     flashOverlay: {
       ...StyleSheet.absoluteFill,
-      backgroundColor: colors.background,
+      backgroundColor: colors.cameraControlTint,
     },
     controlsContainer: {
       flex: 1,
@@ -104,14 +105,26 @@ export function createCameraStyles(colors: ThemeColors) {
       justifyContent: 'space-between',
       alignItems: 'center',
       paddingHorizontal: 32,
+      minHeight: 76,
     },
     sideButtonContainer: {
       width: 60,
+      height: 76,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     shutterStack: {
+      width: 220,
+      height: 76,
       alignItems: 'center',
-      gap: 10,
+      justifyContent: 'center',
+    },
+    captureStatusSlot: {
+      position: 'absolute',
+      bottom: 86,
+      left: 0,
+      right: 0,
+      alignItems: 'center',
     },
     captureError: {
       ...typography.footnote,
@@ -124,19 +137,6 @@ export function createCameraStyles(colors: ThemeColors) {
       borderCurve: 'continuous',
       backgroundColor: colors.cameraControlBackground,
       overflow: 'hidden',
-    },
-    captureHint: {
-      ...typography.footnote,
-      maxWidth: 220,
-      color: colors.cameraControlTint,
-      textAlign: 'center',
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 14,
-      borderCurve: 'continuous',
-      backgroundColor: colors.cameraControlBackground,
-      overflow: 'hidden',
-      opacity: 0.85,
     },
     shutterOuter: {
       width: 76,

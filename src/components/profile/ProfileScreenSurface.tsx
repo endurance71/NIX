@@ -19,6 +19,7 @@ import { typography } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/colors';
 import { AppIcon } from '../ui/app-icon';
 import type { AppIconName } from '../../theme/app-icons';
+import { AvatarCircle } from '../ui/avatar-circle';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
@@ -205,6 +206,7 @@ export default function ProfileScreenSurface() {
           ) : null}
           {vm.friends.map((friend) => {
             const avatarPath = friend.avatar_storage_path ?? null;
+            const avatarUrl = avatarPath ? vm.friendAvatarUrls[avatarPath] ?? null : null;
             const captureLoadingId = `capture-${friend.id}`;
             const isCaptureUpdating = vm.actionLoadingId === captureLoadingId;
             return (
@@ -213,7 +215,12 @@ export default function ProfileScreenSurface() {
                   colors={vm.colors}
                   title={`@${friend.username}`}
                   subtitle={avatarPath ? 'Avatar ustawiony' : 'Brak avatara'}
-                  icon="profile"
+                  avatar={{
+                    url: avatarUrl,
+                    storagePath: avatarPath,
+                    emoji: friend.avatar_emoji ?? null,
+                    fallbackInitial: friend.username,
+                  }}
                 />
                 <ProfileSwitchRow
                   colors={vm.colors}
@@ -254,6 +261,7 @@ export default function ProfileScreenSurface() {
             title={vm.t('profile.signOut')}
             onPress={vm.handleSignOut}
             icon="signOut"
+            destructive
           />
         </ProfileSection>
       </ScrollView>
@@ -280,16 +288,33 @@ function ProfileInfoRow({
   title,
   subtitle,
   icon,
+  avatar,
 }: {
   colors: ThemeColors;
   title: string;
   subtitle?: string;
   icon?: AppIconName;
+  avatar?: {
+    url?: string | null;
+    storagePath?: string | null;
+    emoji?: string | null;
+    fallbackInitial?: string | null;
+  };
 }) {
   return (
     <View style={styles.row}>
       <View style={styles.rowContent}>
-        {icon ? (
+        {avatar ? (
+          <View style={styles.avatarWrapper}>
+            <AvatarCircle
+              size={32}
+              url={avatar.url}
+              storagePath={avatar.storagePath}
+              emoji={avatar.emoji}
+              fallbackInitial={avatar.fallbackInitial}
+            />
+          </View>
+        ) : icon ? (
           <View style={styles.iconWrapper}>
             <AppIcon name={icon} size={20} color={colors.label} />
           </View>
@@ -324,6 +349,8 @@ function ProfileActionRow({
   onPress: () => void;
   icon?: AppIconName;
 }) {
+  const foregroundColor = destructive ? colors.destructive : colors.label;
+
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
@@ -337,14 +364,14 @@ function ProfileActionRow({
             <AppIcon
               name={icon}
               size={20}
-              color={destructive ? colors.destructive : colors.systemBlue}
+              color={disabled ? colors.tertiaryLabel : foregroundColor}
             />
           </View>
         ) : null}
         <Text
           style={[
             styles.actionText,
-            { color: destructive ? colors.destructive : colors.systemBlue },
+            { color: foregroundColor },
             disabled ? { color: colors.tertiaryLabel } : null,
           ]}
           numberOfLines={1}>
@@ -447,6 +474,12 @@ const styles = StyleSheet.create({
   iconWrapper: {
     marginRight: 12,
     width: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarWrapper: {
+    marginRight: 12,
+    width: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },

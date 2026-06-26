@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { CameraView, BarcodeScanningResult, useCameraPermissions } from 'expo-camera';
 import { router, useFocusEffect } from 'expo-router';
@@ -22,12 +22,14 @@ export default function FriendScanQrScreen() {
   const scanInFlightRef = useRef(false);
   const handledSuccessRef = useRef(false);
 
-  useFocusEffect(() => {
-    setScanningLocked(false);
-    setLoading(false);
-    scanInFlightRef.current = false;
-    handledSuccessRef.current = false;
-  });
+  useFocusEffect(
+    useCallback(() => {
+      setScanningLocked(false);
+      setLoading(false);
+      scanInFlightRef.current = false;
+      handledSuccessRef.current = false;
+    }, [])
+  );
 
   const handleScan = async (event: BarcodeScanningResult) => {
     if (scanInFlightRef.current || scanningLocked || loading) return;
@@ -88,6 +90,8 @@ export default function FriendScanQrScreen() {
             params: {
               profileId: preview.profile.id,
               username: preview.profile.username,
+              avatarStoragePath: preview.profile.avatar_storage_path ?? undefined,
+              avatarEmoji: preview.profile.avatar_emoji ?? undefined,
             },
           });
         } catch (err: unknown) {

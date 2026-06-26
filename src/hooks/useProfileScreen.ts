@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useFocusEffect } from 'expo-router';
 import { useAuth } from './useAuth';
@@ -140,23 +140,25 @@ export function useProfileScreen() {
     }
   };
 
-  useFocusEffect(() => {
-    void queryClient.refetchQueries({
-      type: 'active',
-      predicate: (query) => {
-        const key = query.queryKey[0];
-        if (
-          key !== queryKeys.currentUserProfile[0] &&
-          key !== queryKeys.incomingFriendRequests[0] &&
-          key !== queryKeys.outgoingFriendRequests[0] &&
-          key !== queryKeys.acceptedFriends[0]
-        ) {
-          return false;
-        }
-        return query.isStale();
-      },
-    });
-  });
+  useFocusEffect(
+    useCallback(() => {
+      void queryClient.refetchQueries({
+        type: 'active',
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          if (
+            key !== queryKeys.currentUserProfile[0] &&
+            key !== queryKeys.incomingFriendRequests[0] &&
+            key !== queryKeys.outgoingFriendRequests[0] &&
+            key !== queryKeys.acceptedFriends[0]
+          ) {
+            return false;
+          }
+          return query.isStale();
+        },
+      });
+    }, [queryClient])
+  );
 
   const handlePickAvatarPhoto = async () => {
     setAvatarBusy(true);
