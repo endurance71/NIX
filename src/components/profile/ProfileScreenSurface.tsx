@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet } from 'react-native';
+import { ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Button, FieldGroup, ListItem, Text, TextInput } from '@expo/ui';
@@ -13,6 +13,8 @@ import { AppRnHostView } from '../ui/app-rn-host-view';
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
   const { bottomContentInset } = useScreenInsets('tabStackList');
+  const { width } = useWindowDimensions();
+  const qrPanelWidth = Math.max(260, Math.min(420, width - 56));
 
   useEffect(() => {
     return registerTabScrollToTop('profile', () => {
@@ -41,17 +43,25 @@ export default function ProfileScreenSurface() {
             </ListItem>
           </FieldGroup.Section>
 
-          <FieldGroup.Section title={vm.t('profile.myQrCode')}>
-            <AppRnHostView style={styles.qrNativeHost}>
-              <ProfileQrAvatarSection
-                colors={vm.colors}
-                qrPayload={vm.qrPayload}
-                avatarSignedUrl={vm.avatarSignedUrl}
-                avatarStoragePath={vm.profileRow?.avatar_storage_path ?? null}
-                avatarEmoji={vm.profileRow?.avatar_emoji ?? null}
-                initialLetter={vm.initialLetter}
-              />
-            </AppRnHostView>
+          <FieldGroup.Section>
+            <FieldGroup.SectionHeader>
+              <Text textStyle={{ color: vm.colors.secondaryLabel, fontSize: 22, fontWeight: '700' }}>
+                {vm.t('profile.myQrCode')}
+              </Text>
+            </FieldGroup.SectionHeader>
+            <FieldGroup.SectionFooter>
+              <AppRnHostView matchContents style={{ width: qrPanelWidth, height: styles.qrNativeHost.height }}>
+                <ProfileQrAvatarSection
+                  colors={vm.colors}
+                  qrPayload={vm.qrPayload}
+                  avatarSignedUrl={vm.avatarSignedUrl}
+                  avatarStoragePath={vm.profileRow?.avatar_storage_path ?? null}
+                  avatarEmoji={vm.profileRow?.avatar_emoji ?? null}
+                  initialLetter={vm.initialLetter}
+                  panelWidth={qrPanelWidth}
+                />
+              </AppRnHostView>
+            </FieldGroup.SectionFooter>
           </FieldGroup.Section>
 
           <FieldGroup.Section>

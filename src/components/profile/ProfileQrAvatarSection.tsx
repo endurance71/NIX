@@ -9,6 +9,7 @@ type Props = {
   avatarStoragePath: string | null;
   avatarEmoji: string | null;
   initialLetter: string;
+  panelWidth?: number;
 };
 
 export function ProfileQrAvatarSection({
@@ -18,9 +19,17 @@ export function ProfileQrAvatarSection({
   avatarStoragePath,
   avatarEmoji,
   initialLetter,
+  panelWidth,
 }: Props) {
   return (
-    <View style={styles.host}>
+    <View
+      style={[
+        styles.host,
+        {
+          width: panelWidth,
+          backgroundColor: colors.tertiarySystemBackground,
+        },
+      ]}>
       <MyProfileQrCard
         payload={qrPayload}
         colors={colors}
@@ -36,8 +45,10 @@ export function ProfileQrAvatarSection({
 
 const styles = {
   host: {
+    height: 312,
     minHeight: 312,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 28,
   },
 } as const;
