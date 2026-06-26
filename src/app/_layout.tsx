@@ -227,9 +227,22 @@ function RootNavigator() {
         screenOptions={{
           headerShown: false,
           headerBackButtonDisplayMode: 'minimal',
+          headerTintColor: colors.label,
           headerTitleStyle: {
             fontFamily: APP_FONT_FAMILY,
             fontWeight: '700',
+            color: colors.label,
+          },
+          headerLargeTitleStyle: {
+            fontFamily: APP_FONT_FAMILY,
+            fontWeight: '700',
+            color: colors.label,
+          },
+          headerStyle: {
+            backgroundColor: colors.background,
+          },
+          contentStyle: {
+            backgroundColor: colors.background,
           },
         }}
       >

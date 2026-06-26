@@ -1,6 +1,7 @@
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   NATIVE_TAB_BAR_CAMERA_OFFSET,
+  NATIVE_TAB_BAR_CONTENT_OFFSET,
   SHEET_BOTTOM_MIN_PADDING,
   SHEET_TOP_PADDING,
   type ScreenInsetPolicy,
@@ -48,7 +49,7 @@ export function useScreenInsets(policy: ScreenInsetPolicy): ScreenInsetsResult {
         left: insets.left,
         right: insets.right,
         topContentInset: 0,
-        bottomContentInset: insets.bottom,
+        bottomContentInset: insets.bottom + NATIVE_TAB_BAR_CONTENT_OFFSET,
       };
 
     case 'cameraTab':

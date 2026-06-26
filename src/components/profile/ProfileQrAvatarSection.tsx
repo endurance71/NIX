@@ -20,7 +20,7 @@ export function ProfileQrAvatarSection({
   initialLetter,
 }: Props) {
   return (
-    <View>
+    <View style={styles.host}>
       <MyProfileQrCard
         payload={qrPayload}
         colors={colors}
@@ -33,3 +33,11 @@ export function ProfileQrAvatarSection({
     </View>
   );
 }
+
+const styles = {
+  host: {
+    minHeight: 312,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+} as const;

@@ -9,7 +9,7 @@ import { getCurrentUserProfile } from '../../services/profileService';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../../lib/queryKeys';
 
 export default function AppTabsLayout() {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const { count } = useInboxBadgeCount();
   const { t } = useTranslation();
   const { data: profileRow = null } = useQuery({
@@ -34,19 +34,28 @@ export default function AppTabsLayout() {
   });
 
   return (
-    <NativeTabs tintColor={colors.accent}>
-      <NativeTabs.Trigger name="index">
+    <NativeTabs
+      tintColor={colors.accent}
+      backgroundColor={colors.background}
+      blurEffect={isDark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}
+      disableTransparentOnScrollEdge
+      iconColor={{ default: colors.label, selected: colors.accent }}
+      labelStyle={{
+        default: { color: colors.label },
+        selected: { color: colors.accent, fontWeight: '700' },
+      }}>
+      <NativeTabs.Trigger name="index" contentStyle={{ backgroundColor: '#000000' }}>
         <NativeTabs.Trigger.Icon sf="camera" />
         <NativeTabs.Trigger.Label>{t('tabs.camera')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="inbox">
+      <NativeTabs.Trigger name="inbox" contentStyle={{ backgroundColor: colors.background }}>
         <NativeTabs.Trigger.Icon sf="tray" />
         <NativeTabs.Trigger.Label>{t('tabs.inbox')}</NativeTabs.Trigger.Label>
         {count > 0 ? <NativeTabs.Trigger.Badge>{String(count)}</NativeTabs.Trigger.Badge> : null}
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="profile">
+      <NativeTabs.Trigger name="profile" contentStyle={{ backgroundColor: colors.background }}>
         {tabAvatarIconSource ? (
           <NativeTabs.Trigger.Icon src={tabAvatarIconSource} renderingMode="original" />
         ) : (

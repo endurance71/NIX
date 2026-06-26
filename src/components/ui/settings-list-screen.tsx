@@ -16,7 +16,7 @@ export function SettingsListScreen({ children, loading }: SettingsListScreenProp
 
   if (loading) {
     return (
-      <AppHost style={[styles.container, styles.centered]}>
+      <AppHost style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
         <StatusBar style={statusBarStyle} />
         <ActivityIndicator color={colors.label} />
       </AppHost>
@@ -24,10 +24,11 @@ export function SettingsListScreen({ children, loading }: SettingsListScreenProp
   }
 
   return (
-    <AppHost style={styles.container} useViewportSizeMeasurement>
+    <AppHost style={[styles.container, { backgroundColor: colors.background }]} useViewportSizeMeasurement>
       <StatusBar style={statusBarStyle} />
       <FieldGroup
         style={{
+          backgroundColor: colors.background,
           paddingBottom: bottomContentInset,
         }}>
         {children}

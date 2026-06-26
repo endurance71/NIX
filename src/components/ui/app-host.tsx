@@ -37,7 +37,7 @@ export function AppHost({
   safeAreaMode,
   useViewportSizeMeasurement = false,
 }: AppHostProps) {
-  const { statusBarStyle } = useAppTheme();
+  const { colorScheme } = useAppTheme();
 
   return (
     <Host
@@ -45,7 +45,7 @@ export function AppHost({
       matchContents={matchContents}
       ignoreSafeArea={resolveIgnoreSafeArea(safeAreaMode, ignoreSafeArea)}
       useViewportSizeMeasurement={useViewportSizeMeasurement}
-      colorScheme={statusBarStyle === 'light' ? 'dark' : 'light'}>
+      colorScheme={colorScheme}>
       {children}
     </Host>
   );
