@@ -9,6 +9,8 @@ PODS:
     - GoogleUtilities/Environment (~> 8.0)
     - GoogleUtilities/UserDefaults (~> 8.0)
     - PromisesObjC (~> 2.4)
+  - CircularCropper (1.0.0):
+    - ExpoModulesCore
   - EXConstants (56.0.18):
     - ExpoModulesCore
   - EXJSONUtils (56.0.0)
@@ -2612,6 +2614,7 @@ PODS:
 
 DEPENDENCIES:
   - AppCheckCore (= 11.2.0)
+  - CircularCropper (from `../modules/circular-cropper/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - EXJSONUtils (from `../node_modules/expo-json-utils/ios`)
   - EXManifests (from `../node_modules/expo-manifests/ios`)
@@ -2756,6 +2759,8 @@ SPEC REPOS:
     - TOCropViewController
 
 EXTERNAL SOURCES:
+  CircularCropper:
+    :path: "../modules/circular-cropper/ios"
   EXConstants:
     :path: "../node_modules/expo-constants/ios"
   EXJSONUtils:
@@ -3021,6 +3026,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   AppAuth: ef4da5a3fc2e10b90c09a0a94a9baeaedc0341d5
   AppCheckCore: cc8fd0a3a230ddd401f326489c99990b013f0c4f
+  CircularCropper: f61732958e7d3f18c696ee264eb83e39bb812826
   EXConstants: 89152c5bfb8949f56e27b16d7a8cdc9bc76927c8
   EXJSONUtils: dba2755f4e24009eaf87a876b2d615ea06c16e42
   EXManifests: 7e19be8df665a338493060a419847dae76ffcd43

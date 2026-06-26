@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["CircularCropperModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.circularcropper.CircularCropperModule"]
+  }
+}

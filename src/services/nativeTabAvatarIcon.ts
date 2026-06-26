@@ -1,8 +1,9 @@
 import type { ImageSourcePropType } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import { cropToCircleAsync } from '../../modules/circular-cropper';
 
-const TAB_AVATAR_ICON_DIR = `${FileSystem.cacheDirectory ?? ''}native-tab-avatars/`;
+const TAB_AVATAR_ICON_DIR = `${FileSystem.cacheDirectory ?? ''}native-tab-avatars-v3/`;
 const TAB_AVATAR_ICON_PX = 56;
 const TAB_AVATAR_ICON_POINTS = 28;
 
@@ -41,7 +42,8 @@ export async function createNativeTabAvatarIconSource(
       { compress: 1, format: SaveFormat.PNG }
     );
 
-    await FileSystem.moveAsync({ from: resized.uri, to: outputUri });
+    // Crop the square resized image into a circle, saving directly to outputUri
+    await cropToCircleAsync(resized.uri, outputUri);
     void FileSystem.deleteAsync(downloadedUri, { idempotent: true });
 
     return {
