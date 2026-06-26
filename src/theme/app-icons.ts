@@ -18,27 +18,37 @@ export type AppIconName =
   | 'profile'
   | 'photoLibrary'
   | 'send'
-  | 'timer';
+  | 'timer'
+  | 'trash'
+  | 'qrcode'
+  | 'personMinus'
+  | 'signOut'
+  | 'shield';
 
 const APP_ICONS: Record<AppIconName, SFSymbol> = {
-  camera: 'camera.fill',
-  cameraRotate: 'camera.rotate.fill',
+  camera: 'camera',
+  cameraRotate: 'camera.rotate',
   chevronRight: 'chevron.right',
-  checkCircle: 'checkmark.circle.fill',
-  clock: 'clock.fill',
+  checkCircle: 'checkmark.circle',
+  clock: 'clock',
   close: 'xmark',
   email: 'envelope',
-  flash: 'bolt.fill',
-  flashOff: 'bolt.slash.fill',
-  inbox: 'tray.fill',
+  flash: 'bolt',
+  flashOff: 'bolt.slash',
+  inbox: 'tray',
   lock: 'lock',
-  mic: 'mic.fill',
-  micOff: 'mic.slash.fill',
+  mic: 'mic',
+  micOff: 'mic.slash',
   personAdd: 'person.badge.plus',
-  profile: 'person.crop.circle.fill',
+  profile: 'person.crop.circle',
   photoLibrary: 'photo.on.rectangle.angled',
-  send: 'paperplane.fill',
+  send: 'paperplane',
   timer: 'timer',
+  trash: 'trash',
+  qrcode: 'qrcode.viewfinder',
+  personMinus: 'person.badge.minus',
+  signOut: 'rectangle.portrait.and.arrow.right',
+  shield: 'shield',
 };
 
 export function resolveAppIconName(name: AppIconName): SFSymbol {

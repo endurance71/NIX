@@ -17,6 +17,8 @@ import { useScreenInsets } from '../../hooks/useScreenInsets';
 import { registerTabScrollToTop } from '../../lib/tabBarScrollActions';
 import { typography } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/colors';
+import { AppIcon } from '../ui/app-icon';
+import type { AppIconName } from '../../theme/app-icons';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
@@ -81,6 +83,7 @@ export default function ProfileScreenSurface() {
             title={vm.avatarBusy ? 'Przetwarzanie...' : 'Zdjecie z biblioteki'}
             onPress={vm.handlePickAvatarPhoto}
             disabled={vm.avatarBusy}
+            icon="photoLibrary"
           />
           <ProfileActionRow
             colors={vm.colors}
@@ -98,8 +101,21 @@ export default function ProfileScreenSurface() {
                 },
               })
             }
+            icon="close"
           />
         </ProfileSection>
+
+        <ProfileSectionTitle colors={vm.colors}>{vm.t('profile.myQrCode')}</ProfileSectionTitle>
+        <View style={[styles.qrCard, { backgroundColor: vm.colors.tertiarySystemBackground }]}>
+          <ProfileQrAvatarSection
+            colors={vm.colors}
+            qrPayload={vm.qrPayload}
+            avatarSignedUrl={vm.avatarSignedUrl}
+            avatarStoragePath={vm.profileRow?.avatar_storage_path ?? null}
+            avatarEmoji={vm.profileRow?.avatar_emoji ?? null}
+            initialLetter={vm.initialLetter}
+          />
+        </View>
 
         <ProfileSectionTitle colors={vm.colors}>{vm.t('profile.addFriend')}</ProfileSectionTitle>
         <ProfileSection colors={vm.colors}>
@@ -107,6 +123,7 @@ export default function ProfileScreenSurface() {
             colors={vm.colors}
             title={vm.t('profile.scanQr')}
             onPress={() => router.push('/friend-scan-qr')}
+            icon="qrcode"
           />
           <TextInput
             key={`invite-input-${vm.inviteInputResetKey}`}
@@ -122,6 +139,7 @@ export default function ProfileScreenSurface() {
             title={vm.actionLoadingId === 'invite' ? vm.t('profile.sendInviteLoading') : vm.t('profile.sendInvite')}
             onPress={vm.handleSendInvite}
             disabled={vm.actionLoadingId === 'invite'}
+            icon="send"
           />
         </ProfileSection>
 
@@ -137,12 +155,14 @@ export default function ProfileScreenSurface() {
                     colors={vm.colors}
                     title={`@${request.requester.username}`}
                     subtitle="Zaproszenie przychodzace"
+                    icon="profile"
                   />
                   <ProfileActionRow
                     colors={vm.colors}
                     title="Przyjmij"
                     disabled={vm.actionLoadingId === request.id}
                     onPress={() => void vm.handleAccept(request.id)}
+                    icon="personAdd"
                   />
                   <ProfileActionRow
                     colors={vm.colors}
@@ -150,6 +170,7 @@ export default function ProfileScreenSurface() {
                     destructive
                     disabled={vm.actionLoadingId === request.id}
                     onPress={() => void vm.handleReject(request.id)}
+                    icon="trash"
                   />
                 </View>
               ))}
@@ -171,6 +192,7 @@ export default function ProfileScreenSurface() {
                     subtitle={
                       vm.actionLoadingId === `outgoing-${request.id}` ? 'Usuwanie...' : 'Oczekuje na akceptacje'
                     }
+                    icon="profile"
                   />
                   <ProfileActionRow
                     colors={vm.colors}
@@ -178,6 +200,7 @@ export default function ProfileScreenSurface() {
                     destructive
                     disabled={vm.actionLoadingId === `outgoing-${request.id}`}
                     onPress={() => void vm.handleCancelOutgoing(request.id)}
+                    icon="close"
                   />
                 </View>
               ))}
@@ -202,6 +225,7 @@ export default function ProfileScreenSurface() {
                   colors={vm.colors}
                   title={`@${friend.username}`}
                   subtitle={avatarPath ? 'Avatar ustawiony' : 'Brak avatara'}
+                  icon="profile"
                 />
                 <ProfileSwitchRow
                   colors={vm.colors}
@@ -211,6 +235,7 @@ export default function ProfileScreenSurface() {
                   onValueChange={(next) => {
                     void vm.handleToggleFriendCapture(friend.id, next);
                   }}
+                  icon="shield"
                 />
                 <ProfileActionRow
                   colors={vm.colors}
@@ -221,6 +246,7 @@ export default function ProfileScreenSurface() {
                     const index = vm.friends.findIndex((f) => f.id === friend.id);
                     if (index >= 0) void vm.handleNativeFriendDelete([index]);
                   }}
+                  icon="personMinus"
                 />
               </View>
             );
@@ -233,8 +259,14 @@ export default function ProfileScreenSurface() {
             colors={vm.colors}
             title={vm.t('profile.changePassword')}
             onPress={() => router.push('/profile/change-password')}
+            icon="lock"
           />
-          <ProfileActionRow colors={vm.colors} title={vm.t('profile.signOut')} onPress={vm.handleSignOut} />
+          <ProfileActionRow
+            colors={vm.colors}
+            title={vm.t('profile.signOut')}
+            onPress={vm.handleSignOut}
+            icon="signOut"
+          />
         </ProfileSection>
       </ScrollView>
     </>
@@ -259,21 +291,32 @@ function ProfileInfoRow({
   colors,
   title,
   subtitle,
+  icon,
 }: {
   colors: ThemeColors;
   title: string;
   subtitle?: string;
+  icon?: AppIconName;
 }) {
   return (
     <View style={styles.row}>
-      <Text style={[styles.rowTitle, { color: colors.label }]} numberOfLines={1}>
-        {title}
-      </Text>
-      {subtitle ? (
-        <Text style={[styles.rowSubtitle, { color: colors.secondaryLabel }]} numberOfLines={1}>
-          {subtitle}
-        </Text>
-      ) : null}
+      <View style={styles.rowContent}>
+        {icon ? (
+          <View style={styles.iconWrapper}>
+            <AppIcon name={icon} size={20} color={colors.label} />
+          </View>
+        ) : null}
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.rowTitle, { color: colors.label }]} numberOfLines={1}>
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text style={[styles.rowSubtitle, { color: colors.secondaryLabel }]} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+      </View>
     </View>
   );
 }
@@ -284,12 +327,14 @@ function ProfileActionRow({
   destructive,
   disabled,
   onPress,
+  icon,
 }: {
   colors: ThemeColors;
   title: string;
   destructive?: boolean;
   disabled?: boolean;
   onPress: () => void;
+  icon?: AppIconName;
 }) {
   return (
     <Pressable
@@ -298,15 +343,26 @@ function ProfileActionRow({
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       style={({ pressed }) => [styles.row, pressed && !disabled ? { backgroundColor: colors.systemFill } : null]}>
-      <Text
-        style={[
-          styles.actionText,
-          { color: destructive ? colors.destructive : colors.systemBlue },
-          disabled ? { color: colors.tertiaryLabel } : null,
-        ]}
-        numberOfLines={1}>
-        {title}
-      </Text>
+      <View style={styles.rowContent}>
+        {icon ? (
+          <View style={styles.iconWrapper}>
+            <AppIcon
+              name={icon}
+              size={20}
+              color={destructive ? colors.destructive : colors.systemBlue}
+            />
+          </View>
+        ) : null}
+        <Text
+          style={[
+            styles.actionText,
+            { color: destructive ? colors.destructive : colors.systemBlue },
+            disabled ? { color: colors.tertiaryLabel } : null,
+          ]}
+          numberOfLines={1}>
+          {title}
+        </Text>
+      </View>
     </Pressable>
   );
 }
@@ -317,16 +373,25 @@ function ProfileSwitchRow({
   value,
   disabled,
   onValueChange,
+  icon,
 }: {
   colors: ThemeColors;
   title: string;
   value: boolean;
   disabled?: boolean;
   onValueChange: (value: boolean) => void;
+  icon?: AppIconName;
 }) {
   return (
     <View style={styles.switchRow}>
-      <Text style={[styles.rowTitle, { color: disabled ? colors.tertiaryLabel : colors.label }]}>{title}</Text>
+      <View style={styles.rowContent}>
+        {icon ? (
+          <View style={styles.iconWrapper}>
+            <AppIcon name={icon} size={20} color={colors.label} />
+          </View>
+        ) : null}
+        <Text style={[styles.rowTitle, { color: disabled ? colors.tertiaryLabel : colors.label }]}>{title}</Text>
+      </View>
       <Switch value={value} disabled={disabled} onValueChange={onValueChange} />
     </View>
   );
@@ -385,6 +450,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 20,
     paddingVertical: 10,
+  },
+  rowContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  iconWrapper: {
+    marginRight: 12,
+    width: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   switchRow: {
     minHeight: 56,

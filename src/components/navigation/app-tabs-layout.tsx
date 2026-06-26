@@ -36,12 +36,12 @@ export default function AppTabsLayout() {
   return (
     <NativeTabs tintColor={colors.accent}>
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Icon sf="camera.fill" />
+        <NativeTabs.Trigger.Icon sf="camera" />
         <NativeTabs.Trigger.Label>{t('tabs.camera')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="inbox">
-        <NativeTabs.Trigger.Icon sf="tray.fill" />
+        <NativeTabs.Trigger.Icon sf="tray" />
         <NativeTabs.Trigger.Label>{t('tabs.inbox')}</NativeTabs.Trigger.Label>
         {count > 0 ? <NativeTabs.Trigger.Badge>{String(count)}</NativeTabs.Trigger.Badge> : null}
       </NativeTabs.Trigger>
@@ -50,7 +50,7 @@ export default function AppTabsLayout() {
         {tabAvatarIconSource ? (
           <NativeTabs.Trigger.Icon src={tabAvatarIconSource} renderingMode="original" />
         ) : (
-          <NativeTabs.Trigger.Icon sf="person.crop.circle.fill" />
+          <NativeTabs.Trigger.Icon sf="person.crop.circle" />
         )}
         <NativeTabs.Trigger.Label>{t('tabs.profile')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
