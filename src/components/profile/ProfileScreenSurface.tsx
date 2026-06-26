@@ -56,7 +56,7 @@ export default function ProfileScreenSurface() {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
-        <View style={[styles.card, { backgroundColor: vm.colors.tertiarySystemBackground }]}>
+        <View style={[styles.card, { backgroundColor: vm.colors.secondarySystemBackground }]}>
           <Text style={[styles.accountUsername, { color: vm.colors.label }]} numberOfLines={1}>
             {`@${vm.profileUsername ?? 'brak_nazwy_uzytkownika'}`}
           </Text>
@@ -67,7 +67,7 @@ export default function ProfileScreenSurface() {
         </View>
 
         <ProfileSectionTitle colors={vm.colors}>{vm.t('profile.myQrCode')}</ProfileSectionTitle>
-        <View style={[styles.qrCard, { backgroundColor: vm.colors.tertiarySystemBackground }]}>
+        <View style={[styles.qrCard, { backgroundColor: vm.colors.secondarySystemBackground }]}>
           <ProfileQrAvatarSection
             colors={vm.colors}
             qrPayload={vm.qrPayload}
@@ -280,7 +280,7 @@ function ProfileSection({
   children: React.ReactNode;
   colors: ThemeColors;
 }) {
-  return <View style={[styles.card, styles.sectionCard, { backgroundColor: colors.tertiarySystemBackground }]}>{children}</View>;
+  return <View style={[styles.card, styles.sectionCard, { backgroundColor: colors.secondarySystemBackground }]}>{children}</View>;
 }
 
 function ProfileInfoRow({
@@ -509,7 +509,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   emptyText: {
-    ...typography.body,
+    fontSize: 15,
+    lineHeight: 20,
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
