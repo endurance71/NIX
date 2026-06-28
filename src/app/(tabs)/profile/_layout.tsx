@@ -33,6 +33,13 @@ export default function ProfileTabLayout() {
       }}>
       <Stack.Screen name="index" />
       <Stack.Screen
+        name="my-code"
+        options={{
+          title: t('profile.myQrCode'),
+          headerLargeTitle: false,
+        }}
+      />
+      <Stack.Screen
         name="change-password"
         options={{
           title: t('profile.changePassword'),

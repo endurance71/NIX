@@ -9,9 +9,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Link, Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ProfileQrAvatarSection } from './ProfileQrAvatarSection';
 import { useProfileScreen } from '../../hooks/useProfileScreen';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
 import { registerTabScrollToTop } from '../../lib/tabBarScrollActions';
@@ -42,7 +41,7 @@ export default function ProfileScreenSurface() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, headerLargeTitle: false, title: vm.t('profile.title') }} />
+      <Stack.Screen options={{ headerShown: true, headerLargeTitle: true, title: vm.t('profile.title') }} />
       <StatusBar style={vm.statusBarStyle} />
       <ScrollView
         style={[styles.container, { backgroundColor: vm.colors.background }]}
@@ -66,19 +65,8 @@ export default function ProfileScreenSurface() {
           fallbackInitial={vm.initialLetter}
         />
 
-        <ProfileSectionTitle colors={vm.colors}>{vm.t('profile.myQrCode')}</ProfileSectionTitle>
-        <View style={[styles.qrCard, { backgroundColor: vm.colors.secondarySystemBackground }]}>
-          <ProfileQrAvatarSection
-            colors={vm.colors}
-            qrPayload={vm.qrPayload}
-            avatarSignedUrl={vm.avatarSignedUrl}
-            avatarStoragePath={vm.profileRow?.avatar_storage_path ?? null}
-            avatarEmoji={vm.profileRow?.avatar_emoji ?? null}
-            initialLetter={vm.initialLetter}
-          />
-        </View>
-
         <ProfileSection colors={vm.colors}>
+          <ProfileQrLinkRow colors={vm.colors} title={vm.t('profile.myQrCode')} />
           <ProfileActionRow
             colors={vm.colors}
             title={vm.avatarBusy ? 'Przetwarzanie...' : 'Zdjecie z biblioteki'}
@@ -371,6 +359,34 @@ function ProfileInfoRow({
   );
 }
 
+function ProfileQrLinkRow({ colors, title }: { colors: ThemeColors; title: string }) {
+  return (
+    <Link href="/(tabs)/profile/my-code" asChild>
+      <Link.Trigger>
+        <Pressable
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.row,
+            { borderBottomColor: colors.separator },
+            pressed ? { backgroundColor: colors.systemFill } : null,
+          ]}>
+          <View style={styles.rowContent}>
+            <Link.AppleZoom>
+              <View style={[styles.iconTile, { backgroundColor: colors.systemFill }]}>
+                <AppIcon name="qrcode" size={17} color={colors.label} />
+              </View>
+            </Link.AppleZoom>
+            <Text style={[styles.actionText, { color: colors.label }]} numberOfLines={1}>
+              {title}
+            </Text>
+            <AppIcon name="chevronRight" size={15} color={colors.tertiaryLabel} />
+          </View>
+        </Pressable>
+      </Link.Trigger>
+    </Link>
+  );
+}
+
 function ProfileActionRow({
   colors,
   title,
@@ -495,13 +511,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 24,
     textTransform: 'uppercase',
-  },
-  qrCard: {
-    minHeight: 312,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 28,
-    overflow: 'hidden',
   },
   sectionCard: {
     marginTop: 20,
