@@ -1,5 +1,5 @@
 import { useEffect, useReducer } from 'react';
-import { Link, router } from 'expo-router';
+import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { AppRnHostView } from '../components/ui/app-rn-host-view';
@@ -88,19 +88,17 @@ export default function FriendMyCodeScreen() {
           To jest stały kod QR Twojego profilu. Znajomy może go zeskanować, aby wysłać zaproszenie.
         </Text>
         <View style={[styles.qrPanel, { backgroundColor: colors.secondarySystemBackground }]}>
-          <Link.AppleZoomTarget>
-            <AppRnHostView matchContents>
-              <MyProfileQrCard
-                payload={payload}
-                colors={colors}
-                centerOverlayRatio={0.3}
-                avatarUrl={avatarSignedUrl}
-                avatarStoragePath={profileRow?.avatar_storage_path ?? null}
-                avatarEmoji={profileRow?.avatar_emoji}
-                fallbackInitial={fallbackInitial}
-              />
-            </AppRnHostView>
-          </Link.AppleZoomTarget>
+          <AppRnHostView matchContents>
+            <MyProfileQrCard
+              payload={payload}
+              colors={colors}
+              centerOverlayRatio={0.3}
+              avatarUrl={avatarSignedUrl}
+              avatarStoragePath={profileRow?.avatar_storage_path ?? null}
+              avatarEmoji={profileRow?.avatar_emoji}
+              fallbackInitial={fallbackInitial}
+            />
+          </AppRnHostView>
         </View>
         <Pressable
           accessibilityRole="button"

@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Link, Stack, router } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useProfileScreen } from '../../hooks/useProfileScreen';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
@@ -63,7 +63,6 @@ export default function ProfileScreenSurface() {
           avatarStoragePath={vm.profileRow?.avatar_storage_path ?? null}
           avatarEmoji={vm.profileRow?.avatar_emoji ?? null}
           fallbackInitial={vm.initialLetter}
-          qrPayload={vm.qrPayload}
         />
 
         <ProfileSection colors={vm.colors}>
@@ -96,6 +95,12 @@ export default function ProfileScreenSurface() {
 
         <ProfileSectionTitle colors={vm.colors}>{vm.t('profile.addFriend')}</ProfileSectionTitle>
         <ProfileSection colors={vm.colors}>
+          <ProfileActionRow
+            colors={vm.colors}
+            title={vm.t('profile.myQrCode')}
+            onPress={() => router.push('/(tabs)/profile/my-code')}
+            icon="qrcode"
+          />
           <ProfileActionRow
             colors={vm.colors}
             title={vm.t('profile.scanQr')}
@@ -277,7 +282,6 @@ function ProfileHero({
   avatarStoragePath,
   avatarEmoji,
   fallbackInitial,
-  qrPayload,
 }: {
   colors: ThemeColors;
   username: string;
@@ -286,7 +290,6 @@ function ProfileHero({
   avatarStoragePath: string | null;
   avatarEmoji: string | null;
   fallbackInitial: string;
-  qrPayload: string | null;
 }) {
   return (
     <View style={styles.hero}>
@@ -303,62 +306,6 @@ function ProfileHero({
       <Text selectable style={[styles.heroSubtitle, { color: colors.secondaryLabel }]} numberOfLines={1}>
         {email}
       </Text>
-      <Link href="/(tabs)/profile/my-code" asChild>
-        <Link.Trigger>
-          <Pressable accessibilityRole="button" style={({ pressed }) => [styles.heroQrButton, { opacity: pressed ? 0.72 : 1 }]}>
-            <Link.AppleZoom>
-              <ProfileQrBadge
-                colors={colors}
-                avatarUrl={avatarUrl}
-                avatarStoragePath={avatarStoragePath}
-                avatarEmoji={avatarEmoji}
-                fallbackInitial={fallbackInitial}
-                disabled={!qrPayload}
-              />
-            </Link.AppleZoom>
-            <Text style={[styles.heroQrLabel, { color: colors.secondaryLabel }]}>Mój kod QR</Text>
-          </Pressable>
-        </Link.Trigger>
-      </Link>
-    </View>
-  );
-}
-
-function ProfileQrBadge({
-  colors,
-  avatarUrl,
-  avatarStoragePath,
-  avatarEmoji,
-  fallbackInitial,
-  disabled,
-}: {
-  colors: ThemeColors;
-  avatarUrl: string | null;
-  avatarStoragePath: string | null;
-  avatarEmoji: string | null;
-  fallbackInitial: string;
-  disabled: boolean;
-}) {
-  return (
-    <View
-      style={[
-        styles.qrBadge,
-        {
-          backgroundColor: colors.secondarySystemBackground,
-          borderColor: colors.separator,
-          opacity: disabled ? 0.5 : 1,
-        },
-      ]}>
-      <AppIcon name="qrcode" size={42} color={colors.label} />
-      <View style={[styles.qrBadgeAvatar, { borderColor: colors.secondarySystemBackground }]}>
-        <AvatarCircle
-          size={30}
-          url={avatarUrl}
-          storagePath={avatarStoragePath}
-          emoji={avatarEmoji}
-          fallbackInitial={fallbackInitial}
-        />
-      </View>
     </View>
   );
 }
@@ -542,30 +489,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontWeight: '400',
     textAlign: 'center',
-  },
-  heroQrButton: {
-    alignItems: 'center',
-    marginTop: 18,
-  },
-  heroQrLabel: {
-    ...typography.caption,
-    marginTop: 8,
-  },
-  qrBadge: {
-    width: 104,
-    height: 104,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 28,
-    borderCurve: 'continuous',
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  qrBadgeAvatar: {
-    position: 'absolute',
-    right: 10,
-    bottom: 10,
-    borderRadius: 18,
-    borderWidth: 3,
   },
   sectionTitle: {
     ...typography.footnote,
