@@ -19,7 +19,6 @@ import type { ThemeColors } from '../../theme/colors';
 import { AppIcon } from '../ui/app-icon';
 import type { AppIconName } from '../../theme/app-icons';
 import { AvatarCircle } from '../ui/avatar-circle';
-import { MyProfileQrCard } from '../friend/my-profile-qr-card';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
@@ -227,8 +226,16 @@ export default function ProfileScreenSurface() {
                   destructive
                   disabled={vm.actionLoadingId === `friend-${friend.id}`}
                   onPress={() => {
-                    const index = vm.friends.findIndex((f) => f.id === friend.id);
-                    if (index >= 0) void vm.handleNativeFriendDelete([index]);
+                    router.push({
+                      pathname: '/profile/remove-friend',
+                      params: {
+                        friendId: friend.id,
+                        username: friend.username,
+                        avatarStoragePath: friend.avatar_storage_path ?? undefined,
+                        avatarEmoji: friend.avatar_emoji ?? undefined,
+                        fallbackInitial: friend.username,
+                      },
+                    });
                   }}
                   icon="personMinus"
                 />
@@ -300,21 +307,58 @@ function ProfileHero({
         <Link.Trigger>
           <Pressable accessibilityRole="button" style={({ pressed }) => [styles.heroQrButton, { opacity: pressed ? 0.72 : 1 }]}>
             <Link.AppleZoom>
-              <MyProfileQrCard
-                payload={qrPayload}
+              <ProfileQrBadge
                 colors={colors}
-                size={76}
-                centerOverlayRatio={0.3}
                 avatarUrl={avatarUrl}
                 avatarStoragePath={avatarStoragePath}
                 avatarEmoji={avatarEmoji}
                 fallbackInitial={fallbackInitial}
+                disabled={!qrPayload}
               />
             </Link.AppleZoom>
             <Text style={[styles.heroQrLabel, { color: colors.secondaryLabel }]}>Mój kod QR</Text>
           </Pressable>
         </Link.Trigger>
       </Link>
+    </View>
+  );
+}
+
+function ProfileQrBadge({
+  colors,
+  avatarUrl,
+  avatarStoragePath,
+  avatarEmoji,
+  fallbackInitial,
+  disabled,
+}: {
+  colors: ThemeColors;
+  avatarUrl: string | null;
+  avatarStoragePath: string | null;
+  avatarEmoji: string | null;
+  fallbackInitial: string;
+  disabled: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.qrBadge,
+        {
+          backgroundColor: colors.secondarySystemBackground,
+          borderColor: colors.separator,
+          opacity: disabled ? 0.5 : 1,
+        },
+      ]}>
+      <AppIcon name="qrcode" size={42} color={colors.label} />
+      <View style={[styles.qrBadgeAvatar, { borderColor: colors.secondarySystemBackground }]}>
+        <AvatarCircle
+          size={30}
+          url={avatarUrl}
+          storagePath={avatarStoragePath}
+          emoji={avatarEmoji}
+          fallbackInitial={fallbackInitial}
+        />
+      </View>
     </View>
   );
 }
@@ -507,6 +551,22 @@ const styles = StyleSheet.create({
     ...typography.caption,
     marginTop: 8,
   },
+  qrBadge: {
+    width: 104,
+    height: 104,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 28,
+    borderCurve: 'continuous',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  qrBadgeAvatar: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
+    borderRadius: 18,
+    borderWidth: 3,
+  },
   sectionTitle: {
     ...typography.footnote,
     marginTop: 28,
@@ -556,6 +616,7 @@ const styles = StyleSheet.create({
   },
   rowTitle: {
     ...typography.body,
+    flex: 1,
   },
   rowSubtitle: {
     ...typography.footnote,
