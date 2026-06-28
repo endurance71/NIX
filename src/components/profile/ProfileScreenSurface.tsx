@@ -339,7 +339,7 @@ function ProfileInfoRow({
             />
           </View>
         ) : icon ? (
-          <View style={[styles.iconTile, { backgroundColor: colors.systemFill }]}>
+          <View style={styles.iconTile}>
             <AppIcon name={icon} size={17} color={colors.label} />
           </View>
         ) : null}
@@ -372,7 +372,7 @@ function ProfileQrLinkRow({ colors, title }: { colors: ThemeColors; title: strin
           ]}>
           <View style={styles.rowContent}>
             <Link.AppleZoom>
-              <View style={[styles.iconTile, { backgroundColor: colors.systemFill }]}>
+              <View style={styles.iconTile}>
                 <AppIcon name="qrcode" size={17} color={colors.label} />
               </View>
             </Link.AppleZoom>
@@ -417,7 +417,7 @@ function ProfileActionRow({
       ]}>
       <View style={styles.rowContent}>
         {icon ? (
-          <View style={[styles.iconTile, { backgroundColor: colors.systemFill }]}>
+          <View style={styles.iconTile}>
             <AppIcon
               name={icon}
               size={17}
@@ -459,7 +459,7 @@ function ProfileSwitchRow({
     <View style={[styles.switchRow, { borderBottomColor: colors.separator }]}>
       <View style={styles.rowContent}>
         {icon ? (
-          <View style={[styles.iconTile, { backgroundColor: colors.systemFill }]}>
+          <View style={styles.iconTile}>
             <AppIcon name={icon} size={17} color={colors.label} />
           </View>
         ) : null}
@@ -532,10 +532,8 @@ const styles = StyleSheet.create({
     marginRight: 16,
     width: 31,
     height: 31,
-    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    borderCurve: 'continuous',
   },
   avatarWrapper: {
     marginRight: 16,
