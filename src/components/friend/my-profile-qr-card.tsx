@@ -37,10 +37,11 @@ export function MyProfileQrCard({
   const shouldShowAvatarImage = Boolean(avatarUrl) && !avatarLoadFailed;
   const normalizedInitial = (fallbackInitial ?? '?').trim().charAt(0).toUpperCase();
   const qrSurface = lightColors.systemBackground;
+  const cardSize = size + 40;
 
   return (
     <View style={styles.wrapper}>
-      <View style={[styles.card, { backgroundColor: qrSurface }]}>
+      <View style={[styles.card, { width: cardSize, height: cardSize, borderRadius: Math.max(14, Math.round(cardSize * 0.07)), backgroundColor: qrSurface }]}>
         {payload ? (
           <View style={styles.qrWrapper}>
             <QRCode value={payload} size={size} />

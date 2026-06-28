@@ -1,6 +1,7 @@
 import { useEffect, useReducer } from 'react';
 import { Link, router } from 'expo-router';
-import { Button } from '@expo/ui';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { AppRnHostView } from '../components/ui/app-rn-host-view';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useProfileQrPayload } from '../hooks/useProfileQrPayload';
@@ -8,14 +9,12 @@ import { MyProfileQrCard } from '../components/friend/my-profile-qr-card';
 import { useAuth } from '../hooks/useAuth';
 import { createSignedAvatarUrl } from '../services/avatarService';
 import { CurrentUserProfileRow, getCurrentUserProfile } from '../services/profileService';
-import {
-  AuthFormLayout,
-  AuthFormSection,
-  AuthSecondaryText,
-} from '../components/ui/auth-form-layout';
+import { useScreenInsets } from '../hooks/useScreenInsets';
+import { typography } from '../theme/typography';
 
 export default function FriendMyCodeScreen() {
-  const { colors } = useAppTheme();
+  const { colors, statusBarStyle } = useAppTheme();
+  const { bottomContentInset } = useScreenInsets('tabStackList');
   const { user } = useAuth();
   const payload = useProfileQrPayload();
   const [state, dispatch] = useReducer(
@@ -78,26 +77,78 @@ export default function FriendMyCodeScreen() {
   }, [profileRow?.avatar_storage_path]);
 
   return (
-    <AuthFormLayout>
-      <AuthFormSection title="Mój kod QR">
-        <AuthSecondaryText>
+    <>
+      <StatusBar style={statusBarStyle} />
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomContentInset + 24 }]}
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}>
+        <Text style={[styles.description, { color: colors.secondaryLabel }]}>
           To jest stały kod QR Twojego profilu. Znajomy może go zeskanować, aby wysłać zaproszenie.
-        </AuthSecondaryText>
-        <Link.AppleZoomTarget>
-          <AppRnHostView matchContents>
-            <MyProfileQrCard
-              payload={payload}
-              colors={colors}
-              centerOverlayRatio={0.3}
-              avatarUrl={avatarSignedUrl}
-              avatarStoragePath={profileRow?.avatar_storage_path ?? null}
-              avatarEmoji={profileRow?.avatar_emoji}
-              fallbackInitial={fallbackInitial}
-            />
-          </AppRnHostView>
-        </Link.AppleZoomTarget>
-        <Button label="Skanuj QR" onPress={() => router.push('/friend-scan-qr')} />
-      </AuthFormSection>
-    </AuthFormLayout>
+        </Text>
+        <View style={[styles.qrPanel, { backgroundColor: colors.secondarySystemBackground }]}>
+          <Link.AppleZoomTarget>
+            <AppRnHostView matchContents>
+              <MyProfileQrCard
+                payload={payload}
+                colors={colors}
+                centerOverlayRatio={0.3}
+                avatarUrl={avatarSignedUrl}
+                avatarStoragePath={profileRow?.avatar_storage_path ?? null}
+                avatarEmoji={profileRow?.avatar_emoji}
+                fallbackInitial={fallbackInitial}
+              />
+            </AppRnHostView>
+          </Link.AppleZoomTarget>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/friend-scan-qr')}
+          style={({ pressed }) => [
+            styles.scanButton,
+            { backgroundColor: colors.accent, opacity: pressed ? 0.72 : 1 },
+          ]}>
+          <Text style={styles.scanButtonText}>Skanuj QR</Text>
+        </Pressable>
+      </ScrollView>
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 28,
+    paddingTop: 20,
+  },
+  description: {
+    ...typography.body,
+    textAlign: 'center',
+    marginBottom: 18,
+  },
+  qrPanel: {
+    minHeight: 312,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 28,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    paddingVertical: 26,
+  },
+  scanButton: {
+    alignSelf: 'center',
+    marginTop: 20,
+    minHeight: 44,
+    justifyContent: 'center',
+    borderRadius: 22,
+    paddingHorizontal: 20,
+  },
+  scanButtonText: {
+    ...typography.body,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+});

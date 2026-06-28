@@ -19,6 +19,7 @@ import type { ThemeColors } from '../../theme/colors';
 import { AppIcon } from '../ui/app-icon';
 import type { AppIconName } from '../../theme/app-icons';
 import { AvatarCircle } from '../ui/avatar-circle';
+import { MyProfileQrCard } from '../friend/my-profile-qr-card';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
@@ -63,10 +64,10 @@ export default function ProfileScreenSurface() {
           avatarStoragePath={vm.profileRow?.avatar_storage_path ?? null}
           avatarEmoji={vm.profileRow?.avatar_emoji ?? null}
           fallbackInitial={vm.initialLetter}
+          qrPayload={vm.qrPayload}
         />
 
         <ProfileSection colors={vm.colors}>
-          <ProfileQrLinkRow colors={vm.colors} title={vm.t('profile.myQrCode')} />
           <ProfileActionRow
             colors={vm.colors}
             title={vm.avatarBusy ? 'Przetwarzanie...' : 'Zdjecie z biblioteki'}
@@ -269,6 +270,7 @@ function ProfileHero({
   avatarStoragePath,
   avatarEmoji,
   fallbackInitial,
+  qrPayload,
 }: {
   colors: ThemeColors;
   username: string;
@@ -277,6 +279,7 @@ function ProfileHero({
   avatarStoragePath: string | null;
   avatarEmoji: string | null;
   fallbackInitial: string;
+  qrPayload: string | null;
 }) {
   return (
     <View style={styles.hero}>
@@ -293,6 +296,25 @@ function ProfileHero({
       <Text selectable style={[styles.heroSubtitle, { color: colors.secondaryLabel }]} numberOfLines={1}>
         {email}
       </Text>
+      <Link href="/(tabs)/profile/my-code" asChild>
+        <Link.Trigger>
+          <Pressable accessibilityRole="button" style={({ pressed }) => [styles.heroQrButton, { opacity: pressed ? 0.72 : 1 }]}>
+            <Link.AppleZoom>
+              <MyProfileQrCard
+                payload={qrPayload}
+                colors={colors}
+                size={76}
+                centerOverlayRatio={0.3}
+                avatarUrl={avatarUrl}
+                avatarStoragePath={avatarStoragePath}
+                avatarEmoji={avatarEmoji}
+                fallbackInitial={fallbackInitial}
+              />
+            </Link.AppleZoom>
+            <Text style={[styles.heroQrLabel, { color: colors.secondaryLabel }]}>Mój kod QR</Text>
+          </Pressable>
+        </Link.Trigger>
+      </Link>
     </View>
   );
 }
@@ -356,34 +378,6 @@ function ProfileInfoRow({
         <AppIcon name="chevronRight" size={15} color={colors.tertiaryLabel} />
       </View>
     </View>
-  );
-}
-
-function ProfileQrLinkRow({ colors, title }: { colors: ThemeColors; title: string }) {
-  return (
-    <Link href="/(tabs)/profile/my-code" asChild>
-      <Link.Trigger>
-        <Pressable
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.row,
-            { borderBottomColor: colors.separator },
-            pressed ? { backgroundColor: colors.systemFill } : null,
-          ]}>
-          <View style={styles.rowContent}>
-            <Link.AppleZoom>
-              <View style={styles.iconTile}>
-                <AppIcon name="qrcode" size={17} color={colors.label} />
-              </View>
-            </Link.AppleZoom>
-            <Text style={[styles.actionText, { color: colors.label }]} numberOfLines={1}>
-              {title}
-            </Text>
-            <AppIcon name="chevronRight" size={15} color={colors.tertiaryLabel} />
-          </View>
-        </Pressable>
-      </Link.Trigger>
-    </Link>
   );
 }
 
@@ -505,6 +499,14 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     textAlign: 'center',
   },
+  heroQrButton: {
+    alignItems: 'center',
+    marginTop: 18,
+  },
+  heroQrLabel: {
+    ...typography.caption,
+    marginTop: 8,
+  },
   sectionTitle: {
     ...typography.footnote,
     marginTop: 28,
@@ -561,6 +563,7 @@ const styles = StyleSheet.create({
   },
   actionText: {
     ...typography.body,
+    flex: 1,
   },
   input: {
     ...typography.body,
