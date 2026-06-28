@@ -1,17 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { useNativeState } from '@expo/ui';
 import { useAuth } from '../../../hooks/useAuth';
-import { useAuthPasswordPair } from '../../../hooks/useAuthCredentials';
-import {
-  AuthErrorText,
-  AuthFormLayout,
-  AuthFormSection,
-  AuthPrimaryButton,
-  AuthSecondaryText,
-  AuthSecureField,
-} from '../../../components/ui/auth-form-layout';
+import { useAppTheme } from '../../../hooks/useAppTheme';
+import { useScreenInsets } from '../../../hooks/useScreenInsets';
 import { notifySuccess } from '../../../lib/appNotify';
+import { typography } from '../../../theme/typography';
 
 function isReauthenticationNeededError(error: { message?: string; code?: string } | null) {
   if (!error) return false;
@@ -29,24 +23,15 @@ function getPasswordUpdateErrorMessage(message: string) {
 }
 
 export default function ChangePasswordScreen() {
+  const { colors } = useAppTheme();
+  const { bottomContentInset } = useScreenInsets('tabStackList');
   const { session, loading: authLoading, updatePassword, reauthenticatePasswordChange } = useAuth();
-  const {
-    password: newPassword,
-    confirmPassword,
-    onPasswordChange,
-    onConfirmPasswordChange,
-    getPassword,
-    getConfirmPassword,
-  } = useAuthPasswordPair();
-  const nonce = useNativeState('');
-  const nonceSnapshot = useRef('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [nonce, setNonce] = useState('');
   const [requiresNonce, setRequiresNonce] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const clearError = () => {
-    setError(null);
-  };
 
   useEffect(() => {
     if (!authLoading && !session) {
@@ -54,10 +39,14 @@ export default function ChangePasswordScreen() {
     }
   }, [authLoading, session]);
 
+  const clearError = () => {
+    setError(null);
+  };
+
   const handleSubmit = async () => {
-    const newPasswordValue = getPassword();
-    const confirmPasswordValue = getConfirmPassword();
-    const nonceValue = nonceSnapshot.current.trim();
+    const newPasswordValue = newPassword;
+    const confirmPasswordValue = confirmPassword;
+    const nonceValue = nonce.trim();
 
     if (newPasswordValue.length < 8) {
       setError('Nowe hasło musi mieć minimum 8 znaków.');
@@ -103,47 +92,128 @@ export default function ChangePasswordScreen() {
   };
 
   return (
-    <AuthFormLayout>
-      <AuthFormSection title="Zmiana hasła">
-        <AuthSecondaryText>
-          Ustaw nowe hasło. Gdy Supabase poprosi o dodatkową weryfikację, wpisz kod przesłany e-mailem.
-        </AuthSecondaryText>
-        <AuthSecureField
-          nativeValue={newPassword}
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={[styles.content, { paddingBottom: bottomContentInset + 32 }]}
+      contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}>
+      <Text style={[styles.description, { color: colors.secondaryLabel }]}>
+        Ustaw nowe hasło. Gdy Supabase poprosi o dodatkową weryfikację, wpisz kod przesłany e-mailem.
+      </Text>
+
+      <View style={[styles.card, { backgroundColor: colors.secondarySystemBackground }]}>
+        <TextInput
+          style={[styles.input, { color: colors.label, borderBottomColor: colors.separator }]}
           placeholder="Nowe hasło (min. 8 znaków)"
+          placeholderTextColor={colors.tertiaryLabel}
+          secureTextEntry
           autoComplete="new-password"
+          value={newPassword}
           onChangeText={(text) => {
-            onPasswordChange(text);
+            setNewPassword(text);
             clearError();
           }}
         />
-        <AuthSecureField
-          nativeValue={confirmPassword}
+        <TextInput
+          style={[styles.input, { color: colors.label, borderBottomColor: colors.separator }]}
           placeholder="Powtórz nowe hasło"
+          placeholderTextColor={colors.tertiaryLabel}
+          secureTextEntry
           autoComplete="new-password"
+          value={confirmPassword}
           onChangeText={(text) => {
-            onConfirmPasswordChange(text);
+            setConfirmPassword(text);
             clearError();
           }}
         />
         {requiresNonce ? (
-          <AuthSecureField
-            nativeValue={nonce}
+          <TextInput
+            style={[styles.input, { color: colors.label, borderBottomColor: colors.separator }]}
             placeholder="Kod weryfikacyjny z e-maila"
+            placeholderTextColor={colors.tertiaryLabel}
+            secureTextEntry
             autoComplete="one-time-code"
+            value={nonce}
             onChangeText={(text) => {
-              nonceSnapshot.current = text;
+              setNonce(text);
               clearError();
             }}
           />
         ) : null}
-        {error ? <AuthErrorText>{error}</AuthErrorText> : null}
-        <AuthPrimaryButton
-          label={loading ? 'Zapisywanie...' : 'Zapisz nowe hasło'}
-          onPress={() => void handleSubmit()}
+        {error ? <Text style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: loading }}
           disabled={loading}
-        />
-      </AuthFormSection>
-    </AuthFormLayout>
+          onPress={() => void handleSubmit()}
+          style={({ pressed }) => [
+            styles.button,
+            { backgroundColor: colors.accent },
+            pressed && !loading ? styles.pressed : null,
+            loading ? styles.disabled : null,
+          ]}>
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.buttonText}>Zapisz nowe hasło</Text>
+          )}
+        </Pressable>
+      </View>
+    </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 28,
+    paddingTop: 20,
+  },
+  description: {
+    ...typography.body,
+    textAlign: 'center',
+    marginBottom: 18,
+  },
+  card: {
+    borderRadius: 28,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    paddingBottom: 20,
+  },
+  input: {
+    ...typography.body,
+    minHeight: 58,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  error: {
+    ...typography.footnote,
+    paddingHorizontal: 22,
+    paddingTop: 14,
+    textAlign: 'center',
+  },
+  button: {
+    alignSelf: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
+    borderRadius: 16,
+    borderCurve: 'continuous',
+    paddingHorizontal: 22,
+    marginTop: 20,
+  },
+  buttonText: {
+    ...typography.body,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  pressed: {
+    opacity: 0.75,
+  },
+  disabled: {
+    opacity: 0.55,
+  },
+});
