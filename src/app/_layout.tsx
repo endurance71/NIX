@@ -264,6 +264,7 @@ function RootNavigator() {
           presentation: 'card',
           headerShown: true,
           title: t('root.qrScan'),
+          headerBackButtonDisplayMode: 'default',
           headerTransparent: true,
           headerShadowVisible: false,
           headerStyle: { backgroundColor: 'transparent' },
