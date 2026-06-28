@@ -264,6 +264,9 @@ function RootNavigator() {
           presentation: 'card',
           headerShown: true,
           title: t('root.qrScan'),
+          headerTransparent: true,
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: 'transparent' },
         }}
       />
       <Stack.Screen
