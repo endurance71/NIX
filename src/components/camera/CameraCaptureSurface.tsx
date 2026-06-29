@@ -21,6 +21,8 @@ export function CameraCaptureSurface({ vm }: Props) {
     insets,
     facing,
     flash,
+    stillFlashArmed,
+    videoTorchRequested,
     recordAudioMuted,
     videoPreparing,
     recordingVideo,
@@ -50,6 +52,8 @@ export function CameraCaptureSurface({ vm }: Props) {
     captureMode,
     facing,
     flash,
+    stillFlashArmed,
+    videoTorchRequested,
     videoPreparing,
     recordingVideo,
   });

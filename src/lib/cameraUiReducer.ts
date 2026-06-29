@@ -4,6 +4,8 @@ export type CameraCaptureMode = 'picture' | 'video';
 export type CameraUiState = {
   facing: CameraFacing;
   flash: 'off' | 'on';
+  stillFlashArmed: boolean;
+  videoTorchRequested: boolean;
   recordAudioMuted: boolean;
   permissionLoadingTimedOut: boolean;
   takingPicture: boolean;
@@ -23,6 +25,8 @@ export type CameraUiState = {
 export const initialCameraUiState: CameraUiState = {
   facing: 'back',
   flash: 'off',
+  stillFlashArmed: false,
+  videoTorchRequested: false,
   recordAudioMuted: false,
   permissionLoadingTimedOut: false,
   takingPicture: false,
@@ -51,6 +55,8 @@ export type CameraUiAction =
   | { type: 'VIDEO_PREPARE_BEGIN' }
   | { type: 'VIDEO_RECORDING_BEGIN' }
   | { type: 'VIDEO_SESSION_END' }
+  | { type: 'REQUEST_VIDEO_TORCH' }
+  | { type: 'CLEAR_VIDEO_TORCH' }
   | { type: 'PREPARE_STILL_CAPTURE' }
   | { type: 'SET_CAPTURE_MODE'; captureMode: CameraCaptureMode }
   | { type: 'SET_CAPTURE_ERROR'; captureError: string | null }
@@ -92,6 +98,7 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
         recordingVideo: false,
         recordingElapsedSec: 0,
         captureError: null,
+        stillFlashArmed: false,
         cameraReady: false,
         captureMode: 'video',
       };
@@ -102,6 +109,7 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
         recordingVideo: true,
         recordingElapsedSec: 0,
         captureError: null,
+        stillFlashArmed: false,
       };
     case 'VIDEO_SESSION_END':
       return {
@@ -109,11 +117,25 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
         videoPreparing: false,
         recordingVideo: false,
         recordingElapsedSec: 0,
+        stillFlashArmed: false,
+        videoTorchRequested: false,
         cameraReady: false,
         captureMode: 'picture',
       };
+    case 'REQUEST_VIDEO_TORCH':
+      return state.videoTorchRequested && !state.stillFlashArmed
+        ? state
+        : { ...state, videoTorchRequested: true, stillFlashArmed: false };
+    case 'CLEAR_VIDEO_TORCH':
+      return state.videoTorchRequested ? { ...state, videoTorchRequested: false } : state;
     case 'PREPARE_STILL_CAPTURE':
-      return { ...state, takingPicture: true, captureError: null };
+      return {
+        ...state,
+        takingPicture: true,
+        stillFlashArmed: state.flash === 'on',
+        videoTorchRequested: false,
+        captureError: null,
+      };
     case 'SET_CAPTURE_MODE':
       return state.captureMode === action.captureMode
         ? state
@@ -121,7 +143,12 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
     case 'SET_CAPTURE_ERROR':
       return state.captureError === action.captureError ? state : { ...state, captureError: action.captureError };
     case 'SET_TAKING_PICTURE':
-      return state.takingPicture === action.takingPicture ? state : { ...state, takingPicture: action.takingPicture };
+      if (action.takingPicture) {
+        return state.takingPicture ? state : { ...state, takingPicture: true };
+      }
+      return state.takingPicture === false && state.stillFlashArmed === false
+        ? state
+        : { ...state, takingPicture: false, stillFlashArmed: false };
     case 'SET_RECORDING_ELAPSED_SEC':
       return state.recordingElapsedSec === action.recordingElapsedSec
         ? state
@@ -132,6 +159,8 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
         zoom: 0,
         isSwitchingCamera: true,
         captureError: null,
+        stillFlashArmed: false,
+        videoTorchRequested: false,
         facing: action.nextFacing,
       };
     case 'UPDATE_CAMERA_INSTANCE_KEY':

@@ -6,6 +6,8 @@ type CameraLightState = {
   captureMode: CameraCaptureMode;
   facing: CameraFacing;
   flash: CameraFlashMode;
+  stillFlashArmed: boolean;
+  videoTorchRequested: boolean;
   videoPreparing: boolean;
   recordingVideo: boolean;
 };
@@ -14,13 +16,15 @@ export function getCameraLightProps({
   captureMode,
   facing,
   flash,
+  stillFlashArmed,
+  videoTorchRequested,
   videoPreparing,
   recordingVideo,
 }: CameraLightState): { flash: CameraFlashMode; enableTorch: boolean } {
-  const videoLightActive = videoPreparing || recordingVideo;
+  const videoLightActive = videoTorchRequested || videoPreparing || recordingVideo;
 
   return {
-    flash: captureMode === 'picture' ? flash : 'off',
+    flash: stillFlashArmed && captureMode === 'picture' ? flash : 'off',
     enableTorch: flash === 'on' && facing === 'back' && videoLightActive,
   };
 }

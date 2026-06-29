@@ -31,7 +31,7 @@ export function ConfirmationSheet({
   fallbackInitial,
   destructive = true,
   primaryActionLabel,
-  primaryActionLoadingLabel,
+  primaryActionLoadingLabel: _primaryActionLoadingLabel,
   onConfirm,
 }: ConfirmationSheetProps) {
   const [loading, setLoading] = useState(false);
@@ -56,7 +56,6 @@ export function ConfirmationSheet({
         <>
           <ActionSheetPrimaryButton
             label={primaryActionLabel}
-            loadingLabel={primaryActionLoadingLabel}
             loading={loading}
             destructive={destructive}
             onPress={handleConfirm}

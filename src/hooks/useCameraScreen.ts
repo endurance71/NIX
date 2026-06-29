@@ -31,6 +31,8 @@ import { createCameraStyles } from '../components/camera/cameraScreen.styles';
 
 export const VIDEO_RECORDING_BITRATE = 2_500_000;
 const VIDEO_RECORDING_MAX_FILE_SIZE_BYTES = 90 * 1024 * 1024;
+const STILL_FLASH_ARM_DELAY_MS = 80;
+const VIDEO_TORCH_ARM_DELAY_MS = 80;
 
 export type CameraScreenViewModel = {
   permission: ReturnType<typeof useCameraPermissions>[0];
@@ -43,6 +45,8 @@ export type CameraScreenViewModel = {
   insets: ScreenInsetsResult;
   facing: 'back' | 'front';
   flash: 'off' | 'on';
+  stillFlashArmed: boolean;
+  videoTorchRequested: boolean;
   recordAudioMuted: boolean;
   videoPreparing: boolean;
   recordingVideo: boolean;
@@ -81,6 +85,8 @@ export function useCameraScreen(): CameraScreenViewModel {
   const {
     facing,
     flash,
+    stillFlashArmed,
+    videoTorchRequested,
     recordAudioMuted,
     permissionLoadingTimedOut,
     takingPicture,
@@ -429,6 +435,7 @@ export function useCameraScreen(): CameraScreenViewModel {
 
   const takePicture = async () => {
     if (takingPicture || videoPreparing || recordingVideo || recordingSessionRunningRef.current || isSwitchingCamera) return;
+    const shouldWaitForStillFlash = flash === 'on';
     dispatchCameraUi({ type: 'PREPARE_STILL_CAPTURE' });
     tap('light');
 
@@ -499,6 +506,9 @@ export function useCameraScreen(): CameraScreenViewModel {
               }
               return;
             }
+            if (shouldWaitForStillFlash) {
+              await new Promise((resolve) => setTimeout(resolve, STILL_FLASH_ARM_DELAY_MS));
+            }
             const photo = await camera.takePictureAsync({
               quality: 0.8,
               base64: false,
@@ -547,8 +557,20 @@ export function useCameraScreen(): CameraScreenViewModel {
     fingerDownRef.current = true;
 
     holdTimerRef.current = setTimeout(() => {
-      holdTimerRef.current = null;
       if (!fingerDownRef.current) return;
+      if (flash === 'on' && facing === 'back') {
+        dispatchCameraUi({ type: 'REQUEST_VIDEO_TORCH' });
+        holdTimerRef.current = setTimeout(() => {
+          holdTimerRef.current = null;
+          if (!fingerDownRef.current) {
+            dispatchCameraUi({ type: 'CLEAR_VIDEO_TORCH' });
+            return;
+          }
+          void startVideoCaptureFlow();
+        }, VIDEO_TORCH_ARM_DELAY_MS);
+        return;
+      }
+      holdTimerRef.current = null;
       void startVideoCaptureFlow();
     }, VIDEO_HOLD_THRESHOLD_MS);
   };
@@ -562,12 +584,16 @@ export function useCameraScreen(): CameraScreenViewModel {
       const elapsed = Date.now() - pressInTimeRef.current;
       if (elapsed < VIDEO_HOLD_THRESHOLD_MS && !recordingSessionRunningRef.current) {
         void takePicture();
+      } else {
+        dispatchCameraUi({ type: 'CLEAR_VIDEO_TORCH' });
       }
       return;
     }
 
     if (recordingSessionRunningRef.current) {
       safeStopRecording();
+    } else {
+      dispatchCameraUi({ type: 'CLEAR_VIDEO_TORCH' });
     }
   };
 
@@ -696,6 +722,8 @@ export function useCameraScreen(): CameraScreenViewModel {
     insets,
     facing,
     flash,
+    stillFlashArmed,
+    videoTorchRequested,
     recordAudioMuted,
     videoPreparing,
     recordingVideo,

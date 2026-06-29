@@ -52,7 +52,8 @@ export default function ProfileTabLayout() {
           title: t('profile.removeFriendTitle'),
           presentation: 'formSheet',
           headerShown: false,
-          sheetAllowedDetents: 'fitToContents',
+          sheetInitialDetentIndex: 0,
+          sheetAllowedDetents: [0.34],
           sheetGrabberVisible: false,
           contentStyle: { backgroundColor: 'transparent' },
         }}
@@ -63,7 +64,8 @@ export default function ProfileTabLayout() {
           title: t('profile.removeAvatarTitle'),
           presentation: 'formSheet',
           headerShown: false,
-          sheetAllowedDetents: 'fitToContents',
+          sheetInitialDetentIndex: 0,
+          sheetAllowedDetents: [0.34],
           sheetGrabberVisible: false,
           contentStyle: { backgroundColor: 'transparent' },
         }}
@@ -74,7 +76,8 @@ export default function ProfileTabLayout() {
           title: t('profile.outgoingInvites', { count: 1 }),
           presentation: 'formSheet',
           headerShown: false,
-          sheetAllowedDetents: 'fitToContents',
+          sheetInitialDetentIndex: 0,
+          sheetAllowedDetents: [0.34],
           sheetGrabberVisible: false,
           contentStyle: { backgroundColor: 'transparent' },
         }}

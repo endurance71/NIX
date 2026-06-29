@@ -72,7 +72,7 @@ export default function CancelOutgoingRequestSheet() {
       avatarEmoji={avatarEmoji}
       fallbackInitial={fallbackInitial}
       primaryActionLabel="Anuluj zaproszenie"
-      primaryActionLoadingLabel="Anulowanie..."
+      primaryActionLoadingLabel="Anuluj zaproszenie"
       onConfirm={handleConfirm}
     />
   );

@@ -14,6 +14,7 @@ describe('cameraUiReducer', () => {
     expect(state.cameraReady).toBe(false);
     expect(state.captureMode).toBe('video');
     expect(state.flash).toBe('on');
+    expect(state.stillFlashArmed).toBe(false);
   });
 
   it('VIDEO_RECORDING_BEGIN moves from preparing to active recording', () => {
@@ -24,6 +25,7 @@ describe('cameraUiReducer', () => {
     expect(state.recordingVideo).toBe(true);
     expect(state.recordingElapsedSec).toBe(0);
     expect(state.captureMode).toBe('video');
+    expect(state.stillFlashArmed).toBe(false);
   });
 
   it('VIDEO_SESSION_END clears preparation, recording, timer, and returns to picture mode', () => {
@@ -39,6 +41,49 @@ describe('cameraUiReducer', () => {
     expect(state.recordingElapsedSec).toBe(0);
     expect(state.cameraReady).toBe(false);
     expect(state.captureMode).toBe('picture');
+    expect(state.stillFlashArmed).toBe(false);
+    expect(state.videoTorchRequested).toBe(false);
+  });
+
+  it('REQUEST_VIDEO_TORCH requests video torch without arming still flash', () => {
+    const state = cameraUiReducer(
+      { ...initialCameraUiState, stillFlashArmed: true },
+      { type: 'REQUEST_VIDEO_TORCH' }
+    );
+
+    expect(state.videoTorchRequested).toBe(true);
+    expect(state.stillFlashArmed).toBe(false);
+  });
+
+  it('CLEAR_VIDEO_TORCH clears pending video torch request', () => {
+    const requested = cameraUiReducer(initialCameraUiState, { type: 'REQUEST_VIDEO_TORCH' });
+    const state = cameraUiReducer(requested, { type: 'CLEAR_VIDEO_TORCH' });
+
+    expect(state.videoTorchRequested).toBe(false);
+  });
+
+  it('PREPARE_STILL_CAPTURE arms native flash only when the user flash preference is on', () => {
+    const flashOn = cameraUiReducer(
+      { ...initialCameraUiState, flash: 'on' },
+      { type: 'PREPARE_STILL_CAPTURE' }
+    );
+    const flashOff = cameraUiReducer(initialCameraUiState, { type: 'PREPARE_STILL_CAPTURE' });
+
+    expect(flashOn.takingPicture).toBe(true);
+    expect(flashOn.stillFlashArmed).toBe(true);
+    expect(flashOff.takingPicture).toBe(true);
+    expect(flashOff.stillFlashArmed).toBe(false);
+  });
+
+  it('SET_TAKING_PICTURE false clears armed still flash', () => {
+    const armed = cameraUiReducer(
+      { ...initialCameraUiState, flash: 'on' },
+      { type: 'PREPARE_STILL_CAPTURE' }
+    );
+    const state = cameraUiReducer(armed, { type: 'SET_TAKING_PICTURE', takingPicture: false });
+
+    expect(state.takingPicture).toBe(false);
+    expect(state.stillFlashArmed).toBe(false);
   });
 
   it('SET_CAPTURE_MODE invalidates camera readiness when switching modes', () => {

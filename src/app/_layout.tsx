@@ -280,7 +280,8 @@ function RootNavigator() {
           presentation: 'formSheet',
           headerShown: false,
           sheetGrabberVisible: false,
-          sheetAllowedDetents: 'fitToContents',
+          sheetInitialDetentIndex: 0,
+          sheetAllowedDetents: [0.34],
           contentStyle: { backgroundColor: 'transparent' },
         }}
       />

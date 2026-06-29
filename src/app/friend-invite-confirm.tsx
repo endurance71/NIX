@@ -297,7 +297,6 @@ export default function FriendInviteConfirmScreen() {
               {(relationStatus === 'none' || relationStatus === 'incoming_pending') && (
                 <ActionSheetPrimaryButton
                   label={primaryLabel()}
-                  loadingLabel={primaryLabel()}
                   loading={actionLoading}
                   onPress={handleSend}
                 />

@@ -1,11 +1,14 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { useScreenInsets } from '../../hooks/useScreenInsets';
 import { APP_FONT_FAMILY } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/colors';
 
 export const ACTION_SHEET_AVATAR_SIZE = 96;
+const COMPACT_SHEET_TOP_PADDING = 18;
+const COMPACT_SHEET_BOTTOM_MIN_PADDING = 12;
+const COMPACT_SHEET_MAX_HEIGHT_RATIO = 0.42;
 
 type ActionSheetSurfaceProps = {
   title: string;
@@ -17,7 +20,6 @@ type ActionSheetSurfaceProps = {
 
 type ActionSheetPrimaryButtonProps = {
   label: string;
-  loadingLabel?: string;
   loading?: boolean;
   disabled?: boolean;
   destructive?: boolean;
@@ -32,12 +34,22 @@ type ActionSheetSecondaryButtonProps = {
 
 export function ActionSheetSurface({ title, message, contentAlign = 'center', children, actions }: ActionSheetSurfaceProps) {
   const { colors } = useAppTheme();
-  const { topContentInset, bottomContentInset } = useScreenInsets('sheet');
-  const styles = createStyles(colors, topContentInset, bottomContentInset);
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const styles = createStyles(
+    colors,
+    Math.max(insets.bottom, COMPACT_SHEET_BOTTOM_MIN_PADDING),
+    Math.round(height * COMPACT_SHEET_MAX_HEIGHT_RATIO)
+  );
 
   return (
     <View style={styles.screenRoot}>
-      <View style={styles.container}>
+      <ScrollView
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+        style={styles.scrollWrap}
+        contentContainerStyle={styles.container}
+      >
         <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>
           {title}
         </Text>
@@ -48,14 +60,13 @@ export function ActionSheetSurface({ title, message, contentAlign = 'center', ch
           </View>
         ) : null}
         {actions ? <View style={styles.actions}>{actions}</View> : null}
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 export function ActionSheetPrimaryButton({
   label,
-  loadingLabel,
   loading = false,
   disabled = false,
   destructive = false,
@@ -80,7 +91,7 @@ export function ActionSheetPrimaryButton({
         <ActivityIndicator color={destructive ? '#FFFFFF' : colors.buttonPrimaryText} />
       ) : (
         <Text style={[styles.primaryLabel, { color: destructive ? '#FFFFFF' : colors.buttonPrimaryText }]}>
-          {loadingLabel ?? label}
+          {label}
         </Text>
       )}
     </Pressable>
@@ -102,21 +113,24 @@ export function ActionSheetSecondaryButton({
   );
 }
 
-const createStyles = (_colors: ThemeColors, paddingTop: number, paddingBottom: number) =>
+const createStyles = (_colors: ThemeColors, paddingBottom: number, maxHeight: number) =>
   StyleSheet.create({
     screenRoot: {
       alignSelf: 'stretch',
       flexGrow: 0,
       backgroundColor: 'transparent',
     },
-    container: {
+    scrollWrap: {
       width: '96%',
       alignSelf: 'center',
+      maxHeight,
+    },
+    container: {
       paddingHorizontal: 22,
-      paddingTop,
-      paddingBottom: Math.max(paddingBottom, 14),
+      paddingTop: COMPACT_SHEET_TOP_PADDING,
+      paddingBottom,
       backgroundColor: 'transparent',
-      gap: 12,
+      gap: 10,
     },
     title: {
       fontSize: 22,
@@ -134,7 +148,7 @@ const createStyles = (_colors: ThemeColors, paddingTop: number, paddingBottom: n
       fontFamily: APP_FONT_FAMILY,
     },
     content: {
-      gap: 12,
+      gap: 10,
     },
     contentCenter: {
       alignItems: 'center',
@@ -143,7 +157,7 @@ const createStyles = (_colors: ThemeColors, paddingTop: number, paddingBottom: n
       alignItems: 'stretch',
     },
     actions: {
-      gap: 12,
+      gap: 10,
     },
   });
 
