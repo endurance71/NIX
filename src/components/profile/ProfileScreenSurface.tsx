@@ -67,36 +67,23 @@ export default function ProfileScreenSurface() {
           avatarStoragePath={vm.profileRow?.avatar_storage_path ?? null}
           avatarEmoji={vm.profileRow?.avatar_emoji ?? null}
           fallbackInitial={vm.initialLetter}
+          changeAvatarTitle={vm.avatarBusy ? vm.t('profile.changeAvatarLoading') : vm.t('profile.changeAvatar')}
+          removeAvatarTitle={vm.t('profile.removeAvatar')}
+          avatarBusy={vm.avatarBusy}
+          hasAvatar={vm.hasAvatar}
+          onChangeAvatar={vm.handlePickAvatarPhoto}
+          onRemoveAvatar={() =>
+            router.push({
+              pathname: '/profile/remove-avatar',
+              params: {
+                avatarUrl: vm.avatarSignedUrl ?? undefined,
+                avatarStoragePath: vm.profileRow?.avatar_storage_path ?? undefined,
+                avatarEmoji: vm.profileRow?.avatar_emoji ?? undefined,
+                fallbackInitial: vm.initialLetter,
+              },
+            })
+          }
         />
-
-        <ProfileSection backgroundColor={settingsCardColor} topSpacing>
-          <ProfileActionRow
-            colors={vm.colors}
-            title={vm.avatarBusy ? 'Przetwarzanie...' : 'Zdjecie z biblioteki'}
-            onPress={vm.handlePickAvatarPhoto}
-            disabled={vm.avatarBusy}
-            icon="photoLibrary"
-          />
-          <ProfileActionRow
-            colors={vm.colors}
-            title="Usun awatar"
-            destructive
-            disabled={vm.avatarBusy || !vm.hasAvatar}
-            onPress={() =>
-              router.push({
-                pathname: '/profile/remove-avatar',
-                params: {
-                  avatarUrl: vm.avatarSignedUrl ?? undefined,
-                  avatarStoragePath: vm.profileRow?.avatar_storage_path ?? undefined,
-                  avatarEmoji: vm.profileRow?.avatar_emoji ?? undefined,
-                  fallbackInitial: vm.initialLetter,
-                },
-              })
-            }
-            icon="close"
-            showSeparator={false}
-          />
-        </ProfileSection>
 
         <ProfileSectionTitle colors={vm.colors}>{vm.t('profile.addFriend')}</ProfileSectionTitle>
         <ProfileSection backgroundColor={settingsCardColor}>
@@ -105,12 +92,14 @@ export default function ProfileScreenSurface() {
             title={vm.t('profile.myQrCode')}
             onPress={() => router.push('/(tabs)/profile/my-code')}
             icon="qrcode"
+            showChevron
           />
           <ProfileActionRow
             colors={vm.colors}
             title={vm.t('profile.scanQr')}
             onPress={() => router.push('/friend-scan-qr')}
             icon="qrcode"
+            showChevron
           />
           <TextInput
             key={`invite-input-${vm.inviteInputResetKey}`}
@@ -251,6 +240,7 @@ export default function ProfileScreenSurface() {
                     });
                   }}
                   icon="personMinus"
+                  showChevron
                   showSeparator={false}
                 />
               </View>
@@ -265,6 +255,7 @@ export default function ProfileScreenSurface() {
             title={vm.t('profile.changePassword')}
             onPress={() => router.push('/profile/change-password')}
             icon="lock"
+            showChevron
           />
           <ProfileActionRow
             colors={vm.colors}
@@ -297,6 +288,12 @@ function ProfileAccountCard({
   avatarStoragePath,
   avatarEmoji,
   fallbackInitial,
+  changeAvatarTitle,
+  removeAvatarTitle,
+  avatarBusy,
+  hasAvatar,
+  onChangeAvatar,
+  onRemoveAvatar,
 }: {
   colors: ThemeColors;
   backgroundColor: string;
@@ -306,25 +303,49 @@ function ProfileAccountCard({
   avatarStoragePath: string | null;
   avatarEmoji: string | null;
   fallbackInitial: string;
+  changeAvatarTitle: string;
+  removeAvatarTitle: string;
+  avatarBusy: boolean;
+  hasAvatar: boolean;
+  onChangeAvatar: () => void;
+  onRemoveAvatar: () => void;
 }) {
   return (
     <View style={[styles.accountCard, { backgroundColor }]}>
-      <AvatarCircle
-        size={58}
-        url={avatarUrl}
-        storagePath={avatarStoragePath}
-        emoji={avatarEmoji}
-        fallbackInitial={fallbackInitial}
-      />
-      <View style={styles.accountText}>
-        <Text selectable style={[styles.accountTitle, { color: colors.label }]} numberOfLines={1}>
-          {username}
-        </Text>
-        <Text selectable style={[styles.accountSubtitle, { color: colors.secondaryLabel }]} numberOfLines={1}>
-          {email}
-        </Text>
+      <View style={[styles.accountHeader, { borderBottomColor: colors.separator }]}>
+        <AvatarCircle
+          size={58}
+          url={avatarUrl}
+          storagePath={avatarStoragePath}
+          emoji={avatarEmoji}
+          fallbackInitial={fallbackInitial}
+        />
+        <View style={styles.accountText}>
+          <Text selectable style={[styles.accountTitle, { color: colors.label }]} numberOfLines={1}>
+            {username}
+          </Text>
+          <Text selectable style={[styles.accountSubtitle, { color: colors.secondaryLabel }]} numberOfLines={1}>
+            {email}
+          </Text>
+        </View>
       </View>
-      <AppIcon name="chevronRight" size={15} color={colors.tertiaryLabel} />
+      <ProfileActionRow
+        colors={colors}
+        title={changeAvatarTitle}
+        onPress={onChangeAvatar}
+        disabled={avatarBusy}
+        icon="photoLibrary"
+      />
+      <ProfileActionRow
+        colors={colors}
+        title={removeAvatarTitle}
+        destructive
+        disabled={avatarBusy || !hasAvatar}
+        onPress={onRemoveAvatar}
+        icon="close"
+        showChevron
+        showSeparator={false}
+      />
     </View>
   );
 }
@@ -389,7 +410,6 @@ function ProfileInfoRow({
             </Text>
           ) : null}
         </View>
-        <AppIcon name="chevronRight" size={15} color={colors.tertiaryLabel} />
       </View>
     </View>
   );
@@ -402,6 +422,7 @@ function ProfileActionRow({
   disabled,
   onPress,
   icon,
+  showChevron = false,
   showSeparator = true,
 }: {
   colors: ThemeColors;
@@ -410,6 +431,7 @@ function ProfileActionRow({
   disabled?: boolean;
   onPress: () => void;
   icon?: AppIconName;
+  showChevron?: boolean;
   showSeparator?: boolean;
 }) {
   const foregroundColor = destructive ? colors.destructive : colors.label;
@@ -444,7 +466,7 @@ function ProfileActionRow({
           numberOfLines={1}>
           {title}
         </Text>
-        <AppIcon name="chevronRight" size={15} color={disabled ? colors.tertiaryLabel : colors.tertiaryLabel} />
+        {showChevron ? <AppIcon name="chevronRight" size={15} color={colors.tertiaryLabel} /> : null}
       </View>
     </Pressable>
   );
@@ -499,13 +521,17 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
   },
   accountCard: {
+    overflow: 'hidden',
+    borderRadius: 24,
+    borderCurve: 'continuous',
+  },
+  accountHeader: {
     minHeight: 88,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 18,
     paddingVertical: 14,
-    borderRadius: 24,
-    borderCurve: 'continuous',
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   accountText: {
     flex: 1,

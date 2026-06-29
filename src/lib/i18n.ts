@@ -119,6 +119,9 @@ const resources = {
       },
       profile: {
         title: 'Profil',
+        changeAvatar: 'Zmień awatar',
+        changeAvatarLoading: 'Przetwarzanie...',
+        removeAvatar: 'Usuń awatar',
         myQrCode: 'Mój kod QR',
         addFriend: 'Dodaj znajomego',
         scanQr: 'Skanuj QR',
@@ -262,6 +265,9 @@ const resources = {
       },
       profile: {
         title: 'Profile',
+        changeAvatar: 'Change avatar',
+        changeAvatarLoading: 'Processing...',
+        removeAvatar: 'Remove avatar',
         myQrCode: 'My QR code',
         addFriend: 'Add friend',
         scanQr: 'Scan QR',
