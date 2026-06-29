@@ -106,15 +106,14 @@ const createStyles = (colors: ThemeColors, bottomInset: number) =>
     screenRoot: {
       alignSelf: 'stretch',
       flexGrow: 0,
-      backgroundColor: 'transparent',
-      maxHeight: 360,
+      width: '100%',
     },
     container: {
       alignSelf: 'stretch',
+      width: '100%',
       paddingHorizontal: 24,
       paddingTop: COMPACT_SHEET_TOP_PADDING,
       paddingBottom: bottomInset,
-      backgroundColor: 'transparent',
       gap: 10,
     },
     title: {
@@ -143,12 +142,16 @@ const createStyles = (colors: ThemeColors, bottomInset: number) =>
     },
     actions: {
       gap: 10,
+      alignSelf: 'stretch',
+      width: '100%',
     },
   });
 
 const createButtonStyles = (_colors: ThemeColors) =>
   StyleSheet.create({
     primaryButton: {
+      alignSelf: 'stretch',
+      width: '100%',
       borderRadius: 16,
       paddingVertical: 13,
       alignItems: 'center',

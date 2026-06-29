@@ -22,13 +22,35 @@ import type { ThemeColors } from '../../theme/colors';
 import { AppIcon } from '../ui/app-icon';
 import type { AppIconName } from '../../theme/app-icons';
 import { AvatarCircle } from '../ui/avatar-circle';
-import { BottomSheet, RNHostView } from '@expo/ui';
-import { frame } from '@expo/ui/swift-ui/modifiers';
 import { clearProfileAvatar, createSignedAvatarUrl } from '../../services/avatarService';
 import { removeFriend, cancelOutgoingFriendRequest } from '../../services/friendService';
 import { queryKeys } from '../../lib/queryKeys';
 import { notifySuccess, notifyInfo } from '../../lib/appNotify';
 import { ConfirmationSheet } from '../ui/confirmation-sheet';
+import { AppBottomSheet } from '../ui/app-bottom-sheet';
+
+type FriendToRemove = {
+  id: string;
+  username: string;
+  avatarStoragePath: string | null;
+  avatarEmoji: string | null;
+};
+
+type RequestToCancel = {
+  id: string;
+  username: string;
+  avatarStoragePath: string | null;
+  avatarEmoji: string | null;
+};
+
+type ProfileSheet =
+  | { type: 'removeAvatar' }
+  | { type: 'removeFriend'; friend: FriendToRemove }
+  | { type: 'cancelRequest'; request: RequestToCancel }
+  | { type: 'signOut' }
+  | null;
+
+const PROFILE_CONFIRMATION_SHEET_HEIGHT = 340;
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
@@ -37,23 +59,13 @@ export default function ProfileScreenSurface() {
   const settingsCardColor = resolveSettingsCardColor(vm.colors, isDark);
   const queryClient = useQueryClient();
 
-  const [isRemoveAvatarOpen, setIsRemoveAvatarOpen] = useState(false);
-  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
-  const [friendToRemove, setFriendToRemove] = useState<{
-    id: string;
-    username: string;
-    avatarStoragePath: string | null;
-    avatarEmoji: string | null;
-  } | null>(null);
-  const [requestToCancel, setRequestToCancel] = useState<{
-    id: string;
-    username: string;
-    avatarStoragePath: string | null;
-    avatarEmoji: string | null;
-  } | null>(null);
+  const [activeProfileSheet, setActiveProfileSheet] = useState<ProfileSheet>(null);
 
   const [friendAvatarUrl, setFriendAvatarUrl] = useState<string | null>(null);
   const [requestAvatarUrl, setRequestAvatarUrl] = useState<string | null>(null);
+  const friendToRemove = activeProfileSheet?.type === 'removeFriend' ? activeProfileSheet.friend : null;
+  const requestToCancel = activeProfileSheet?.type === 'cancelRequest' ? activeProfileSheet.request : null;
+  const dismissProfileSheet = () => setActiveProfileSheet(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,7 +161,7 @@ export default function ProfileScreenSurface() {
           avatarBusy={vm.avatarBusy}
           hasAvatar={vm.hasAvatar}
           onChangeAvatar={vm.handlePickAvatarPhoto}
-          onRemoveAvatar={() => setIsRemoveAvatarOpen(true)}
+          onRemoveAvatar={() => setActiveProfileSheet({ type: 'removeAvatar' })}
         />
 
         <ProfileSectionTitle colors={vm.colors}>{vm.t('profile.addFriend')}</ProfileSectionTitle>
@@ -245,11 +257,14 @@ export default function ProfileScreenSurface() {
                     destructive
                     disabled={vm.actionLoadingId === `outgoing-${request.id}`}
                     onPress={() => {
-                      setRequestToCancel({
-                        id: request.id,
-                        username: request.recipient.username,
-                        avatarStoragePath: request.recipient.avatar_storage_path ?? null,
-                        avatarEmoji: request.recipient.avatar_emoji ?? null,
+                      setActiveProfileSheet({
+                        type: 'cancelRequest',
+                        request: {
+                          id: request.id,
+                          username: request.recipient.username,
+                          avatarStoragePath: request.recipient.avatar_storage_path ?? null,
+                          avatarEmoji: request.recipient.avatar_emoji ?? null,
+                        },
                       });
                     }}
                     icon="close"
@@ -303,11 +318,14 @@ export default function ProfileScreenSurface() {
                   destructive
                   disabled={vm.actionLoadingId === `friend-${friend.id}`}
                   onPress={() => {
-                    setFriendToRemove({
-                      id: friend.id,
-                      username: friend.username,
-                      avatarStoragePath: friend.avatar_storage_path ?? null,
-                      avatarEmoji: friend.avatar_emoji ?? null,
+                    setActiveProfileSheet({
+                      type: 'removeFriend',
+                      friend: {
+                        id: friend.id,
+                        username: friend.username,
+                        avatarStoragePath: friend.avatar_storage_path ?? null,
+                        avatarEmoji: friend.avatar_emoji ?? null,
+                      },
                     });
                   }}
                   icon="personMinus"
@@ -331,7 +349,7 @@ export default function ProfileScreenSurface() {
           <ProfileActionRow
             colors={vm.colors}
             title={vm.t('profile.signOut')}
-            onPress={() => setIsSignOutOpen(true)}
+            onPress={() => setActiveProfileSheet({ type: 'signOut' })}
             icon="signOut"
             destructive
             showSeparator={false}
@@ -339,12 +357,12 @@ export default function ProfileScreenSurface() {
         </ProfileSection>
       </ScrollView>
 
-      <BottomSheet
-        isPresented={isRemoveAvatarOpen}
-        onDismiss={() => setIsRemoveAvatarOpen(false)}
-        modifiers={[frame({ height: 330 })]}
+      <AppBottomSheet
+        isPresented={activeProfileSheet !== null}
+        onDismiss={dismissProfileSheet}
+        snapPoints={[{ height: PROFILE_CONFIRMATION_SHEET_HEIGHT }]}
       >
-        <RNHostView matchContents style={{ height: 330 }}>
+        {activeProfileSheet?.type === 'removeAvatar' ? (
           <ConfirmationSheet
             title="Usunąć awatar?"
             message="Po usunięciu wrócisz do domyślnego widoku profilu."
@@ -353,83 +371,51 @@ export default function ProfileScreenSurface() {
             avatarEmoji={vm.profileRow?.avatar_emoji}
             fallbackInitial={vm.initialLetter}
             primaryActionLabel="Usuń awatar"
-            onCancel={() => setIsRemoveAvatarOpen(false)}
+            onCancel={dismissProfileSheet}
             onConfirm={async () => {
               await clearProfileAvatar();
               await queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile });
               await queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
               await queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
               notifySuccess('Awatar usunięty.');
-              setIsRemoveAvatarOpen(false);
+              dismissProfileSheet();
             }}
           />
-        </RNHostView>
-      </BottomSheet>
-
-      <BottomSheet
-        isPresented={friendToRemove !== null}
-        onDismiss={() => setFriendToRemove(null)}
-        modifiers={[frame({ height: 330 })]}
-      >
-        <RNHostView matchContents style={{ height: 330 }}>
-          {friendToRemove ? (
-            <ConfirmationSheet
-              title={`Usunąć @${friendToRemove.username}?`}
-              message="Ta osoba zniknie z Twojej listy znajomych."
-              avatarUrl={friendAvatarUrl}
-              avatarStoragePath={friendToRemove.avatarStoragePath}
-              avatarEmoji={friendToRemove.avatarEmoji}
-              fallbackInitial={friendToRemove.username}
-              primaryActionLabel="Usuń znajomego"
-              onCancel={() => setFriendToRemove(null)}
-              onConfirm={async () => {
-                await removeFriend(friendToRemove.id);
-                await queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
-                await queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
-                setFriendToRemove(null);
-              }}
-            />
-          ) : (
-            <View />
-          )}
-        </RNHostView>
-      </BottomSheet>
-
-      <BottomSheet
-        isPresented={requestToCancel !== null}
-        onDismiss={() => setRequestToCancel(null)}
-        modifiers={[frame({ height: 330 })]}
-      >
-        <RNHostView matchContents style={{ height: 330 }}>
-          {requestToCancel ? (
-            <ConfirmationSheet
-              title={`Anulować zaproszenie do @${requestToCancel.username}?`}
-              message="Ta osoba nie zobaczy już oczekującego zaproszenia od Ciebie."
-              avatarUrl={requestAvatarUrl}
-              avatarStoragePath={requestToCancel.avatarStoragePath}
-              avatarEmoji={requestToCancel.avatarEmoji}
-              fallbackInitial={requestToCancel.username}
-              primaryActionLabel="Anuluj zaproszenie"
-              onCancel={() => setRequestToCancel(null)}
-              onConfirm={async () => {
-                await cancelOutgoingFriendRequest(requestToCancel.id);
-                await queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests });
-                notifyInfo('Zaproszenie anulowane.');
-                setRequestToCancel(null);
-              }}
-            />
-          ) : (
-            <View />
-          )}
-        </RNHostView>
-      </BottomSheet>
-
-      <BottomSheet
-        isPresented={isSignOutOpen}
-        onDismiss={() => setIsSignOutOpen(false)}
-        modifiers={[frame({ height: 330 })]}
-      >
-        <RNHostView matchContents style={{ height: 330 }}>
+        ) : activeProfileSheet?.type === 'removeFriend' ? (
+          <ConfirmationSheet
+            title={`Usunąć @${activeProfileSheet.friend.username}?`}
+            message="Ta osoba zniknie z Twojej listy znajomych."
+            avatarUrl={friendAvatarUrl}
+            avatarStoragePath={activeProfileSheet.friend.avatarStoragePath}
+            avatarEmoji={activeProfileSheet.friend.avatarEmoji}
+            fallbackInitial={activeProfileSheet.friend.username}
+            primaryActionLabel="Usuń znajomego"
+            onCancel={dismissProfileSheet}
+            onConfirm={async () => {
+              await removeFriend(activeProfileSheet.friend.id);
+              await queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
+              await queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
+              dismissProfileSheet();
+            }}
+          />
+        ) : activeProfileSheet?.type === 'cancelRequest' ? (
+          <ConfirmationSheet
+            title={`Anulować zaproszenie do @${activeProfileSheet.request.username}?`}
+            message="Ta osoba nie zobaczy już oczekującego zaproszenia od Ciebie."
+            avatarUrl={requestAvatarUrl}
+            avatarStoragePath={activeProfileSheet.request.avatarStoragePath}
+            avatarEmoji={activeProfileSheet.request.avatarEmoji}
+            fallbackInitial={activeProfileSheet.request.username}
+            primaryActionLabel="Anuluj zaproszenie"
+            onCancel={dismissProfileSheet}
+            onConfirm={async () => {
+              await cancelOutgoingFriendRequest(activeProfileSheet.request.id);
+              await queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests });
+              notifyInfo('Zaproszenie anulowane.');
+              dismissProfileSheet();
+            }}
+          />
+        ) : activeProfileSheet?.type === 'signOut' ? (
           <ConfirmationSheet
             title={vm.t('profile.signOutConfirmTitle')}
             message={vm.t('profile.signOutConfirmMessage')}
@@ -439,15 +425,15 @@ export default function ProfileScreenSurface() {
             fallbackInitial={vm.initialLetter}
             destructive
             primaryActionLabel={vm.t('profile.signOut')}
-            onCancel={() => setIsSignOutOpen(false)}
+            onCancel={dismissProfileSheet}
             onConfirm={async () => {
               await vm.handleSignOut();
               queryClient.clear();
-              setIsSignOutOpen(false);
+              dismissProfileSheet();
             }}
           />
-        </RNHostView>
-      </BottomSheet>
+        ) : null}
+      </AppBottomSheet>
     </>
   );
 }

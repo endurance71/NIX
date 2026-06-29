@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { CameraView, BarcodeScanningResult, useCameraPermissions } from 'expo-camera';
 import { router, useFocusEffect } from 'expo-router';
@@ -22,10 +22,9 @@ import { NativeSectionCard } from '../components/ui/native-section-card';
 import { notifyError, notifyInfo, notifySuccess, notifyShow } from '../lib/appNotify';
 import { notify as hapticNotify, tap } from '../lib/haptics';
 import { runWithFinally } from '../lib/runWithFinally';
-import { BottomSheet, RNHostView } from '@expo/ui';
-import { frame } from '@expo/ui/swift-ui/modifiers';
 import { AvatarCircle } from '../components/ui/avatar-circle';
 import { AppIcon } from '../components/ui/app-icon';
+import { AppBottomSheet } from '../components/ui/app-bottom-sheet';
 import {
   ACTION_SHEET_AVATAR_SIZE,
   ActionSheetPrimaryButton,
@@ -42,6 +41,8 @@ type ScannedData = {
   avatarStoragePath: string | null;
   avatarEmoji: string | null;
 };
+
+const QR_CONFIRMATION_SHEET_HEIGHT = 450;
 
 export default function FriendScanQrScreen() {
   const { colors } = useAppTheme();
@@ -223,26 +224,22 @@ export default function FriendScanQrScreen() {
         </View>
       )}
 
-      <BottomSheet
+      <AppBottomSheet
         isPresented={scannedData !== null}
         onDismiss={handleSheetDismiss}
-        modifiers={[frame({ height: 350 })]}
+        snapPoints={[{ height: QR_CONFIRMATION_SHEET_HEIGHT }]}
       >
-        <RNHostView matchContents style={{ height: 350 }}>
-          {scannedData ? (
-            <FriendInviteConfirmSheetContent
-              profileId={scannedData.profileId}
-              token={scannedData.token}
-              username={scannedData.username}
-              avatarStoragePath={scannedData.avatarStoragePath}
-              avatarEmoji={scannedData.avatarEmoji}
-              onDismiss={handleSheetDismiss}
-            />
-          ) : (
-            <View />
-          )}
-        </RNHostView>
-      </BottomSheet>
+        {scannedData ? (
+          <FriendInviteConfirmSheetContent
+            profileId={scannedData.profileId}
+            token={scannedData.token}
+            username={scannedData.username}
+            avatarStoragePath={scannedData.avatarStoragePath}
+            avatarEmoji={scannedData.avatarEmoji}
+            onDismiss={handleSheetDismiss}
+          />
+        ) : null}
+      </AppBottomSheet>
     </View>
   );
 }
@@ -324,11 +321,15 @@ function FriendInviteConfirmSheetContent({
     }
   }, [profileId, token, avatarStoragePath, avatarEmoji]);
 
-  // Load profile data on mount
-  useState(() => {
-    void loadProfileData();
-    return undefined;
-  });
+  useEffect(() => {
+    const loadProfileDataId = setTimeout(() => {
+      void loadProfileData();
+    }, 0);
+
+    return () => {
+      clearTimeout(loadProfileDataId);
+    };
+  }, [loadProfileData]);
 
   const displayUsername = friendProfile?.username ?? username;
   const statusLine = relationStatusCopy(relationStatus);
