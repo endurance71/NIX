@@ -1,5 +1,5 @@
 import { PropsWithChildren, ReactNode, ReactElement } from 'react';
-import { StyleSheet, Text as RNText, View } from 'react-native';
+import { StyleSheet, Text as RNText, useWindowDimensions, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Button, Column, FieldGroup, Text, TextInput } from '@expo/ui';
 import { buttonBorderShape, controlSize, frame } from '@expo/ui/swift-ui/modifiers';
@@ -35,11 +35,44 @@ type AuthFormLayoutProps = PropsWithChildren<{
    * to avoid the broken SectionHeader + RNHostView overlap bug on iOS.
    */
   header?: ReactElement;
+  contentVerticalAlignment?: 'top' | 'center';
 }>;
 
-export function AuthFormLayout({ children, header }: AuthFormLayoutProps) {
+const AUTH_CENTERED_CONTENT_ESTIMATED_HEIGHT = 470;
+
+function getTopPadding(
+  contentVerticalAlignment: AuthFormLayoutProps['contentVerticalAlignment'],
+  windowHeight: number,
+  topContentInset: number,
+  bottomContentInset: number
+) {
+  const defaultTopPadding = topContentInset + 8;
+
+  if (contentVerticalAlignment !== 'center') {
+    return defaultTopPadding;
+  }
+
+  const availableHeight = windowHeight - topContentInset - bottomContentInset;
+  const centeredTopPadding =
+    topContentInset + Math.max(24, (availableHeight - AUTH_CENTERED_CONTENT_ESTIMATED_HEIGHT) / 2);
+
+  return Math.round(Math.max(defaultTopPadding, centeredTopPadding));
+}
+
+export function AuthFormLayout({
+  children,
+  header,
+  contentVerticalAlignment = 'top',
+}: AuthFormLayoutProps) {
   const { statusBarStyle } = useAppTheme();
   const { topContentInset, bottomContentInset } = useScreenInsets('fullscreen');
+  const { height } = useWindowDimensions();
+  const topPadding = getTopPadding(
+    contentVerticalAlignment,
+    height,
+    topContentInset,
+    bottomContentInset
+  );
 
   if (header) {
     return (
@@ -67,7 +100,7 @@ export function AuthFormLayout({ children, header }: AuthFormLayoutProps) {
       <FieldGroup
         style={{
           ...styles.form,
-          paddingTop: topContentInset + 8,
+          paddingTop: topPadding,
           paddingBottom: bottomContentInset + 32,
         }}>
         {children}

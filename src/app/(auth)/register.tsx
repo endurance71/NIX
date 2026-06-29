@@ -78,7 +78,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <AuthFormLayout>
+    <AuthFormLayout contentVerticalAlignment="center">
       <FieldGroup.Section>
         <FieldGroup.SectionHeader>
           <AuthFormHeader
