@@ -12,6 +12,7 @@ import {
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useProfileScreen } from '../../hooks/useProfileScreen';
+import { useAppTheme } from '../../hooks/useAppTheme';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
 import { registerTabScrollToTop } from '../../lib/tabBarScrollActions';
 import { typography } from '../../theme/typography';
@@ -22,7 +23,9 @@ import { AvatarCircle } from '../ui/avatar-circle';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
+  const { isDark } = useAppTheme();
   const { bottomContentInset } = useScreenInsets('tabStackList');
+  const settingsCardColor = resolveSettingsCardColor(vm.colors, isDark);
 
   useEffect(() => {
     return registerTabScrollToTop('profile', () => {
@@ -55,8 +58,9 @@ export default function ProfileScreenSurface() {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
-        <ProfileHero
+        <ProfileAccountCard
           colors={vm.colors}
+          backgroundColor={settingsCardColor}
           username={`@${vm.profileUsername ?? 'brak_nazwy_uzytkownika'}`}
           email={vm.user?.email ?? '-'}
           avatarUrl={vm.avatarSignedUrl}
@@ -65,7 +69,7 @@ export default function ProfileScreenSurface() {
           fallbackInitial={vm.initialLetter}
         />
 
-        <ProfileSection colors={vm.colors}>
+        <ProfileSection backgroundColor={settingsCardColor} topSpacing>
           <ProfileActionRow
             colors={vm.colors}
             title={vm.avatarBusy ? 'Przetwarzanie...' : 'Zdjecie z biblioteki'}
@@ -90,11 +94,12 @@ export default function ProfileScreenSurface() {
               })
             }
             icon="close"
+            showSeparator={false}
           />
         </ProfileSection>
 
         <ProfileSectionTitle colors={vm.colors}>{vm.t('profile.addFriend')}</ProfileSectionTitle>
-        <ProfileSection colors={vm.colors}>
+        <ProfileSection backgroundColor={settingsCardColor}>
           <ProfileActionRow
             colors={vm.colors}
             title={vm.t('profile.myQrCode')}
@@ -122,6 +127,7 @@ export default function ProfileScreenSurface() {
             onPress={vm.handleSendInvite}
             disabled={vm.actionLoadingId === 'invite'}
             icon="send"
+            showSeparator={false}
           />
         </ProfileSection>
 
@@ -130,7 +136,7 @@ export default function ProfileScreenSurface() {
             <ProfileSectionTitle colors={vm.colors}>
               {vm.t('profile.incomingInvites', { count: vm.requests.length })}
             </ProfileSectionTitle>
-            <ProfileSection colors={vm.colors}>
+            <ProfileSection backgroundColor={settingsCardColor}>
               {vm.requests.map((request) => (
                 <View key={request.id}>
                   <ProfileInfoRow
@@ -153,6 +159,7 @@ export default function ProfileScreenSurface() {
                     disabled={vm.actionLoadingId === request.id}
                     onPress={() => void vm.handleReject(request.id)}
                     icon="trash"
+                    showSeparator={false}
                   />
                 </View>
               ))}
@@ -165,7 +172,7 @@ export default function ProfileScreenSurface() {
             <ProfileSectionTitle colors={vm.colors}>
               {vm.t('profile.outgoingInvites', { count: vm.outgoingRequests.length })}
             </ProfileSectionTitle>
-            <ProfileSection colors={vm.colors}>
+            <ProfileSection backgroundColor={settingsCardColor}>
               {vm.outgoingRequests.map((request) => (
                 <View key={request.id}>
                   <ProfileInfoRow
@@ -183,6 +190,7 @@ export default function ProfileScreenSurface() {
                     disabled={vm.actionLoadingId === `outgoing-${request.id}`}
                     onPress={() => void vm.handleCancelOutgoing(request.id)}
                     icon="close"
+                    showSeparator={false}
                   />
                 </View>
               ))}
@@ -193,7 +201,7 @@ export default function ProfileScreenSurface() {
         <ProfileSectionTitle colors={vm.colors}>
           {vm.t('profile.friends', { count: vm.friends.length })}
         </ProfileSectionTitle>
-        <ProfileSection colors={vm.colors}>
+        <ProfileSection backgroundColor={settingsCardColor}>
           {vm.friends.length === 0 ? (
             <Text style={[styles.emptyText, { color: vm.colors.secondaryLabel }]}>Nie masz jeszcze znajomych.</Text>
           ) : null}
@@ -243,6 +251,7 @@ export default function ProfileScreenSurface() {
                     });
                   }}
                   icon="personMinus"
+                  showSeparator={false}
                 />
               </View>
             );
@@ -250,7 +259,7 @@ export default function ProfileScreenSurface() {
         </ProfileSection>
 
         <ProfileSectionTitle colors={vm.colors}>{vm.t('profile.account')}</ProfileSectionTitle>
-        <ProfileSection colors={vm.colors}>
+        <ProfileSection backgroundColor={settingsCardColor}>
           <ProfileActionRow
             colors={vm.colors}
             title={vm.t('profile.changePassword')}
@@ -263,6 +272,7 @@ export default function ProfileScreenSurface() {
             onPress={vm.handleSignOut}
             icon="signOut"
             destructive
+            showSeparator={false}
           />
         </ProfileSection>
       </ScrollView>
@@ -274,8 +284,13 @@ function ProfileSectionTitle({ children, colors }: { children: string; colors: T
   return <Text style={[styles.sectionTitle, { color: colors.secondaryLabel }]}>{children}</Text>;
 }
 
-function ProfileHero({
+function resolveSettingsCardColor(colors: ThemeColors, isDark: boolean) {
+  return isDark ? colors.secondarySystemBackground : colors.tertiarySystemBackground;
+}
+
+function ProfileAccountCard({
   colors,
+  backgroundColor,
   username,
   email,
   avatarUrl,
@@ -284,6 +299,7 @@ function ProfileHero({
   fallbackInitial,
 }: {
   colors: ThemeColors;
+  backgroundColor: string;
   username: string;
   email: string;
   avatarUrl: string | null;
@@ -292,32 +308,37 @@ function ProfileHero({
   fallbackInitial: string;
 }) {
   return (
-    <View style={styles.hero}>
+    <View style={[styles.accountCard, { backgroundColor }]}>
       <AvatarCircle
-        size={104}
+        size={58}
         url={avatarUrl}
         storagePath={avatarStoragePath}
         emoji={avatarEmoji}
         fallbackInitial={fallbackInitial}
       />
-      <Text selectable style={[styles.heroTitle, { color: colors.label }]} numberOfLines={1}>
-        {username}
-      </Text>
-      <Text selectable style={[styles.heroSubtitle, { color: colors.secondaryLabel }]} numberOfLines={1}>
-        {email}
-      </Text>
+      <View style={styles.accountText}>
+        <Text selectable style={[styles.accountTitle, { color: colors.label }]} numberOfLines={1}>
+          {username}
+        </Text>
+        <Text selectable style={[styles.accountSubtitle, { color: colors.secondaryLabel }]} numberOfLines={1}>
+          {email}
+        </Text>
+      </View>
+      <AppIcon name="chevronRight" size={15} color={colors.tertiaryLabel} />
     </View>
   );
 }
 
 function ProfileSection({
   children,
-  colors,
+  backgroundColor,
+  topSpacing = false,
 }: {
   children: React.ReactNode;
-  colors: ThemeColors;
+  backgroundColor: string;
+  topSpacing?: boolean;
 }) {
-  return <View style={[styles.card, styles.sectionCard, { backgroundColor: colors.secondarySystemBackground }]}>{children}</View>;
+  return <View style={[styles.card, topSpacing ? styles.sectionTopSpacing : null, { backgroundColor }]}>{children}</View>;
 }
 
 function ProfileInfoRow({
@@ -326,11 +347,13 @@ function ProfileInfoRow({
   subtitle,
   icon,
   avatar,
+  showSeparator = true,
 }: {
   colors: ThemeColors;
   title: string;
   subtitle?: string;
   icon?: AppIconName;
+  showSeparator?: boolean;
   avatar?: {
     url?: string | null;
     storagePath?: string | null;
@@ -339,7 +362,7 @@ function ProfileInfoRow({
   };
 }) {
   return (
-    <View style={[styles.row, { borderBottomColor: colors.separator }]}>
+    <View style={[styles.row, showSeparator ? { borderBottomColor: colors.separator } : styles.rowNoSeparator]}>
       <View style={styles.rowContent}>
         {avatar ? (
           <View style={styles.avatarWrapper}>
@@ -379,6 +402,7 @@ function ProfileActionRow({
   disabled,
   onPress,
   icon,
+  showSeparator = true,
 }: {
   colors: ThemeColors;
   title: string;
@@ -386,6 +410,7 @@ function ProfileActionRow({
   disabled?: boolean;
   onPress: () => void;
   icon?: AppIconName;
+  showSeparator?: boolean;
 }) {
   const foregroundColor = destructive ? colors.destructive : colors.label;
 
@@ -397,7 +422,7 @@ function ProfileActionRow({
       accessibilityState={{ disabled }}
       style={({ pressed }) => [
         styles.row,
-        { borderBottomColor: colors.separator },
+        showSeparator ? { borderBottomColor: colors.separator } : styles.rowNoSeparator,
         pressed && !disabled ? { backgroundColor: colors.systemFill } : null,
       ]}>
       <View style={styles.rowContent}>
@@ -466,47 +491,57 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 28,
+    paddingTop: 8,
   },
   card: {
-    borderRadius: 28,
+    borderRadius: 24,
     overflow: 'hidden',
     borderCurve: 'continuous',
   },
-  hero: {
+  accountCard: {
+    minHeight: 88,
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 22,
-    paddingBottom: 28,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 24,
+    borderCurve: 'continuous',
   },
-  heroTitle: {
-    ...typography.largeTitle,
-    maxWidth: '100%',
-    marginTop: 18,
-    textAlign: 'center',
+  accountText: {
+    flex: 1,
+    marginLeft: 14,
+    marginRight: 12,
   },
-  heroSubtitle: {
+  accountTitle: {
     ...typography.title2,
-    maxWidth: '100%',
-    marginTop: 2,
+    fontSize: 20,
+    lineHeight: 25,
+  },
+  accountSubtitle: {
+    ...typography.callout,
+    marginTop: 1,
     fontWeight: '400',
-    textAlign: 'center',
   },
   sectionTitle: {
     ...typography.footnote,
-    marginTop: 28,
-    marginBottom: 8,
-    paddingHorizontal: 24,
+    marginTop: 30,
+    marginBottom: 7,
+    paddingHorizontal: 16,
     textTransform: 'uppercase',
   },
-  sectionCard: {
-    marginTop: 20,
+  sectionTopSpacing: {
+    marginTop: 28,
   },
   row: {
-    minHeight: 72,
+    minHeight: 58,
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#54545866',
+  },
+  rowNoSeparator: {
+    borderBottomWidth: 0,
   },
   rowContent: {
     flexDirection: 'row',
@@ -514,26 +549,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   iconTile: {
-    marginRight: 16,
-    width: 31,
-    height: 31,
+    marginRight: 14,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarWrapper: {
-    marginRight: 16,
+    marginRight: 14,
     width: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
   switchRow: {
-    minHeight: 56,
+    minHeight: 58,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#54545866',
   },
@@ -551,9 +586,9 @@ const styles = StyleSheet.create({
   },
   input: {
     ...typography.body,
-    minHeight: 56,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    minHeight: 58,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   emptyText: {
