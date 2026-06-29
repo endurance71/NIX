@@ -58,6 +58,11 @@ export type PreviewProfileQrResult = {
   profile: FriendProfile | null;
 };
 
+export type PreviewFriendInviteTokenResult = {
+  status: 'ok' | 'invalid_or_expired' | 'own_invite';
+  profile: FriendProfile | null;
+};
+
 type PublicProfileRpcRow = {
   id: string;
   username: string | null;
@@ -426,6 +431,68 @@ export async function sendFriendRequestByProfileQr(profileId: string): Promise<{
 
   const result = await sendFriendRequest(preview.profile.id);
   return { result, profile: preview.profile };
+}
+
+export async function createFriendInviteQrToken(): Promise<FriendInviteTokenPayload> {
+  const { data, error } = await supabase.rpc('create_friend_invite', {
+    invite_channel: 'qr',
+  });
+
+  if (error) throw toFriendlyError(error);
+
+  const payload = Array.isArray(data) ? data[0] : data;
+  const token = typeof payload?.invite_token === 'string' ? payload.invite_token : null;
+  const expiresAt = typeof payload?.expires_at === 'string' ? payload.expires_at : null;
+
+  if (!token || !expiresAt) {
+    throw new Error('Nie udało się wygenerować kodu QR.');
+  }
+
+  return { token, expiresAt };
+}
+
+export async function previewFriendInviteToken(token: string): Promise<PreviewFriendInviteTokenResult> {
+  const normalizedToken = token.trim();
+  if (normalizedToken.length < 16) {
+    return { status: 'invalid_or_expired', profile: null };
+  }
+
+  const { data, error } = await supabase.rpc('preview_friend_invite', {
+    invite_token: normalizedToken,
+  });
+
+  if (error) {
+    const message = mapFriendshipErrorMessage(error);
+    if (
+      message.includes('expired') ||
+      message.includes('invalid') ||
+      message.includes('already used')
+    ) {
+      return { status: 'invalid_or_expired', profile: null };
+    }
+    if (message.includes('own invite')) {
+      return { status: 'own_invite', profile: null };
+    }
+    throw new Error(message);
+  }
+
+  const payload = Array.isArray(data) ? data[0] : data;
+  if (!payload?.status || payload.status === 'invalid_or_expired') {
+    return { status: 'invalid_or_expired', profile: null };
+  }
+  if (payload.status === 'own_invite') {
+    return { status: 'own_invite', profile: null };
+  }
+
+  const profile = mapPublicProfileRow({
+    id: payload.profile_id as string,
+    username: payload.username as string | null,
+    avatar_storage_path: payload.avatar_storage_path as string | null | undefined,
+    avatar_emoji: payload.avatar_emoji as string | null | undefined,
+  });
+
+  if (!profile) return { status: 'invalid_or_expired', profile: null };
+  return { status: 'ok', profile };
 }
 
 export async function redeemFriendInviteToken(token: string): Promise<{

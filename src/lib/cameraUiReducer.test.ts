@@ -4,7 +4,7 @@ import { cameraUiReducer, initialCameraUiState } from './cameraUiReducer';
 describe('cameraUiReducer', () => {
   it('VIDEO_PREPARE_BEGIN prepares video mode without marking recording active', () => {
     const state = cameraUiReducer(
-      { ...initialCameraUiState, cameraReady: true },
+      { ...initialCameraUiState, cameraReady: true, flash: 'on' },
       { type: 'VIDEO_PREPARE_BEGIN' }
     );
 
@@ -13,6 +13,7 @@ describe('cameraUiReducer', () => {
     expect(state.recordingElapsedSec).toBe(0);
     expect(state.cameraReady).toBe(false);
     expect(state.captureMode).toBe('video');
+    expect(state.flash).toBe('on');
   });
 
   it('VIDEO_RECORDING_BEGIN moves from preparing to active recording', () => {

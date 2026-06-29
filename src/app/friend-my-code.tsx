@@ -1,6 +1,6 @@
 import { useEffect, useReducer } from 'react';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { AppRnHostView } from '../components/ui/app-rn-host-view';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -16,7 +16,7 @@ export default function FriendMyCodeScreen() {
   const { colors, statusBarStyle } = useAppTheme();
   const { bottomContentInset } = useScreenInsets('tabStackList');
   const { user } = useAuth();
-  const payload = useProfileQrPayload();
+  const qrPayload = useProfileQrPayload();
   const [state, dispatch] = useReducer(
     (
       current: { profileRow: CurrentUserProfileRow | null; avatarSignedUrl: string | null },
@@ -88,17 +88,25 @@ export default function FriendMyCodeScreen() {
           To jest stały kod QR Twojego profilu. Znajomy może go zeskanować, aby wysłać zaproszenie.
         </Text>
         <View style={[styles.qrPanel, { backgroundColor: colors.secondarySystemBackground }]}>
-          <AppRnHostView matchContents>
-            <MyProfileQrCard
-              payload={payload}
-              colors={colors}
-              centerOverlayRatio={0.3}
-              avatarUrl={avatarSignedUrl}
-              avatarStoragePath={profileRow?.avatar_storage_path ?? null}
-              avatarEmoji={profileRow?.avatar_emoji}
-              fallbackInitial={fallbackInitial}
-            />
-          </AppRnHostView>
+          {qrPayload.loading ? (
+            <View style={styles.qrLoading}>
+              <ActivityIndicator color={colors.textPrimary} />
+              <Text style={[styles.qrLoadingText, { color: colors.textSecondary }]}>Generowanie kodu QR…</Text>
+            </View>
+          ) : (
+            <AppRnHostView matchContents>
+              <MyProfileQrCard
+                payload={qrPayload.payload}
+                colors={colors}
+                error={qrPayload.error}
+                centerOverlayRatio={0.3}
+                avatarUrl={avatarSignedUrl}
+                avatarStoragePath={profileRow?.avatar_storage_path ?? null}
+                avatarEmoji={profileRow?.avatar_emoji}
+                fallbackInitial={fallbackInitial}
+              />
+            </AppRnHostView>
+          )}
         </View>
         <Pressable
           accessibilityRole="button"
@@ -135,6 +143,16 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     overflow: 'hidden',
     paddingVertical: 26,
+  },
+  qrLoading: {
+    minHeight: 260,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  qrLoadingText: {
+    ...typography.footnote,
+    textAlign: 'center',
   },
   scanButton: {
     alignSelf: 'center',

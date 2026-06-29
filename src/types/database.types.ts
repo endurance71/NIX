@@ -201,6 +201,8 @@ export interface Database {
           expires_at: string;
           used_at: string | null;
           used_by: string | null;
+          previewed_by: string | null;
+          previewed_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -211,6 +213,8 @@ export interface Database {
           expires_at: string;
           used_at?: string | null;
           used_by?: string | null;
+          previewed_by?: string | null;
+          previewed_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -221,6 +225,8 @@ export interface Database {
           expires_at?: string;
           used_at?: string | null;
           used_by?: string | null;
+          previewed_by?: string | null;
+          previewed_at?: string | null;
           created_at?: string;
         };
       };

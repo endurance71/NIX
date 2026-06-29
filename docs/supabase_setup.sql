@@ -146,6 +146,8 @@ CREATE TABLE IF NOT EXISTS public.friend_invites (
   expires_at TIMESTAMPTZ NOT NULL,
   used_at    TIMESTAMPTZ,
   used_by    UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  previewed_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  previewed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -515,6 +517,62 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.preview_friend_invite(invite_token TEXT)
+RETURNS TABLE(status TEXT, profile_id UUID, username TEXT, avatar_storage_path TEXT, avatar_emoji TEXT)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  inviter_id UUID;
+  requester_id UUID;
+  token_digest TEXT;
+BEGIN
+  requester_id := auth.uid();
+  IF requester_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  IF invite_token IS NULL OR char_length(invite_token) < 16 THEN
+    RETURN QUERY SELECT 'invalid_or_expired'::TEXT, NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT;
+    RETURN;
+  END IF;
+
+  token_digest := md5(invite_token);
+
+  SELECT fi.created_by
+  INTO inviter_id
+  FROM public.friend_invites fi
+  WHERE fi.token_hash = token_digest
+    AND fi.used_at IS NULL
+    AND fi.expires_at > NOW()
+  LIMIT 1;
+
+  IF inviter_id IS NULL THEN
+    RETURN QUERY SELECT 'invalid_or_expired'::TEXT, NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT;
+    RETURN;
+  END IF;
+
+  IF inviter_id = requester_id THEN
+    RETURN QUERY SELECT 'own_invite'::TEXT, NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT;
+    RETURN;
+  END IF;
+
+  UPDATE public.friend_invites fi
+  SET previewed_by = requester_id, previewed_at = NOW()
+  WHERE fi.token_hash = token_digest
+    AND fi.used_at IS NULL
+    AND fi.expires_at > NOW();
+
+  RETURN QUERY
+  SELECT 'ok'::TEXT, p.id, p.username, p.avatar_storage_path, p.avatar_emoji
+  FROM public.profiles p
+  WHERE p.id = inviter_id
+    AND p.username IS NOT NULL
+  LIMIT 1;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.redeem_friend_invite(invite_token TEXT)
 RETURNS TABLE(result TEXT, friend_id UUID)
 LANGUAGE plpgsql
@@ -721,6 +779,7 @@ $$;
 REVOKE ALL ON FUNCTION public.get_public_profile_by_username(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_public_profiles_by_ids(UUID[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.create_friend_invite(TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.preview_friend_invite(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.redeem_friend_invite(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_capture_policy_for_sender(UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.list_accepted_friends_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
@@ -732,6 +791,7 @@ REVOKE ALL ON FUNCTION public.delete_my_conversation_with_peer(UUID) FROM PUBLIC
 GRANT EXECUTE ON FUNCTION public.get_public_profile_by_username(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_public_profiles_by_ids(UUID[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_friend_invite(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.preview_friend_invite(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.redeem_friend_invite(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_capture_policy_for_sender(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.list_accepted_friends_paginated(INT, TIMESTAMPTZ) TO authenticated;
@@ -878,6 +938,14 @@ CREATE POLICY "avatars_storage_select"
             AND s.sender_id = split_part(name, '/', 1)::uuid
           )
       )
+      OR EXISTS (
+        SELECT 1
+        FROM public.friend_invites fi
+        WHERE fi.created_by = split_part(name, '/', 1)::uuid
+          AND fi.previewed_by = auth.uid()
+          AND fi.used_at IS NULL
+          AND fi.expires_at > NOW()
+      )
     )
   );
 
@@ -919,6 +987,7 @@ CREATE INDEX IF NOT EXISTS idx_friendships_friend ON public.friendships(friend_i
 CREATE INDEX IF NOT EXISTS idx_nix_capture_prefs_owner ON public.nix_capture_prefs(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_friend_invites_created_by ON public.friend_invites(created_by);
 CREATE INDEX IF NOT EXISTS idx_friend_invites_expires_at ON public.friend_invites(expires_at);
+CREATE INDEX IF NOT EXISTS idx_friend_invites_previewed_by ON public.friend_invites(previewed_by);
 CREATE INDEX IF NOT EXISTS idx_nix_cleanup_queue_receiver_next_attempt
   ON public.nix_cleanup_queue(receiver_id, next_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_upload_logs_sender_created_at

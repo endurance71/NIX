@@ -58,6 +58,7 @@ export function useProfileScreen() {
   });
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const profileUsername = profileRow?.username ?? null;
   const avatarPaths = profileRow?.avatar_storage_path ? [profileRow.avatar_storage_path] : [];
@@ -127,6 +128,8 @@ export function useProfileScreen() {
   };
 
   const handleListRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
     try {
       await Promise.all([
         queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
@@ -137,6 +140,8 @@ export function useProfileScreen() {
     } catch (err) {
       console.error('Profile social refresh failed', err);
       notifyError(t('notify.refreshFailedTitle'), { message: t('notify.refreshFailedBody') });
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -276,6 +281,7 @@ export function useProfileScreen() {
     profileRow,
     avatarSignedUrl,
     avatarBusy,
+    refreshing,
     hasAvatar,
     initialLetter,
     searchUsername,

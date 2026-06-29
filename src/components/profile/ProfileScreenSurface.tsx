@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
@@ -56,6 +57,15 @@ export default function ProfileScreenSurface() {
           },
         ]}
         contentInsetAdjustmentBehavior="automatic"
+        refreshControl={
+          <RefreshControl
+            refreshing={vm.refreshing}
+            onRefresh={vm.handleListRefresh}
+            tintColor={vm.colors.label}
+            colors={[vm.colors.accent]}
+            progressBackgroundColor={vm.colors.secondarySystemBackground}
+          />
+        }
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
         <ProfileAccountCard
@@ -177,8 +187,20 @@ export default function ProfileScreenSurface() {
                     title="Anuluj zaproszenie"
                     destructive
                     disabled={vm.actionLoadingId === `outgoing-${request.id}`}
-                    onPress={() => void vm.handleCancelOutgoing(request.id)}
+                    onPress={() => {
+                      router.push({
+                        pathname: '/profile/cancel-outgoing-request',
+                        params: {
+                          requestId: request.id,
+                          username: request.recipient.username,
+                          avatarStoragePath: request.recipient.avatar_storage_path ?? undefined,
+                          avatarEmoji: request.recipient.avatar_emoji ?? undefined,
+                          fallbackInitial: request.recipient.username,
+                        },
+                      });
+                    }}
                     icon="close"
+                    showChevron
                     showSeparator={false}
                   />
                 </View>

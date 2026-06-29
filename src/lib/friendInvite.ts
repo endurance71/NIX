@@ -4,6 +4,10 @@ export function buildProfileQrLink(profileId: string) {
   return `nix://${FRIEND_INVITE_PATH}?profileId=${encodeURIComponent(profileId)}`;
 }
 
+export function buildFriendInviteTokenLink(token: string) {
+  return `nix://${FRIEND_INVITE_PATH}?token=${encodeURIComponent(token)}`;
+}
+
 export function extractFriendInvitePayload(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;

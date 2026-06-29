@@ -68,6 +68,17 @@ export default function ProfileTabLayout() {
           contentStyle: { backgroundColor: 'transparent' },
         }}
       />
+      <Stack.Screen
+        name="cancel-outgoing-request"
+        options={{
+          title: t('profile.outgoingInvites', { count: 1 }),
+          presentation: 'formSheet',
+          headerShown: false,
+          sheetAllowedDetents: 'fitToContents',
+          sheetGrabberVisible: false,
+          contentStyle: { backgroundColor: 'transparent' },
+        }}
+      />
     </Stack>
   );
 }

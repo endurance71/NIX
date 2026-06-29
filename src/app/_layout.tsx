@@ -264,7 +264,7 @@ function RootNavigator() {
           presentation: 'card',
           headerShown: true,
           title: t('root.qrScan'),
-          headerBackButtonDisplayMode: 'default',
+          headerBackButtonDisplayMode: 'minimal',
           headerTransparent: true,
           headerShadowVisible: false,
           headerStyle: { backgroundColor: 'transparent' },
@@ -281,7 +281,7 @@ function RootNavigator() {
           headerShown: false,
           sheetGrabberVisible: false,
           sheetAllowedDetents: 'fitToContents',
-          contentStyle: { backgroundColor: colors.systemBackground },
+          contentStyle: { backgroundColor: 'transparent' },
         }}
       />
       <Stack.Screen

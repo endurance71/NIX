@@ -282,6 +282,7 @@ const createStyles = (colors: ThemeColors, paddingTop: number, bottomInset: numb
       ...typography.title2,
       color: colors.label,
       textAlign: 'center',
+      paddingHorizontal: 22,
     },
     subtitle: {
       ...typography.footnote,
@@ -289,6 +290,7 @@ const createStyles = (colors: ThemeColors, paddingTop: number, bottomInset: numb
       marginBottom: 12,
       textAlign: 'center',
       color: colors.tertiaryLabel,
+      paddingHorizontal: 22,
     },
     listWrap: {
       flex: 1,
@@ -296,7 +298,8 @@ const createStyles = (colors: ThemeColors, paddingTop: number, bottomInset: numb
       marginTop: 10,
     },
     footer: {
-      padding: 24,
+      paddingHorizontal: 22,
+      paddingTop: 18,
       paddingBottom: Math.max(bottomInset, 28),
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.separator,

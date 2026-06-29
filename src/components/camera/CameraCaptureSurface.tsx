@@ -7,6 +7,7 @@ import type { CameraScreenViewModel } from '../../hooks/useCameraScreen';
 import { VIDEO_RECORDING_BITRATE } from '../../hooks/useCameraScreen';
 import { NativeChromeIconButton } from '../ui/native-chrome-icon-button';
 import { VIDEO_TOTAL_MAX_DURATION_MS } from '../../lib/videoRecordingLimits';
+import { getCameraLightProps } from '../../lib/cameraLightProps';
 
 type Props = {
   vm: CameraScreenViewModel;
@@ -45,6 +46,13 @@ export function CameraCaptureSurface({ vm }: Props) {
     toggleFlash,
     toggleRecordingMicMuted,
   } = vm;
+  const cameraLightProps = getCameraLightProps({
+    captureMode,
+    facing,
+    flash,
+    videoPreparing,
+    recordingVideo,
+  });
 
   return (
     <View style={styles.container}>
@@ -57,8 +65,8 @@ export function CameraCaptureSurface({ vm }: Props) {
           facing={facing}
           mode={captureMode}
           mute={recordAudioMuted}
-          flash={flash}
-          enableTorch={recordingVideo && flash === 'on' && facing === 'back'}
+          flash={cameraLightProps.flash}
+          enableTorch={cameraLightProps.enableTorch}
           onCameraReady={onCameraReady}
           active={cameraActive}
           zoom={zoom}

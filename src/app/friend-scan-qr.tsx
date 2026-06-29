@@ -4,8 +4,8 @@ import { CameraView, BarcodeScanningResult, useCameraPermissions } from 'expo-ca
 import { router, useFocusEffect } from 'expo-router';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
-import { extractProfileQrProfileId } from '../lib/friendInvite';
-import { previewProfileQr } from '../services/friendService';
+import { extractFriendInvitePayload } from '../lib/friendInvite';
+import { previewFriendInviteToken, previewProfileQr } from '../services/friendService';
 import { trackEvent } from '../lib/telemetry';
 import { NativeButton } from '../components/ui/native-button';
 import { NativeSectionCard } from '../components/ui/native-section-card';
@@ -40,8 +40,8 @@ export default function FriendScanQrScreen() {
     await runWithFinally(
       async () => {
         try {
-          const profileId = extractProfileQrProfileId(event.data);
-          if (!profileId) {
+          const payload = extractFriendInvitePayload(event.data);
+          if (!payload?.token && !payload?.profileId) {
             notifyError('Niepoprawny kod', { message: 'To nie jest poprawny kod QR profilu NiX.' });
             scanInFlightRef.current = false;
             setScanningLocked(false);
@@ -53,7 +53,52 @@ export default function FriendScanQrScreen() {
             return;
           }
 
-          const preview = await previewProfileQr(profileId);
+          if (payload.token) {
+            const preview = await previewFriendInviteToken(payload.token);
+            if (preview.status === 'invalid_or_expired' || !preview.profile) {
+              notifyError('Niepoprawny kod', { message: 'Kod QR jest nieprawidłowy, wygasły lub został już użyty.' });
+              scanInFlightRef.current = false;
+              setScanningLocked(false);
+              trackEvent('friend_qr_scan', {
+                channel: 'qr',
+                status: 'fail',
+                errorCode: 'invalid_or_expired',
+              });
+              return;
+            }
+            if (preview.status === 'own_invite') {
+              notifyInfo('To Twój kod', { message: 'To jest Twój własny kod QR.' });
+              scanInFlightRef.current = false;
+              setScanningLocked(false);
+              trackEvent('friend_qr_scan', {
+                channel: 'qr',
+                status: 'fail',
+                errorCode: 'own_invite',
+              });
+              return;
+            }
+
+            if (handledSuccessRef.current) return;
+            handledSuccessRef.current = true;
+            trackEvent('friend_qr_scan', {
+              channel: 'qr',
+              status: 'success',
+              result: 'preview_ok',
+            });
+            hapticNotify('success');
+            router.push({
+              pathname: '/friend-invite-confirm',
+              params: {
+                token: payload.token,
+                username: preview.profile.username,
+                avatarStoragePath: preview.profile.avatar_storage_path ?? undefined,
+                avatarEmoji: preview.profile.avatar_emoji ?? undefined,
+              },
+            });
+            return;
+          }
+
+          const preview = await previewProfileQr(payload.profileId ?? '');
           if (preview.status === 'invalid_profile' || !preview.profile) {
             notifyError('Nie znaleziono profilu', { message: 'Nie znaleziono profilu dla tego kodu QR.' });
             scanInFlightRef.current = false;

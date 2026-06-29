@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cancelOutgoingFriendRequest,
+  createFriendInviteQrToken,
   getFriendInviteRelationStatus,
   listOutgoingFriendRequests,
   normalizeUsername,
+  previewFriendInviteToken,
   previewProfileQr,
   removeFriend,
   redeemFriendInviteToken,
@@ -131,6 +133,63 @@ describe('removeFriend', () => {
 describe('invite token flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('tworzy token QR przez RPC', async () => {
+    mockSupabaseRpc.mockResolvedValueOnce({
+      data: [{ invite_token: 'token-1234567890', expires_at: '2026-06-29T12:05:00.000Z' }],
+      error: null,
+    });
+
+    const result = await createFriendInviteQrToken();
+
+    expect(mockSupabaseRpc).toHaveBeenCalledWith('create_friend_invite', {
+      invite_channel: 'qr',
+    });
+    expect(result).toEqual({
+      token: 'token-1234567890',
+      expiresAt: '2026-06-29T12:05:00.000Z',
+    });
+  });
+
+  it('previewFriendInviteToken mapuje profil właściciela tokenu', async () => {
+    mockSupabaseRpc.mockResolvedValueOnce({
+      data: [
+        {
+          status: 'ok',
+          profile_id: 'friend-1',
+          username: 'nix_friend',
+          avatar_storage_path: 'friend-1/avatar.jpg',
+          avatar_emoji: null,
+        },
+      ],
+      error: null,
+    });
+
+    const result = await previewFriendInviteToken('token-1234567890');
+
+    expect(mockSupabaseRpc).toHaveBeenCalledWith('preview_friend_invite', {
+      invite_token: 'token-1234567890',
+    });
+    expect(result).toEqual({
+      status: 'ok',
+      profile: {
+        id: 'friend-1',
+        username: 'nix_friend',
+        avatar_storage_path: 'friend-1/avatar.jpg',
+        avatar_emoji: null,
+      },
+    });
+  });
+
+  it('previewFriendInviteToken mapuje wygasły token', async () => {
+    mockSupabaseRpc.mockResolvedValueOnce({
+      data: [{ status: 'invalid_or_expired' }],
+      error: null,
+    });
+
+    const result = await previewFriendInviteToken('token-1234567890');
+    expect(result).toEqual({ status: 'invalid_or_expired', profile: null });
   });
 
   it('mapuje invalid_or_expired gdy redeem zwraca błąd ważności', async () => {
