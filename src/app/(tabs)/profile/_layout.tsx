@@ -46,42 +46,6 @@ export default function ProfileTabLayout() {
           headerLargeTitle: false,
         }}
       />
-      <Stack.Screen
-        name="remove-friend"
-        options={{
-          title: t('profile.removeFriendTitle'),
-          presentation: 'formSheet',
-          headerShown: false,
-          sheetInitialDetentIndex: 0,
-          sheetAllowedDetents: [0.34],
-          sheetGrabberVisible: false,
-          contentStyle: { backgroundColor: 'transparent' },
-        }}
-      />
-      <Stack.Screen
-        name="remove-avatar"
-        options={{
-          title: t('profile.removeAvatarTitle'),
-          presentation: 'formSheet',
-          headerShown: false,
-          sheetInitialDetentIndex: 0,
-          sheetAllowedDetents: [0.34],
-          sheetGrabberVisible: false,
-          contentStyle: { backgroundColor: 'transparent' },
-        }}
-      />
-      <Stack.Screen
-        name="cancel-outgoing-request"
-        options={{
-          title: t('profile.outgoingInvites', { count: 1 }),
-          presentation: 'formSheet',
-          headerShown: false,
-          sheetInitialDetentIndex: 0,
-          sheetAllowedDetents: [0.34],
-          sheetGrabberVisible: false,
-          contentStyle: { backgroundColor: 'transparent' },
-        }}
-      />
     </Stack>
   );
 }

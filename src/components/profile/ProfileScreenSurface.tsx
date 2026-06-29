@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useQueryClient } from '@tanstack/react-query';
 import { useProfileScreen } from '../../hooks/useProfileScreen';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
@@ -21,12 +22,76 @@ import type { ThemeColors } from '../../theme/colors';
 import { AppIcon } from '../ui/app-icon';
 import type { AppIconName } from '../../theme/app-icons';
 import { AvatarCircle } from '../ui/avatar-circle';
+import { BottomSheet, RNHostView } from '@expo/ui';
+import { clearProfileAvatar, createSignedAvatarUrl } from '../../services/avatarService';
+import { removeFriend, cancelOutgoingFriendRequest } from '../../services/friendService';
+import { queryKeys } from '../../lib/queryKeys';
+import { notifyDomainError, notifySuccess, notifyInfo, notifyError } from '../../lib/appNotify';
+import { ConfirmationSheet } from '../ui/confirmation-sheet';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
   const { isDark } = useAppTheme();
   const { bottomContentInset } = useScreenInsets('tabStackList');
   const settingsCardColor = resolveSettingsCardColor(vm.colors, isDark);
+  const queryClient = useQueryClient();
+
+  const [isRemoveAvatarOpen, setIsRemoveAvatarOpen] = useState(false);
+  const [friendToRemove, setFriendToRemove] = useState<{
+    id: string;
+    username: string;
+    avatarStoragePath: string | null;
+    avatarEmoji: string | null;
+  } | null>(null);
+  const [requestToCancel, setRequestToCancel] = useState<{
+    id: string;
+    username: string;
+    avatarStoragePath: string | null;
+    avatarEmoji: string | null;
+  } | null>(null);
+
+  const [friendAvatarUrl, setFriendAvatarUrl] = useState<string | null>(null);
+  const [requestAvatarUrl, setRequestAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!friendToRemove?.avatarStoragePath) {
+        setFriendAvatarUrl(null);
+        return;
+      }
+      try {
+        const url = await createSignedAvatarUrl(friendToRemove.avatarStoragePath);
+        if (!cancelled) setFriendAvatarUrl(url);
+      } catch (err) {
+        console.warn('Failed to load signed avatar url for friend to remove', err);
+        if (!cancelled) setFriendAvatarUrl(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [friendToRemove]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!requestToCancel?.avatarStoragePath) {
+        setRequestAvatarUrl(null);
+        return;
+      }
+      try {
+        const url = await createSignedAvatarUrl(requestToCancel.avatarStoragePath);
+        if (!cancelled) setRequestAvatarUrl(url);
+      } catch (err) {
+        console.warn('Failed to load signed avatar url for request to cancel', err);
+        if (!cancelled) setRequestAvatarUrl(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestToCancel]);
 
   useEffect(() => {
     return registerTabScrollToTop('profile', () => {
@@ -82,17 +147,7 @@ export default function ProfileScreenSurface() {
           avatarBusy={vm.avatarBusy}
           hasAvatar={vm.hasAvatar}
           onChangeAvatar={vm.handlePickAvatarPhoto}
-          onRemoveAvatar={() =>
-            router.push({
-              pathname: '/profile/remove-avatar',
-              params: {
-                avatarUrl: vm.avatarSignedUrl ?? undefined,
-                avatarStoragePath: vm.profileRow?.avatar_storage_path ?? undefined,
-                avatarEmoji: vm.profileRow?.avatar_emoji ?? undefined,
-                fallbackInitial: vm.initialLetter,
-              },
-            })
-          }
+          onRemoveAvatar={() => setIsRemoveAvatarOpen(true)}
         />
 
         <ProfileSectionTitle colors={vm.colors}>{vm.t('profile.addFriend')}</ProfileSectionTitle>
@@ -188,15 +243,11 @@ export default function ProfileScreenSurface() {
                     destructive
                     disabled={vm.actionLoadingId === `outgoing-${request.id}`}
                     onPress={() => {
-                      router.push({
-                        pathname: '/profile/cancel-outgoing-request',
-                        params: {
-                          requestId: request.id,
-                          username: request.recipient.username,
-                          avatarStoragePath: request.recipient.avatar_storage_path ?? undefined,
-                          avatarEmoji: request.recipient.avatar_emoji ?? undefined,
-                          fallbackInitial: request.recipient.username,
-                        },
+                      setRequestToCancel({
+                        id: request.id,
+                        username: request.recipient.username,
+                        avatarStoragePath: request.recipient.avatar_storage_path ?? null,
+                        avatarEmoji: request.recipient.avatar_emoji ?? null,
                       });
                     }}
                     icon="close"
@@ -250,15 +301,11 @@ export default function ProfileScreenSurface() {
                   destructive
                   disabled={vm.actionLoadingId === `friend-${friend.id}`}
                   onPress={() => {
-                    router.push({
-                      pathname: '/profile/remove-friend',
-                      params: {
-                        friendId: friend.id,
-                        username: friend.username,
-                        avatarStoragePath: friend.avatar_storage_path ?? undefined,
-                        avatarEmoji: friend.avatar_emoji ?? undefined,
-                        fallbackInitial: friend.username,
-                      },
+                    setFriendToRemove({
+                      id: friend.id,
+                      username: friend.username,
+                      avatarStoragePath: friend.avatar_storage_path ?? null,
+                      avatarEmoji: friend.avatar_emoji ?? null,
                     });
                   }}
                   icon="personMinus"
@@ -289,6 +336,79 @@ export default function ProfileScreenSurface() {
           />
         </ProfileSection>
       </ScrollView>
+
+      <BottomSheet isPresented={isRemoveAvatarOpen} onDismiss={() => setIsRemoveAvatarOpen(false)}>
+        <RNHostView matchContents>
+          <ConfirmationSheet
+            title="Usunąć awatar?"
+            message="Po usunięciu wrócisz do domyślnego widoku profilu."
+            avatarUrl={vm.avatarSignedUrl}
+            avatarStoragePath={vm.profileRow?.avatar_storage_path}
+            avatarEmoji={vm.profileRow?.avatar_emoji}
+            fallbackInitial={vm.initialLetter}
+            primaryActionLabel="Usuń awatar"
+            onCancel={() => setIsRemoveAvatarOpen(false)}
+            onConfirm={async () => {
+              await clearProfileAvatar();
+              await queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile });
+              await queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
+              await queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
+              notifySuccess('Awatar usunięty.');
+              setIsRemoveAvatarOpen(false);
+            }}
+          />
+        </RNHostView>
+      </BottomSheet>
+
+      <BottomSheet isPresented={friendToRemove !== null} onDismiss={() => setFriendToRemove(null)}>
+        <RNHostView matchContents>
+          {friendToRemove ? (
+            <ConfirmationSheet
+              title={`Usunąć @${friendToRemove.username}?`}
+              message="Ta osoba zniknie z Twojej listy znajomych."
+              avatarUrl={friendAvatarUrl}
+              avatarStoragePath={friendToRemove.avatarStoragePath}
+              avatarEmoji={friendToRemove.avatarEmoji}
+              fallbackInitial={friendToRemove.username}
+              primaryActionLabel="Usuń znajomego"
+              onCancel={() => setFriendToRemove(null)}
+              onConfirm={async () => {
+                await removeFriend(friendToRemove.id);
+                await queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
+                await queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
+                setFriendToRemove(null);
+              }}
+            />
+          ) : (
+            <View />
+          )}
+        </RNHostView>
+      </BottomSheet>
+
+      <BottomSheet isPresented={requestToCancel !== null} onDismiss={() => setRequestToCancel(null)}>
+        <RNHostView matchContents>
+          {requestToCancel ? (
+            <ConfirmationSheet
+              title={`Anulować zaproszenie do @${requestToCancel.username}?`}
+              message="Ta osoba nie zobaczy już oczekującego zaproszenia od Ciebie."
+              avatarUrl={requestAvatarUrl}
+              avatarStoragePath={requestToCancel.avatarStoragePath}
+              avatarEmoji={requestToCancel.avatarEmoji}
+              fallbackInitial={requestToCancel.username}
+              primaryActionLabel="Anuluj zaproszenie"
+              onCancel={() => setRequestToCancel(null)}
+              onConfirm={async () => {
+                await cancelOutgoingFriendRequest(requestToCancel.id);
+                await queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests });
+                notifyInfo('Zaproszenie anulowane.');
+                setRequestToCancel(null);
+              }}
+            />
+          ) : (
+            <View />
+          )}
+        </RNHostView>
+      </BottomSheet>
     </>
   );
 }

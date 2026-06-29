@@ -71,6 +71,7 @@
     "@types/react": "~19.2.5",
     "eslint": "^9.39.4",
     "eslint-config-expo": "~56.0.4",
+    "expo-mcp": "^0.2.4",
     "knip": "^6.18.0",
     "patch-package": "^8.0.1",
     "sf-symbols-typescript": "^2.2.0",

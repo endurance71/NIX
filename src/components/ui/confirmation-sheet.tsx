@@ -18,8 +18,8 @@ type ConfirmationSheetProps = {
   fallbackInitial?: string | null;
   destructive?: boolean;
   primaryActionLabel: string;
-  primaryActionLoadingLabel: string;
   onConfirm: () => Promise<void>;
+  onCancel?: () => void;
 };
 
 export function ConfirmationSheet({
@@ -31,8 +31,8 @@ export function ConfirmationSheet({
   fallbackInitial,
   destructive = true,
   primaryActionLabel,
-  primaryActionLoadingLabel: _primaryActionLoadingLabel,
   onConfirm,
+  onCancel,
 }: ConfirmationSheetProps) {
   const [loading, setLoading] = useState(false);
 
@@ -60,7 +60,7 @@ export function ConfirmationSheet({
             destructive={destructive}
             onPress={handleConfirm}
           />
-          <ActionSheetSecondaryButton onPress={() => router.back()} disabled={loading} />
+          <ActionSheetSecondaryButton onPress={onCancel ?? (() => router.back())} disabled={loading} />
         </>
       }
     >

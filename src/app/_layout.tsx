@@ -274,17 +274,7 @@ function RootNavigator() {
         name="friend-invite"
         options={{ presentation: 'card', headerShown: true, title: t('root.invite') }}
       />
-      <Stack.Screen
-        name="friend-invite-confirm"
-        options={{
-          presentation: 'formSheet',
-          headerShown: false,
-          sheetGrabberVisible: false,
-          sheetInitialDetentIndex: 0,
-          sheetAllowedDetents: [0.34],
-          contentStyle: { backgroundColor: 'transparent' },
-        }}
-      />
+
       <Stack.Screen
         name="send-to"
         options={{
