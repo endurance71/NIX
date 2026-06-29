@@ -23,6 +23,7 @@ import { notifyError, notifyInfo, notifySuccess, notifyShow } from '../lib/appNo
 import { notify as hapticNotify, tap } from '../lib/haptics';
 import { runWithFinally } from '../lib/runWithFinally';
 import { BottomSheet, RNHostView } from '@expo/ui';
+import { frame } from '@expo/ui/swift-ui/modifiers';
 import { AvatarCircle } from '../components/ui/avatar-circle';
 import { AppIcon } from '../components/ui/app-icon';
 import {
@@ -222,8 +223,12 @@ export default function FriendScanQrScreen() {
         </View>
       )}
 
-      <BottomSheet isPresented={scannedData !== null} onDismiss={handleSheetDismiss}>
-        <RNHostView matchContents>
+      <BottomSheet
+        isPresented={scannedData !== null}
+        onDismiss={handleSheetDismiss}
+        modifiers={[frame({ height: 350 })]}
+      >
+        <RNHostView matchContents style={{ height: 350 }}>
           {scannedData ? (
             <FriendInviteConfirmSheetContent
               profileId={scannedData.profileId}

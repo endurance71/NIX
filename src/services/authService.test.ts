@@ -77,11 +77,22 @@ describe('authService', () => {
   it('aktualizuje hasło użytkownika z nonce', async () => {
     mockAuth.updateUser.mockResolvedValue({ data: null, error: null });
 
-    await updatePassword('new-password-123', '654321');
+    await updatePassword('new-password-123', undefined, '654321');
 
     expect(mockAuth.updateUser).toHaveBeenCalledWith({
       password: 'new-password-123',
       nonce: '654321',
+    });
+  });
+
+  it('aktualizuje hasło użytkownika z aktualnym hasłem', async () => {
+    mockAuth.updateUser.mockResolvedValue({ data: null, error: null });
+
+    await updatePassword('new-password-123', 'old-password-123');
+
+    expect(mockAuth.updateUser).toHaveBeenCalledWith({
+      password: 'new-password-123',
+      current_password: 'old-password-123',
     });
   });
 

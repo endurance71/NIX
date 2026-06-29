@@ -23,7 +23,9 @@ export type AppIconName =
   | 'qrcode'
   | 'personMinus'
   | 'signOut'
-  | 'shield';
+  | 'shield'
+  | 'key'
+  | 'circle';
 
 const APP_ICONS: Record<AppIconName, SFSymbol> = {
   camera: 'camera',
@@ -49,6 +51,8 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   personMinus: 'person.badge.minus',
   signOut: 'rectangle.portrait.and.arrow.right',
   shield: 'shield',
+  key: 'key',
+  circle: 'circle',
 };
 
 export function resolveAppIconName(name: AppIconName): SFSymbol {

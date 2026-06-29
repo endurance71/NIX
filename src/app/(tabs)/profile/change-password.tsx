@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAppTheme } from '../../../hooks/useAppTheme';
 import { useScreenInsets } from '../../../hooks/useScreenInsets';
 import { notifySuccess } from '../../../lib/appNotify';
-import { typography } from '../../../theme/typography';
+import { APP_FONT_FAMILY, typography } from '../../../theme/typography';
+import { AppIcon } from '../../../components/ui/app-icon';
+import { NativeButton } from '../../../components/ui/native-button';
+import type { ThemeColors } from '../../../theme/colors';
 
 function isReauthenticationNeededError(error: { message?: string; code?: string } | null) {
   if (!error) return false;
@@ -19,13 +22,17 @@ function getPasswordUpdateErrorMessage(message: string) {
   if (message.toLowerCase().includes('same password')) return 'Nowe hasło musi być inne niż poprzednie.';
   if (message.includes('Email not confirmed')) return 'Najpierw potwierdź e-mail. Sprawdź skrzynkę.';
   if (message.toLowerCase().includes('invalid nonce')) return 'Kod weryfikacyjny jest nieprawidłowy lub wygasł.';
+  if (message.toLowerCase().includes('invalid login credentials') || message.toLowerCase().includes('incorrect password')) {
+    return 'Nieprawidłowe aktualne hasło.';
+  }
   return message;
 }
 
 export default function ChangePasswordScreen() {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const { bottomContentInset } = useScreenInsets('tabStackList');
   const { session, loading: authLoading, updatePassword, reauthenticatePasswordChange } = useAuth();
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [nonce, setNonce] = useState('');
@@ -44,12 +51,17 @@ export default function ChangePasswordScreen() {
   };
 
   const handleSubmit = async () => {
+    const currentPasswordValue = currentPassword;
     const newPasswordValue = newPassword;
     const confirmPasswordValue = confirmPassword;
     const nonceValue = nonce.trim();
 
-    if (newPasswordValue.length < 8) {
-      setError('Nowe hasło musi mieć minimum 8 znaków.');
+    if (!currentPasswordValue) {
+      setError('Wpisz aktualne hasło.');
+      return;
+    }
+    if (newPasswordValue.length < 8 || !/\d/.test(newPasswordValue) || !/[A-Z]/.test(newPasswordValue) || !/[a-z]/.test(newPasswordValue)) {
+      setError('Nowe hasło nie spełnia wymagań bezpieczeństwa.');
       return;
     }
     if (newPasswordValue !== confirmPasswordValue) {
@@ -64,7 +76,7 @@ export default function ChangePasswordScreen() {
     setLoading(true);
     setError(null);
 
-    const { error: updateErr } = await updatePassword(newPasswordValue, requiresNonce ? nonceValue : undefined);
+    const { error: updateErr } = await updatePassword(newPasswordValue, currentPasswordValue, requiresNonce ? nonceValue : undefined);
 
     if (updateErr) {
       if (!requiresNonce && isReauthenticationNeededError(updateErr)) {
@@ -91,6 +103,26 @@ export default function ChangePasswordScreen() {
     router.replace('/profile');
   };
 
+  const checks = {
+    length: newPassword.length >= 8,
+    digit: /\d/.test(newPassword),
+    upper: /[A-Z]/.test(newPassword),
+    lower: /[a-z]/.test(newPassword),
+    match: confirmPassword.length > 0 && newPassword === confirmPassword,
+  };
+
+  const isSubmitDisabled =
+    loading ||
+    !currentPassword ||
+    !checks.length ||
+    !checks.digit ||
+    !checks.upper ||
+    !checks.lower ||
+    !checks.match ||
+    (requiresNonce && !nonce.trim());
+
+  const settingsCardColor = isDark ? colors.secondarySystemBackground : colors.tertiarySystemBackground;
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -98,14 +130,33 @@ export default function ChangePasswordScreen() {
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}>
+      
+      <View style={[styles.iconContainer, { borderColor: colors.accent }]}>
+        <AppIcon name="key" size={38} color={colors.accent} />
+      </View>
+
+      <Text style={[styles.title, { color: colors.label }]}>Nowe hasło</Text>
+
       <Text style={[styles.description, { color: colors.secondaryLabel }]}>
-        Ustaw nowe hasło. Gdy Supabase poprosi o dodatkową weryfikację, wpisz kod przesłany e-mailem.
+        Wybierz bezpieczne hasło, które jesteś w stanie zapamiętać.
       </Text>
 
-      <View style={[styles.card, { backgroundColor: colors.secondarySystemBackground }]}>
+      <View style={[styles.card, { backgroundColor: settingsCardColor }]}>
         <TextInput
           style={[styles.input, { color: colors.label, borderBottomColor: colors.separator }]}
-          placeholder="Nowe hasło (min. 8 znaków)"
+          placeholder="Aktualne hasło"
+          placeholderTextColor={colors.tertiaryLabel}
+          secureTextEntry
+          autoComplete="current-password"
+          value={currentPassword}
+          onChangeText={(text) => {
+            setCurrentPassword(text);
+            clearError();
+          }}
+        />
+        <TextInput
+          style={[styles.input, { color: colors.label, borderBottomColor: colors.separator }]}
+          placeholder="Nowe hasło"
           placeholderTextColor={colors.tertiaryLabel}
           secureTextEntry
           autoComplete="new-password"
@@ -116,8 +167,12 @@ export default function ChangePasswordScreen() {
           }}
         />
         <TextInput
-          style={[styles.input, { color: colors.label, borderBottomColor: colors.separator }]}
-          placeholder="Powtórz nowe hasło"
+          style={[
+            styles.input,
+            { color: colors.label, borderBottomColor: colors.separator },
+            !requiresNonce && { borderBottomWidth: 0 },
+          ]}
+          placeholder="Powtórz hasło"
           placeholderTextColor={colors.tertiaryLabel}
           secureTextEntry
           autoComplete="new-password"
@@ -129,7 +184,10 @@ export default function ChangePasswordScreen() {
         />
         {requiresNonce ? (
           <TextInput
-            style={[styles.input, { color: colors.label, borderBottomColor: colors.separator }]}
+            style={[
+              styles.input,
+              { color: colors.label, borderBottomColor: colors.separator, borderBottomWidth: 0 },
+            ]}
             placeholder="Kod weryfikacyjny z e-maila"
             placeholderTextColor={colors.tertiaryLabel}
             secureTextEntry
@@ -141,26 +199,54 @@ export default function ChangePasswordScreen() {
             }}
           />
         ) : null}
-        {error ? <Text style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: loading }}
-          disabled={loading}
-          onPress={() => void handleSubmit()}
-          style={({ pressed }) => [
-            styles.button,
-            { backgroundColor: colors.accent },
-            pressed && !loading ? styles.pressed : null,
-            loading ? styles.disabled : null,
-          ]}>
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.buttonText}>Zapisz nowe hasło</Text>
-          )}
-        </Pressable>
       </View>
+
+      <View style={styles.checklist}>
+        <ValidationRow label="Minimum 8 znaków" checked={checks.length} colors={colors} />
+        <ValidationRow label="Przynajmniej jedna cyfra" checked={checks.digit} colors={colors} />
+        <ValidationRow label="Przynajmniej jedna duża litera" checked={checks.upper} colors={colors} />
+        <ValidationRow label="Przynajmniej jedna mała litera" checked={checks.lower} colors={colors} />
+        <ValidationRow label="Hasła są zgodne" checked={checks.match} colors={colors} />
+      </View>
+
+      <View style={styles.buttonContainer}>
+        <NativeButton
+          label={loading ? 'Zapisywanie...' : 'Zapisz'}
+          disabled={isSubmitDisabled}
+          onPress={() => void handleSubmit()}
+        />
+      </View>
+
+      {error ? <Text style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
     </ScrollView>
+  );
+}
+
+function ValidationRow({
+  label,
+  checked,
+  colors,
+}: {
+  label: string;
+  checked: boolean;
+  colors: ThemeColors;
+}) {
+  return (
+    <View style={styles.validationRow}>
+      <AppIcon
+        name={checked ? 'checkCircle' : 'circle'}
+        size={14}
+        color={checked ? colors.success : colors.tertiaryLabel}
+      />
+      <Text
+        style={[
+          styles.validationLabel,
+          { color: checked ? colors.label : colors.secondaryLabel },
+        ]}
+      >
+        {label}
+      </Text>
+    </View>
   );
 }
 
@@ -170,50 +256,65 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 28,
-    paddingTop: 20,
+    paddingTop: 24,
+  },
+  iconContainer: {
+    alignSelf: 'center',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '700',
+    fontFamily: APP_FONT_FAMILY,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   description: {
     ...typography.body,
     textAlign: 'center',
-    marginBottom: 18,
+    marginBottom: 28,
+    paddingHorizontal: 16,
   },
   card: {
-    borderRadius: 28,
+    borderRadius: 24,
     borderCurve: 'continuous',
     overflow: 'hidden',
-    paddingBottom: 20,
   },
   input: {
     ...typography.body,
     minHeight: 58,
-    paddingHorizontal: 22,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  checklist: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  validationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  validationLabel: {
+    ...typography.footnote,
+  },
+  buttonContainer: {
+    marginTop: 28,
   },
   error: {
     ...typography.footnote,
     paddingHorizontal: 22,
     paddingTop: 14,
     textAlign: 'center',
-  },
-  button: {
-    alignSelf: 'center',
-    minHeight: 48,
-    justifyContent: 'center',
-    borderRadius: 16,
-    borderCurve: 'continuous',
-    paddingHorizontal: 22,
-    marginTop: 20,
-  },
-  buttonText: {
-    ...typography.body,
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  pressed: {
-    opacity: 0.75,
-  },
-  disabled: {
-    opacity: 0.55,
   },
 });

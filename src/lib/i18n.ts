@@ -135,6 +135,8 @@ const resources = {
         removeFriendTitle: 'Usuń znajomego',
         removeAvatarTitle: 'Usuń awatar',
         signOut: 'Wyloguj',
+        signOutConfirmTitle: 'Wylogować się?',
+        signOutConfirmMessage: 'Czy na pewno chcesz się wylogować ze swojego konta?',
       },
       notify: {
         refreshFailedTitle: 'Odświeżenie nie powiodło się.',
@@ -281,6 +283,8 @@ const resources = {
         removeFriendTitle: 'Remove friend',
         removeAvatarTitle: 'Remove avatar',
         signOut: 'Sign out',
+        signOutConfirmTitle: 'Sign out?',
+        signOutConfirmMessage: 'Are you sure you want to sign out of your account?',
       },
       notify: {
         refreshFailedTitle: 'Refresh failed.',

@@ -23,10 +23,11 @@ import { AppIcon } from '../ui/app-icon';
 import type { AppIconName } from '../../theme/app-icons';
 import { AvatarCircle } from '../ui/avatar-circle';
 import { BottomSheet, RNHostView } from '@expo/ui';
+import { frame } from '@expo/ui/swift-ui/modifiers';
 import { clearProfileAvatar, createSignedAvatarUrl } from '../../services/avatarService';
 import { removeFriend, cancelOutgoingFriendRequest } from '../../services/friendService';
 import { queryKeys } from '../../lib/queryKeys';
-import { notifyDomainError, notifySuccess, notifyInfo, notifyError } from '../../lib/appNotify';
+import { notifySuccess, notifyInfo } from '../../lib/appNotify';
 import { ConfirmationSheet } from '../ui/confirmation-sheet';
 
 export default function ProfileScreenSurface() {
@@ -37,6 +38,7 @@ export default function ProfileScreenSurface() {
   const queryClient = useQueryClient();
 
   const [isRemoveAvatarOpen, setIsRemoveAvatarOpen] = useState(false);
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
   const [friendToRemove, setFriendToRemove] = useState<{
     id: string;
     username: string;
@@ -329,7 +331,7 @@ export default function ProfileScreenSurface() {
           <ProfileActionRow
             colors={vm.colors}
             title={vm.t('profile.signOut')}
-            onPress={vm.handleSignOut}
+            onPress={() => setIsSignOutOpen(true)}
             icon="signOut"
             destructive
             showSeparator={false}
@@ -337,8 +339,12 @@ export default function ProfileScreenSurface() {
         </ProfileSection>
       </ScrollView>
 
-      <BottomSheet isPresented={isRemoveAvatarOpen} onDismiss={() => setIsRemoveAvatarOpen(false)}>
-        <RNHostView matchContents>
+      <BottomSheet
+        isPresented={isRemoveAvatarOpen}
+        onDismiss={() => setIsRemoveAvatarOpen(false)}
+        modifiers={[frame({ height: 330 })]}
+      >
+        <RNHostView matchContents style={{ height: 330 }}>
           <ConfirmationSheet
             title="Usunąć awatar?"
             message="Po usunięciu wrócisz do domyślnego widoku profilu."
@@ -360,8 +366,12 @@ export default function ProfileScreenSurface() {
         </RNHostView>
       </BottomSheet>
 
-      <BottomSheet isPresented={friendToRemove !== null} onDismiss={() => setFriendToRemove(null)}>
-        <RNHostView matchContents>
+      <BottomSheet
+        isPresented={friendToRemove !== null}
+        onDismiss={() => setFriendToRemove(null)}
+        modifiers={[frame({ height: 330 })]}
+      >
+        <RNHostView matchContents style={{ height: 330 }}>
           {friendToRemove ? (
             <ConfirmationSheet
               title={`Usunąć @${friendToRemove.username}?`}
@@ -385,8 +395,12 @@ export default function ProfileScreenSurface() {
         </RNHostView>
       </BottomSheet>
 
-      <BottomSheet isPresented={requestToCancel !== null} onDismiss={() => setRequestToCancel(null)}>
-        <RNHostView matchContents>
+      <BottomSheet
+        isPresented={requestToCancel !== null}
+        onDismiss={() => setRequestToCancel(null)}
+        modifiers={[frame({ height: 330 })]}
+      >
+        <RNHostView matchContents style={{ height: 330 }}>
           {requestToCancel ? (
             <ConfirmationSheet
               title={`Anulować zaproszenie do @${requestToCancel.username}?`}
@@ -407,6 +421,31 @@ export default function ProfileScreenSurface() {
           ) : (
             <View />
           )}
+        </RNHostView>
+      </BottomSheet>
+
+      <BottomSheet
+        isPresented={isSignOutOpen}
+        onDismiss={() => setIsSignOutOpen(false)}
+        modifiers={[frame({ height: 330 })]}
+      >
+        <RNHostView matchContents style={{ height: 330 }}>
+          <ConfirmationSheet
+            title={vm.t('profile.signOutConfirmTitle')}
+            message={vm.t('profile.signOutConfirmMessage')}
+            avatarUrl={vm.avatarSignedUrl}
+            avatarStoragePath={vm.profileRow?.avatar_storage_path}
+            avatarEmoji={vm.profileRow?.avatar_emoji}
+            fallbackInitial={vm.initialLetter}
+            destructive
+            primaryActionLabel={vm.t('profile.signOut')}
+            onCancel={() => setIsSignOutOpen(false)}
+            onConfirm={async () => {
+              await vm.handleSignOut();
+              queryClient.clear();
+              setIsSignOutOpen(false);
+            }}
+          />
         </RNHostView>
       </BottomSheet>
     </>

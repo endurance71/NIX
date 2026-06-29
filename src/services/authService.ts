@@ -22,9 +22,10 @@ export async function requestPasswordReset(email: string) {
   });
 }
 
-export async function updatePassword(password: string, nonce?: string) {
+export async function updatePassword(password: string, currentPassword?: string, nonce?: string) {
   return supabase.auth.updateUser({
     password,
+    ...(currentPassword ? { current_password: currentPassword } : {}),
     ...(nonce ? { nonce } : {}),
   });
 }

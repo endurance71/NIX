@@ -65,8 +65,8 @@ async function requestPasswordReset(email: string) {
   return { data, error };
 }
 
-async function updatePassword(password: string, nonce?: string) {
-  const { data, error } = await requestPasswordUpdate(password, nonce);
+async function updatePassword(password: string, currentPassword?: string, nonce?: string) {
+  const { data, error } = await requestPasswordUpdate(password, currentPassword, nonce);
   return { data, error };
 }
 
