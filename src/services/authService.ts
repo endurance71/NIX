@@ -6,12 +6,16 @@ export async function signInWithPassword(email: string, password: string) {
   return supabase.auth.signInWithPassword({ email, password });
 }
 
-export async function signUpWithPassword(email: string, password: string) {
+export async function signUpWithPassword(email: string, password: string, locale: string = 'en') {
   return supabase.auth.signUp({
     email,
     password,
     options: {
       emailRedirectTo: AUTH_REDIRECT_URL,
+      data: {
+        language: locale,
+        locale: locale,
+      },
     },
   });
 }

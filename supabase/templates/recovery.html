@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your Password</title>
+  <style>
+    body {
+      background-color: #09090b;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .wrapper {
+      width: 100%;
+      table-layout: fixed;
+      background-color: #09090b;
+      padding: 40px 0;
+    }
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background-color: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 32px;
+      text-align: center;
+    }
+    .logo {
+      font-size: 28px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.03em;
+      margin-bottom: 24px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 0;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+    p {
+      font-size: 15px;
+      line-height: 1.6;
+      color: #a1a1aa;
+      margin-top: 0;
+      margin-bottom: 24px;
+    }
+    .btn-container {
+      margin-bottom: 24px;
+    }
+    .btn {
+      display: inline-block;
+      background-color: #6366f1;
+      color: #ffffff !important;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 12px 32px;
+      border-radius: 8px;
+      transition: background-color 0.2s ease;
+    }
+    .divider {
+      border: 0;
+      border-top: 1px solid #27272a;
+      margin: 24px 0;
+    }
+    .otp-label {
+      font-size: 13px;
+      color: #71717a;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    .otp-code {
+      display: inline-block;
+      background-color: #27272a;
+      border: 1px solid #3f3f46;
+      color: #ffffff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      padding: 8px 16px 8px 20px;
+      border-radius: 6px;
+    }
+    .footer {
+      font-size: 12px;
+      color: #71717a;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="logo">NIX</div>
+      
+      {{ if or (eq .Data.language "pl") (eq .Data.locale "pl") }}
+        <h1>Zresetuj swoje hasło</h1>
+        <p>Otrzymaliśmy prośbę o zresetowanie hasła do Twojego konta w aplikacji NIX. Kliknij poniższy przycisk, aby ustawić nowe hasło:</p>
+        <div class="btn-container">
+          <a href="{{ .ConfirmationURL }}" class="btn">Zresetuj hasło</a>
+        </div>
+        <div class="divider"></div>
+        <div class="otp-label">Lub wprowadź kod resetujący w aplikacji:</div>
+        <div class="otp-code">{{ .Token }}</div>
+        <div class="footer">
+          Wiadomość wygenerowana automatycznie. Jeśli nie prosiłeś o reset hasła, możesz bezpiecznie zignorować ten e-mail.
+        </div>
+
+      {{ else if or (eq .Data.language "de") (eq .Data.locale "de") }}
+        <h1>Passwort zurücksetzen</h1>
+        <p>Wir haben eine Anfrage zum Zurücksetzen des Passworts für Ihr NIX-Konto erhalten. Klicken Sie auf die Schaltfläche unten, um ein neues Passwort festzulegen:</p>
+        <div class="btn-container">
+          <a href="{{ .ConfirmationURL }}" class="btn">Passwort zurücksetzen</a>
+        </div>
+        <div class="divider"></div>
+        <div class="otp-label">Oder geben Sie den Code in der App ein:</div>
+        <div class="otp-code">{{ .Token }}</div>
+        <div class="footer">
+          Diese E-Mail wurde automatisch generiert. Wenn Sie kein Zurücksetzen des Passworts beantragt haben, können Sie diese E-Mail ignorieren.
+        </div>
+
+      {{ else if or (eq .Data.language "fr") (eq .Data.locale "fr") }}
+        <h1>Réinitialisez votre mot de passe</h1>
+        <p>Nous avons reçu une demande de réinitialisation de mot de passe pour votre compte NIX. Cliquez sur le bouton ci-dessous pour définir un nouveau mot de passe :</p>
+        <div class="btn-container">
+          <a href="{{ .ConfirmationURL }}" class="btn">Réinitialiser le mot de passe</a>
+        </div>
+        <div class="divider"></div>
+        <div class="otp-label">Ou saisissez le code dans l'application :</div>
+        <div class="otp-code">{{ .Token }}</div>
+        <div class="footer">
+          Cet e-mail a été généré automatiquement. Si vous n'avez pas demandé de réinitialisation, veuillez ignorer cet e-mail.
+        </div>
+
+      {{ else if or (eq .Data.language "es") (eq .Data.locale "es") }}
+        <h1>Restablecer tu contraseña</h1>
+        <p>Hemos recibido una solicitud para restablecer la contraseña de tu cuenta de NIX. Haz clic en el botón de abajo para establecer una nueva contraseña:</p>
+        <div class="btn-container">
+          <a href="{{ .ConfirmationURL }}" class="btn">Restablecer contraseña</a>
+        </div>
+        <div class="divider"></div>
+        <div class="otp-label">O ingresa el código en la aplicación:</div>
+        <div class="otp-code">{{ .Token }}</div>
+        <div class="footer">
+          Este correo fue generado automáticamente. Si no solicitaste restablecer tu contraseña, puedes ignorar este mensaje.
+        </div>
+
+      {{ else if or (eq .Data.language "ru") (eq .Data.locale "ru") }}
+        <h1>Сброс пароля</h1>
+        <p>Мы получили запрос на сброс пароля для вашего аккаунта NIX. Нажмите кнопку ниже, чтобы установить новый пароль:</p>
+        <div class="btn-container">
+          <a href="{{ .ConfirmationURL }}" class="btn">Сбросить пароль</a>
+        </div>
+        <div class="divider"></div>
+        <div class="otp-label">Или введите код в приложении:</div>
+        <div class="otp-code">{{ .Token }}</div>
+        <div class="footer">
+          Это письмо создано автоматически. Если вы не запрашивали сброс пароля, просто проигнорируйте его.
+        </div>
+
+      {{ else }}
+        <h1>Reset your password</h1>
+        <p>We received a request to reset the password for your NIX account. Click the button below to set a new password:</p>
+        <div class="btn-container">
+          <a href="{{ .ConfirmationURL }}" class="btn">Reset Password</a>
+        </div>
+        <div class="divider"></div>
+        <div class="otp-label">Or enter the reset code in the app:</div>
+        <div class="otp-code">{{ .Token }}</div>
+        <div class="footer">
+          This email was generated automatically. If you did not request a password reset, you can safely ignore this email.
+        </div>
+      {{ end }}
+      
+    </div>
+  </div>
+</body>
+</html>

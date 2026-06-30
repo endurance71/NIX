@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { FieldGroup } from '@expo/ui';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthRegisterCredentials } from '../../hooks/useAuthCredentials';
@@ -12,8 +11,10 @@ import {
   AuthPrimaryButton,
   AuthSecureField,
   AuthTextField,
+  FieldGroup,
 } from '../../components/ui/auth-form-layout';
 import { AuthRnBridge } from '../../components/ui/auth-rn-bridge';
+import { AuthBrandBlock } from '../../components/auth/AuthBrandBlock';
 
 function isEmailValid(email: string) {
   return /\S+@\S+\.\S+/.test(email);
@@ -78,7 +79,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <AuthFormLayout contentVerticalAlignment="center">
+    <AuthFormLayout contentVerticalAlignment="center" header={<AuthBrandBlock size="large" />}>
       <FieldGroup.Section>
         <FieldGroup.SectionHeader>
           <AuthFormHeader
@@ -115,9 +116,7 @@ export default function RegisterScreen() {
             clearError();
           }}
         />
-      </FieldGroup.Section>
 
-      <FieldGroup.Section>
         <AuthActionsSection error={error}>
           <AuthPrimaryButton
             label={loading ? t('auth.registerLoading') : t('auth.registerButton')}

@@ -14,6 +14,7 @@ import {
   signInWithApple as requestAppleSignIn,
   signInWithGoogle as requestGoogleSignIn,
 } from '../services/socialAuthService';
+import { getCurrentLocale } from '../lib/i18n';
 
 type AuthState = {
   session: Session | null;
@@ -56,7 +57,17 @@ async function signInWithApple() {
 }
 
 async function signUp(email: string, password: string) {
-  const { data, error } = await requestPasswordSignUp(email, password);
+  const locale = getCurrentLocale();
+  const { data, error } = await requestPasswordSignUp(email, password, locale);
+  return { data, error };
+}
+
+async function verifyOTP(email: string, token: string, type: 'signup' | 'recovery' | 'email') {
+  const { data, error } = await supabase.auth.verifyOtp({
+    email,
+    token,
+    type,
+  });
   return { data, error };
 }
 
@@ -122,6 +133,7 @@ export function useAuth() {
     signInWithGoogle,
     signInWithApple,
     signUp,
+    verifyOTP,
     requestPasswordReset,
     updatePassword,
     reauthenticatePasswordChange,

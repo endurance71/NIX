@@ -28,9 +28,10 @@ export function useLoginScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const { signIn, signInWithGoogle, signInWithApple } = useAuth();
 
-  // Pure RN state — no @expo/ui ObservableState
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [emailVal, setEmailVal] = useState('');
+  const [passwordVal, setPasswordVal] = useState('');
+  const email = { value: emailVal };
+  const password = { value: passwordVal };
   const emailRef = useRef('');
   const passwordRef = useRef('');
 
@@ -52,12 +53,12 @@ export function useLoginScreen() {
 
   const onEmailChange = (text: string) => {
     emailRef.current = text;
-    setEmail(text);
+    setEmailVal(text);
   };
 
   const onPasswordChange = (text: string) => {
     passwordRef.current = text;
-    setPassword(text);
+    setPasswordVal(text);
   };
 
   const clearError = () => {

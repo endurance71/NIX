@@ -50,7 +50,31 @@ describe('authService', () => {
     expect(mockAuth.signUp).toHaveBeenCalledWith({
       email: 'test@example.com',
       password: 'password123',
-      options: { emailRedirectTo: 'nix://auth/callback' },
+      options: {
+        emailRedirectTo: 'nix://auth/callback',
+        data: {
+          language: 'en',
+          locale: 'en',
+        },
+      },
+    });
+  });
+
+  it('rejestruje konto z przekazanym locale', async () => {
+    mockAuth.signUp.mockResolvedValue({ data: null, error: null });
+
+    await signUpWithPassword('test@example.com', 'password123', 'pl');
+
+    expect(mockAuth.signUp).toHaveBeenCalledWith({
+      email: 'test@example.com',
+      password: 'password123',
+      options: {
+        emailRedirectTo: 'nix://auth/callback',
+        data: {
+          language: 'pl',
+          locale: 'pl',
+        },
+      },
     });
   });
 

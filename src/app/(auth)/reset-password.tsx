@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { FieldGroup } from '@expo/ui';
 import { useTranslation } from 'react-i18next';
 import {
   AuthActionsSection,
@@ -9,9 +8,11 @@ import {
   AuthFormLayout,
   AuthPrimaryButton,
   AuthSecureField,
+  FieldGroup,
 } from '../../components/ui/auth-form-layout';
 import { AuthRnBridge } from '../../components/ui/auth-rn-bridge';
 import { useAuthPasswordPair } from '../../hooks/useAuthCredentials';
+import { AuthBrandBlock } from '../../components/auth/AuthBrandBlock';
 
 export default function ResetPasswordScreen() {
   const { t } = useTranslation();
@@ -33,6 +34,13 @@ export default function ResetPasswordScreen() {
     const passwordValue = getPassword();
     const confirmPasswordValue = getConfirmPassword();
 
+    setError(null);
+
+    if (!passwordValue || !confirmPasswordValue) {
+      setError(t('auth.allFieldsRequired'));
+      return;
+    }
+
     if (passwordValue.length < 8) {
       setError(t('auth.passwordMin'));
       return;
@@ -45,7 +53,7 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <AuthFormLayout>
+    <AuthFormLayout header={<AuthBrandBlock size="large" />}>
       <FieldGroup.Section>
         <FieldGroup.SectionHeader>
           <AuthFormHeader
@@ -72,9 +80,7 @@ export default function ResetPasswordScreen() {
             clearError();
           }}
         />
-      </FieldGroup.Section>
 
-      <FieldGroup.Section>
         <AuthActionsSection error={error}>
           <AuthPrimaryButton label={t('auth.resetPasswordSubmit')} onPress={handleReset} />
         </AuthActionsSection>

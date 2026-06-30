@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { FieldGroup } from '@expo/ui';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { useTrackedEmail } from '../../hooks/useAuthCredentials';
@@ -11,8 +10,10 @@ import {
   AuthFormLayout,
   AuthPrimaryButton,
   AuthTextField,
+  FieldGroup,
 } from '../../components/ui/auth-form-layout';
 import { AuthRnBridge } from '../../components/ui/auth-rn-bridge';
+import { AuthBrandBlock } from '../../components/auth/AuthBrandBlock';
 
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();
@@ -46,7 +47,7 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <AuthFormLayout>
+    <AuthFormLayout header={<AuthBrandBlock size="large" />}>
       <FieldGroup.Section>
         <FieldGroup.SectionHeader>
           <AuthFormHeader
@@ -65,9 +66,7 @@ export default function ForgotPasswordScreen() {
             clearError();
           }}
         />
-      </FieldGroup.Section>
 
-      <FieldGroup.Section>
         <AuthActionsSection error={error}>
           <AuthPrimaryButton
             label={loading ? t('auth.forgotPasswordLoading') : t('auth.forgotPasswordSubmit')}

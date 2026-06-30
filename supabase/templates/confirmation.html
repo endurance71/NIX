@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirm Your Email</title>
+  <style>
+    body {
+      background-color: #09090b;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .wrapper {
+      width: 100%;
+      table-layout: fixed;
+      background-color: #09090b;
+      padding: 40px 0;
+    }
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background-color: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 32px;
+      text-align: center;
+    }
+    .logo {
+      font-size: 28px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.03em;
+      margin-bottom: 24px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 0;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+    p {
+      font-size: 15px;
+      line-height: 1.6;
+      color: #a1a1aa;
+      margin-top: 0;
+      margin-bottom: 24px;
+    }
+    .btn-container {
+      margin-bottom: 24px;
+    }
+    .btn {
+      display: inline-block;
+      background-color: #6366f1;
+      color: #ffffff !important;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 12px 32px;
+      border-radius: 8px;
+      transition: background-color 0.2s ease;
+    }
+    .divider {
+      border: 0;
+      border-top: 1px solid #27272a;
+      margin: 24px 0;
+    }
+    .otp-label {
+      font-size: 13px;
+      color: #71717a;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    .otp-code {
+      display: inline-block;
+      background-color: #27272a;
+      border: 1px solid #3f3f46;
+      color: #ffffff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      padding: 8px 16px 8px 20px;
+      border-radius: 6px;
+    }
+    .footer {
+      font-size: 12px;
+      color: #71717a;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="logo">NIX</div>
+      
+      {{ if or (eq .Data.language "pl") (eq .Data.locale "pl") }}
+        <h1>Potwierdź swój adres e-mail</h1>
+        <p>Dziękujemy za rejestrację w aplikacji NIX. Kliknij poniższy przycisk, aby potwierdzić swój adres e-mail i aktywować konto:</p>
+        <div class="btn-container">
+          <a href="{{ .ConfirmationURL }}" class="btn">Potwierdź e-mail</a>
+        </div>
+        <div class="divider"></div>
+        <div class="otp-label">Lub wprowadź kod w aplikacji:</div>
+        <div class="otp-code">{{ .Token }}</div>
+        <div class="footer">
+          Wiadomość wygenerowana automatycznie. Jeśli nie rejestrowałeś się w NIX, zignoruj ten e-mail.
+        </div>
+
+      {{ else if or (eq .Data.language "de") (eq .Data.locale "de") }}
+        <h1>E-Mail-Adresse bestätigen</h1>
+        <p>Vielen Dank für Ihre Registrierung bei NIX. Klicken Sie auf die Schaltfläche unten, um Ihre E-Mail-Adresse zu bestätigen und Ihr Konto zu aktivieren:</p>
+        <div class="btn-container">
+          <a href="{{ .ConfirmationURL }}" class="btn">E-Mail bestätigen</a>
+        </div>
+        <div class="divider"></div>
+        <div class="otp-label">Oder Code in der App eingeben:</div>
+        <div class="otp-code">{{ .Token }}</div>
+        <div class="footer">
+          Diese E-Mail wurde automatisch generiert. Wenn Sie sich nicht bei NIX registriert haben, ignorieren Sie diese E-Mail.
+        </div>
+
+      {{ else if or (eq .Data.language "fr") (eq .Data.locale "fr") }}
+        <h1>Confirmez votre adresse e-mail</h1>
+        <p>Merci de vous être inscrit sur NIX. Cliquez sur le bouton ci-dessous pour confirmer votre adresse e-mail et activer votre compte :</p>
+        <div class="btn-container">
+          <a href="{{ .ConfirmationURL }}" class="btn">Confirmer l'e-mail</a>
+        </div>
+        <div class="divider"></div>
+        <div class="otp-label">Ou saisissez le code dans l'application :</div>
+        <div class="otp-code">{{ .Token }}</div>
+        <div class="footer">
+          Cet e-mail a été généré automatiquement. Si vous ne vous êtes pas inscrit sur NIX, veuillez ignorer cet e-mail.
+        </div>
+
+      {{ else if or (eq .Data.language "es") (eq .Data.locale "es") }}
+        <h1>Confirma tu correo electrónico</h1>
+        <p>Gracias por registrarte en NIX. Haz clic en el botón de abajo para confirmar tu dirección de correo electrónico y activar tu cuenta:</p>
+        <div class="btn-container">
+          <a href="{{ .ConfirmationURL }}" class="btn">Confirmar correo</a>
+        </div>
+        <div class="divider"></div>
+        <div class="otp-label">O ingresa el código en la aplicación:</div>
+        <div class="otp-code">{{ .Token }}</div>
+        <div class="footer">
+          Este correo fue generado automáticamente. Si no te has registrado en NIX, puedes ignorar este mensaje.
+        </div>
+
+      {{ else if or (eq .Data.language "ru") (eq .Data.locale "ru") }}
+        <h1>Подтвердите адрес электронной почты</h1>
+        <p>Спасибо за регистрацию в NIX. Нажмите кнопку ниже, чтобы подтвердить свой адрес электронной почты и активировать аккаунт:</p>
+        <div class="btn-container">
+          <a href="{{ .ConfirmationURL }}" class="btn">Подтвердить почту</a>
+        </div>
+        <div class="divider"></div>
+        <div class="otp-label">Или введите код в приложении:</div>
+        <div class="otp-code">{{ .Token }}</div>
+        <div class="footer">
+          Это письмо создано автоматически. Если вы не регистрировались в NIX, просто проигнорируйте его.
+        </div>
+
+      {{ else }}
+        <h1>Confirm your email address</h1>
+        <p>Thank you for signing up for NIX. Click the button below to confirm your email address and activate your account:</p>
+        <div class="btn-container">
+          <a href="{{ .ConfirmationURL }}" class="btn">Confirm Email</a>
+        </div>
+        <div class="divider"></div>
+        <div class="otp-label">Or enter the code in the app:</div>
+        <div class="otp-code">{{ .Token }}</div>
+        <div class="footer">
+          This email was generated automatically. If you didn't sign up for NIX, you can ignore this email.
+        </div>
+      {{ end }}
+      
+    </div>
+  </div>
+</body>
+</html>

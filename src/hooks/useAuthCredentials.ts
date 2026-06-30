@@ -1,5 +1,4 @@
-import { useNativeState } from '@expo/ui';
-import { useRef } from 'react';
+import { useState, useRef } from 'react';
 
 /**
  * Tracks TextInput text for submit handlers. On Android, reading
@@ -7,14 +6,18 @@ import { useRef } from 'react';
  * stale empty string — `onChangeText` snapshots stay in sync.
  */
 function useTrackedNativeString(initial = '') {
-  const state = useNativeState(initial);
+  const [value, setValue] = useState(initial);
   const snapshotRef = useRef(initial);
 
   const onChangeText = (text: string) => {
     snapshotRef.current = text;
+    setValue(text);
   };
 
   const getValue = () => snapshotRef.current;
+
+  // Mock ObservableState for standard React inputs
+  const state = { value };
 
   return { state, onChangeText, getValue };
 }

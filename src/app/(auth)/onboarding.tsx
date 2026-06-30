@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { FieldGroup } from '@expo/ui';
 import { useTranslation } from 'react-i18next';
 import { isUsernameTaken, saveUsernameForCurrentUser } from '../../services/profileService';
 import {
@@ -10,11 +9,13 @@ import {
   AuthPrimaryButton,
   AuthTertiaryText,
   AuthTextField,
+  FieldGroup,
 } from '../../components/ui/auth-form-layout';
 import { useTrackedUsername } from '../../hooks/useAuthCredentials';
 import { notifyDomainError } from '../../lib/appNotify';
 import { normalizeUsername } from '../../services/friendService';
 import { runWithFinally } from '../../lib/runWithFinally';
+import { AuthBrandBlock } from '../../components/auth/AuthBrandBlock';
 
 export default function OnboardingScreen() {
   const { t } = useTranslation();
@@ -54,7 +55,7 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <AuthFormLayout>
+    <AuthFormLayout header={<AuthBrandBlock size="large" />}>
       <FieldGroup.Section>
         <FieldGroup.SectionHeader>
           <AuthFormHeader
@@ -73,9 +74,7 @@ export default function OnboardingScreen() {
             clearError();
           }}
         />
-      </FieldGroup.Section>
 
-      <FieldGroup.Section>
         <AuthTertiaryText>{t('auth.onboardingHint')}</AuthTertiaryText>
         <AuthActionsSection error={error}>
           <AuthPrimaryButton
