@@ -14,6 +14,7 @@ import {
   readUploadQueueNixeshot,
   writeUploadQueueNixeshot,
 } from '../lib/uploadQueuePersistence';
+import { isNonRetryableUploadSchemaError } from '../lib/uploadSchemaError';
 import { trackEvent } from '../lib/telemetry';
 import { runWithFinally } from '../lib/runWithFinally';
 
@@ -252,10 +253,7 @@ export function useMediaUpload() {
             const latestTask = jobsRef.current.find((job) => job.id === task.id);
             const currentRetryCount = latestTask?.retryCount ?? task.retryCount;
             const nextRetryCount = currentRetryCount + 1;
-            const isSchemaMismatch =
-              domainError.code === 'UNKNOWN' &&
-              typeof domainError.message === 'string' &&
-              domainError.message.includes('client_upload_id');
+            const isSchemaMismatch = isNonRetryableUploadSchemaError(domainError);
             const retryable =
               !isSchemaMismatch && !NON_RETRYABLE_ERROR_CODES.has(domainError.code) && nextRetryCount <= MAX_RETRIES;
 
