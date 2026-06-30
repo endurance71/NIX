@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView } from 'expo-camera';
@@ -57,17 +58,80 @@ export function CameraCaptureSurface({ vm }: Props) {
     videoPreparing,
     recordingVideo,
   });
+  const cameraViewKey = process.env.EXPO_OS === 'ios'
+    ? `${facing}:${cameraInstanceKey}`
+    : `${facing}:${captureMode}:${cameraInstanceKey}`;
+  const cameraViewMode = process.env.EXPO_OS === 'ios' ? 'video' : captureMode;
+  const previousCameraPropsLogKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (typeof __DEV__ === 'undefined' || !__DEV__) return;
+
+    const logKey = JSON.stringify({
+      facing,
+      captureMode,
+      flash,
+      stillFlashArmed,
+      videoTorchRequested,
+      videoPreparing,
+      recordingVideo,
+      cameraReady,
+      cameraActive,
+      propFlash: cameraLightProps.flash,
+      propEnableTorch: cameraLightProps.enableTorch,
+      cameraViewMode,
+    });
+
+    if (previousCameraPropsLogKeyRef.current === logKey) return;
+    previousCameraPropsLogKeyRef.current = logKey;
+
+    console.info('[CameraViewProps]', {
+      wallTimeMs: Date.now(),
+      key: cameraViewKey,
+      facing,
+      captureMode,
+      cameraViewMode,
+      userFlash: flash,
+      stillFlashArmed,
+      videoTorchRequested,
+      videoPreparing,
+      recordingVideo,
+      cameraReady,
+      cameraActive,
+      propFlash: cameraLightProps.flash,
+      propEnableTorch: cameraLightProps.enableTorch,
+      recordAudioMuted,
+      zoom,
+    });
+  }, [
+    cameraActive,
+    cameraInstanceKey,
+    cameraViewKey,
+    cameraViewMode,
+    cameraLightProps.enableTorch,
+    cameraLightProps.flash,
+    cameraReady,
+    captureMode,
+    facing,
+    flash,
+    recordAudioMuted,
+    recordingVideo,
+    stillFlashArmed,
+    videoPreparing,
+    videoTorchRequested,
+    zoom,
+  ]);
 
   return (
     <View style={styles.container}>
       <StatusBar style={statusBarStyle} hidden />
       <GestureDetector gesture={pinchGesture}>
         <CameraView
-          key={`${facing}:${captureMode}:${cameraInstanceKey}`}
+          key={cameraViewKey}
           ref={cameraRef}
           style={styles.camera}
           facing={facing}
-          mode={captureMode}
+          mode={cameraViewMode}
           mute={recordAudioMuted}
           flash={cameraLightProps.flash}
           enableTorch={cameraLightProps.enableTorch}

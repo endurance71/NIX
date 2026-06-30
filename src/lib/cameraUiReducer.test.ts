@@ -18,6 +18,17 @@ describe('cameraUiReducer', () => {
     expect(state.videoTorchRequested).toBe(true);
   });
 
+  it('VIDEO_PREPARE_BEGIN can preserve camera readiness when native view is not remounted', () => {
+    const state = cameraUiReducer(
+      { ...initialCameraUiState, cameraReady: true, flash: 'on' },
+      { type: 'VIDEO_PREPARE_BEGIN', resetCameraReady: false }
+    );
+
+    expect(state.cameraReady).toBe(true);
+    expect(state.captureMode).toBe('video');
+    expect(state.videoTorchRequested).toBe(true);
+  });
+
   it('VIDEO_PREPARE_BEGIN does not request torch when flash is off or camera is front-facing', () => {
     const flashOff = cameraUiReducer(initialCameraUiState, { type: 'VIDEO_PREPARE_BEGIN' });
     const frontCamera = cameraUiReducer(
@@ -61,6 +72,18 @@ describe('cameraUiReducer', () => {
     expect(state.videoTorchRequested).toBe(false);
   });
 
+  it('VIDEO_SESSION_END can preserve camera readiness when native view is not remounted', () => {
+    const recording = cameraUiReducer(
+      cameraUiReducer({ ...initialCameraUiState, cameraReady: true }, { type: 'VIDEO_PREPARE_BEGIN', resetCameraReady: false }),
+      { type: 'VIDEO_RECORDING_BEGIN' }
+    );
+    const state = cameraUiReducer(recording, { type: 'VIDEO_SESSION_END', resetCameraReady: false });
+
+    expect(state.cameraReady).toBe(true);
+    expect(state.captureMode).toBe('picture');
+    expect(state.recordingVideo).toBe(false);
+  });
+
   it('CLEAR_VIDEO_TORCH clears pending video torch request', () => {
     const requested = cameraUiReducer(
       { ...initialCameraUiState, flash: 'on' },
@@ -102,6 +125,16 @@ describe('cameraUiReducer', () => {
     );
 
     expect(state.cameraReady).toBe(false);
+    expect(state.captureMode).toBe('video');
+  });
+
+  it('SET_CAPTURE_MODE can preserve camera readiness when native view is not remounted', () => {
+    const state = cameraUiReducer(
+      { ...initialCameraUiState, cameraReady: true },
+      { type: 'SET_CAPTURE_MODE', captureMode: 'video', resetCameraReady: false }
+    );
+
+    expect(state.cameraReady).toBe(true);
     expect(state.captureMode).toBe('video');
   });
 });

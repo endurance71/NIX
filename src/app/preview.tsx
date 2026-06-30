@@ -4,6 +4,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Image } from 'expo-image';
 import { useEventListener } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import type { VideoThumbnail } from 'expo-video';
 import { StatusBar } from 'expo-status-bar';
 import Animated, {
   FadeIn,
@@ -27,6 +28,7 @@ import { useVideoDraft, type VideoSegmentDraft } from '../context/VideoDraftCont
 import { configureForPlayback } from '../lib/audioSession';
 import { trackEvent } from '../lib/telemetry';
 import { tap } from '../lib/haptics';
+import { generateVideoThumbnailAtTime } from '../lib/videoThumbnails';
 import {
   DEFAULT_NIX_VIEW_DURATION_SEC,
   loadPreferredNixViewDuration,
@@ -36,12 +38,15 @@ import {
 const TIMER_TRACK_HEIGHT = 8;
 /** Maks. czas oczekiwania na `readyToPlay` zanim wymusimy `play()` + `onReady()`. */
 const PREVIEW_VIDEO_WATCHDOG_MS = 2500;
+const PREVIEW_VIDEO_AUTOPLAY_RETRY_MS = 180;
+const PREVIEW_VIDEO_AUTOPLAY_RETRY_COUNT = 14;
 /** Odstęp od safe area do pill z paskiem segmentów (zgodny z `timerHudShell`). */
 const VIDEO_PREVIEW_TIMER_HUD_TOP = 10;
 /** `paddingVertical` wewnątrz pill (`timerHudInner`) — musi być zsynchronizowany ze stylami. */
 const VIDEO_PREVIEW_TIMER_HUD_PADDING_V = 8;
 /** Odstęp między dolną krawędzią pill a przyciskiem zamknięcia. */
 const VIDEO_PREVIEW_CLOSE_BELOW_TIMER_GAP = 12;
+const MEDIA_PREVIEW_BACKGROUND = '#000000';
 
 function previewTimerHudContentHeight() {
   return VIDEO_PREVIEW_TIMER_HUD_PADDING_V * 2 + TIMER_TRACK_HEIGHT;
@@ -79,6 +84,7 @@ function PreviewSegmentVideo({
   segmentIndex,
   segmentProgress,
   onReady,
+  onFirstFrameRender,
   onPlaybackError,
   style,
 }: {
@@ -86,6 +92,7 @@ function PreviewSegmentVideo({
   segmentIndex: number;
   segmentProgress: SharedValue<number>;
   onReady: () => void;
+  onFirstFrameRender: () => void;
   onPlaybackError: () => void;
   style: StyleProp<ViewStyle>;
 }) {
@@ -100,6 +107,8 @@ function PreviewSegmentVideo({
   const readyEmittedRef = useRef(false);
   const errorEmittedRef = useRef(false);
   const watchdogFiredRef = useRef(false);
+  const playingRef = useRef(false);
+  const autoplayAttemptRef = useRef(0);
   const onReadyRef = useRef(onReady);
   const onPlaybackErrorRef = useRef(onPlaybackError);
 
@@ -108,21 +117,42 @@ function PreviewSegmentVideo({
     onPlaybackErrorRef.current = onPlaybackError;
   });
 
+  const requestAutoplay = (reason: string) => {
+    if (errorEmittedRef.current || playingRef.current) return;
+    autoplayAttemptRef.current += 1;
+    try {
+      player.play();
+      trackEvent('preview_video_autoplay_attempt', {
+        reason,
+        attempt: autoplayAttemptRef.current,
+        status: player.status,
+        segment_index: segmentIndex,
+      });
+    } catch (error) {
+      trackEvent('preview_video_autoplay_error', {
+        reason,
+        attempt: autoplayAttemptRef.current,
+        status: player.status,
+        segment_index: segmentIndex,
+        error_message: error instanceof Error ? error.message : String(error ?? 'unknown'),
+      });
+    }
+  };
+
+  const markReady = (status: string) => {
+    if (readyEmittedRef.current) return;
+    readyEmittedRef.current = true;
+    trackEvent('preview_video_status_change', {
+      status,
+      segment_index: segmentIndex,
+    });
+    onReadyRef.current();
+  };
+
   useEventListener(player, 'statusChange', ({ status: nextStatus }) => {
     if (nextStatus === 'readyToPlay') {
-      if (!readyEmittedRef.current) {
-        readyEmittedRef.current = true;
-        trackEvent('preview_video_status_change', {
-          status: nextStatus,
-          segment_index: segmentIndex,
-        });
-        onReadyRef.current();
-      }
-      try {
-        player.play();
-      } catch {
-        // ignorujemy błąd play() — followup statusChange/error obsłuży przypadek
-      }
+      markReady(nextStatus);
+      requestAutoplay('status-readyToPlay');
       return;
     }
     if (nextStatus === 'error' && !errorEmittedRef.current) {
@@ -135,7 +165,19 @@ function PreviewSegmentVideo({
     }
   });
 
+  useEventListener(player, 'playingChange', ({ isPlaying }) => {
+    playingRef.current = isPlaying;
+    trackEvent('preview_video_playing_change', {
+      is_playing: isPlaying,
+      status: player.status,
+      segment_index: segmentIndex,
+    });
+  });
+
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    if (currentTime > 0 && !playingRef.current) {
+      playingRef.current = true;
+    }
     const dur = player.duration;
     if (dur > 0) {
       const nextProgress = Math.max(0, Math.min(1, 1 - currentTime / dur));
@@ -152,7 +194,25 @@ function PreviewSegmentVideo({
     readyEmittedRef.current = false;
     errorEmittedRef.current = false;
     watchdogFiredRef.current = false;
+    playingRef.current = false;
+    autoplayAttemptRef.current = 0;
   }, [uri]);
+
+  useEffect(() => {
+    requestAutoplay('mount');
+    let attempts = 0;
+    const retry = setInterval(() => {
+      attempts += 1;
+      if (playingRef.current || errorEmittedRef.current || attempts > PREVIEW_VIDEO_AUTOPLAY_RETRY_COUNT) {
+        clearInterval(retry);
+        return;
+      }
+      if (player.status === 'readyToPlay') {
+        requestAutoplay('retry-readyToPlay');
+      }
+    }, PREVIEW_VIDEO_AUTOPLAY_RETRY_MS);
+    return () => clearInterval(retry);
+  }, [uri, player]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -162,18 +222,25 @@ function PreviewSegmentVideo({
         current_status: player.status,
         segment_index: segmentIndex,
       });
-      try {
-        player.play();
-      } catch {
-        // ignorujemy
-      }
-      readyEmittedRef.current = true;
-      onReadyRef.current();
+      requestAutoplay('watchdog');
+      markReady('watchdog-forced-ready');
     }, PREVIEW_VIDEO_WATCHDOG_MS);
     return () => clearTimeout(timer);
   }, [uri, segmentIndex, player]);
 
-  return <VideoView style={style} player={player} contentFit="cover" nativeControls={false} />;
+  return (
+    <VideoView
+      style={style}
+      player={player}
+      contentFit="cover"
+      nativeControls={false}
+      onFirstFrameRender={() => {
+        onFirstFrameRender();
+        markReady('first-frame-render');
+        requestAutoplay('first-frame-render');
+      }}
+    />
+  );
 }
 
 function PreviewVideoContent({
@@ -189,15 +256,37 @@ function PreviewVideoContent({
   const [clipIndex, setClipIndex] = useState(0);
   const [videoReady, setVideoReady] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
+  const [poster, setPoster] = useState<VideoThumbnail | null>(null);
+  const [firstFrameRendered, setFirstFrameRendered] = useState(false);
+  const [audioReady, setAudioReady] = useState(false);
   const segmentProgress = useSharedValue(1);
 
   const current = segments[clipIndex];
   const clipKey = `${clipIndex}:${current.uri}`;
 
   useEffect(() => {
-    void configureForPlayback().catch((error) => {
-      console.warn('Preview audio session setup failed', error);
-    });
+    let cancelled = false;
+    setAudioReady(false);
+    void configureForPlayback()
+      .then(() => {
+        if (!cancelled) {
+          setAudioReady(true);
+          trackEvent('preview_audio_session_ready', { status: 'success' });
+        }
+      })
+      .catch((error) => {
+        console.warn('Preview audio session setup failed', error);
+        if (!cancelled) {
+          setAudioReady(true);
+          trackEvent('preview_audio_session_ready', {
+            status: 'failure',
+            error_message: error instanceof Error ? error.message : 'Unknown preview audio session error',
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const activeSegmentMaskStyle = useAnimatedStyle(() => ({
@@ -210,6 +299,8 @@ function PreviewVideoContent({
     setClipIndex((i) => (i + 1) % segments.length);
     setVideoReady(false);
     setVideoError(null);
+    setPoster(null);
+    setFirstFrameRendered(false);
   };
 
   const handleVideoReady = () => {
@@ -217,12 +308,38 @@ function PreviewVideoContent({
     setVideoError(null);
   };
 
+  const handleFirstFrameRender = () => {
+    setFirstFrameRendered(true);
+    handleVideoReady();
+  };
+
   const handleVideoPlaybackError = () => {
     setVideoError('Nie udało się odtworzyć nagrania.');
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    setPoster(null);
+    setFirstFrameRendered(false);
+    void generateVideoThumbnailAtTime(current.uri, 0, { maxWidth: 720 })
+      .then((thumbnail) => {
+        if (!cancelled) {
+          setPoster(thumbnail);
+        }
+      })
+      .catch((error) => {
+        trackEvent('preview_video_thumbnail_failed', {
+          segment_index: clipIndex,
+          error_message: error instanceof Error ? error.message : 'Unknown thumbnail error',
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [current.uri, clipIndex]);
+
   return (
-    <Animated.View style={styles.container} entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)}>
+    <Animated.View style={styles.container} exiting={FadeOut.duration(120)}>
       <StatusBar style={statusBarStyle} hidden />
 
       <View style={[styles.timerHudShell, { top: insets.top + VIDEO_PREVIEW_TIMER_HUD_TOP }]}>
@@ -254,15 +371,22 @@ function PreviewVideoContent({
         </View>
       </View>
 
-      <PreviewSegmentVideo
-        key={clipKey}
-        uri={current.uri}
-        segmentIndex={clipIndex}
-        segmentProgress={segmentProgress}
-        onReady={handleVideoReady}
-        onPlaybackError={handleVideoPlaybackError}
-        style={styles.image}
-      />
+      {audioReady ? (
+        <PreviewSegmentVideo
+          key={clipKey}
+          uri={current.uri}
+          segmentIndex={clipIndex}
+          segmentProgress={segmentProgress}
+          onReady={handleVideoReady}
+          onFirstFrameRender={handleFirstFrameRender}
+          onPlaybackError={handleVideoPlaybackError}
+          style={styles.image}
+        />
+      ) : null}
+
+      {!firstFrameRendered && poster ? (
+        <Image source={poster} style={styles.videoPoster} contentFit="cover" />
+      ) : null}
 
       {videoReady && !videoError ? (
         <Pressable
@@ -273,7 +397,7 @@ function PreviewVideoContent({
         />
       ) : null}
 
-      {!videoReady && !videoError ? (
+      {(!audioReady || !videoReady) && !videoError && !poster ? (
         <View style={styles.loadingOverlaySolid}>
           <Text style={styles.loadingHint}>Ładowanie podglądu…</Text>
         </View>
@@ -330,13 +454,24 @@ export default function PreviewScreen() {
   const { colors, statusBarStyle } = useAppTheme();
   const insets = useScreenInsets('mediaChrome');
   const styles = createStyles(colors);
-  const raw = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string }>();
+  const raw = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string; durationMs?: string }>();
   const mode = paramFirst(raw.mode);
   const uri = paramFirst(raw.uri);
+  const rawDurationMs = paramFirst(raw.durationMs);
 
   const [viewDurationSec, setViewDurationSec] = useState<NixViewDurationSec>(DEFAULT_NIX_VIEW_DURATION_SEC);
 
-  const { segments, clearSegments } = useVideoDraft();
+  const { segments, setSegments, clearSegments } = useVideoDraft();
+  const routeVideoSegments =
+    mode === 'video' && uri
+      ? [{ uri, durationMs: Math.max(0, Number(rawDurationMs) || 0) }]
+      : null;
+  const previewVideoSegments = segments?.length ? segments : routeVideoSegments;
+
+  useEffect(() => {
+    if (mode !== 'video' || segments?.length || !routeVideoSegments?.length) return;
+    setSegments(routeVideoSegments);
+  }, [mode, routeVideoSegments, segments?.length, setSegments]);
 
   useEffect(() => {
     let cancelled = false;
@@ -349,7 +484,7 @@ export default function PreviewScreen() {
   }, []);
 
   if (mode === 'video') {
-    if (!segments?.length) {
+    if (!previewVideoSegments?.length) {
       return (
         <View style={styles.container}>
           <Text style={styles.errorText}>Brak nagrań do podglądu</Text>
@@ -364,7 +499,7 @@ export default function PreviewScreen() {
         </View>
       );
     }
-    return <PreviewVideoContent segments={segments} clearDraft={clearSegments} />;
+    return <PreviewVideoContent segments={previewVideoSegments} clearDraft={clearSegments} />;
   }
 
   if (!uri) {
@@ -420,7 +555,7 @@ const createStyles = (colors: ThemeColors) => {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.background,
+      backgroundColor: MEDIA_PREVIEW_BACKGROUND,
     },
     errorText: {
       ...typography.callout,
@@ -444,6 +579,10 @@ const createStyles = (colors: ThemeColors) => {
       flex: 1,
       width: '100%',
       height: '100%',
+    },
+    videoPoster: {
+      ...StyleSheet.absoluteFill,
+      zIndex: 4,
     },
     overlay: {
       ...StyleSheet.absoluteFill,
@@ -523,7 +662,7 @@ const createStyles = (colors: ThemeColors) => {
       ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.background,
+      backgroundColor: MEDIA_PREVIEW_BACKGROUND,
       zIndex: 6,
     },
     loadingHint: {
@@ -534,7 +673,7 @@ const createStyles = (colors: ThemeColors) => {
       ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.background,
+      backgroundColor: MEDIA_PREVIEW_BACKGROUND,
       paddingHorizontal: 24,
       zIndex: 8,
     },

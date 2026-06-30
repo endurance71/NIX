@@ -52,12 +52,12 @@ export type CameraUiAction =
       clearSwitchingUi: boolean;
     }
   | { type: 'SET_ZOOM'; zoom: number }
-  | { type: 'VIDEO_PREPARE_BEGIN' }
+  | { type: 'VIDEO_PREPARE_BEGIN'; resetCameraReady?: boolean }
   | { type: 'VIDEO_RECORDING_BEGIN' }
-  | { type: 'VIDEO_SESSION_END' }
+  | { type: 'VIDEO_SESSION_END'; resetCameraReady?: boolean }
   | { type: 'CLEAR_VIDEO_TORCH' }
   | { type: 'PREPARE_STILL_CAPTURE' }
-  | { type: 'SET_CAPTURE_MODE'; captureMode: CameraCaptureMode }
+  | { type: 'SET_CAPTURE_MODE'; captureMode: CameraCaptureMode; resetCameraReady?: boolean }
   | { type: 'SET_CAPTURE_ERROR'; captureError: string | null }
   | { type: 'SET_TAKING_PICTURE'; takingPicture: boolean }
   | { type: 'SET_RECORDING_ELAPSED_SEC'; recordingElapsedSec: number }
@@ -99,7 +99,7 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
         captureError: null,
         stillFlashArmed: false,
         videoTorchRequested: state.flash === 'on' && state.facing === 'back',
-        cameraReady: false,
+        cameraReady: action.resetCameraReady === false ? state.cameraReady : false,
         captureMode: 'video',
       };
     case 'VIDEO_RECORDING_BEGIN':
@@ -119,7 +119,7 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
         recordingElapsedSec: 0,
         stillFlashArmed: false,
         videoTorchRequested: false,
-        cameraReady: false,
+        cameraReady: action.resetCameraReady === false ? state.cameraReady : false,
         captureMode: 'picture',
       };
     case 'CLEAR_VIDEO_TORCH':
@@ -135,7 +135,11 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
     case 'SET_CAPTURE_MODE':
       return state.captureMode === action.captureMode
         ? state
-        : { ...state, cameraReady: false, captureMode: action.captureMode };
+        : {
+            ...state,
+            cameraReady: action.resetCameraReady === false ? state.cameraReady : false,
+            captureMode: action.captureMode,
+          };
     case 'SET_CAPTURE_ERROR':
       return state.captureError === action.captureError ? state : { ...state, captureError: action.captureError };
     case 'SET_TAKING_PICTURE':

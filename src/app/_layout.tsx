@@ -248,7 +248,14 @@ function RootNavigator() {
       >
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="(auth)" />
-      <Stack.Screen name="preview" options={{ presentation: 'card', headerShown: false }} />
+      <Stack.Screen
+        name="preview"
+        options={{
+          presentation: 'card',
+          headerShown: false,
+          contentStyle: { backgroundColor: '#000000' },
+        }}
+      />
       <Stack.Screen
         name="friend-my-code"
         options={{

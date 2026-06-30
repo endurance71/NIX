@@ -92,6 +92,13 @@
     "unrs-resolver@1.12.2": true
   },
   "expo": {
+    "autolinking": {
+      "ios": {
+        "buildFromSource": [
+          "expo-camera"
+        ]
+      }
+    },
     "doctor": {
       "appConfigFieldsNotSyncedCheck": {
         "enabled": false
