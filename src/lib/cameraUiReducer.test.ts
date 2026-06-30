@@ -15,10 +15,25 @@ describe('cameraUiReducer', () => {
     expect(state.captureMode).toBe('video');
     expect(state.flash).toBe('on');
     expect(state.stillFlashArmed).toBe(false);
+    expect(state.videoTorchRequested).toBe(true);
+  });
+
+  it('VIDEO_PREPARE_BEGIN does not request torch when flash is off or camera is front-facing', () => {
+    const flashOff = cameraUiReducer(initialCameraUiState, { type: 'VIDEO_PREPARE_BEGIN' });
+    const frontCamera = cameraUiReducer(
+      { ...initialCameraUiState, facing: 'front', flash: 'on' },
+      { type: 'VIDEO_PREPARE_BEGIN' }
+    );
+
+    expect(flashOff.videoTorchRequested).toBe(false);
+    expect(frontCamera.videoTorchRequested).toBe(false);
   });
 
   it('VIDEO_RECORDING_BEGIN moves from preparing to active recording', () => {
-    const preparing = cameraUiReducer(initialCameraUiState, { type: 'VIDEO_PREPARE_BEGIN' });
+    const preparing = cameraUiReducer(
+      { ...initialCameraUiState, flash: 'on' },
+      { type: 'VIDEO_PREPARE_BEGIN' }
+    );
     const state = cameraUiReducer(preparing, { type: 'VIDEO_RECORDING_BEGIN' });
 
     expect(state.videoPreparing).toBe(false);
@@ -26,6 +41,7 @@ describe('cameraUiReducer', () => {
     expect(state.recordingElapsedSec).toBe(0);
     expect(state.captureMode).toBe('video');
     expect(state.stillFlashArmed).toBe(false);
+    expect(state.videoTorchRequested).toBe(true);
   });
 
   it('VIDEO_SESSION_END clears preparation, recording, timer, and returns to picture mode', () => {
@@ -45,18 +61,11 @@ describe('cameraUiReducer', () => {
     expect(state.videoTorchRequested).toBe(false);
   });
 
-  it('REQUEST_VIDEO_TORCH requests video torch without arming still flash', () => {
-    const state = cameraUiReducer(
-      { ...initialCameraUiState, stillFlashArmed: true },
-      { type: 'REQUEST_VIDEO_TORCH' }
-    );
-
-    expect(state.videoTorchRequested).toBe(true);
-    expect(state.stillFlashArmed).toBe(false);
-  });
-
   it('CLEAR_VIDEO_TORCH clears pending video torch request', () => {
-    const requested = cameraUiReducer(initialCameraUiState, { type: 'REQUEST_VIDEO_TORCH' });
+    const requested = cameraUiReducer(
+      { ...initialCameraUiState, flash: 'on' },
+      { type: 'VIDEO_PREPARE_BEGIN' }
+    );
     const state = cameraUiReducer(requested, { type: 'CLEAR_VIDEO_TORCH' });
 
     expect(state.videoTorchRequested).toBe(false);

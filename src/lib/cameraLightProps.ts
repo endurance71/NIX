@@ -21,7 +21,7 @@ export function getCameraLightProps({
   videoPreparing,
   recordingVideo,
 }: CameraLightState): { flash: CameraFlashMode; enableTorch: boolean } {
-  const videoLightActive = videoTorchRequested || videoPreparing || recordingVideo;
+  const videoLightActive = captureMode === 'video' && (videoTorchRequested || videoPreparing || recordingVideo);
 
   return {
     flash: stillFlashArmed && captureMode === 'picture' ? flash : 'off',

@@ -28,11 +28,11 @@ import { configureForRecording } from '../lib/audioSession';
 import { runWithFinally } from '../lib/runWithFinally';
 import { cameraUiReducer, initialCameraUiState } from '../lib/cameraUiReducer';
 import { createCameraStyles } from '../components/camera/cameraScreen.styles';
+import { setNativeVideoTorchForRecording } from '../lib/videoTorchSession';
 
 export const VIDEO_RECORDING_BITRATE = 2_500_000;
 const VIDEO_RECORDING_MAX_FILE_SIZE_BYTES = 90 * 1024 * 1024;
 const STILL_FLASH_ARM_DELAY_MS = 80;
-const VIDEO_TORCH_ARM_DELAY_MS = 80;
 
 export type CameraScreenViewModel = {
   permission: ReturnType<typeof useCameraPermissions>[0];
@@ -135,6 +135,10 @@ export function useCameraScreen(): CameraScreenViewModel {
     }
   };
 
+  const disableNativeVideoTorch = () => {
+    void setNativeVideoTorchForRecording({ facing: 'back', flash: 'on' }, false);
+  };
+
   useFocusEffect(
     useCallback(() => {
       dispatchCameraUi({ type: 'SET_CAMERA_ACTIVE', cameraActive: true });
@@ -142,6 +146,7 @@ export function useCameraScreen(): CameraScreenViewModel {
       return () => {
         dispatchCameraUi({ type: 'SET_CAMERA_ACTIVE', cameraActive: false });
         safeStopRecording();
+        disableNativeVideoTorch();
         if (switchWatchdogRef.current) {
           clearTimeout(switchWatchdogRef.current);
           switchWatchdogRef.current = null;
@@ -316,6 +321,11 @@ export function useCameraScreen(): CameraScreenViewModel {
         if (!fingerDownRef.current) {
           return;
         }
+        const videoTorchState = { facing, flash };
+        await setNativeVideoTorchForRecording(videoTorchState, true);
+        if (!fingerDownRef.current) {
+          return;
+        }
 
         const cam = cameraRef.current;
         if (!cam) {
@@ -328,8 +338,12 @@ export function useCameraScreen(): CameraScreenViewModel {
         attemptedRecord = true;
         const recordStartedAt = Date.now();
         try {
-          recordingStartedRef.current = true;
           dispatchCameraUi({ type: 'VIDEO_RECORDING_BEGIN' });
+          await setNativeVideoTorchForRecording(videoTorchState, true);
+          if (!fingerDownRef.current) {
+            return;
+          }
+          recordingStartedRef.current = true;
           recordingElapsedMs.set(0);
           recordingElapsedMs.set(
             withTiming(VIDEO_TOTAL_MAX_DURATION_MS, {
@@ -381,6 +395,7 @@ export function useCameraScreen(): CameraScreenViewModel {
         cancelAnimation(recordingElapsedMs);
         recordingElapsedMs.set(0);
         cameraReadyRef.current = false;
+        disableNativeVideoTorch();
         dispatchCameraUi({ type: 'VIDEO_SESSION_END' });
       }
     );
@@ -558,18 +573,6 @@ export function useCameraScreen(): CameraScreenViewModel {
 
     holdTimerRef.current = setTimeout(() => {
       if (!fingerDownRef.current) return;
-      if (flash === 'on' && facing === 'back') {
-        dispatchCameraUi({ type: 'REQUEST_VIDEO_TORCH' });
-        holdTimerRef.current = setTimeout(() => {
-          holdTimerRef.current = null;
-          if (!fingerDownRef.current) {
-            dispatchCameraUi({ type: 'CLEAR_VIDEO_TORCH' });
-            return;
-          }
-          void startVideoCaptureFlow();
-        }, VIDEO_TORCH_ARM_DELAY_MS);
-        return;
-      }
       holdTimerRef.current = null;
       void startVideoCaptureFlow();
     }, VIDEO_HOLD_THRESHOLD_MS);
@@ -585,6 +588,7 @@ export function useCameraScreen(): CameraScreenViewModel {
       if (elapsed < VIDEO_HOLD_THRESHOLD_MS && !recordingSessionRunningRef.current) {
         void takePicture();
       } else {
+        disableNativeVideoTorch();
         dispatchCameraUi({ type: 'CLEAR_VIDEO_TORCH' });
       }
       return;
@@ -593,6 +597,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     if (recordingSessionRunningRef.current) {
       safeStopRecording();
     } else {
+      disableNativeVideoTorch();
       dispatchCameraUi({ type: 'CLEAR_VIDEO_TORCH' });
     }
   };
@@ -664,6 +669,7 @@ export function useCameraScreen(): CameraScreenViewModel {
       holdTimerRef.current = null;
     }
     fingerDownRef.current = false;
+    disableNativeVideoTorch();
     zoomAtGestureStart.set(0);
 
     isSwitchingCameraRef.current = true;

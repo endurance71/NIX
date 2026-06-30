@@ -30,7 +30,21 @@ describe('getCameraLightProps', () => {
     ).toEqual({ flash: 'on', enableTorch: false });
   });
 
-  it('enables torch when video torch is requested before switching modes', () => {
+  it('does not enable torch while still in picture mode', () => {
+    expect(
+      getCameraLightProps({
+        captureMode: 'picture',
+        facing: 'back',
+        flash: 'on',
+        stillFlashArmed: false,
+        videoTorchRequested: true,
+        videoPreparing: false,
+        recordingVideo: false,
+      })
+    ).toEqual({ flash: 'off', enableTorch: false });
+  });
+
+  it('enables torch when video torch is requested in video mode', () => {
     expect(
       getCameraLightProps({
         captureMode: 'video',

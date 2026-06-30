@@ -55,7 +55,6 @@ export type CameraUiAction =
   | { type: 'VIDEO_PREPARE_BEGIN' }
   | { type: 'VIDEO_RECORDING_BEGIN' }
   | { type: 'VIDEO_SESSION_END' }
-  | { type: 'REQUEST_VIDEO_TORCH' }
   | { type: 'CLEAR_VIDEO_TORCH' }
   | { type: 'PREPARE_STILL_CAPTURE' }
   | { type: 'SET_CAPTURE_MODE'; captureMode: CameraCaptureMode }
@@ -99,6 +98,7 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
         recordingElapsedSec: 0,
         captureError: null,
         stillFlashArmed: false,
+        videoTorchRequested: state.flash === 'on' && state.facing === 'back',
         cameraReady: false,
         captureMode: 'video',
       };
@@ -122,10 +122,6 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
         cameraReady: false,
         captureMode: 'picture',
       };
-    case 'REQUEST_VIDEO_TORCH':
-      return state.videoTorchRequested && !state.stillFlashArmed
-        ? state
-        : { ...state, videoTorchRequested: true, stillFlashArmed: false };
     case 'CLEAR_VIDEO_TORCH':
       return state.videoTorchRequested ? { ...state, videoTorchRequested: false } : state;
     case 'PREPARE_STILL_CAPTURE':
