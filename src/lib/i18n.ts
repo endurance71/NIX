@@ -153,7 +153,10 @@ const resources = {
         qrGenerating: 'Generowanie kodu QR…',
         social: 'Społeczność',
         friendsTitle: 'Znajomi',
-        socialSummary: '{{friends}} znajomych • {{invites}} oczekujących zaproszeń',
+        socialSummaryPendingInvites_one: '{{count}} oczekujące zaproszenie',
+        socialSummaryPendingInvites_few: '{{count}} oczekujące zaproszenia',
+        socialSummaryPendingInvites_many: '{{count}} oczekujących zaproszeń',
+        socialSummaryPendingInvites_other: '{{count}} oczekujących zaproszeń',
         addFriend: 'Dodaj znajomego',
         scanQr: 'Skanuj QR',
         usernamePlaceholder: '@nazwa_użytkownika',
@@ -182,6 +185,40 @@ const resources = {
         friendRemoveFailure: 'Nie udało się usunąć znajomego.',
         account: 'Konto',
         changePassword: 'Zmień hasło',
+        privacyPolicy: 'Polityka prywatności',
+        terms: 'Regulamin',
+        appVersionValue: 'Wersja {{version}}',
+        creatorValue: 'Twórca: {{creator}}',
+        privacyPolicyDataTitle: 'Dane konta',
+        privacyPolicyDataBody:
+          'NiX przechowuje dane potrzebne do działania konta: adres e-mail, nazwę użytkownika, awatar oraz ustawienia profilu.',
+        privacyPolicyMediaTitle: 'Zdjęcia i wideo',
+        privacyPolicyMediaBody:
+          'Dostęp do kamery, mikrofonu i biblioteki zdjęć służy wyłącznie do tworzenia wiadomości, nagrywania wideo oraz ustawiania awatara.',
+        privacyPolicySocialTitle: 'Znajomi i zaproszenia',
+        privacyPolicySocialBody:
+          'Relacje znajomych, zaproszenia i kody QR są używane do łączenia kont oraz wysyłania wiadomości tylko do zaakceptowanych znajomych.',
+        privacyPolicySecurityTitle: 'Prywatność wiadomości',
+        privacyPolicySecurityBody:
+          'Wiadomości są dostępne tylko dla wybranych odbiorców. Aplikacja stosuje ograniczenia wyświetlania, czyszczenie wygasłych treści i ustawienia ochrony screenshotów.',
+        privacyPolicyContactTitle: 'Kontakt',
+        privacyPolicyContactBody:
+          'W sprawach dotyczących prywatności skontaktuj się z właścicielem aplikacji pod adresem motylinski.damian@gmail.com.',
+        termsAccountTitle: 'Konto',
+        termsAccountBody:
+          'Korzystając z NiX, odpowiadasz za bezpieczeństwo swojego konta oraz poprawność danych podanych podczas rejestracji.',
+        termsContentTitle: 'Treści',
+        termsContentBody:
+          'Wysyłaj tylko treści, do których masz prawo i które nie naruszają prywatności, bezpieczeństwa ani praw innych osób.',
+        termsSafetyTitle: 'Bezpieczne korzystanie',
+        termsSafetyBody:
+          'Nie używaj aplikacji do nękania, podszywania się pod inne osoby, publikowania treści bez zgody lub obchodzenia zabezpieczeń.',
+        termsAvailabilityTitle: 'Dostępność usługi',
+        termsAvailabilityBody:
+          'NiX może okresowo zmieniać funkcje, ograniczać dostęp lub prowadzić prace techniczne potrzebne do utrzymania aplikacji.',
+        termsChangesTitle: 'Zmiany regulaminu',
+        termsChangesBody:
+          'Regulamin może być aktualizowany wraz z rozwojem aplikacji. Dalsze korzystanie z NiX oznacza akceptację aktualnych zasad.',
         passwordSectionTitle: 'Nowe hasło',
         passwordDescription: 'Wybierz bezpieczne hasło. Zmiana może wymagać kodu weryfikacyjnego wysłanego e-mailem.',
         currentPassword: 'Aktualne hasło',
@@ -376,7 +413,8 @@ const resources = {
         qrGenerating: 'Generating QR code…',
         social: 'Social',
         friendsTitle: 'Friends',
-        socialSummary: '{{friends}} friends • {{invites}} pending invites',
+        socialSummaryPendingInvites_one: '{{count}} pending invite',
+        socialSummaryPendingInvites_other: '{{count}} pending invites',
         addFriend: 'Add friend',
         scanQr: 'Scan QR',
         usernamePlaceholder: '@username',
@@ -405,6 +443,40 @@ const resources = {
         friendRemoveFailure: 'Failed to remove the friend.',
         account: 'Account',
         changePassword: 'Change password',
+        privacyPolicy: 'Privacy Policy',
+        terms: 'Terms',
+        appVersionValue: 'Version {{version}}',
+        creatorValue: 'Creator: {{creator}}',
+        privacyPolicyDataTitle: 'Account data',
+        privacyPolicyDataBody:
+          'NiX stores the data needed to run your account: email address, username, avatar, and profile settings.',
+        privacyPolicyMediaTitle: 'Photos and video',
+        privacyPolicyMediaBody:
+          'Camera, microphone, and photo library access are used only to create messages, record video, and set your avatar.',
+        privacyPolicySocialTitle: 'Friends and invites',
+        privacyPolicySocialBody:
+          'Friend relationships, invites, and QR codes are used to connect accounts and send messages only to accepted friends.',
+        privacyPolicySecurityTitle: 'Message privacy',
+        privacyPolicySecurityBody:
+          'Messages are available only to selected recipients. The app uses display limits, expired-content cleanup, and screenshot protection settings.',
+        privacyPolicyContactTitle: 'Contact',
+        privacyPolicyContactBody:
+          'For privacy matters, contact the app owner at motylinski.damian@gmail.com.',
+        termsAccountTitle: 'Account',
+        termsAccountBody:
+          'By using NiX, you are responsible for keeping your account secure and providing accurate registration details.',
+        termsContentTitle: 'Content',
+        termsContentBody:
+          'Send only content you have the right to share and that does not violate another person’s privacy, safety, or rights.',
+        termsSafetyTitle: 'Safe use',
+        termsSafetyBody:
+          'Do not use the app for harassment, impersonation, sharing content without consent, or bypassing security protections.',
+        termsAvailabilityTitle: 'Service availability',
+        termsAvailabilityBody:
+          'NiX may occasionally change features, limit access, or perform maintenance needed to keep the app running.',
+        termsChangesTitle: 'Changes to these terms',
+        termsChangesBody:
+          'These terms may be updated as the app evolves. Continuing to use NiX means accepting the current rules.',
         passwordSectionTitle: 'New password',
         passwordDescription: 'Choose a secure password. The change may require a verification code sent by email.',
         currentPassword: 'Current password',

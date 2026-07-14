@@ -1,7 +1,16 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { Button, FieldGroup, ListItem, RNHostView, Switch, Text } from '@expo/ui';
-import { Button as SwiftUIButton, Image, SwipeActions } from '@expo/ui/swift-ui';
+import { Button as SwiftUIButton, HStack, Image, SwipeActions, VStack } from '@expo/ui/swift-ui';
+import {
+  font,
+  foregroundStyle,
+  frame,
+  listRowBackground,
+  listRowInsets,
+  listRowSeparator,
+  multilineTextAlignment,
+} from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { resolveAppIconName, type AppIconName } from '../../theme/app-icons';
@@ -75,7 +84,9 @@ export function NativeSettingsRow({
       </View>
     </RNHostView>
   ) : icon ? (
-    <Image systemName={resolveAppIconName(icon) as SFSymbol} size={19} color={iconColor ?? foregroundColor} />
+    <HStack alignment="center" modifiers={[frame({ width: 26, alignment: 'center' })]}>
+      <Image systemName={resolveAppIconName(icon) as SFSymbol} size={19} color={iconColor ?? foregroundColor} />
+    </HStack>
   ) : (
     leading
   );
@@ -163,5 +174,33 @@ export function NativeSettingsEmptyRow({ text }: { text: string }) {
     <Text textStyle={{ fontSize: 15, color: colors.secondaryLabel, lineHeight: 20 }}>
       {text}
     </Text>
+  );
+}
+
+export function NativeSettingsCenteredFooter({ lines }: { lines: string[] }) {
+  const { colors } = useAppTheme();
+  return (
+    <VStack
+      alignment="center"
+      spacing={2}
+      modifiers={[
+        listRowBackground('transparent'),
+        listRowSeparator('hidden'),
+        listRowInsets({ top: 10, leading: 0, bottom: 2, trailing: 0 }),
+        frame({ maxWidth: Infinity, alignment: 'center' }),
+      ]}>
+      {lines.map((line) => (
+        <Text
+          key={line}
+          modifiers={[
+            font({ textStyle: 'footnote' }),
+            foregroundStyle(colors.secondaryLabel),
+            multilineTextAlignment('center'),
+            frame({ maxWidth: Infinity, alignment: 'center' }),
+          ]}>
+          {line}
+        </Text>
+      ))}
+    </VStack>
   );
 }

@@ -48,6 +48,20 @@ export default function ProfileTabLayout() {
           headerLargeTitle: false,
         }}
       />
+      <Stack.Screen
+        name="privacy-policy"
+        options={{
+          title: t('profile.privacyPolicy'),
+          headerLargeTitle: false,
+        }}
+      />
+      <Stack.Screen
+        name="terms"
+        options={{
+          title: t('profile.terms'),
+          headerLargeTitle: false,
+        }}
+      />
     </Stack>
   );
 }

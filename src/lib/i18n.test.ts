@@ -25,6 +25,23 @@ describe('i18n', () => {
     expect(i18nModule.default.t('inbox.cleaned')).toBe('Deleted');
   });
 
+  it('odmienia podsumowanie oczekujących zaproszeń w profilu', async () => {
+    expect(i18nModule.default.t('profile.socialSummaryPendingInvites', { count: 1 })).toBe(
+      '1 oczekujące zaproszenie'
+    );
+    expect(i18nModule.default.t('profile.socialSummaryPendingInvites', { count: 5 })).toBe(
+      '5 oczekujących zaproszeń'
+    );
+
+    await i18nModule.default.changeLanguage('en');
+    expect(i18nModule.default.t('profile.socialSummaryPendingInvites', { count: 1 })).toBe(
+      '1 pending invite'
+    );
+    expect(i18nModule.default.t('profile.socialSummaryPendingInvites', { count: 2 })).toBe(
+      '2 pending invites'
+    );
+  });
+
   it('mapuje DomainError na klucz tłumaczenia', () => {
     const err = new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
     expect(err.messageKey).toBe('domainErrors.UNAUTHORIZED');

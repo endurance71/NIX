@@ -1,13 +1,27 @@
 import { useEffect } from 'react';
 import { Alert } from 'react-native';
+import Constants from 'expo-constants';
 import { Stack, router } from 'expo-router';
 import { useProfileScreen } from '../../hooks/useProfileScreen';
 import { registerTabScrollToTop } from '../../lib/tabBarScrollActions';
-import { NativeSettingsRow, NativeSettingsSection } from '../ui/native-settings';
+import {
+  NativeSettingsCenteredFooter,
+  NativeSettingsRow,
+  NativeSettingsSection,
+} from '../ui/native-settings';
 import { SettingsListScreen } from '../ui/settings-list-screen';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
+  const appVersion = Constants.expoConfig?.version ?? vm.t('common.unknown');
+  const socialSummary =
+    vm.pendingInviteCount > 0
+      ? vm.t('profile.socialSummaryPendingInvites', { count: vm.pendingInviteCount })
+      : undefined;
+  const accountFooterLines = [
+    vm.t('profile.creatorValue', { creator: 'MT HUB' }),
+    vm.t('profile.appVersionValue', { version: appVersion }),
+  ];
 
   useEffect(() => {
     return registerTabScrollToTop('profile', () => {
@@ -66,10 +80,7 @@ export default function ProfileScreenSurface() {
         <NativeSettingsSection title={vm.t('profile.social')}>
           <NativeSettingsRow
             title={vm.t('profile.friendsTitle')}
-            supportingText={vm.t('profile.socialSummary', {
-              friends: vm.friendCount,
-              invites: vm.pendingInviteCount,
-            })}
+            supportingText={socialSummary}
             icon="profile"
             showsChevron
             onPress={() => router.push('/(tabs)/profile/friends')}
@@ -93,6 +104,20 @@ export default function ProfileScreenSurface() {
             testID="profile-change-password"
           />
           <NativeSettingsRow
+            title={vm.t('profile.privacyPolicy')}
+            icon="shield"
+            showsChevron
+            onPress={() => router.push('/(tabs)/profile/privacy-policy')}
+            testID="profile-privacy-policy"
+          />
+          <NativeSettingsRow
+            title={vm.t('profile.terms')}
+            icon="document"
+            showsChevron
+            onPress={() => router.push('/(tabs)/profile/terms')}
+            testID="profile-terms"
+          />
+          <NativeSettingsRow
             title={vm.t('profile.signOut')}
             icon="signOut"
             role="destructive"
@@ -113,6 +138,7 @@ export default function ProfileScreenSurface() {
             testID="profile-sign-out"
           />
         </NativeSettingsSection>
+        <NativeSettingsCenteredFooter lines={accountFooterLines} />
       </SettingsListScreen>
       <Stack.Screen.Title large>{vm.t('profile.title')}</Stack.Screen.Title>
     </>
