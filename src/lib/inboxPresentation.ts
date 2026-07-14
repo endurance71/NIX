@@ -89,6 +89,26 @@ type InboxTimestampOptions = {
   yesterdayLabel: string;
 };
 
+type InboxDateFormatterKind = 'time' | 'weekday' | 'date' | 'dateWithYear';
+const inboxDateFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function getInboxDateFormatter(locale: string, kind: InboxDateFormatterKind) {
+  const key = `${locale}:${kind}`;
+  const cached = inboxDateFormatters.get(key);
+  if (cached) return cached;
+  const options: Intl.DateTimeFormatOptions =
+    kind === 'time'
+      ? { hour: '2-digit', minute: '2-digit' }
+      : kind === 'weekday'
+        ? { weekday: 'short' }
+        : kind === 'date'
+          ? { day: 'numeric', month: 'short' }
+          : { day: 'numeric', month: 'short', year: 'numeric' };
+  const formatter = new Intl.DateTimeFormat(locale, options);
+  inboxDateFormatters.set(key, formatter);
+  return formatter;
+}
+
 function startOfLocalDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
@@ -106,28 +126,18 @@ export function formatInboxTimestamp(
   const dayDifference = Math.round((currentDay.getTime() - inputDay.getTime()) / 86_400_000);
 
   if (dayDifference <= 0) {
-    return new Intl.DateTimeFormat(locale, {
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
+    return getInboxDateFormatter(locale, 'time').format(date);
   }
 
   if (dayDifference === 1) return yesterdayLabel;
 
   if (dayDifference < 7) {
-    return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date);
+    return getInboxDateFormatter(locale, 'weekday').format(date);
   }
 
   if (date.getFullYear() === now.getFullYear()) {
-    return new Intl.DateTimeFormat(locale, {
-      day: 'numeric',
-      month: 'short',
-    }).format(date);
+    return getInboxDateFormatter(locale, 'date').format(date);
   }
 
-  return new Intl.DateTimeFormat(locale, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
+  return getInboxDateFormatter(locale, 'dateWithYear').format(date);
 }

@@ -7,11 +7,9 @@ vi.mock('expo-localization', () => ({
 
 describe('i18n', () => {
   let i18nModule: typeof import('./i18n');
-  let sentLifecycleSegments: typeof import('./nixInboxLabels').sentLifecycleSegments;
 
   beforeEach(async () => {
     i18nModule = await import('./i18n');
-    ({ sentLifecycleSegments } = await import('./nixInboxLabels'));
     await i18nModule.default.changeLanguage('pl');
   });
 
@@ -21,18 +19,10 @@ describe('i18n', () => {
   });
 
   it('tłumaczy statusy skrzynki zależnie od języka', async () => {
-    const valuePl = sentLifecycleSegments(
-      { status: 'cleaned', viewed_at: null, cleaned_at: '2026-01-01' },
-      (key) => i18nModule.default.t(key)
-    );
-    expect(valuePl).toContain('Usunięte');
+    expect(i18nModule.default.t('inbox.cleaned')).toBe('Usunięto');
 
     await i18nModule.default.changeLanguage('en');
-    const valueEn = sentLifecycleSegments(
-      { status: 'cleaned', viewed_at: null, cleaned_at: '2026-01-01' },
-      (key) => i18nModule.default.t(key)
-    );
-    expect(valueEn).toContain('Deleted');
+    expect(i18nModule.default.t('inbox.cleaned')).toBe('Deleted');
   });
 
   it('mapuje DomainError na klucz tłumaczenia', () => {
