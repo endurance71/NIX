@@ -665,10 +665,15 @@ export async function deleteConversationWithPeer(peerProfileId: string) {
   }
 }
 
+function normalizeSignedUrlExpiresIn(expiresInSec: number) {
+  if (!Number.isFinite(expiresInSec)) return 60;
+  return Math.max(1, Math.ceil(expiresInSec));
+}
+
 export async function createSignedNixUrl(path: string, expiresInSec = 60) {
   const { data, error } = await supabase.storage
     .from('media-vault')
-    .createSignedUrl(path, expiresInSec);
+    .createSignedUrl(path, normalizeSignedUrlExpiresIn(expiresInSec));
 
   if (error) throw error;
   return data.signedUrl;

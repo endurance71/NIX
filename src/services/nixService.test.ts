@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   deleteConversationWithPeer,
+  createSignedNixUrl,
   fetchSentNixes,
   flushCleanupQueue,
   insertNix,
@@ -27,6 +28,8 @@ const {
   mockQueueSelectLte,
   mockQueueSelectOrder,
   mockQueueSelectLimit,
+  mockStorageFrom,
+  mockCreateSignedUrl,
 } = vi.hoisted(() => {
   const queueDeleteEq = vi.fn();
   const queueUpdateEq = vi.fn();
@@ -57,6 +60,8 @@ const {
     mockQueueSelectLte: queueSelectLte,
     mockQueueSelectOrder: queueSelectOrder,
     mockQueueSelectLimit: queueSelectLimit,
+    mockCreateSignedUrl: vi.fn(),
+    mockStorageFrom: vi.fn(),
   };
 });
 
@@ -69,6 +74,9 @@ vi.mock('../lib/supabase', () => ({
     rpc: mockRpc,
     functions: {
       invoke: mockInvoke,
+    },
+    storage: {
+      from: mockStorageFrom,
     },
     from: (table: string) => {
       if (table === 'nixes') {
@@ -110,6 +118,11 @@ describe('nixService cleanup flow', () => {
     mockQueueUpsert.mockResolvedValue({ error: null });
     mockQueueDeleteEq.mockResolvedValue({ error: null });
     mockQueueUpdateEq.mockResolvedValue({ error: null });
+    mockStorageFrom.mockReturnValue({ createSignedUrl: mockCreateSignedUrl });
+    mockCreateSignedUrl.mockResolvedValue({
+      data: { signedUrl: 'https://example.supabase.co/storage/v1/object/sign/media-vault/nix.jpg' },
+      error: null,
+    });
   });
 
   it('wywołuje edge cleanup i usuwa job z kolejki', async () => {
@@ -226,6 +239,13 @@ describe('nixService cleanup flow', () => {
     await expect(deleteConversationWithPeer('friend-2')).rejects.toThrow(
       'Usuwanie rozmowy jest chwilowo niedostępne'
     );
+  });
+
+  it('createSignedNixUrl wysyła całkowity expiresIn do Supabase Storage', async () => {
+    await createSignedNixUrl('nixes/receiver-1/video.mp4', 94.712);
+
+    expect(mockStorageFrom).toHaveBeenCalledWith('media-vault');
+    expect(mockCreateSignedUrl).toHaveBeenCalledWith('nixes/receiver-1/video.mp4', 95);
   });
 
   it('insertNix zapisuje thumbnail_b64 dla wideo', async () => {
