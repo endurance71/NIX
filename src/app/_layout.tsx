@@ -24,6 +24,7 @@ import { enableFreeze } from 'react-native-screens';
 import { initBackgroundTaskService } from '../services/backgroundTaskService';
 import { useTranslation } from 'react-i18next';
 import { runWithFinally } from '../lib/runWithFinally';
+import { AppRealtimeSync } from '../components/sync/AppRealtimeSync';
 
 // Initialize monitoring at module load (runs once).
 initMonitoring();
@@ -223,6 +224,7 @@ function RootNavigator() {
   return (
     <>
       <StatusBar style={statusBarStyle} />
+      {session ? <AppRealtimeSync userId={session.user.id} /> : null}
       <Stack
         screenOptions={{
           headerShown: false,

@@ -9,9 +9,6 @@ import {
 } from '../services/friendService';
 import {
   deleteConversationWithPeer,
-  fetchInboxNixes,
-  fetchSentNixes,
-  flushCleanupQueue,
 } from '../services/nixService';
 import {
   AVATAR_SIGNED_URL_STALE_TIME_MS,
@@ -21,15 +18,10 @@ import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
 import { buildInboxThreads } from '../lib/inboxThreads';
 import { buildInboxRowModel, type InboxRowModel } from '../lib/inboxPresentation';
 import { getCurrentLocale } from '../lib/i18n';
-import { refreshInboxBadgeCount, setInboxBadgeCount } from '../lib/inboxBadgeStore';
 import { registerTabScrollToTop } from '../lib/tabBarScrollActions';
 import { notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
-
-async function fetchInboxNixesBundle() {
-  void flushCleanupQueue().catch(() => {});
-  const [inboxData, sentData] = await Promise.all([fetchInboxNixes(), fetchSentNixes()]);
-  return { inboxData, sentData };
-}
+import { inboxNixesBundleQueryOptions } from '../lib/inboxQuery';
+import { runWithFinally } from '../lib/runWithFinally';
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -39,18 +31,12 @@ export function useInboxScreen() {
   const { t } = useTranslation();
   const locale = getCurrentLocale();
   const queryClient = useQueryClient();
-  const lastFocusRefreshAtRef = useRef(0);
   const inviteActionIdsRef = useRef(new Set<string>());
   const deletingPeerIdsRef = useRef(new Set<string>());
   const [inviteActionIds, setInviteActionIds] = useState<ReadonlySet<string>>(() => new Set());
   const [deletingPeerIds, setDeletingPeerIds] = useState<ReadonlySet<string>>(() => new Set());
 
-  const nixesQuery = useQuery({
-    queryKey: queryKeys.inboxNixesBundle,
-    queryFn: fetchInboxNixesBundle,
-    staleTime: 10_000,
-    refetchOnWindowFocus: false,
-  });
+  const nixesQuery = useQuery(inboxNixesBundleQueryOptions());
 
   const requestsQuery = useQuery({
     queryKey: queryKeys.incomingFriendRequests,
@@ -94,11 +80,6 @@ export function useInboxScreen() {
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
 
-  useEffect(() => {
-    if (nixesQuery.isPending) return;
-    setInboxBadgeCount(inboxNixes.filter((nix) => nix.is_viewed !== true).length);
-  }, [inboxNixes, nixesQuery.isPending]);
-
   const invalidateInboxQueries = useCallback(async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
@@ -113,7 +94,6 @@ export function useInboxScreen() {
         queryClient.refetchQueries({ queryKey: queryKeys.inboxNixesBundle, type: 'active' }),
         queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
       ]);
-      await refreshInboxBadgeCount(queryClient);
     } catch (error) {
       console.error('Failed to refresh inbox', error);
       notifyError(t('inbox.refreshFailure'));
@@ -126,22 +106,10 @@ export function useInboxScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      const now = Date.now();
-      if (now - lastFocusRefreshAtRef.current < 2_500) return;
-      lastFocusRefreshAtRef.current = now;
-      void queryClient.refetchQueries({
-        type: 'active',
-        predicate: (query) => {
-          const key = query.queryKey[0];
-          if (
-            key !== queryKeys.inboxNixesBundle[0] &&
-            key !== queryKeys.incomingFriendRequests[0]
-          ) {
-            return false;
-          }
-          return query.isStale();
-        },
-      });
+      void Promise.all([
+        queryClient.refetchQueries({ queryKey: queryKeys.inboxNixesBundle, type: 'active' }),
+        queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
+      ]);
     }, [queryClient])
   );
 
@@ -163,31 +131,37 @@ export function useInboxScreen() {
 
   const handleAccept = async (requestId: string) => {
     if (!beginInviteAction(requestId)) return;
-    try {
-      await acceptFriendRequest(requestId);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
-        invalidateInboxQueries(),
-      ]);
-      notifySuccess(t('inbox.inviteAccepted'));
-    } catch (error) {
-      notifyError(errorMessage(error, t('inbox.inviteAcceptFailure')));
-    } finally {
-      finishInviteAction(requestId);
-    }
+    await runWithFinally(
+      async () => {
+        try {
+          await acceptFriendRequest(requestId);
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
+            invalidateInboxQueries(),
+          ]);
+          notifySuccess(t('inbox.inviteAccepted'));
+        } catch (error) {
+          notifyError(errorMessage(error, t('inbox.inviteAcceptFailure')));
+        }
+      },
+      () => finishInviteAction(requestId)
+    );
   };
 
   const handleReject = async (requestId: string) => {
     if (!beginInviteAction(requestId)) return;
-    try {
-      await rejectFriendRequest(requestId);
-      await invalidateInboxQueries();
-      notifyInfo(t('inbox.inviteRemoved'));
-    } catch (error) {
-      notifyError(errorMessage(error, t('inbox.inviteRemoveFailure')));
-    } finally {
-      finishInviteAction(requestId);
-    }
+    await runWithFinally(
+      async () => {
+        try {
+          await rejectFriendRequest(requestId);
+          await invalidateInboxQueries();
+          notifyInfo(t('inbox.inviteRemoved'));
+        } catch (error) {
+          notifyError(errorMessage(error, t('inbox.inviteRemoveFailure')));
+        }
+      },
+      () => finishInviteAction(requestId)
+    );
   };
 
   const handleDelete = async (row: InboxRowModel) => {
@@ -195,21 +169,23 @@ export function useInboxScreen() {
     deletingPeerIdsRef.current = new Set(deletingPeerIdsRef.current).add(row.peerId);
     setDeletingPeerIds(deletingPeerIdsRef.current);
 
-    try {
-      await deleteConversationWithPeer(row.peerId);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
-        refreshInboxBadgeCount(queryClient, { forceNetwork: true }),
-      ]);
-      notifySuccess(t('inbox.deleteConversationSuccess', { username: row.username }));
-    } catch (error) {
-      notifyError(errorMessage(error, t('inbox.deleteConversationFailure')));
-    } finally {
-      const next = new Set(deletingPeerIdsRef.current);
-      next.delete(row.peerId);
-      deletingPeerIdsRef.current = next;
-      setDeletingPeerIds(next);
-    }
+    await runWithFinally(
+      async () => {
+        try {
+          await deleteConversationWithPeer(row.peerId);
+          await queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
+          notifySuccess(t('inbox.deleteConversationSuccess', { username: row.username }));
+        } catch (error) {
+          notifyError(errorMessage(error, t('inbox.deleteConversationFailure')));
+        }
+      },
+      () => {
+        const next = new Set(deletingPeerIdsRef.current);
+        next.delete(row.peerId);
+        deletingPeerIdsRef.current = next;
+        setDeletingPeerIds(next);
+      }
+    );
   };
 
   const handleOpen = (row: InboxRowModel) => {

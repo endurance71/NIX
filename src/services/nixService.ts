@@ -52,7 +52,28 @@ type CleanupQueueRow = {
 type NixPageOptions = {
   limit?: number;
   beforeCreatedAt?: string;
+  /** Internal bundle optimization: rows are enriched in one shared profile lookup. */
+  includeProfiles?: boolean;
 };
+
+export type NixPublicProfile = {
+  id: string;
+  username: string;
+  avatar_storage_path?: string | null;
+  avatar_emoji?: string | null;
+};
+
+export async function fetchNixPublicProfiles(profileIds: readonly string[]) {
+  const uniqueIds = Array.from(new Set(profileIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return new Map<string, NixPublicProfile>();
+  const { data, error } = await supabase.rpc('get_public_profiles_by_ids', {
+    profile_ids: uniqueIds,
+  });
+  if (error) throw mapDatabaseError(error);
+  return new Map(
+    ((data ?? []) as NixPublicProfile[]).map((profile) => [profile.id, profile] as const)
+  );
+}
 
 const DEFAULT_NIX_PAGE_LIMIT = 100;
 
@@ -422,23 +443,11 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
     throw mapDatabaseError(error);
   }
 
-  const senderIds = Array.from(new Set((inboxRows ?? []).map((nix) => nix.sender_id as string)));
-  const { data: senderProfiles, error: senderError } = await supabase.rpc('get_public_profiles_by_ids', {
-    profile_ids: senderIds,
-  });
-  if (senderError) throw mapDatabaseError(senderError);
-
-  const senderMap = new Map(
-    ((senderProfiles ?? []) as {
-      id: string;
-      username: string;
-      avatar_storage_path?: string | null;
-      avatar_emoji?: string | null;
-    }[]).map((profile) => [
-      profile.id,
-      profile,
-    ])
-  );
+  const senderIds = (inboxRows ?? []).map((nix) => nix.sender_id as string);
+  const senderMap =
+    options.includeProfiles === false
+      ? new Map<string, NixPublicProfile>()
+      : await fetchNixPublicProfiles(senderIds);
 
   const result = ((inboxRows ?? []).map((nix: any) => ({
     ...nix,
@@ -606,23 +615,11 @@ export async function fetchSentNixes(options: NixPageOptions = {}) {
     throw mapDatabaseError(error);
   }
 
-  const receiverIds = Array.from(new Set((sentRows ?? []).map((nix) => nix.receiver_id as string)));
-  const { data: receiverProfiles, error: receiverError } = await supabase.rpc('get_public_profiles_by_ids', {
-    profile_ids: receiverIds,
-  });
-  if (receiverError) throw mapDatabaseError(receiverError);
-
-  const receiverMap = new Map(
-    ((receiverProfiles ?? []) as {
-      id: string;
-      username: string;
-      avatar_storage_path?: string | null;
-      avatar_emoji?: string | null;
-    }[]).map((profile) => [
-      profile.id,
-      profile,
-    ])
-  );
+  const receiverIds = (sentRows ?? []).map((nix) => nix.receiver_id as string);
+  const receiverMap =
+    options.includeProfiles === false
+      ? new Map<string, NixPublicProfile>()
+      : await fetchNixPublicProfiles(receiverIds);
 
   const result = ((sentRows ?? []).map((nix: any) => ({
     ...nix,

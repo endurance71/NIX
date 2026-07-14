@@ -1,0 +1,147 @@
+import { useEffect } from 'react';
+import { AppState } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '../../lib/supabase';
+import { flushCleanupQueue } from '../../services/nixService';
+import { trackEvent } from '../../lib/telemetry';
+import { flushPendingViewedAcks } from '../../lib/viewedAckQueue';
+import {
+  createSyncAreaDebouncer,
+  realtimeQueryKeysForArea,
+  type SyncArea,
+} from '../../lib/realtimeSyncPolicy';
+
+const EVENT_DEBOUNCE_MS = 150;
+const DEGRADED_POLL_INTERVAL_MS = 15_000;
+
+export function AppRealtimeSync({ userId }: { userId: string }) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    let active = AppState.currentState === 'active';
+    let channelHealthy = false;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    const refreshAreas = async (areas: ReadonlySet<SyncArea>) => {
+      const keys = new Map<string, readonly unknown[]>();
+      areas.forEach((area) => {
+        realtimeQueryKeysForArea(area).forEach((key) => keys.set(JSON.stringify(key), key));
+      });
+      await Promise.all(
+        [...keys.values()].map((queryKey) => queryClient.invalidateQueries({ queryKey }))
+      );
+    };
+
+    const refreshScheduler = createSyncAreaDebouncer(
+      (areas) => void refreshAreas(areas),
+      EVENT_DEBOUNCE_MS
+    );
+
+    const syncForeground = () => {
+      refreshScheduler.schedule('inbox');
+      refreshScheduler.schedule('friends');
+      void flushCleanupQueue().catch((error) => {
+        console.warn('Nie udało się zsynchronizować kolejki cleanup', error);
+      });
+      void flushPendingViewedAcks(userId).catch((error) => {
+        console.warn('Nie udało się zsynchronizować potwierdzeń odczytu', error);
+      });
+    };
+
+    const stopDegradedPolling = () => {
+      if (!pollTimer) return;
+      clearInterval(pollTimer);
+      pollTimer = null;
+    };
+
+    const startDegradedPolling = () => {
+      if (!active || channelHealthy || pollTimer) return;
+      pollTimer = setInterval(() => {
+        if (active && !channelHealthy) syncForeground();
+      }, DEGRADED_POLL_INTERVAL_MS);
+    };
+
+    const onInboxChange = () => refreshScheduler.schedule('inbox');
+    const onFriendshipChange = () => refreshScheduler.schedule('friends');
+    const channel = supabase
+      .channel(`app-sync-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'nixes', filter: `receiver_id=eq.${userId}` },
+        onInboxChange
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'nixes', filter: `receiver_id=eq.${userId}` },
+        onInboxChange
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'nixes', filter: `sender_id=eq.${userId}` },
+        onInboxChange
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'nixes', filter: `sender_id=eq.${userId}` },
+        onInboxChange
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'friendships', filter: `user_id=eq.${userId}` },
+        onFriendshipChange
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'friendships', filter: `user_id=eq.${userId}` },
+        onFriendshipChange
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'friendships', filter: `friend_id=eq.${userId}` },
+        onFriendshipChange
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'friendships', filter: `friend_id=eq.${userId}` },
+        onFriendshipChange
+      )
+      .subscribe((status) => {
+        channelHealthy = status === 'SUBSCRIBED';
+        trackEvent('realtime_connection_status', { status });
+        if (channelHealthy) {
+          stopDegradedPolling();
+          syncForeground();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          startDegradedPolling();
+        }
+      });
+
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      active = state === 'active';
+      if (active) {
+        syncForeground();
+        startDegradedPolling();
+      } else {
+        stopDegradedPolling();
+      }
+    });
+
+    let wasOnline: boolean | null = null;
+    const networkSubscription = NetInfo.addEventListener((state) => {
+      const online = state.isConnected === true;
+      if (online && wasOnline === false) syncForeground();
+      wasOnline = online;
+    });
+
+    return () => {
+      refreshScheduler.cancel();
+      stopDegradedPolling();
+      appStateSubscription.remove();
+      networkSubscription();
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient, userId]);
+
+  return null;
+}

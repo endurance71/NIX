@@ -1,35 +1,12 @@
-import { useEffect, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import {
-  getInboxBadgeState,
-  refreshInboxBadgeCount,
-  subscribeInboxBadge,
-} from '../lib/inboxBadgeStore';
+import { useQuery } from '@tanstack/react-query';
+import { countUnreadInboxNixes, inboxNixesBundleQueryOptions } from '../lib/inboxQuery';
 
-type UseInboxBadgeCountOptions = {
-  autoRefresh?: boolean;
-};
-
-export function useInboxBadgeCount(options: UseInboxBadgeCountOptions = {}) {
-  const { autoRefresh = true } = options;
-  const queryClient = useQueryClient();
-  const [badgeState, setBadgeState] = useState(getInboxBadgeState);
-
-  useEffect(() => {
-    const unsubscribe = subscribeInboxBadge(() => {
-      setBadgeState({ ...getInboxBadgeState() });
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
-    void refreshInboxBadgeCount(queryClient);
-  }, [autoRefresh, queryClient]);
+export function useInboxBadgeCount() {
+  const query = useQuery(inboxNixesBundleQueryOptions());
 
   return {
-    count: badgeState.count,
-    loading: badgeState.loading,
-    refresh: () => refreshInboxBadgeCount(queryClient),
+    count: countUnreadInboxNixes(query.data),
+    loading: query.isPending,
+    refresh: query.refetch,
   };
 }
