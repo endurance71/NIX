@@ -7,10 +7,10 @@ import {
   AuthFieldGroup,
   AuthFooterPrompt,
   AuthFormLayout,
-  AuthPrimaryButton,
   AuthSecondaryButton,
   AuthTextField,
 } from '../../components/ui/auth-form-layout';
+import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
 import { useAuth } from '../../hooks/useAuth';
 import { runWithFinally } from '../../lib/runWithFinally';
 
@@ -63,7 +63,7 @@ export default function CheckEmailScreen() {
   return (
     <>
       <Stack.Screen options={{ title: navigationTitle, headerShown: true }} />
-      <AuthFormLayout variant="secondary">
+      <AuthFormLayout>
         <AuthEmailDescription body={description} email={emailLabel} />
 
         <AuthFieldGroup>

@@ -7,9 +7,10 @@ import {
   AuthErrorText,
   AuthFieldGroup,
   AuthFormLayout,
-  AuthPrimaryButton,
   AuthTextField,
 } from '../../components/ui/auth-form-layout';
+import { AuthLabeledField } from '../../components/ui/auth-labeled-field';
+import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
 
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();
@@ -43,22 +44,24 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <AuthFormLayout variant="secondary" description={t('auth.forgotPasswordDescription')}>
-      <AuthFieldGroup>
-        <AuthTextField
-          nativeValue={email}
-          placeholder={t('auth.emailField')}
-          keyboardType="email-address"
-          autoComplete="email"
-          returnKeyType="go"
-          onSubmitEditing={() => void handleResetRequest()}
-          onChangeText={(text) => {
-            onEmailChange(text);
-            clearError();
-          }}
-          editable={!loading}
-          testID="forgot-password-email"
-        />
+    <AuthFormLayout description={t('auth.forgotPasswordDescription')}>
+      <AuthFieldGroup labeled>
+        <AuthLabeledField label={t('auth.emailLabel')}>
+          <AuthTextField
+            nativeValue={email}
+            placeholder={t('auth.emailPlaceholder')}
+            keyboardType="email-address"
+            autoComplete="email"
+            returnKeyType="go"
+            onSubmitEditing={() => void handleResetRequest()}
+            onChangeText={(text) => {
+              onEmailChange(text);
+              clearError();
+            }}
+            editable={!loading}
+            testID="forgot-password-email"
+          />
+        </AuthLabeledField>
       </AuthFieldGroup>
 
       {error ? <AuthErrorText>{error}</AuthErrorText> : null}

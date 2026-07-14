@@ -9,10 +9,11 @@ import {
   AuthFieldGroup,
   AuthFooterPrompt,
   AuthFormLayout,
-  AuthPrimaryButton,
   AuthSecureField,
   AuthTextField,
 } from '../../components/ui/auth-form-layout';
+import { AuthLabeledField } from '../../components/ui/auth-labeled-field';
+import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
 
 function isEmailValid(email: string) {
   return /\S+@\S+\.\S+/.test(email);
@@ -79,50 +80,56 @@ export default function RegisterScreen() {
   };
 
   return (
-    <AuthFormLayout variant="secondary" description={t('auth.registerDescription')}>
-      <AuthFieldGroup>
-        <AuthTextField
-          nativeValue={email}
-          placeholder={t('auth.emailField')}
-          keyboardType="email-address"
-          autoComplete="email"
-          returnKeyType="next"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-          onChangeText={(text) => {
-            onEmailChange(text);
-            clearError();
-          }}
-          editable={!loading}
-          testID="register-email"
-        />
-        <AuthSecureField
-          ref={passwordRef}
-          nativeValue={password}
-          placeholder={t('auth.passwordField')}
-          autoComplete="new-password"
-          returnKeyType="next"
-          onSubmitEditing={() => confirmPasswordRef.current?.focus()}
-          onChangeText={(text) => {
-            onPasswordChange(text);
-            clearError();
-          }}
-          editable={!loading}
-          testID="register-password"
-        />
-        <AuthSecureField
-          ref={confirmPasswordRef}
-          nativeValue={confirmPassword}
-          placeholder={t('auth.confirmPasswordField')}
-          autoComplete="new-password"
-          returnKeyType="go"
-          onSubmitEditing={() => void handleRegister()}
-          onChangeText={(text) => {
-            onConfirmPasswordChange(text);
-            clearError();
-          }}
-          editable={!loading}
-          testID="register-confirm-password"
-        />
+    <AuthFormLayout description={t('auth.registerDescription')}>
+      <AuthFieldGroup labeled>
+        <AuthLabeledField label={t('auth.emailLabel')}>
+          <AuthTextField
+            nativeValue={email}
+            placeholder={t('auth.emailPlaceholder')}
+            keyboardType="email-address"
+            autoComplete="email"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            onChangeText={(text) => {
+              onEmailChange(text);
+              clearError();
+            }}
+            editable={!loading}
+            testID="register-email"
+          />
+        </AuthLabeledField>
+        <AuthLabeledField label={t('auth.passwordLabel')}>
+          <AuthSecureField
+            ref={passwordRef}
+            nativeValue={password}
+            placeholder={t('auth.passwordField')}
+            autoComplete="new-password"
+            returnKeyType="next"
+            onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+            onChangeText={(text) => {
+              onPasswordChange(text);
+              clearError();
+            }}
+            editable={!loading}
+            testID="register-password"
+          />
+        </AuthLabeledField>
+        <AuthLabeledField label={t('auth.confirmPasswordField')}>
+          <AuthSecureField
+            ref={confirmPasswordRef}
+            nativeValue={confirmPassword}
+            placeholder={t('auth.confirmPasswordField')}
+            autoComplete="new-password"
+            returnKeyType="go"
+            onSubmitEditing={() => void handleRegister()}
+            onChangeText={(text) => {
+              onConfirmPasswordChange(text);
+              clearError();
+            }}
+            editable={!loading}
+            testID="register-confirm-password"
+          />
+        </AuthLabeledField>
       </AuthFieldGroup>
 
       {error ? <AuthErrorText>{error}</AuthErrorText> : null}

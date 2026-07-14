@@ -7,9 +7,10 @@ import {
   AuthFieldGroup,
   AuthFooterPrompt,
   AuthFormLayout,
-  AuthPrimaryButton,
   AuthSecureField,
 } from '../../components/ui/auth-form-layout';
+import { AuthLabeledField } from '../../components/ui/auth-labeled-field';
+import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
 import { useAuthPasswordPair } from '../../hooks/useAuthCredentials';
 import { useAuth } from '../../hooks/useAuth';
 import { runWithFinally } from '../../lib/runWithFinally';
@@ -76,35 +77,39 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <AuthFormLayout variant="secondary" description={t('auth.resetPasswordDescription')}>
-      <AuthFieldGroup>
-        <AuthSecureField
-          nativeValue={password}
-          placeholder={t('auth.resetPasswordField')}
-          autoComplete="new-password"
-          returnKeyType="next"
-          onSubmitEditing={() => confirmPasswordRef.current?.focus()}
-          onChangeText={(text) => {
-            onPasswordChange(text);
-            clearError();
-          }}
-          editable={!loading}
-          testID="reset-password"
-        />
-        <AuthSecureField
-          ref={confirmPasswordRef}
-          nativeValue={confirmPassword}
-          placeholder={t('auth.resetPasswordConfirmField')}
-          autoComplete="new-password"
-          returnKeyType="go"
-          onSubmitEditing={() => void handleReset()}
-          onChangeText={(text) => {
-            onConfirmPasswordChange(text);
-            clearError();
-          }}
-          editable={!loading}
-          testID="reset-password-confirm"
-        />
+    <AuthFormLayout description={t('auth.resetPasswordDescription')}>
+      <AuthFieldGroup labeled>
+        <AuthLabeledField label={t('auth.passwordLabel')}>
+          <AuthSecureField
+            nativeValue={password}
+            placeholder={t('auth.resetPasswordField')}
+            autoComplete="new-password"
+            returnKeyType="next"
+            onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+            onChangeText={(text) => {
+              onPasswordChange(text);
+              clearError();
+            }}
+            editable={!loading}
+            testID="reset-password"
+          />
+        </AuthLabeledField>
+        <AuthLabeledField label={t('auth.resetPasswordConfirmField')}>
+          <AuthSecureField
+            ref={confirmPasswordRef}
+            nativeValue={confirmPassword}
+            placeholder={t('auth.resetPasswordConfirmField')}
+            autoComplete="new-password"
+            returnKeyType="go"
+            onSubmitEditing={() => void handleReset()}
+            onChangeText={(text) => {
+              onConfirmPasswordChange(text);
+              clearError();
+            }}
+            editable={!loading}
+            testID="reset-password-confirm"
+          />
+        </AuthLabeledField>
       </AuthFieldGroup>
 
       {error ? <AuthErrorText>{error}</AuthErrorText> : null}

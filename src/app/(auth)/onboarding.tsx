@@ -7,10 +7,10 @@ import {
   AuthErrorText,
   AuthFieldGroup,
   AuthFormLayout,
-  AuthPrimaryButton,
   AuthTertiaryText,
   AuthTextField,
 } from '../../components/ui/auth-form-layout';
+import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
 import { useTrackedUsername } from '../../hooks/useAuthCredentials';
 import { notifyDomainError } from '../../lib/appNotify';
 import { normalizeUsername } from '../../services/friendService';
@@ -54,7 +54,7 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <AuthFormLayout variant="secondary" description={t('auth.onboardingDescription')}>
+    <AuthFormLayout description={t('auth.onboardingDescription')}>
       <AuthFieldGroup
         footer={
           <VStack alignment="leading" spacing={6}>

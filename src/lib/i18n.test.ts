@@ -55,6 +55,15 @@ describe('i18n', () => {
     expect(i18nModule.default.t('auth.forgotPasswordSubmit')).toBe('Send link');
   });
 
+  it('udostępnia etykiety pól logowania w obu językach', async () => {
+    expect(i18nModule.default.t('auth.emailLabel')).toBe('E-mail');
+    expect(i18nModule.default.t('auth.passwordLabel')).toBe('Hasło');
+
+    await i18nModule.default.changeLanguage('en');
+    expect(i18nModule.default.t('auth.emailLabel')).toBe('Email');
+    expect(i18nModule.default.t('auth.passwordLabel')).toBe('Password');
+  });
+
   it('mapuje DomainError na klucz tłumaczenia', () => {
     const err = new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
     expect(err.messageKey).toBe('domainErrors.UNAUTHORIZED');

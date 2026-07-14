@@ -1,78 +1,52 @@
 import React, {
   Children,
-  createContext,
   forwardRef,
   isValidElement,
   type PropsWithChildren,
   type ReactNode,
-  use,
   useEffect,
 } from 'react';
 import { AccessibilityInfo, PixelRatio, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Button, Text, TextInput, type TextInputProps, type TextInputRef } from '@expo/ui';
-import { HStack, ProgressView, Rectangle, ScrollView, VStack } from '@expo/ui/swift-ui';
+import { HStack, Rectangle, ScrollView, VStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityLabel,
   background,
-  buttonStyle,
   clipShape,
-  contentShape,
   controlSize,
   font,
   foregroundStyle,
   frame,
-  layoutPriority,
   multilineTextAlignment,
+  onTapGesture,
   padding,
   shapes,
-  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import {
   AUTH_FIELD_GROUP_CORNER_RADIUS,
   AUTH_FIELD_INNER_PADDING,
+  AUTH_FIELD_LABELED_ROW_MIN_HEIGHT,
   AUTH_FIELD_ROW_MIN_HEIGHT,
   AUTH_FIELD_SEPARATOR_INSET,
   AUTH_FORM_HORIZONTAL_PADDING,
-  AUTH_LOGIN_HERO_GAP,
-  AUTH_LOGIN_TITLE_TO_FORM_GAP,
-  AUTH_LOGIN_TOP_PADDING,
   AUTH_OR_DIVIDER_GAP,
-  AUTH_PRIMARY_BUTTON_HEIGHT,
-  AUTH_PRIMARY_BUTTON_RADIUS,
   AUTH_SECONDARY_TOP_PADDING,
   AUTH_SECTION_GAP,
   getAuthContentWidth,
+  getAuthElevatedSurfaceColor,
   getAuthOrDividerLineWidth,
-  getAuthPrimaryButtonWidth,
 } from '../../theme/authLayout';
-import { AuthBrandBlock } from '../auth/AuthBrandBlock';
+import { AuthContentWidthContext, useAuthContentWidth } from './auth-content-width';
 import { AppHost } from './app-host';
 
 export type ObservableState<T> = { value: T };
 
-type AuthFormVariant = 'login' | 'secondary';
+export { useAuthContentWidth } from './auth-content-width';
 
 type AuthFormLayoutProps = PropsWithChildren<{
-  variant: AuthFormVariant;
-  title?: string;
   description?: string;
 }>;
-
-type AuthContentWidthContextValue = {
-  contentWidth: number;
-};
-
-const AuthContentWidthContext = createContext<AuthContentWidthContextValue | null>(null);
-
-export function useAuthContentWidth(): number {
-  const context = use(AuthContentWidthContext);
-  if (!context) {
-    throw new Error('useAuthContentWidth must be used within AuthFormLayout');
-  }
-  return context.contentWidth;
-}
 
 function getValue(value: ObservableState<string> | string | undefined): string {
   if (typeof value === 'string') return value;
@@ -99,17 +73,23 @@ function AuthFieldSeparator() {
   );
 }
 
-export function AuthFieldGroup({ children, footer }: PropsWithChildren<{ footer?: ReactNode }>) {
-  const { colors } = useAppTheme();
+export function AuthFieldGroup({
+  children,
+  footer,
+  labeled = false,
+}: PropsWithChildren<{ footer?: ReactNode; labeled?: boolean }>) {
+  const { colors, isDark } = useAppTheme();
   const contentWidth = useAuthContentWidth();
   const items = Children.toArray(children).filter(Boolean);
+  const rowMinHeight = labeled ? AUTH_FIELD_LABELED_ROW_MIN_HEIGHT : AUTH_FIELD_ROW_MIN_HEIGHT;
+  const surfaceColor = getAuthElevatedSurfaceColor(colors, isDark);
 
   return (
     <VStack
       spacing={0}
       modifiers={[
         ...contentColumnModifiers(contentWidth),
-        background(colors.systemBackground, shapes.roundedRectangle({ cornerRadius: AUTH_FIELD_GROUP_CORNER_RADIUS })),
+        background(surfaceColor, shapes.roundedRectangle({ cornerRadius: AUTH_FIELD_GROUP_CORNER_RADIUS })),
         clipShape('roundedRectangle', AUTH_FIELD_GROUP_CORNER_RADIUS),
       ]}>
       {items.map((child, index) => (
@@ -118,7 +98,7 @@ export function AuthFieldGroup({ children, footer }: PropsWithChildren<{ footer?
           <VStack
             spacing={0}
             modifiers={[
-              frame({ maxWidth: Infinity, minHeight: AUTH_FIELD_ROW_MIN_HEIGHT, alignment: 'leading' }),
+              frame({ maxWidth: Infinity, minHeight: rowMinHeight, alignment: 'leading' }),
               padding({ horizontal: AUTH_FIELD_INNER_PADDING, vertical: 0 }),
             ]}>
             {child}
@@ -132,7 +112,10 @@ export function AuthFieldGroup({ children, footer }: PropsWithChildren<{ footer?
             spacing={0}
             modifiers={[
               frame({ maxWidth: Infinity, alignment: 'leading' }),
-              padding(AUTH_FIELD_INNER_PADDING),
+              padding({
+                horizontal: AUTH_FIELD_INNER_PADDING,
+                vertical: AUTH_FIELD_INNER_PADDING,
+              }),
             ]}>
             {footer}
           </VStack>
@@ -142,16 +125,10 @@ export function AuthFieldGroup({ children, footer }: PropsWithChildren<{ footer?
   );
 }
 
-export function AuthFormLayout({
-  children,
-  variant,
-  title,
-  description,
-}: AuthFormLayoutProps) {
+export function AuthFormLayout({ children, description }: AuthFormLayoutProps) {
   const { colors, statusBarStyle } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const contentWidth = getAuthContentWidth(windowWidth);
-  const topPadding = variant === 'login' ? AUTH_LOGIN_TOP_PADDING : AUTH_SECONDARY_TOP_PADDING;
 
   return (
     <AuthContentWidthContext.Provider value={{ contentWidth }}>
@@ -165,49 +142,34 @@ export function AuthFormLayout({
           showsIndicators={false}
           modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
           <VStack
-            alignment="leading"
-            spacing={variant === 'login' ? AUTH_LOGIN_TITLE_TO_FORM_GAP : AUTH_SECTION_GAP}
+            alignment="center"
+            spacing={0}
             modifiers={[
               padding({
-                top: topPadding,
+                top: AUTH_SECONDARY_TOP_PADDING,
                 leading: AUTH_FORM_HORIZONTAL_PADDING,
                 bottom: AUTH_FORM_HORIZONTAL_PADDING,
                 trailing: AUTH_FORM_HORIZONTAL_PADDING,
               }),
-              frame({ maxWidth: Infinity, alignment: 'topLeading' }),
+              frame({ maxWidth: Infinity, alignment: 'top' }),
             ]}>
-            {variant === 'login' ? (
-              <VStack
-                alignment="leading"
-                spacing={AUTH_LOGIN_HERO_GAP}
-                modifiers={contentColumnModifiers(contentWidth)}>
-                <VStack alignment="center" spacing={0} modifiers={[frame({ width: contentWidth, alignment: 'center' })]}>
-                  <AuthBrandBlock />
-                </VStack>
-                {title ? (
-                  <Text
-                    modifiers={[
-                      font({ textStyle: 'title2', weight: 'semibold' }),
-                      foregroundStyle(colors.label),
-                      frame({ width: contentWidth, alignment: 'leading' }),
-                    ]}>
-                    {title}
-                  </Text>
-                ) : null}
-              </VStack>
-            ) : null}
-            {variant === 'secondary' && description ? (
-              <Text
-                modifiers={[
-                  font({ textStyle: 'subheadline' }),
-                  foregroundStyle(colors.secondaryLabel),
-                  multilineTextAlignment('leading'),
-                  frame({ width: contentWidth, alignment: 'leading' }),
-                ]}>
-                {description}
-              </Text>
-            ) : null}
-            {children}
+            <VStack
+              alignment="leading"
+              spacing={AUTH_SECTION_GAP}
+              modifiers={contentColumnModifiers(contentWidth)}>
+              {description ? (
+                <Text
+                  modifiers={[
+                    font({ textStyle: 'subheadline' }),
+                    foregroundStyle(colors.secondaryLabel),
+                    multilineTextAlignment('leading'),
+                    frame({ width: contentWidth, alignment: 'leading' }),
+                  ]}>
+                  {description}
+                </Text>
+              ) : null}
+              {children}
+            </VStack>
           </VStack>
         </ScrollView>
       </AppHost>
@@ -252,42 +214,6 @@ type AuthFieldProps = Omit<TextInputProps, 'value' | 'defaultValue'> & {
   nativeValue?: ObservableState<string> | string;
 };
 
-export function AuthPrimaryButton({
-  label,
-  onPress,
-  disabled,
-  loading = false,
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-  loading?: boolean;
-}) {
-  const { colors } = useAppTheme();
-  const contentWidth = useAuthContentWidth();
-  const buttonWidth = getAuthPrimaryButtonWidth(contentWidth, loading);
-
-  const buttonModifiers = [
-    buttonStyle('borderedProminent'),
-    tint(colors.systemBlue),
-    frame({ width: buttonWidth, height: AUTH_PRIMARY_BUTTON_HEIGHT }),
-    clipShape('roundedRectangle', AUTH_PRIMARY_BUTTON_RADIUS),
-    contentShape(shapes.roundedRectangle({ cornerRadius: AUTH_PRIMARY_BUTTON_RADIUS })),
-  ];
-
-  if (loading) {
-    return (
-      <Button onPress={onPress} disabled modifiers={buttonModifiers}>
-        <ProgressView modifiers={[accessibilityLabel(label), tint(colors.systemBackground)]} />
-      </Button>
-    );
-  }
-
-  return (
-    <Button label={label} onPress={onPress} disabled={disabled} modifiers={buttonModifiers} />
-  );
-}
-
 export function AuthSecondaryButton({
   label,
   onPress,
@@ -321,50 +247,82 @@ export function AuthFooterPrompt({
   if (useVerticalLayout) {
     return (
       <VStack
-        alignment="center"
+        alignment="leading"
         spacing={4}
-        modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'center' })]}>
+        modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'leading' })]}>
         {prompt ? (
           <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(colors.secondaryLabel)]}>
             {prompt}
           </Text>
         ) : null}
-        <AuthSecondaryButton label={linkLabel} onPress={onPress} />
+        <AuthInlineLink label={linkLabel} onPress={onPress} />
       </VStack>
     );
+  }
+
+  if (!prompt) {
+    return <AuthInlineLink label={linkLabel} onPress={onPress} />;
   }
 
   return (
     <HStack
       alignment="center"
-      spacing={4}
-      modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'center' })]}>
-      {prompt ? (
-        <Text
-          modifiers={[
-            font({ textStyle: 'subheadline' }),
-            foregroundStyle(colors.secondaryLabel),
-            layoutPriority(0),
-          ]}>
-          {prompt}
-        </Text>
-      ) : null}
-      <AuthSecondaryButton label={linkLabel} onPress={onPress} />
+      spacing={0}
+      modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'leading' })]}>
+      <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(colors.secondaryLabel)]}>
+        {`${prompt} `}
+      </Text>
+      <Text
+        modifiers={[
+          font({ textStyle: 'subheadline', weight: 'semibold' }),
+          foregroundStyle(colors.label),
+          onTapGesture(onPress),
+        ]}>
+        {linkLabel}
+      </Text>
     </HStack>
   );
 }
 
-export function AuthTrailingLink({ label, onPress }: { label: string; onPress: () => void }) {
+export function AuthTextLink({ label, onPress }: { label: string; onPress: () => void }) {
+  const { colors } = useAppTheme();
+
+  return (
+    <Text
+      modifiers={[
+        font({ textStyle: 'subheadline' }),
+        foregroundStyle(colors.systemBlue),
+        onTapGesture(onPress),
+      ]}>
+      {label}
+    </Text>
+  );
+}
+
+export function AuthLeadingLink({ label, onPress }: { label: string; onPress: () => void }) {
+  const { colors } = useAppTheme();
   const contentWidth = useAuthContentWidth();
 
   return (
     <HStack
       alignment="center"
       spacing={0}
-      modifiers={[frame({ width: contentWidth, alignment: 'trailing' })]}>
-      <AuthSecondaryButton label={label} onPress={onPress} />
+      modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'leading' })]}>
+      <Text
+        modifiers={[
+          font({ textStyle: 'subheadline', weight: 'semibold' }),
+          foregroundStyle(colors.label),
+          onTapGesture(onPress),
+        ]}>
+        {label}
+      </Text>
     </HStack>
   );
+}
+
+/** @deprecated Use AuthLeadingLink */
+export function AuthTrailingLink({ label, onPress }: { label: string; onPress: () => void }) {
+  return <AuthLeadingLink label={label} onPress={onPress} />;
 }
 
 export function AuthSecondaryText({ children }: { children: string }) {

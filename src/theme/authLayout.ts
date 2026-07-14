@@ -1,13 +1,55 @@
-/** Shared spacing for auth screens using `AuthFormLayout`. */
+/** Shared spacing for auth screens using `AuthFormLayout` / `LoginAuthLayout`. */
 export const AUTH_FORM_HORIZONTAL_PADDING = 24;
 
 export const AUTH_CONTENT_MAX_WIDTH = 400;
 
-export const AUTH_LOGIN_TOP_PADDING = 32;
+export const AUTH_LOGIN_TOP_PADDING = 24;
 
 export const AUTH_SECONDARY_TOP_PADDING = 24;
 
+/** @deprecated Use AUTH_LOGIN_LOGO_SIZE for login hero. */
 export const AUTH_BRAND_ICON_SIZE = 72;
+
+export const AUTH_LOGIN_LOGO_SIZE = 88;
+
+export const AUTH_LOGIN_LOGO_CORNER_RADIUS = 20;
+
+export const AUTH_LOGIN_HERO_INTERNAL_GAP = 8;
+
+export const AUTH_LOGIN_WELCOME_TO_TAGLINE_GAP = 8;
+
+export const AUTH_LOGIN_HERO_TO_FORM_GAP = 24;
+
+export const AUTH_LOGIN_FIELD_LABEL_GAP = 6;
+
+export const AUTH_LOGIN_FIELD_STACK_GAP = 16;
+
+export const AUTH_LOGIN_FORM_TO_FORGOT_GAP = 8;
+
+export const AUTH_LOGIN_FORGOT_TO_ACTIONS_GAP = 16;
+
+export const AUTH_FIELD_LABELED_ROW_MIN_HEIGHT = 80;
+
+/** Elevated surface for auth cards — visible on both light grouped bg and dark black bg. */
+export function getAuthElevatedSurfaceColor(
+  colors: { systemBackground: string; secondarySystemBackground: string },
+  isDark: boolean,
+): string {
+  return isDark ? colors.secondarySystemBackground : colors.systemBackground;
+}
+
+export const AUTH_LOGIN_FORM_INNER_GAP = 8;
+
+export const AUTH_LOGIN_FORM_TO_ACTIONS_GAP = 16;
+
+/** @deprecated Use AUTH_LOGIN_FORM_TO_ACTIONS_GAP */
+export const AUTH_LOGIN_FORM_TO_CTA_GAP = AUTH_LOGIN_FORM_TO_ACTIONS_GAP;
+
+export const AUTH_LOGIN_CTA_TO_PROMPT_GAP = 12;
+
+export const AUTH_LOGIN_PROMPT_TO_SOCIAL_GAP = 20;
+
+export const AUTH_BRAND_TAGLINE_GAP = 6;
 
 export const AUTH_FIELD_GROUP_CORNER_RADIUS = 14;
 
@@ -18,19 +60,6 @@ export const AUTH_FIELD_INNER_PADDING = 16;
 export const AUTH_FIELD_SEPARATOR_INSET = 16;
 
 export const AUTH_SECTION_GAP = 20;
-
-/** Login screen vertical rhythm — tighter than secondary auth screens. */
-export const AUTH_LOGIN_HERO_GAP = 20;
-
-export const AUTH_LOGIN_TITLE_TO_FORM_GAP = 16;
-
-export const AUTH_LOGIN_FORM_INNER_GAP = 8;
-
-export const AUTH_LOGIN_FORM_TO_CTA_GAP = 12;
-
-export const AUTH_LOGIN_CTA_TO_PROMPT_GAP = 16;
-
-export const AUTH_LOGIN_PROMPT_TO_SOCIAL_GAP = 20;
 
 export const AUTH_ACTIONS_GAP = 12;
 

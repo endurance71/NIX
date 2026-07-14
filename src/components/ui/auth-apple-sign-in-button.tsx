@@ -4,7 +4,7 @@ import { RNHostView, VStack } from '@expo/ui/swift-ui';
 import { frame } from '@expo/ui/swift-ui/modifiers';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { AUTH_SOCIAL_BUTTON_HEIGHT, AUTH_SOCIAL_BUTTON_RADIUS } from '../../theme/authLayout';
-import { useAuthContentWidth } from './auth-form-layout';
+import { useAuthContentWidth } from './auth-content-width';
 
 type AuthAppleSignInButtonProps = {
   disabled?: boolean;
