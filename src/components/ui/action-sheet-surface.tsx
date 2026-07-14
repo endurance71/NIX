@@ -7,7 +7,7 @@ import { useScreenInsets } from '../../hooks/useScreenInsets';
 export { ActionSheetPrimaryButton, ActionSheetSecondaryButton } from './action-sheet-buttons';
 
 export const ACTION_SHEET_AVATAR_SIZE = 96;
-const COMPACT_SHEET_TOP_PADDING = 18;
+const COMPACT_SHEET_TOP_PADDING = 0;
 
 type ActionSheetSurfaceProps = {
   title: string;
@@ -50,7 +50,7 @@ const createStyles = (colors: ThemeColors, bottomInset: number) =>
     container: {
       alignSelf: 'stretch',
       width: '100%',
-      paddingHorizontal: 24,
+      paddingHorizontal: 8,
       paddingTop: COMPACT_SHEET_TOP_PADDING,
       paddingBottom: bottomInset,
       gap: 10,

@@ -19,7 +19,6 @@ import {
   accessibilityHint,
   accessibilityLabel,
   buttonStyle,
-  containerRelativeFrame,
   contentShape,
   controlSize,
   font,
@@ -352,20 +351,22 @@ function LegacyUnavailableState({
   );
 }
 
-function UnavailableRow({
+function InboxUnavailableState({
   kind,
   title,
   description,
+  onRefresh,
   retryLabel,
   onRetry,
 }: {
   kind: 'empty' | 'error';
   title: string;
   description: string;
+  onRefresh: () => Promise<void>;
   retryLabel?: string;
   onRetry?: () => void;
 }) {
-  const { colors } = useAppTheme();
+  const { colors, statusBarStyle } = useAppTheme();
   const systemImage = kind === 'empty' ? 'tray' : 'exclamationmark.triangle';
   const state =
     kind === 'empty' && supportsContentUnavailableView ? (
@@ -375,31 +376,31 @@ function UnavailableRow({
     );
 
   return (
-    <VStack
-      alignment="center"
-      spacing={16}
-      modifiers={[
-        frame({ maxWidth: Infinity, minHeight: 360, alignment: 'center' }),
-        ...(supportsContentUnavailableView
-          ? [containerRelativeFrame({ axes: 'vertical', alignment: 'center' })]
-          : []),
-        listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 }),
-        listRowSeparator('hidden'),
-        listRowBackground(colors.systemBackground),
-      ]}>
-      {state}
-      {retryLabel && onRetry ? (
-        <Button
-          label={retryLabel}
-          onPress={onRetry}
-          modifiers={[
-            buttonStyle('borderedProminent'),
-            controlSize('regular'),
-            tint(colors.systemBlue),
-          ]}
-        />
-      ) : null}
-    </VStack>
+    <AppHost
+      style={[styles.container, { backgroundColor: colors.systemBackground }]}
+      useViewportSizeMeasurement>
+      <StatusBar style={statusBarStyle} />
+      <VStack
+        alignment="center"
+        spacing={16}
+        modifiers={[
+          frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'center' }),
+          refreshable(onRefresh),
+        ]}>
+        {state}
+        {retryLabel && onRetry ? (
+          <Button
+            label={retryLabel}
+            onPress={onRetry}
+            modifiers={[
+              buttonStyle('borderedProminent'),
+              controlSize('regular'),
+              tint(colors.systemBlue),
+            ]}
+          />
+        ) : null}
+      </VStack>
+    </AppHost>
   );
 }
 
@@ -437,46 +438,28 @@ function InboxList({ vm, onRequestDelete }: InboxScreenSurfaceProps) {
       useViewportSizeMeasurement>
       <StatusBar style={statusBarStyle} />
       <List modifiers={listModifiers}>
-        {vm.initialError ? (
-          <UnavailableRow
-            kind="error"
-            title={vm.t('inbox.loadErrorTitle')}
-            description={vm.t('inbox.loadErrorDescription')}
-            retryLabel={vm.t('inbox.retry')}
-            onRetry={() => void vm.handleRetry()}
-          />
-        ) : vm.requests.length === 0 && vm.rows.length === 0 ? (
-          <UnavailableRow
-            kind="empty"
-            title={vm.t('inbox.emptyTitle')}
-            description={vm.t('inbox.emptyDescription')}
-          />
+        {vm.requests.length > 0 ? (
+          <Section title={vm.t('inbox.invites')}>
+            {vm.requests.map((request) => {
+              const avatarPath = request.requester.avatar_storage_path ?? null;
+              return (
+                <InviteRow
+                  key={request.id}
+                  request={request}
+                  avatarUrl={avatarPath ? vm.avatarUrls[avatarPath] ?? null : null}
+                  busy={vm.inviteActionIds.has(request.id)}
+                  onAccept={() => void vm.handleAccept(request.id)}
+                  onReject={() => void vm.handleReject(request.id)}
+                  t={vm.t}
+                />
+              );
+            })}
+          </Section>
+        ) : null}
+        {messageRows.length > 0 && vm.requests.length > 0 ? (
+          <Section title={vm.t('inbox.messages')}>{messageRows}</Section>
         ) : (
-          <>
-            {vm.requests.length > 0 ? (
-              <Section title={vm.t('inbox.invites')}>
-                {vm.requests.map((request) => {
-                  const avatarPath = request.requester.avatar_storage_path ?? null;
-                  return (
-                    <InviteRow
-                      key={request.id}
-                      request={request}
-                      avatarUrl={avatarPath ? vm.avatarUrls[avatarPath] ?? null : null}
-                      busy={vm.inviteActionIds.has(request.id)}
-                      onAccept={() => void vm.handleAccept(request.id)}
-                      onReject={() => void vm.handleReject(request.id)}
-                      t={vm.t}
-                    />
-                  );
-                })}
-              </Section>
-            ) : null}
-            {messageRows.length > 0 && vm.requests.length > 0 ? (
-              <Section title={vm.t('inbox.messages')}>{messageRows}</Section>
-            ) : (
-              messageRows
-            )}
-          </>
+          messageRows
         )}
       </List>
     </AppHost>
@@ -485,17 +468,42 @@ function InboxList({ vm, onRequestDelete }: InboxScreenSurfaceProps) {
 
 export function InboxScreenSurface(props: InboxScreenSurfaceProps) {
   const { colors, statusBarStyle } = useAppTheme();
+  const { vm } = props;
 
-  if (props.vm.loading) {
+  if (vm.loading) {
     return (
       <AppHost style={[styles.container, { backgroundColor: colors.systemBackground }]}>
         <StatusBar style={statusBarStyle} />
         <VStack
           alignment="center"
           modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'center' })]}>
-          <ProgressView modifiers={[accessibilityLabel(props.vm.t('common.loading'))]} />
+          <ProgressView modifiers={[accessibilityLabel(vm.t('common.loading'))]} />
         </VStack>
       </AppHost>
+    );
+  }
+
+  if (vm.initialError) {
+    return (
+      <InboxUnavailableState
+        kind="error"
+        title={vm.t('inbox.loadErrorTitle')}
+        description={vm.t('inbox.loadErrorDescription')}
+        onRefresh={vm.handleRefresh}
+        retryLabel={vm.t('inbox.retry')}
+        onRetry={() => void vm.handleRetry()}
+      />
+    );
+  }
+
+  if (vm.requests.length === 0 && vm.rows.length === 0) {
+    return (
+      <InboxUnavailableState
+        kind="empty"
+        title={vm.t('inbox.emptyTitle')}
+        description={vm.t('inbox.emptyDescription')}
+        onRefresh={vm.handleRefresh}
+      />
     );
   }
 

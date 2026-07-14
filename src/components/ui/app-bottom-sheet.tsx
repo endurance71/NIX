@@ -1,15 +1,18 @@
-import type { ReactNode } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import { BottomSheet } from '@expo/ui';
+import type { ReactElement, ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { BottomSheet, RNHostView } from '@expo/ui';
 import type { SnapPoint } from '@expo/ui';
-
-const SHEET_HORIZONTAL_MARGIN = 32;
 
 type AppBottomSheetProps = {
   isPresented: boolean;
   onDismiss: () => void;
   children: ReactNode;
   testID?: string;
+  /**
+   * Use snap points only for tall / scrollable sheets.
+   * Compact sheets should omit this — @expo/ui BottomSheet auto-sizes via `fitToContents`
+   * when RN content is hosted in `RNHostView matchContents` (see Expo swift-ui BottomSheet docs).
+   */
   snapPoints?: SnapPoint[];
   showDragIndicator?: boolean;
 };
@@ -22,8 +25,11 @@ export function AppBottomSheet({
   snapPoints,
   showDragIndicator = true,
 }: AppBottomSheetProps) {
-  const { width } = useWindowDimensions();
-  const contentWidth = Math.max(0, width - SHEET_HORIZONTAL_MARGIN);
+  const hasSnapPoints = Boolean(snapPoints?.length);
+
+  const hostedContent = (
+    <View style={hasSnapPoints ? styles.flexContent : styles.matchContent}>{children}</View>
+  ) as ReactElement;
 
   return (
     <BottomSheet
@@ -33,13 +39,25 @@ export function AppBottomSheet({
       showDragIndicator={showDragIndicator}
       testID={testID}
     >
-      <View style={[styles.content, { width: contentWidth }]}>{children}</View>
+      {hasSnapPoints ? (
+        hostedContent
+      ) : (
+        <RNHostView matchContents>{hostedContent}</RNHostView>
+      )}
     </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
+  matchContent: {
     alignSelf: 'stretch',
+    width: '100%',
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  flexContent: {
+    alignSelf: 'stretch',
+    width: '100%',
+    flex: 1,
   },
 });

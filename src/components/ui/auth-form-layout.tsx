@@ -82,6 +82,8 @@ export function AuthFieldGroup({
   const contentWidth = useAuthContentWidth();
   const items = Children.toArray(children).filter(Boolean);
   const rowMinHeight = labeled ? AUTH_FIELD_LABELED_ROW_MIN_HEIGHT : AUTH_FIELD_ROW_MIN_HEIGHT;
+  const rowVerticalPadding = labeled ? 12 : AUTH_FIELD_INNER_PADDING;
+  const rowAlignment = labeled ? 'leading' : 'center';
   const surfaceColor = getAuthElevatedSurfaceColor(colors, isDark);
 
   return (
@@ -98,8 +100,11 @@ export function AuthFieldGroup({
           <VStack
             spacing={0}
             modifiers={[
-              frame({ maxWidth: Infinity, minHeight: rowMinHeight, alignment: 'leading' }),
-              padding({ horizontal: AUTH_FIELD_INNER_PADDING, vertical: 0 }),
+              frame({ maxWidth: Infinity, minHeight: rowMinHeight, alignment: rowAlignment }),
+              padding({
+                horizontal: AUTH_FIELD_INNER_PADDING,
+                vertical: rowVerticalPadding,
+              }),
             ]}>
             {child}
           </VStack>
@@ -187,7 +192,7 @@ export const AuthTextField = forwardRef<TextInputRef, AuthFieldProps>(function A
       defaultValue={getValue(nativeValue)}
       autoCapitalize={autoCapitalize}
       autoCorrect={autoCorrect}
-      modifiers={[frame({ maxWidth: Infinity, minHeight: AUTH_FIELD_ROW_MIN_HEIGHT - AUTH_FIELD_INNER_PADDING * 2 })]}
+      modifiers={[frame({ maxWidth: Infinity })]}
       {...props}
     />
   );
@@ -204,7 +209,7 @@ export const AuthSecureField = forwardRef<TextInputRef, AuthFieldProps>(function
       secureTextEntry
       autoCapitalize={autoCapitalize}
       autoCorrect={autoCorrect}
-      modifiers={[frame({ maxWidth: Infinity, minHeight: AUTH_FIELD_ROW_MIN_HEIGHT - AUTH_FIELD_INNER_PADDING * 2 })]}
+      modifiers={[frame({ maxWidth: Infinity })]}
       {...props}
     />
   );

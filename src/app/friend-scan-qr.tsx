@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { CameraView, BarcodeScanningResult, useCameraPermissions } from 'expo-camera';
 import { router, useFocusEffect } from 'expo-router';
@@ -96,8 +96,6 @@ function friendInviteConfirmReducer(
   }
 }
 
-const QR_CONFIRMATION_SHEET_HEIGHT = 450;
-
 export default function FriendScanQrScreen() {
   const { colors } = useAppTheme();
   const styles = createStyles(colors);
@@ -110,13 +108,13 @@ export default function FriendScanQrScreen() {
   const handledSuccessRef = useRef(false);
 
   useFocusEffect(
-    () => {
+    useCallback(() => {
       setScanningLocked(false);
       setLoading(false);
       setScannedData(null);
       scanInFlightRef.current = false;
       handledSuccessRef.current = false;
-    }
+    }, [])
   );
 
   const handleScan = async (event: BarcodeScanningResult) => {
@@ -268,7 +266,7 @@ export default function FriendScanQrScreen() {
       <CameraView
         style={styles.camera}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        onBarcodeScanned={scanningLocked ? undefined : handleScan}
+        onBarcodeScanned={scanningLocked || scannedData ? undefined : handleScan}
       />
       {loading && !scannedData && (
         <View style={StyleSheet.absoluteFill}>
@@ -278,11 +276,7 @@ export default function FriendScanQrScreen() {
         </View>
       )}
 
-      <AppBottomSheet
-        isPresented={scannedData !== null}
-        onDismiss={handleSheetDismiss}
-        snapPoints={[{ height: QR_CONFIRMATION_SHEET_HEIGHT }]}
-      >
+      <AppBottomSheet isPresented={scannedData !== null} onDismiss={handleSheetDismiss}>
         {scannedData ? (
           <FriendInviteConfirmSheetContent
             profileId={scannedData.profileId}

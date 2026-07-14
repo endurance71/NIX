@@ -1,7 +1,7 @@
 import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, useReducer, useState } from 'react';
+import { QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { View, ActivityIndicator, Text, Pressable } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -23,41 +23,13 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableFreeze } from 'react-native-screens';
 import { initBackgroundTaskService } from '../services/backgroundTaskService';
 import { useTranslation } from 'react-i18next';
-import { runWithFinally } from '../lib/runWithFinally';
 import { AppRealtimeSync } from '../components/sync/AppRealtimeSync';
+import { queryKeys } from '../lib/queryKeys';
+import { resolveNeedsOnboarding } from '../lib/profileGate';
 
 // Initialize monitoring at module load (runs once).
 initMonitoring();
 enableFreeze(true);
-
-type ProfileGateState = {
-  profileLoading: boolean;
-  needsOnboarding: boolean;
-};
-
-type ProfileGateAction =
-  | { type: 'no_session' }
-  | { type: 'fetch_start' }
-  | { type: 'resolved'; profile: Awaited<ReturnType<typeof getCurrentUserProfile>> }
-  | { type: 'fetch_error' };
-
-function profileGateReducer(state: ProfileGateState, action: ProfileGateAction): ProfileGateState {
-  switch (action.type) {
-    case 'no_session':
-      return { profileLoading: false, needsOnboarding: false };
-    case 'fetch_start':
-      return { ...state, profileLoading: true };
-    case 'resolved':
-      return {
-        profileLoading: false,
-        needsOnboarding: !action.profile?.username,
-      };
-    case 'fetch_error':
-      return { profileLoading: false, needsOnboarding: true };
-    default:
-      return state;
-  }
-}
 
 export default function RootLayout() {
   const [queryClient] = useState(() => createAppQueryClient());
@@ -94,56 +66,21 @@ function RootNavigator() {
   const { colors, statusBarStyle } = useAppTheme();
   const { session, loading } = useAuth();
   const segments = useSegments() as string[];
-  const [gate, dispatchGate] = useReducer(profileGateReducer, {
-    profileLoading: false,
-    needsOnboarding: false,
+  const {
+    data: profile,
+    isPending: profilePending,
+    isError: profileError,
+  } = useQuery({
+    queryKey: queryKeys.currentUserProfile,
+    queryFn: getCurrentUserProfile,
+    enabled: !!session,
+    retry: 2,
   });
-  const { profileLoading, needsOnboarding } = gate;
+  const profileLoading = !!session && profilePending;
+  const needsOnboarding = resolveNeedsOnboarding(!!session, profile, profileError);
   const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false);
 
   const { topContentInset, bottomContentInset } = useScreenInsets('fullscreen');
-
-  useEffect(() => {
-    let mounted = true;
-    let profileRaceTimeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    const checkProfile = async () => {
-      if (!session) {
-        if (!mounted) return;
-        dispatchGate({ type: 'no_session' });
-        return;
-      }
-
-      dispatchGate({ type: 'fetch_start' });
-      await runWithFinally(
-        async () => {
-          const timeoutPromise = new Promise<Awaited<ReturnType<typeof getCurrentUserProfile>> | null>(
-            (resolve) => {
-              profileRaceTimeoutId = setTimeout(() => resolve(null), 5000);
-            }
-          );
-          const profile = await Promise.race([getCurrentUserProfile(), timeoutPromise]);
-          if (!mounted) return;
-          dispatchGate({ type: 'resolved', profile });
-        },
-        () => {
-          if (profileRaceTimeoutId !== undefined) {
-            clearTimeout(profileRaceTimeoutId);
-            profileRaceTimeoutId = undefined;
-          }
-        }
-      ).catch(() => {
-        if (!mounted) return;
-        dispatchGate({ type: 'fetch_error' });
-      });
-    };
-
-    void checkProfile();
-    return () => {
-      mounted = false;
-      if (profileRaceTimeoutId !== undefined) clearTimeout(profileRaceTimeoutId);
-    };
-  }, [session]);
 
   useEffect(() => {
     if (!loading && !profileLoading) return;

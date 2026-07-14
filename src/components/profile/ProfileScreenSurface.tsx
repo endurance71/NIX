@@ -35,7 +35,6 @@ export default function ProfileScreenSurface() {
         <NativeSettingsSection>
           <NativeSettingsRow
             title={`@${vm.profileUsername ?? vm.t('profile.missingUsername')}`}
-            supportingText={vm.user?.email ?? vm.t('common.unknown')}
             avatar={{
               url: vm.avatarSignedUrl,
               storagePath: vm.profileRow?.avatar_storage_path ?? null,

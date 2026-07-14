@@ -1,26 +1,34 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { VStack } from '@expo/ui/swift-ui';
-import { isUsernameTaken, saveUsernameForCurrentUser } from '../../services/profileService';
+import { isUsernameTaken, getCurrentUserProfile, saveUsernameForCurrentUser } from '../../services/profileService';
 import {
   AuthErrorText,
   AuthFieldGroup,
   AuthFormLayout,
+  AuthSecondaryButton,
   AuthTertiaryText,
   AuthTextField,
 } from '../../components/ui/auth-form-layout';
 import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
+import { useAuth } from '../../hooks/useAuth';
 import { useTrackedUsername } from '../../hooks/useAuthCredentials';
 import { notifyDomainError } from '../../lib/appNotify';
 import { normalizeUsername } from '../../services/friendService';
 import { runWithFinally } from '../../lib/runWithFinally';
+import { queryKeys } from '../../lib/queryKeys';
 
 export default function OnboardingScreen() {
   const { t } = useTranslation();
+  const { signOut } = useAuth();
+  const queryClient = useQueryClient();
   const { username, onUsernameChange, getUsername } = useTrackedUsername();
   const [loading, setLoading] = useState(false);
+  const [signOutLoading, setSignOutLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const busy = loading || signOutLoading;
 
   const clearError = () => {
     setError(null);
@@ -38,6 +46,13 @@ export default function OnboardingScreen() {
 
     await runWithFinally(
       async () => {
+        const currentProfile = await getCurrentUserProfile();
+        if (currentProfile?.username) {
+          await queryClient.refetchQueries({ queryKey: queryKeys.currentUserProfile });
+          router.replace('/(tabs)');
+          return;
+        }
+
         const taken = await isUsernameTaken(cleaned);
         if (taken) {
           setError(t('auth.onboardingUsernameTaken'));
@@ -45,12 +60,25 @@ export default function OnboardingScreen() {
         }
 
         await saveUsernameForCurrentUser(cleaned);
+        await queryClient.refetchQueries({ queryKey: queryKeys.currentUserProfile });
         router.replace('/(tabs)');
       },
       () => setLoading(false)
     ).catch((err: unknown) => {
       notifyDomainError(err, t('auth.onboardingSaveFailed'));
     });
+  };
+
+  const handleUseOtherAccount = async () => {
+    setSignOutLoading(true);
+    await runWithFinally(
+      async () => {
+        await signOut();
+        queryClient.clear();
+        router.replace('/(auth)/login');
+      },
+      () => setSignOutLoading(false)
+    );
   };
 
   return (
@@ -72,7 +100,7 @@ export default function OnboardingScreen() {
             onUsernameChange(text);
             clearError();
           }}
-          editable={!loading}
+          editable={!busy}
           testID="onboarding-username"
         />
       </AuthFieldGroup>
@@ -83,7 +111,11 @@ export default function OnboardingScreen() {
         label={t('auth.onboardingSubmit')}
         loading={loading}
         onPress={() => void handleSetUsername()}
-        disabled={loading}
+        disabled={busy}
+      />
+      <AuthSecondaryButton
+        label={t('auth.onboardingUseOtherAccount')}
+        onPress={() => void handleUseOtherAccount()}
       />
     </AuthFormLayout>
   );
