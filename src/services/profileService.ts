@@ -90,3 +90,20 @@ export async function saveUsernameForCurrentUser(username: string) {
 
   if (error) throw error;
 }
+
+export async function saveAppleIdForCurrentUser(appleUserId: string) {
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  const { data: existing, error: selectError } = await supabase
+    .from('profiles')
+    .select('apple_id')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (selectError) throw selectError;
+  if (existing?.apple_id) return;
+
+  const { error } = await supabase.from('profiles').update({ apple_id: appleUserId }).eq('id', user.id);
+  if (error) throw error;
+}

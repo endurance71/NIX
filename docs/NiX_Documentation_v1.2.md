@@ -2,21 +2,19 @@
 
 **Status:** W toku — stabilizacja MVP  
 **Stack:** React Native (Expo SDK 56) + Supabase  
-**Ostatnia aktualizacja:** 2026-06-24
+**Ostatnia aktualizacja:** 2026-07-14
+
+---
+
+> [!NOTE]
+> **Sign in with Apple (iOS)** jest wdrożony natywnie (`expo-apple-authentication` + Supabase `signInWithIdToken`). Wymaga konfiguracji providera w Supabase Dashboard — patrz [apple-sign-in-setup.md](apple-sign-in-setup.md).  
+> **Równolegle aktywne:** uwierzytelnianie **e-mail + hasło** (potwierdzenie e-maila, reset hasła przez deep link). Szczegóły: [auth-flow.md](auth-flow.md).
 
 ---
 
 > [!IMPORTANT]
 > **Native-first (iOS + Android)**  
 > Naczelnym wyznacznikiem aplikacji są **natywne rozwiązania platform iOS i Android** (SwiftUI / Jetpack Compose przez `@expo/ui`, moduły Expo, systemowy motyw). Pełne wytyczne: [native-platform-guidelines.md](native-platform-guidelines.md).
-
----
-
-> [!WARNING]
-> **Apple Developer Account — OCZEKUJE**  
-> Logowanie przez Apple (Sign in with Apple) jest **wstrzymane** do momentu konta Apple Developer.  
-> **Aktywnie:** uwierzytelnianie **e-mail + hasło** przez Supabase Auth (potwierdzenie e-maila przy rejestracji, reset hasła przez deep link).  
-> Szczegóły: [auth-flow.md](auth-flow.md).
 
 ---
 
@@ -28,7 +26,7 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 
 ### 1.2 Kluczowe filary
 
-1. **Prywatność:** Docelowo Sign in with Apple; obecnie Supabase Auth (e-mail wyłącznie w warstwie auth, bez kolumny e-mail w `profiles`).
+1. **Prywatność:** Sign in with Apple (iOS) + Supabase Auth e-mail+hasło (e-mail wyłącznie w warstwie auth, bez kolumny e-mail w `profiles`).
 2. **Speed-to-Camera:** Szybki dostęp do kamery z zakładki głównej.
 3. **True Ephemeral:** Po obejrzeniu — cleanup mediów ze Storage i finalizacja cyklu życia wiadomości (status `cleaned`, kolejka retry).
 4. **Native-first (naczelny wyznacznik):** Każda warstwa UI i UX jest oceniana pod kątem natywnych konwencji **iOS i Android**. Domyślnie universal `@expo/ui` (SwiftUI / Jetpack Compose), moduły Expo z mostem natywnym, systemowy motyw; RN primitives tylko tam, gdzie natywna warstwa nie wystarcza. Szczegóły: [native-platform-guidelines.md](native-platform-guidelines.md).
@@ -45,7 +43,7 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 
 ### 1.4 Wymagania funkcjonalne
 
-- **Uwierzytelnianie:** rejestracja i logowanie e-mail+hasło; potwierdzenie e-maila; reset i zmiana hasła; onboarding z jednorazowym `username`. Szczegóły: [auth-flow.md](auth-flow.md).
+- **Uwierzytelnianie:** rejestracja i logowanie e-mail+hasło; Sign in with Apple (iOS); potwierdzenie e-maila; reset i zmiana hasła (e-mail); onboarding z jednorazowym `username`. Szczegóły: [auth-flow.md](auth-flow.md).
 - **Znajomi:** wyszukiwanie po `@username`, zaproszenia, akceptacja/odrzucenie, usuwanie znajomości; zaproszenia QR (token jednorazowy). Szczegóły: [friend-invites-qr.md](friend-invites-qr.md).
 - **Awatary:** zdjęcie (buckiet `avatars`, ścieżka `<uuid>/...`) **lub** pojedyncze emoji — wykluczają się wzajemnie (`profiles_avatar_exclusive`).
 - **Kamera:** front/back, zoom pinch, flash, zdjęcie (tap) i wideo (przytrzymanie); segmenty do **30 s**, sumarycznie do **180 s** na jedno przytrzymanie; opcjonalne wyciszenie mikrofonu przy nagrywaniu.
@@ -314,7 +312,7 @@ Instalacja typowa: `npx expo install <pakiet>` dla modułów Expo.
 Pełny plik: [app.json](../app.json) w katalogu głównym repo.
 
 > [!NOTE]
-> `usesAppleSignIn` / `expo-apple-authentication` **nie** są włączone do czasu Sprintu 4.
+> `usesAppleSignIn` i plugin `expo-apple-authentication` są włączone w [`app.json`](../app.json). Logika OAuth: [`src/services/socialAuthService.ts`](../src/services/socialAuthService.ts). Konfiguracja cloud: [apple-sign-in-setup.md](apple-sign-in-setup.md).
 
 ---
 

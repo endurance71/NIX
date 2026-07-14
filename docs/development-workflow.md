@@ -73,8 +73,20 @@ Testy wykonuj na **iOS i Android** (symulator/emulator lub urządzenie). Krytycz
 - [ ] Rejestracja: poprawny e-mail i hasło → ekran „sprawdź e-mail” / komunikat zgodny z konfiguracją Supabase.
 - [ ] Po potwierdzeniu e-maila: logowanie prowadzi do onboardingu (nowy user) lub kart (istniejący).
 - [ ] Logowanie: błędne hasło → komunikat `invalidCredentials`; niepotwierdzony e-mail → `emailNotConfirmed`.
-- [ ] Reset hasła: link z e-maila otwiera aplikację (`nix://`) i ekran nowego hasła.
-- [ ] Zmiana hasła z profilu (zalogowany).
+- [ ] Reset hasła: link z e-maila otwiera aplikację (`nix://`) → nowe hasło zapisane → logowanie działa.
+- [ ] Reset hasła OTP: kod recovery → `reset-password` → zapis hasła.
+- [ ] Zmiana hasła z profilu (użytkownik e-mail+hasło).
+- [ ] Maile auth mają branding NiX (ciemny szablon + OTP) — patrz [supabase-email-templates.md](./supabase-email-templates.md).
+
+### Uwierzytelnianie (Sign in with Apple — iOS, urządzenie fizyczne)
+
+- [ ] Nowy użytkownik Apple → onboarding username → `(tabs)`.
+- [ ] Powtórny login Apple → `(tabs)` bez utraty danych.
+- [ ] Anulowanie Apple → brak błędu na ekranie loginu.
+- [ ] Profil Apple-only → brak wiersza „Zmień hasło”.
+- [ ] Ten sam e-mail: konto e-mail i Apple = osobne konta.
+
+Konfiguracja: [apple-sign-in-setup.md](./apple-sign-in-setup.md).
 
 ### Znajomi (wyszukiwanie i zaproszenia)
 

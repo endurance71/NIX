@@ -31,7 +31,6 @@ export default {
           'src/components/ui/auth-form-layout.tsx',
           'src/components/ui/settings-list-screen.tsx',
           'src/theme/authLayout.ts',
-          'src/theme/authTypography.ts',
           'src/theme/safeArea.ts',
         ],
         rules: ['deslop/unused-export'],

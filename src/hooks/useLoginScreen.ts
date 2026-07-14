@@ -1,13 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
-import { useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './useAuth';
-import { isSocialAuthNotConfiguredError } from '../services/socialAuthService';
-import type { SocialAuthProvider } from '../services/socialAuthService';
+import {
+  APPLE_SIGN_IN_ERROR_CODES,
+  isSocialAuthNotConfiguredError,
+} from '../services/socialAuthService';
 import { tap, notify } from '../lib/haptics';
-import { getAuthContentWidth } from '../theme/authLayout';
+
+function getAppleSignInErrorMessage(message: string, t: (key: string) => string) {
+  if (message === APPLE_SIGN_IN_ERROR_CODES.NO_IDENTITY_TOKEN) {
+    return t('auth.appleSignInNoToken');
+  }
+  if (message === APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE) {
+    return t('auth.appleSignInUnavailable');
+  }
+  if (message.toLowerCase().includes('nonce')) {
+    return t('auth.appleSignInFailed');
+  }
+  return message || t('auth.appleSignInFailed');
+}
 
 function getAuthErrorMessage(message: string, t: (key: string) => string) {
   if (message.includes('Invalid login credentials')) return t('auth.invalidCredentials');
@@ -25,8 +38,7 @@ function goToRegister() {
 
 export function useLoginScreen() {
   const { t } = useTranslation();
-  const { width: windowWidth } = useWindowDimensions();
-  const { signIn, signInWithGoogle, signInWithApple } = useAuth();
+  const { signIn, signInWithApple } = useAuth();
 
   const [emailVal, setEmailVal] = useState('');
   const [passwordVal, setPasswordVal] = useState('');
@@ -36,7 +48,7 @@ export function useLoginScreen() {
   const passwordRef = useRef('');
 
   const [loading, setLoading] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<SocialAuthProvider | null>(null);
+  const [appleLoading, setAppleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [appleSignInAvailable, setAppleSignInAvailable] = useState(
     process.env.EXPO_OS === 'ios',
@@ -47,9 +59,8 @@ export function useLoginScreen() {
     void AppleAuthentication.isAvailableAsync().then(setAppleSignInAvailable);
   }, []);
 
-  const contentWidth = getAuthContentWidth(windowWidth);
-  const authBusy = loading || socialLoading !== null;
-  const showSocialDivider = process.env.EXPO_OS === 'ios' && appleSignInAvailable;
+  const authBusy = loading || appleLoading;
+  const showAppleSignIn = process.env.EXPO_OS === 'ios' && appleSignInAvailable;
 
   const onEmailChange = (text: string) => {
     emailRef.current = text;
@@ -65,11 +76,6 @@ export function useLoginScreen() {
     setError(null);
     tap('light');
   };
-
-  const getSocialAuthNotConfiguredMessage = (provider: SocialAuthProvider) =>
-    provider === 'google'
-      ? t('auth.socialAuthNotConfiguredGoogle')
-      : t('auth.socialAuthNotConfiguredApple');
 
   const handleSignIn = async () => {
     const trimmedEmail = emailRef.current.trim().toLowerCase();
@@ -100,27 +106,29 @@ export function useLoginScreen() {
     }
   };
 
-  const handleSocialSignIn = async (provider: SocialAuthProvider) => {
+  const handleAppleSignIn = async () => {
     if (authBusy) return;
 
     setError(null);
-    setSocialLoading(provider);
+    setAppleLoading(true);
     tap('medium');
 
-    const { error: socialError } =
-      provider === 'google' ? await signInWithGoogle() : await signInWithApple();
+    const { data, error: appleError } = await signInWithApple();
 
-    setSocialLoading(null);
+    setAppleLoading(false);
 
-    if (socialError) {
-      if (isSocialAuthNotConfiguredError(socialError.message)) {
-        setError(getSocialAuthNotConfiguredMessage(provider));
+    if (appleError) {
+      if (isSocialAuthNotConfiguredError(appleError.message)) {
+        setError(t('auth.socialAuthNotConfiguredApple'));
         notify('error');
         return;
       }
-      setError(socialError.message);
+      setError(getAppleSignInErrorMessage(appleError.message, t));
       notify('error');
-    } else {
+      return;
+    }
+
+    if (data?.session) {
       notify('success');
     }
   };
@@ -131,15 +139,13 @@ export function useLoginScreen() {
     password,
     error,
     loading,
-    socialLoading,
     authBusy,
-    contentWidth,
-    showSocialDivider,
+    showAppleSignIn,
     onEmailChange,
     onPasswordChange,
     clearError,
     handleSignIn,
-    handleSocialSignIn,
+    handleAppleSignIn,
     goToForgotPassword,
     goToRegister,
   };

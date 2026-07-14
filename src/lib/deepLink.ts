@@ -33,7 +33,7 @@ async function handleAuthDeepLink(url: string, isCancelled: () => boolean) {
   if (isCancelled() || error) return;
 
   if (type === 'recovery') {
-    router.replace('/(auth)/reset-password');
+    router.replace({ pathname: '/(auth)/reset-password', params: { source: 'deeplink' } });
   }
 }
 

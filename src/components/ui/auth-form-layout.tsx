@@ -1,275 +1,290 @@
-import React, { Children, PropsWithChildren, ReactNode, ReactElement } from 'react';
-import {
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text as RNText,
-  TextInput as RNTextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import React, {
+  Children,
+  createContext,
+  forwardRef,
+  isValidElement,
+  type PropsWithChildren,
+  type ReactNode,
+  use,
+  useEffect,
+} from 'react';
+import { AccessibilityInfo, PixelRatio, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import type { ComponentProps } from 'react';
-import { useAppTheme } from '../../hooks/useAppTheme';
-import { useScreenInsets } from '../../hooks/useScreenInsets';
-import { APP_FONT_FAMILY } from '../../theme/typography';
-import { authRnTextStyle } from '../../theme/authTypography';
+import { Button, Text, TextInput, type TextInputProps, type TextInputRef } from '@expo/ui';
+import { HStack, ProgressView, Rectangle, ScrollView, VStack } from '@expo/ui/swift-ui';
 import {
+  accessibilityLabel,
+  background,
+  buttonStyle,
+  clipShape,
+  contentShape,
+  controlSize,
+  font,
+  foregroundStyle,
+  frame,
+  layoutPriority,
+  multilineTextAlignment,
+  padding,
+  shapes,
+  tint,
+} from '@expo/ui/swift-ui/modifiers';
+import { useAppTheme } from '../../hooks/useAppTheme';
+import {
+  AUTH_FIELD_GROUP_CORNER_RADIUS,
+  AUTH_FIELD_INNER_PADDING,
+  AUTH_FIELD_ROW_MIN_HEIGHT,
+  AUTH_FIELD_SEPARATOR_INSET,
   AUTH_FORM_HORIZONTAL_PADDING,
-  AUTH_PRIMARY_BUTTON_MIN_HEIGHT,
+  AUTH_LOGIN_HERO_GAP,
+  AUTH_LOGIN_TITLE_TO_FORM_GAP,
+  AUTH_LOGIN_TOP_PADDING,
+  AUTH_OR_DIVIDER_GAP,
+  AUTH_PRIMARY_BUTTON_HEIGHT,
+  AUTH_PRIMARY_BUTTON_RADIUS,
+  AUTH_SECONDARY_TOP_PADDING,
+  AUTH_SECTION_GAP,
+  getAuthContentWidth,
+  getAuthOrDividerLineWidth,
+  getAuthPrimaryButtonWidth,
 } from '../../theme/authLayout';
+import { AuthBrandBlock } from '../auth/AuthBrandBlock';
+import { AppHost } from './app-host';
 
-// ObservableState stub / type for compatibility
-export type ObservableState<T> = {
-  value: T;
-};
+export type ObservableState<T> = { value: T };
 
-type AuthFieldProps = Omit<ComponentProps<typeof RNTextInput>, 'value' | 'onChangeText'> & {
-  nativeValue?: ObservableState<string> | string;
-  onChangeText?: (text: string) => void;
-};
-
-const getValue = (val: ObservableState<string> | string | undefined): string => {
-  if (!val) return '';
-  if (typeof val === 'object' && 'value' in val) {
-    return val.value;
-  }
-  return val;
-};
-
-// Custom FieldGroup matching native HIG cards but fully in React Native
-export function FieldGroup({ children, style }: { children: ReactNode; style?: any }) {
-  return <View style={[styles.fieldGroup, style]}>{children}</View>;
-}
-
-FieldGroup.SectionHeader = function FieldGroupSectionHeader({ children }: { children: ReactNode }) {
-  return <View style={styles.sectionHeaderInner}>{children}</View>;
-};
-
-FieldGroup.SectionFooter = function FieldGroupSectionFooter({ children }: { children: ReactNode }) {
-  return <View style={styles.sectionFooterInner}>{children}</View>;
-};
-
-FieldGroup.Section = function FieldGroupSection({
-  children,
-  title,
-}: {
-  children: ReactNode;
-  title?: string;
-}) {
-  const { colors } = useAppTheme();
-  
-  const header: ReactNode[] = [];
-  const footer: ReactNode[] = [];
-  const content: ReactNode[] = [];
-
-  Children.forEach(children, (child) => {
-    if (React.isValidElement(child)) {
-      if (child.type === FieldGroup.SectionHeader) {
-        header.push(child);
-      } else if (child.type === FieldGroup.SectionFooter) {
-        footer.push(child);
-      } else {
-        content.push(child);
-      }
-    } else {
-      content.push(child);
-    }
-  });
-
-  return (
-    <View style={styles.sectionWrap}>
-      {title ? (
-        <RNText style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-          {title}
-        </RNText>
-      ) : null}
-      {header.length > 0 ? <View>{header}</View> : null}
-      
-      {content.length > 0 && (
-        <View style={[styles.sectionCard, { backgroundColor: colors.tertiarySystemBackground, borderColor: colors.separator }]}>
-          {Children.map(content, (child, index) => {
-            if (!child) return null;
-            const isLast = index === content.length - 1;
-            return (
-              <View style={styles.rowContainer}>
-                {child}
-                {!isLast && <View style={[styles.rowSeparator, { backgroundColor: colors.separator }]} />}
-              </View>
-            );
-          })}
-        </View>
-      )}
-      
-      {footer.length > 0 ? <View>{footer}</View> : null}
-    </View>
-  );
-};
+type AuthFormVariant = 'login' | 'secondary';
 
 type AuthFormLayoutProps = PropsWithChildren<{
-  header?: ReactElement;
-  contentVerticalAlignment?: 'top' | 'center';
+  variant: AuthFormVariant;
+  title?: string;
+  description?: string;
 }>;
+
+type AuthContentWidthContextValue = {
+  contentWidth: number;
+};
+
+const AuthContentWidthContext = createContext<AuthContentWidthContextValue | null>(null);
+
+export function useAuthContentWidth(): number {
+  const context = use(AuthContentWidthContext);
+  if (!context) {
+    throw new Error('useAuthContentWidth must be used within AuthFormLayout');
+  }
+  return context.contentWidth;
+}
+
+function getValue(value: ObservableState<string> | string | undefined): string {
+  if (typeof value === 'string') return value;
+  return value?.value ?? '';
+}
+
+function contentColumnModifiers(contentWidth: number) {
+  return [frame({ width: contentWidth, alignment: 'leading' })];
+}
+
+function AuthFieldSeparator() {
+  const { colors } = useAppTheme();
+
+  return (
+    <HStack spacing={0} modifiers={[frame({ maxWidth: Infinity })]}>
+      <Rectangle
+        modifiers={[
+          foregroundStyle(colors.separator),
+          frame({ maxWidth: Infinity, height: 0.5 }),
+          padding({ leading: AUTH_FIELD_SEPARATOR_INSET }),
+        ]}
+      />
+    </HStack>
+  );
+}
+
+export function AuthFieldGroup({ children, footer }: PropsWithChildren<{ footer?: ReactNode }>) {
+  const { colors } = useAppTheme();
+  const contentWidth = useAuthContentWidth();
+  const items = Children.toArray(children).filter(Boolean);
+
+  return (
+    <VStack
+      spacing={0}
+      modifiers={[
+        ...contentColumnModifiers(contentWidth),
+        background(colors.systemBackground, shapes.roundedRectangle({ cornerRadius: AUTH_FIELD_GROUP_CORNER_RADIUS })),
+        clipShape('roundedRectangle', AUTH_FIELD_GROUP_CORNER_RADIUS),
+      ]}>
+      {items.map((child, index) => (
+        <React.Fragment key={isValidElement(child) && child.key != null ? String(child.key) : index}>
+          {index > 0 ? <AuthFieldSeparator /> : null}
+          <VStack
+            spacing={0}
+            modifiers={[
+              frame({ maxWidth: Infinity, minHeight: AUTH_FIELD_ROW_MIN_HEIGHT, alignment: 'leading' }),
+              padding({ horizontal: AUTH_FIELD_INNER_PADDING, vertical: 0 }),
+            ]}>
+            {child}
+          </VStack>
+        </React.Fragment>
+      ))}
+      {footer ? (
+        <>
+          {items.length > 0 ? <AuthFieldSeparator /> : null}
+          <VStack
+            spacing={0}
+            modifiers={[
+              frame({ maxWidth: Infinity, alignment: 'leading' }),
+              padding(AUTH_FIELD_INNER_PADDING),
+            ]}>
+            {footer}
+          </VStack>
+        </>
+      ) : null}
+    </VStack>
+  );
+}
 
 export function AuthFormLayout({
   children,
-  header,
-  contentVerticalAlignment = 'top',
-}: AuthFormLayoutProps) {
-  const { colors, statusBarStyle } = useAppTheme();
-  const { topContentInset, bottomContentInset } = useScreenInsets('fullscreen');
-  const { height: windowHeight } = useWindowDimensions();
-
-  const minHeight = windowHeight - topContentInset - bottomContentInset;
-
-  return (
-    <View style={[styles.screenWrap, { backgroundColor: colors.background }]}>
-      <StatusBar style={statusBarStyle} />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingTop: topContentInset + (header ? 8 : 24),
-            paddingBottom: bottomContentInset + 32,
-            justifyContent: contentVerticalAlignment === 'center' ? 'center' : 'flex-start',
-            minHeight,
-          },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-      >
-        {header ? <View style={styles.headerSlot}>{header}</View> : null}
-        <View style={styles.formContainer}>
-          <FieldGroup>
-            {children}
-          </FieldGroup>
-        </View>
-      </ScrollView>
-    </View>
-  );
-}
-
-export function AuthFormSection({ title, children }: PropsWithChildren<{ title?: string }>) {
-  return <FieldGroup.Section title={title}>{children}</FieldGroup.Section>;
-}
-
-export function AuthFormHeader({
+  variant,
   title,
   description,
-}: {
-  title: string;
-  description?: string;
-}) {
-  const { colors } = useAppTheme();
+}: AuthFormLayoutProps) {
+  const { colors, statusBarStyle } = useAppTheme();
+  const { width: windowWidth } = useWindowDimensions();
+  const contentWidth = getAuthContentWidth(windowWidth);
+  const topPadding = variant === 'login' ? AUTH_LOGIN_TOP_PADDING : AUTH_SECONDARY_TOP_PADDING;
+
   return (
-    <View style={styles.headerWrap}>
-      <RNText style={[styles.headerTitle, { color: colors.textPrimary }]}>{title}</RNText>
-      {description ? (
-        <RNText style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-          {description}
-        </RNText>
-      ) : null}
-    </View>
+    <AuthContentWidthContext.Provider value={{ contentWidth }}>
+      <AppHost
+        style={{ flex: 1, backgroundColor: colors.background }}
+        safeAreaMode="respect"
+        useViewportSizeMeasurement>
+        <StatusBar style={statusBarStyle} />
+        <ScrollView
+          axes="vertical"
+          showsIndicators={false}
+          modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
+          <VStack
+            alignment="leading"
+            spacing={variant === 'login' ? AUTH_LOGIN_TITLE_TO_FORM_GAP : AUTH_SECTION_GAP}
+            modifiers={[
+              padding({
+                top: topPadding,
+                leading: AUTH_FORM_HORIZONTAL_PADDING,
+                bottom: AUTH_FORM_HORIZONTAL_PADDING,
+                trailing: AUTH_FORM_HORIZONTAL_PADDING,
+              }),
+              frame({ maxWidth: Infinity, alignment: 'topLeading' }),
+            ]}>
+            {variant === 'login' ? (
+              <VStack
+                alignment="leading"
+                spacing={AUTH_LOGIN_HERO_GAP}
+                modifiers={contentColumnModifiers(contentWidth)}>
+                <VStack alignment="center" spacing={0} modifiers={[frame({ width: contentWidth, alignment: 'center' })]}>
+                  <AuthBrandBlock />
+                </VStack>
+                {title ? (
+                  <Text
+                    modifiers={[
+                      font({ textStyle: 'title2', weight: 'semibold' }),
+                      foregroundStyle(colors.label),
+                      frame({ width: contentWidth, alignment: 'leading' }),
+                    ]}>
+                    {title}
+                  </Text>
+                ) : null}
+              </VStack>
+            ) : null}
+            {variant === 'secondary' && description ? (
+              <Text
+                modifiers={[
+                  font({ textStyle: 'subheadline' }),
+                  foregroundStyle(colors.secondaryLabel),
+                  multilineTextAlignment('leading'),
+                  frame({ width: contentWidth, alignment: 'leading' }),
+                ]}>
+                {description}
+              </Text>
+            ) : null}
+            {children}
+          </VStack>
+        </ScrollView>
+      </AppHost>
+    </AuthContentWidthContext.Provider>
   );
 }
 
-export function AuthFormFooter({ children }: PropsWithChildren) {
-  return <View style={styles.footerWrap}>{children}</View>;
-}
-
-export function AuthSecondaryText({ children }: { children: string }) {
-  const { colors } = useAppTheme();
+export const AuthTextField = forwardRef<TextInputRef, AuthFieldProps>(function AuthTextField(
+  { nativeValue, autoCapitalize = 'none', autoCorrect = false, ...props },
+  ref
+) {
   return (
-    <RNText style={[styles.secondaryText, { color: colors.textSecondary }]}>
-      {children}
-    </RNText>
-  );
-}
-
-export function AuthTertiaryText({ children }: { children: string }) {
-  const { colors } = useAppTheme();
-  return (
-    <RNText style={[styles.tertiaryText, { color: colors.textMuted }]}>
-      {children}
-    </RNText>
-  );
-}
-
-export function AuthErrorText({ children }: { children: string }) {
-  const { colors } = useAppTheme();
-  return (
-    <RNText style={[styles.errorText, { color: colors.error }]}>
-      {children}
-    </RNText>
-  );
-}
-
-export function AuthTextField({ nativeValue, onChangeText, placeholder, style, ...rest }: AuthFieldProps) {
-  const { colors } = useAppTheme();
-  const valueStr = getValue(nativeValue);
-
-  return (
-    <RNTextInput
-      autoCapitalize="none"
-      autoCorrect={false}
-      placeholder={placeholder}
-      placeholderTextColor={colors.textMuted}
-      value={valueStr}
-      onChangeText={onChangeText}
-      style={[styles.input, { color: colors.textPrimary }, style]}
-      {...rest}
+    <TextInput
+      ref={ref}
+      defaultValue={getValue(nativeValue)}
+      autoCapitalize={autoCapitalize}
+      autoCorrect={autoCorrect}
+      modifiers={[frame({ maxWidth: Infinity, minHeight: AUTH_FIELD_ROW_MIN_HEIGHT - AUTH_FIELD_INNER_PADDING * 2 })]}
+      {...props}
     />
   );
-}
+});
 
-export function AuthSecureField({ nativeValue, onChangeText, placeholder, style, ...rest }: AuthFieldProps) {
-  const { colors } = useAppTheme();
-  const valueStr = getValue(nativeValue);
-
+export const AuthSecureField = forwardRef<TextInputRef, AuthFieldProps>(function AuthSecureField(
+  { nativeValue, autoCapitalize = 'none', autoCorrect = false, ...props },
+  ref
+) {
   return (
-    <RNTextInput
+    <TextInput
+      ref={ref}
+      defaultValue={getValue(nativeValue)}
       secureTextEntry
-      autoCapitalize="none"
-      autoCorrect={false}
-      placeholder={placeholder}
-      placeholderTextColor={colors.textMuted}
-      value={valueStr}
-      onChangeText={onChangeText}
-      style={[styles.input, { color: colors.textPrimary }, style]}
-      {...rest}
+      autoCapitalize={autoCapitalize}
+      autoCorrect={autoCorrect}
+      modifiers={[frame({ maxWidth: Infinity, minHeight: AUTH_FIELD_ROW_MIN_HEIGHT - AUTH_FIELD_INNER_PADDING * 2 })]}
+      {...props}
     />
   );
-}
+});
+
+type AuthFieldProps = Omit<TextInputProps, 'value' | 'defaultValue'> & {
+  nativeValue?: ObservableState<string> | string;
+};
 
 export function AuthPrimaryButton({
   label,
   onPress,
   disabled,
+  loading = false,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  loading?: boolean;
 }) {
   const { colors } = useAppTheme();
+  const contentWidth = useAuthContentWidth();
+  const buttonWidth = getAuthPrimaryButtonWidth(contentWidth, loading);
+
+  const buttonModifiers = [
+    buttonStyle('borderedProminent'),
+    tint(colors.systemBlue),
+    frame({ width: buttonWidth, height: AUTH_PRIMARY_BUTTON_HEIGHT }),
+    clipShape('roundedRectangle', AUTH_PRIMARY_BUTTON_RADIUS),
+    contentShape(shapes.roundedRectangle({ cornerRadius: AUTH_PRIMARY_BUTTON_RADIUS })),
+  ];
+
+  if (loading) {
+    return (
+      <Button onPress={onPress} disabled modifiers={buttonModifiers}>
+        <ProgressView modifiers={[accessibilityLabel(label), tint(colors.systemBackground)]} />
+      </Button>
+    );
+  }
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.primaryButton,
-        {
-          backgroundColor: colors.accent,
-          opacity: disabled ? 0.6 : pressed ? 0.82 : 1,
-        },
-      ]}
-    >
-      <RNText style={styles.primaryButtonText}>{label}</RNText>
-    </Pressable>
+    <Button label={label} onPress={onPress} disabled={disabled} modifiers={buttonModifiers} />
   );
 }
 
@@ -280,73 +295,14 @@ export function AuthSecondaryButton({
   label: string;
   onPress: () => void;
 }) {
-  const { colors } = useAppTheme();
   return (
-    <Pressable
-      accessibilityRole="button"
+    <Button
+      label={label}
+      variant="text"
       onPress={onPress}
-      style={({ pressed }) => [styles.secondaryButton, { opacity: pressed ? 0.5 : 1 }]}
-    >
-      <RNText style={[styles.secondaryButtonText, { color: colors.accent }]}>
-        {label}
-      </RNText>
-    </Pressable>
+      modifiers={[controlSize('regular'), frame({ minHeight: 44, alignment: 'center' })]}
+    />
   );
-}
-
-export function AuthTextLinkButton({
-  label,
-  onPress,
-}: {
-  label: string;
-  onPress: () => void;
-}) {
-  return <AuthSecondaryButton label={label} onPress={onPress} />;
-}
-
-export function AuthOutlinedButton({
-  label,
-  onPress,
-  disabled,
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-}) {
-  const { colors } = useAppTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.outlinedButton,
-        {
-          borderColor: colors.accent,
-          opacity: disabled ? 0.6 : pressed ? 0.5 : 1,
-        },
-      ]}
-    >
-      <RNText style={[styles.outlinedButtonText, { color: colors.accent }]}>
-        {label}
-      </RNText>
-    </Pressable>
-  );
-}
-
-export function AuthFormDivider({ label }: { label: string }) {
-  const { colors } = useAppTheme();
-  return (
-    <View style={styles.dividerRow}>
-      <View style={[styles.dividerLine, { backgroundColor: colors.separator }]} />
-      <RNText style={[styles.dividerLabel, authRnTextStyle('divider', colors)]}>{label}</RNText>
-      <View style={[styles.dividerLine, { backgroundColor: colors.separator }]} />
-    </View>
-  );
-}
-
-export function AuthInlineLink({ label, onPress }: { label: string; onPress: () => void }) {
-  return <AuthSecondaryButton label={label} onPress={onPress} />;
 }
 
 export function AuthFooterPrompt({
@@ -359,223 +315,187 @@ export function AuthFooterPrompt({
   onPress: () => void;
 }) {
   const { colors } = useAppTheme();
+  const contentWidth = useAuthContentWidth();
+  const useVerticalLayout = PixelRatio.getFontScale() >= 1.235;
+
+  if (useVerticalLayout) {
+    return (
+      <VStack
+        alignment="center"
+        spacing={4}
+        modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'center' })]}>
+        {prompt ? (
+          <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(colors.secondaryLabel)]}>
+            {prompt}
+          </Text>
+        ) : null}
+        <AuthSecondaryButton label={linkLabel} onPress={onPress} />
+      </VStack>
+    );
+  }
+
   return (
-    <View style={styles.footerPromptWrap}>
-      <RNText style={[styles.footerPromptText, { color: colors.textSecondary }]}>
-        {prompt ? `${prompt} ` : null}
-        <RNText
-          onPress={onPress}
-          style={[styles.footerPromptLink, { color: colors.accent }]}
-        >
-          {linkLabel}
-        </RNText>
-      </RNText>
-    </View>
+    <HStack
+      alignment="center"
+      spacing={4}
+      modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'center' })]}>
+      {prompt ? (
+        <Text
+          modifiers={[
+            font({ textStyle: 'subheadline' }),
+            foregroundStyle(colors.secondaryLabel),
+            layoutPriority(0),
+          ]}>
+          {prompt}
+        </Text>
+      ) : null}
+      <AuthSecondaryButton label={linkLabel} onPress={onPress} />
+    </HStack>
   );
 }
 
-export function AuthActionsSection({
-  error,
-  children,
-}: {
-  error?: string | null;
-  children: ReactNode;
-}) {
+export function AuthTrailingLink({ label, onPress }: { label: string; onPress: () => void }) {
+  const contentWidth = useAuthContentWidth();
+
   return (
-    <View style={styles.actionsWrap}>
-      {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+    <HStack
+      alignment="center"
+      spacing={0}
+      modifiers={[frame({ width: contentWidth, alignment: 'trailing' })]}>
+      <AuthSecondaryButton label={label} onPress={onPress} />
+    </HStack>
+  );
+}
+
+export function AuthSecondaryText({ children }: { children: string }) {
+  const { colors } = useAppTheme();
+  return (
+    <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(colors.secondaryLabel)]}>
       {children}
-    </View>
+    </Text>
   );
 }
 
-const styles = StyleSheet.create({
-  screenWrap: {
-    flex: 1,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: AUTH_FORM_HORIZONTAL_PADDING,
-    alignItems: 'center',
-    gap: 16,
-  },
-  headerSlot: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  formContainer: {
-    width: '100%',
-  },
-  fieldGroup: {
-    width: '100%',
-    gap: 20,
-  },
-  sectionWrap: {
-    width: '100%',
-    gap: 8,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    fontFamily: APP_FONT_FAMILY,
-    textTransform: 'uppercase',
-    paddingHorizontal: 16,
-    marginBottom: 4,
-  },
-  sectionCard: {
-    width: '100%',
-    borderRadius: 14,
-    borderCurve: 'continuous',
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
-  },
-  rowContainer: {
-    width: '100%',
-  },
-  rowSeparator: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: 16,
-  },
-  sectionHeaderInner: {
-    width: '100%',
-    paddingBottom: 8,
-  },
-  sectionFooterInner: {
-    width: '100%',
-    paddingTop: 8,
-  },
-  input: {
-    height: 52,
-    paddingHorizontal: 16,
-    fontSize: 17,
-    fontFamily: APP_FONT_FAMILY,
-    fontWeight: '400',
-  },
-  headerWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 8,
-    paddingBottom: 16,
-    width: '100%',
-  },
-  headerTitle: {
-    fontSize: 22,
-    lineHeight: 28,
-    fontWeight: '700',
-    fontFamily: APP_FONT_FAMILY,
-    textAlign: 'center',
-  },
-  headerSubtitle: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '400',
-    fontFamily: APP_FONT_FAMILY,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  footerWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    gap: 16,
-  },
-  secondaryText: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '400',
-    fontFamily: APP_FONT_FAMILY,
-    textAlign: 'center',
-  },
-  tertiaryText: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '500',
-    fontFamily: APP_FONT_FAMILY,
-    textAlign: 'center',
-    paddingHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  errorText: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-    fontFamily: APP_FONT_FAMILY,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  primaryButton: {
-    width: '100%',
-    height: AUTH_PRIMARY_BUTTON_MIN_HEIGHT,
-    borderRadius: 14,
-    borderCurve: 'continuous',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButtonText: {
-    fontSize: 17,
-    fontFamily: APP_FONT_FAMILY,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  secondaryButton: {
-    alignSelf: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  secondaryButtonText: {
-    fontSize: 15,
-    fontFamily: APP_FONT_FAMILY,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  outlinedButton: {
-    width: '100%',
-    height: AUTH_PRIMARY_BUTTON_MIN_HEIGHT,
-    borderRadius: 14,
-    borderCurve: 'continuous',
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  outlinedButtonText: {
-    fontSize: 16,
-    fontFamily: APP_FONT_FAMILY,
-    fontWeight: '600',
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    width: '100%',
-    marginVertical: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-  },
-  dividerLabel: {
-    textTransform: 'lowercase',
-  },
-  footerPromptWrap: {
-    width: '100%',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  footerPromptText: {
-    fontSize: 15,
-    fontFamily: APP_FONT_FAMILY,
-    fontWeight: '400',
-    textAlign: 'center',
-  },
-  footerPromptLink: {
-    fontWeight: '600',
-  },
-  actionsWrap: {
-    width: '100%',
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-});
+export function AuthTertiaryText({ children }: { children: string }) {
+  const { colors } = useAppTheme();
+  return (
+    <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.tertiaryLabel)]}>
+      {children}
+    </Text>
+  );
+}
+
+export function AuthHighlightedText({ children }: { children: string }) {
+  const { colors } = useAppTheme();
+  return (
+    <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.label)]}>
+      {children}
+    </Text>
+  );
+}
+
+export function AuthErrorText({ children }: { children: string }) {
+  const { colors } = useAppTheme();
+  const contentWidth = useAuthContentWidth();
+
+  useEffect(() => {
+    void AccessibilityInfo.announceForAccessibility(children);
+  }, [children]);
+
+  return (
+    <Text
+      modifiers={[
+        font({ textStyle: 'footnote', weight: 'semibold' }),
+        foregroundStyle(colors.destructive),
+        frame({ width: contentWidth, alignment: 'leading' }),
+      ]}>
+      {children}
+    </Text>
+  );
+}
+
+export function AuthFormDivider({ label }: { label: string }) {
+  const { colors } = useAppTheme();
+  const contentWidth = useAuthContentWidth();
+  const lineWidth = getAuthOrDividerLineWidth(contentWidth, label.toLocaleLowerCase());
+
+  return (
+    <HStack
+      alignment="center"
+      spacing={AUTH_OR_DIVIDER_GAP}
+      modifiers={[frame({ width: contentWidth, alignment: 'center' })]}>
+      <Rectangle
+        modifiers={[foregroundStyle(colors.separator), frame({ width: lineWidth, height: 0.5 })]}
+      />
+      <Text
+        modifiers={[
+          font({ textStyle: 'footnote', weight: 'medium' }),
+          foregroundStyle(colors.secondaryLabel),
+        ]}>
+        {label.toLocaleLowerCase()}
+      </Text>
+      <Rectangle
+        modifiers={[foregroundStyle(colors.separator), frame({ width: lineWidth, height: 0.5 })]}
+      />
+    </HStack>
+  );
+}
+
+export function AuthEmailDescription({
+  body,
+  email,
+}: {
+  body: string;
+  email: string;
+}) {
+  const { colors } = useAppTheme();
+  const contentWidth = useAuthContentWidth();
+  const emailIndex = body.indexOf(email);
+  const before = emailIndex >= 0 ? body.slice(0, emailIndex) : body;
+  const after = emailIndex >= 0 ? body.slice(emailIndex + email.length) : '';
+
+  return (
+    <VStack
+      alignment="leading"
+      spacing={4}
+      modifiers={[frame({ width: contentWidth, alignment: 'leading' })]}>
+      {before ? (
+        <Text
+          modifiers={[
+            font({ textStyle: 'subheadline' }),
+            foregroundStyle(colors.secondaryLabel),
+            multilineTextAlignment('leading'),
+          ]}>
+          {before.trimEnd()}
+        </Text>
+      ) : null}
+      {emailIndex >= 0 ? <AuthHighlightedText>{email}</AuthHighlightedText> : null}
+      {after ? (
+        <Text
+          modifiers={[
+            font({ textStyle: 'subheadline' }),
+            foregroundStyle(colors.secondaryLabel),
+            multilineTextAlignment('leading'),
+          ]}>
+          {after.trimStart()}
+        </Text>
+      ) : null}
+    </VStack>
+  );
+}
+
+export function AuthFormSection({ children }: PropsWithChildren) {
+  return <>{children}</>;
+}
+
+export function AuthFormFooter({ children }: { children: ReactNode }) {
+  return <>{children}</>;
+}
+
+export function AuthTextLinkButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return <AuthSecondaryButton label={label} onPress={onPress} />;
+}
+
+export function AuthInlineLink({ label, onPress }: { label: string; onPress: () => void }) {
+  return <AuthSecondaryButton label={label} onPress={onPress} />;
+}

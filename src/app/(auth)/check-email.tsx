@@ -1,19 +1,16 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
-  AuthActionsSection,
+  AuthEmailDescription,
+  AuthErrorText,
+  AuthFieldGroup,
   AuthFooterPrompt,
-  AuthFormHeader,
   AuthFormLayout,
   AuthPrimaryButton,
   AuthSecondaryButton,
   AuthTextField,
-  FieldGroup,
 } from '../../components/ui/auth-form-layout';
-import { AuthRnBridge } from '../../components/ui/auth-rn-bridge';
-import { AuthBrandBlock } from '../../components/auth/AuthBrandBlock';
 import { useAuth } from '../../hooks/useAuth';
 import { runWithFinally } from '../../lib/runWithFinally';
 
@@ -28,7 +25,7 @@ export default function CheckEmailScreen() {
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
 
-  const title = isRecovery ? t('auth.checkEmailRecoveryTitle') : t('auth.checkEmailSignupTitle');
+  const navigationTitle = isRecovery ? t('auth.checkEmailRecoveryTitle') : t('auth.checkEmailSignupTitle');
   const description = isRecovery
     ? t('auth.checkEmailRecoveryBody', { email: emailLabel })
     : t('auth.checkEmailSignupBody', { email: emailLabel });
@@ -46,17 +43,15 @@ export default function CheckEmailScreen() {
             isRecovery ? 'recovery' : 'signup'
           );
           if (verifyError) {
-            // Translate or show error
             setOtpError(verifyError.message);
+          } else if (isRecovery) {
+            router.replace('/(auth)/reset-password');
           } else {
-            if (isRecovery) {
-              router.replace('/(auth)/reset-password');
-            } else {
-              router.replace('/(auth)/onboarding');
-            }
+            router.replace('/(auth)/onboarding');
           }
-        } catch (err: any) {
-          setOtpError(err?.message || 'Error occurred');
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Error occurred';
+          setOtpError(message);
         }
       },
       () => {
@@ -66,56 +61,46 @@ export default function CheckEmailScreen() {
   };
 
   return (
-    <AuthFormLayout header={<AuthBrandBlock size="large" />}>
-      <FieldGroup.Section>
-        <FieldGroup.SectionHeader>
-          <AuthFormHeader title={title} description={description} />
-        </FieldGroup.SectionHeader>
+    <>
+      <Stack.Screen options={{ title: navigationTitle, headerShown: true }} />
+      <AuthFormLayout variant="secondary">
+        <AuthEmailDescription body={description} email={emailLabel} />
 
-        <AuthTextField
-          placeholder={t('auth.checkEmailOtpPlaceholder')}
-          nativeValue={otpCode}
-          onChangeText={(text) => {
-            setOtpCode(text);
-            setOtpError(null);
-          }}
-          keyboardType="number-pad"
-          editable={!otpLoading}
-        />
-
-        <AuthActionsSection error={otpError}>
-          <AuthPrimaryButton
-            label={otpLoading ? t('auth.checkEmailOtpLoading') : t('auth.checkEmailOtpButton')}
-            onPress={() => void handleVerifyOTP()}
-            disabled={otpLoading || !otpCode.trim()}
+        <AuthFieldGroup>
+          <AuthTextField
+            placeholder={t('auth.checkEmailOtpPlaceholder')}
+            nativeValue={otpCode}
+            onChangeText={(text) => {
+              setOtpCode(text);
+              setOtpError(null);
+            }}
+            keyboardType="number-pad"
+            autoComplete="one-time-code"
+            returnKeyType="go"
+            onSubmitEditing={() => void handleVerifyOTP()}
+            editable={!otpLoading}
+            testID="check-email-code"
           />
-        </AuthActionsSection>
-        
-        <FieldGroup.SectionFooter>
-          <AuthRnBridge>
-            <AuthFooterPrompt
-              prompt={t('auth.checkEmailNoAccountPrompt')}
-              linkLabel={t('auth.checkEmailNoAccountLink')}
-              onPress={() => router.replace('/(auth)/register')}
-            />
-          </AuthRnBridge>
-        </FieldGroup.SectionFooter>
-      </FieldGroup.Section>
+        </AuthFieldGroup>
 
-      <View style={styles.footerWrap}>
+        {otpError ? <AuthErrorText>{otpError}</AuthErrorText> : null}
+
+        <AuthPrimaryButton
+          label={t('auth.checkEmailOtpButton')}
+          loading={otpLoading}
+          onPress={() => void handleVerifyOTP()}
+          disabled={otpLoading || !otpCode.trim()}
+        />
+        <AuthFooterPrompt
+          prompt={t('auth.checkEmailNoAccountPrompt')}
+          linkLabel={t('auth.checkEmailNoAccountLink')}
+          onPress={() => router.replace('/(auth)/register')}
+        />
         <AuthSecondaryButton
           label={t('auth.checkEmailBackToLogin')}
           onPress={() => router.replace('/(auth)/login')}
         />
-      </View>
-    </AuthFormLayout>
+      </AuthFormLayout>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  footerWrap: {
-    width: '100%',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-});

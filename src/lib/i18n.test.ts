@@ -42,6 +42,19 @@ describe('i18n', () => {
     );
   });
 
+  it('udostępnia przyjazne teksty formularza resetu w obu językach', async () => {
+    expect(i18nModule.default.t('auth.forgotPasswordDescription')).toBe(
+      'Podaj adres e-mail. Wyślemy Ci link do ustawienia nowego hasła.'
+    );
+    expect(i18nModule.default.t('auth.forgotPasswordSubmit')).toBe('Wyślij link');
+
+    await i18nModule.default.changeLanguage('en');
+    expect(i18nModule.default.t('auth.forgotPasswordDescription')).toBe(
+      'Enter your email address. We will send you a link to set a new password.'
+    );
+    expect(i18nModule.default.t('auth.forgotPasswordSubmit')).toBe('Send link');
+  });
+
   it('mapuje DomainError na klucz tłumaczenia', () => {
     const err = new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
     expect(err.messageKey).toBe('domainErrors.UNAUTHORIZED');

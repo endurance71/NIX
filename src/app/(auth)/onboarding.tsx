@@ -1,21 +1,20 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { VStack } from '@expo/ui/swift-ui';
 import { isUsernameTaken, saveUsernameForCurrentUser } from '../../services/profileService';
 import {
-  AuthActionsSection,
-  AuthFormHeader,
+  AuthErrorText,
+  AuthFieldGroup,
   AuthFormLayout,
   AuthPrimaryButton,
   AuthTertiaryText,
   AuthTextField,
-  FieldGroup,
 } from '../../components/ui/auth-form-layout';
 import { useTrackedUsername } from '../../hooks/useAuthCredentials';
 import { notifyDomainError } from '../../lib/appNotify';
 import { normalizeUsername } from '../../services/friendService';
 import { runWithFinally } from '../../lib/runWithFinally';
-import { AuthBrandBlock } from '../../components/auth/AuthBrandBlock';
 
 export default function OnboardingScreen() {
   const { t } = useTranslation();
@@ -55,35 +54,37 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <AuthFormLayout header={<AuthBrandBlock size="large" />}>
-      <FieldGroup.Section>
-        <FieldGroup.SectionHeader>
-          <AuthFormHeader
-            title={t('auth.onboardingHeader')}
-            description={t('auth.onboardingDescription')}
-          />
-        </FieldGroup.SectionHeader>
-
+    <AuthFormLayout variant="secondary" description={t('auth.onboardingDescription')}>
+      <AuthFieldGroup
+        footer={
+          <VStack alignment="leading" spacing={6}>
+            <AuthTertiaryText>{t('auth.onboardingHint')}</AuthTertiaryText>
+          </VStack>
+        }>
         <AuthTextField
           nativeValue={username}
           placeholder={t('auth.onboardingPlaceholder')}
           autoCapitalize="none"
           autoCorrect={false}
+          returnKeyType="go"
+          onSubmitEditing={() => void handleSetUsername()}
           onChangeText={(text) => {
             onUsernameChange(text);
             clearError();
           }}
+          editable={!loading}
+          testID="onboarding-username"
         />
+      </AuthFieldGroup>
 
-        <AuthTertiaryText>{t('auth.onboardingHint')}</AuthTertiaryText>
-        <AuthActionsSection error={error}>
-          <AuthPrimaryButton
-            label={loading ? t('auth.onboardingLoading') : t('auth.onboardingSubmit')}
-            onPress={() => void handleSetUsername()}
-            disabled={loading}
-          />
-        </AuthActionsSection>
-      </FieldGroup.Section>
+      {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+
+      <AuthPrimaryButton
+        label={t('auth.onboardingSubmit')}
+        loading={loading}
+        onPress={() => void handleSetUsername()}
+        disabled={loading}
+      />
     </AuthFormLayout>
   );
 }

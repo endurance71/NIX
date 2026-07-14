@@ -4,16 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { useTrackedEmail } from '../../hooks/useAuthCredentials';
 import {
-  AuthActionsSection,
-  AuthFooterPrompt,
-  AuthFormHeader,
+  AuthErrorText,
+  AuthFieldGroup,
   AuthFormLayout,
   AuthPrimaryButton,
   AuthTextField,
-  FieldGroup,
 } from '../../components/ui/auth-form-layout';
-import { AuthRnBridge } from '../../components/ui/auth-rn-bridge';
-import { AuthBrandBlock } from '../../components/auth/AuthBrandBlock';
 
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();
@@ -47,42 +43,32 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <AuthFormLayout header={<AuthBrandBlock size="large" />}>
-      <FieldGroup.Section>
-        <FieldGroup.SectionHeader>
-          <AuthFormHeader
-            title={t('auth.forgotPasswordHeader')}
-            description={t('auth.forgotPasswordDescription')}
-          />
-        </FieldGroup.SectionHeader>
-
+    <AuthFormLayout variant="secondary" description={t('auth.forgotPasswordDescription')}>
+      <AuthFieldGroup>
         <AuthTextField
           nativeValue={email}
           placeholder={t('auth.emailField')}
           keyboardType="email-address"
           autoComplete="email"
+          returnKeyType="go"
+          onSubmitEditing={() => void handleResetRequest()}
           onChangeText={(text) => {
             onEmailChange(text);
             clearError();
           }}
+          editable={!loading}
+          testID="forgot-password-email"
         />
+      </AuthFieldGroup>
 
-        <AuthActionsSection error={error}>
-          <AuthPrimaryButton
-            label={loading ? t('auth.forgotPasswordLoading') : t('auth.forgotPasswordSubmit')}
-            onPress={() => void handleResetRequest()}
-            disabled={loading}
-          />
-        </AuthActionsSection>
-        <FieldGroup.SectionFooter>
-          <AuthRnBridge>
-            <AuthFooterPrompt
-              linkLabel={t('auth.forgotPasswordBack')}
-              onPress={() => router.replace('/(auth)/login')}
-            />
-          </AuthRnBridge>
-        </FieldGroup.SectionFooter>
-      </FieldGroup.Section>
+      {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+
+      <AuthPrimaryButton
+        label={t('auth.forgotPasswordSubmit')}
+        loading={loading}
+        onPress={() => void handleResetRequest()}
+        disabled={loading}
+      />
     </AuthFormLayout>
   );
 }

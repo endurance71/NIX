@@ -1,21 +1,29 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TextInputRef } from '@expo/ui';
 import {
-  AuthActionsSection,
+  AuthErrorText,
+  AuthFieldGroup,
   AuthFooterPrompt,
-  AuthFormHeader,
   AuthFormLayout,
   AuthPrimaryButton,
   AuthSecureField,
-  FieldGroup,
 } from '../../components/ui/auth-form-layout';
-import { AuthRnBridge } from '../../components/ui/auth-rn-bridge';
 import { useAuthPasswordPair } from '../../hooks/useAuthCredentials';
-import { AuthBrandBlock } from '../../components/auth/AuthBrandBlock';
+import { useAuth } from '../../hooks/useAuth';
+import { runWithFinally } from '../../lib/runWithFinally';
+
+function getResetPasswordErrorMessage(message: string, t: (key: string) => string) {
+  if (message.includes('Password should be at least')) return t('auth.passwordMin');
+  if (message.toLowerCase().includes('same password')) return t('auth.resetPasswordSameError');
+  return message;
+}
 
 export default function ResetPasswordScreen() {
   const { t } = useTranslation();
+  const { updatePassword } = useAuth();
+  const { source } = useLocalSearchParams<{ source?: string }>();
   const {
     password,
     confirmPassword,
@@ -24,13 +32,16 @@ export default function ResetPasswordScreen() {
     getPassword,
     getConfirmPassword,
   } = useAuthPasswordPair();
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const confirmPasswordRef = useRef<TextInputRef>(null);
+  const showLoginFallback = source === 'deeplink';
 
   const clearError = () => {
     setError(null);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     const passwordValue = getPassword();
     const confirmPasswordValue = getConfirmPassword();
 
@@ -49,50 +60,67 @@ export default function ResetPasswordScreen() {
       setError(t('auth.resetPasswordMismatch'));
       return;
     }
-    router.replace('/(auth)/login');
+
+    setLoading(true);
+    await runWithFinally(
+      async () => {
+        const { error: updateError } = await updatePassword(passwordValue);
+        if (updateError) {
+          setError(getResetPasswordErrorMessage(updateError.message, t));
+          return;
+        }
+        router.replace('/(auth)/login');
+      },
+      () => setLoading(false)
+    );
   };
 
   return (
-    <AuthFormLayout header={<AuthBrandBlock size="large" />}>
-      <FieldGroup.Section>
-        <FieldGroup.SectionHeader>
-          <AuthFormHeader
-            title={t('auth.resetPasswordHeader')}
-            description={t('auth.resetPasswordDescription')}
-          />
-        </FieldGroup.SectionHeader>
-
+    <AuthFormLayout variant="secondary" description={t('auth.resetPasswordDescription')}>
+      <AuthFieldGroup>
         <AuthSecureField
           nativeValue={password}
           placeholder={t('auth.resetPasswordField')}
           autoComplete="new-password"
+          returnKeyType="next"
+          onSubmitEditing={() => confirmPasswordRef.current?.focus()}
           onChangeText={(text) => {
             onPasswordChange(text);
             clearError();
           }}
+          editable={!loading}
+          testID="reset-password"
         />
         <AuthSecureField
+          ref={confirmPasswordRef}
           nativeValue={confirmPassword}
           placeholder={t('auth.resetPasswordConfirmField')}
           autoComplete="new-password"
+          returnKeyType="go"
+          onSubmitEditing={() => void handleReset()}
           onChangeText={(text) => {
             onConfirmPasswordChange(text);
             clearError();
           }}
+          editable={!loading}
+          testID="reset-password-confirm"
         />
+      </AuthFieldGroup>
 
-        <AuthActionsSection error={error}>
-          <AuthPrimaryButton label={t('auth.resetPasswordSubmit')} onPress={handleReset} />
-        </AuthActionsSection>
-        <FieldGroup.SectionFooter>
-          <AuthRnBridge>
-            <AuthFooterPrompt
-              linkLabel={t('auth.forgotPasswordBack')}
-              onPress={() => router.replace('/(auth)/login')}
-            />
-          </AuthRnBridge>
-        </FieldGroup.SectionFooter>
-      </FieldGroup.Section>
+      {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+
+      <AuthPrimaryButton
+        label={t('auth.resetPasswordSubmit')}
+        loading={loading}
+        onPress={() => void handleReset()}
+        disabled={loading}
+      />
+      {showLoginFallback ? (
+        <AuthFooterPrompt
+          linkLabel={t('auth.forgotPasswordBack')}
+          onPress={() => router.replace('/(auth)/login')}
+        />
+      ) : null}
     </AuthFormLayout>
   );
 }

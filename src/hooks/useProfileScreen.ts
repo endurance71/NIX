@@ -23,6 +23,7 @@ import {
   pickProfileAvatarPhoto,
 } from '../lib/profileScreenActions';
 import { getPendingInviteCount } from '../lib/profileFriendsPresentation';
+import { userHasEmailPasswordIdentity } from '../lib/authProviders';
 
 export function useProfileScreen() {
   const { t } = useTranslation();
@@ -137,6 +138,7 @@ export function useProfileScreen() {
 
   const hasAvatar = Boolean(profileRow?.avatar_storage_path || profileRow?.avatar_emoji);
   const initialLetter = (profileUsername ?? user?.email ?? '?').replace(/^@/, '').charAt(0).toUpperCase();
+  const canChangePassword = userHasEmailPasswordIdentity(user);
 
   return {
     profilePending,
@@ -156,5 +158,6 @@ export function useProfileScreen() {
     handleRemoveAvatar,
     handleListRefresh,
     handleSignOut,
+    canChangePassword,
   };
 }

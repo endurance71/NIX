@@ -21,6 +21,8 @@ export async function signUpWithPassword(email: string, password: string, locale
 }
 
 export async function requestPasswordReset(email: string) {
+  // Recovery templates use {{ .Data.locale }} from existing user metadata (set at signUp).
+  // resetPasswordForEmail does not accept custom data payload.
   return supabase.auth.resetPasswordForEmail(email, {
     redirectTo: AUTH_REDIRECT_URL,
   });

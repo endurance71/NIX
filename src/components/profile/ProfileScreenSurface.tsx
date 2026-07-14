@@ -96,13 +96,15 @@ export default function ProfileScreenSurface() {
         </NativeSettingsSection>
 
         <NativeSettingsSection title={vm.t('profile.account')}>
-          <NativeSettingsRow
-            title={vm.t('profile.changePassword')}
-            icon="lock"
-            showsChevron
-            onPress={() => router.push('/(tabs)/profile/change-password')}
-            testID="profile-change-password"
-          />
+          {vm.canChangePassword ? (
+            <NativeSettingsRow
+              title={vm.t('profile.changePassword')}
+              icon="lock"
+              showsChevron
+              onPress={() => router.push('/(tabs)/profile/change-password')}
+              testID="profile-change-password"
+            />
+          ) : null}
           <NativeSettingsRow
             title={vm.t('profile.privacyPolicy')}
             icon="shield"

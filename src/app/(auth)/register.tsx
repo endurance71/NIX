@@ -1,20 +1,18 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TextInputRef } from '@expo/ui';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthRegisterCredentials } from '../../hooks/useAuthCredentials';
 import {
-  AuthActionsSection,
+  AuthErrorText,
+  AuthFieldGroup,
   AuthFooterPrompt,
-  AuthFormHeader,
   AuthFormLayout,
   AuthPrimaryButton,
   AuthSecureField,
   AuthTextField,
-  FieldGroup,
 } from '../../components/ui/auth-form-layout';
-import { AuthRnBridge } from '../../components/ui/auth-rn-bridge';
-import { AuthBrandBlock } from '../../components/auth/AuthBrandBlock';
 
 function isEmailValid(email: string) {
   return /\S+@\S+\.\S+/.test(email);
@@ -36,6 +34,8 @@ export default function RegisterScreen() {
   } = useAuthRegisterCredentials();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const passwordRef = useRef<TextInputRef>(null);
+  const confirmPasswordRef = useRef<TextInputRef>(null);
 
   const clearError = () => {
     setError(null);
@@ -79,61 +79,65 @@ export default function RegisterScreen() {
   };
 
   return (
-    <AuthFormLayout contentVerticalAlignment="center" header={<AuthBrandBlock size="large" />}>
-      <FieldGroup.Section>
-        <FieldGroup.SectionHeader>
-          <AuthFormHeader
-            title={t('auth.registerHeader')}
-            description={t('auth.registerDescription')}
-          />
-        </FieldGroup.SectionHeader>
-
+    <AuthFormLayout variant="secondary" description={t('auth.registerDescription')}>
+      <AuthFieldGroup>
         <AuthTextField
           nativeValue={email}
           placeholder={t('auth.emailField')}
           keyboardType="email-address"
           autoComplete="email"
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
           onChangeText={(text) => {
             onEmailChange(text);
             clearError();
           }}
+          editable={!loading}
+          testID="register-email"
         />
         <AuthSecureField
+          ref={passwordRef}
           nativeValue={password}
           placeholder={t('auth.passwordField')}
           autoComplete="new-password"
+          returnKeyType="next"
+          onSubmitEditing={() => confirmPasswordRef.current?.focus()}
           onChangeText={(text) => {
             onPasswordChange(text);
             clearError();
           }}
+          editable={!loading}
+          testID="register-password"
         />
         <AuthSecureField
+          ref={confirmPasswordRef}
           nativeValue={confirmPassword}
           placeholder={t('auth.confirmPasswordField')}
           autoComplete="new-password"
+          returnKeyType="go"
+          onSubmitEditing={() => void handleRegister()}
           onChangeText={(text) => {
             onConfirmPasswordChange(text);
             clearError();
           }}
+          editable={!loading}
+          testID="register-confirm-password"
         />
+      </AuthFieldGroup>
 
-        <AuthActionsSection error={error}>
-          <AuthPrimaryButton
-            label={loading ? t('auth.registerLoading') : t('auth.registerButton')}
-            onPress={() => void handleRegister()}
-            disabled={loading}
-          />
-        </AuthActionsSection>
-        <FieldGroup.SectionFooter>
-          <AuthRnBridge>
-            <AuthFooterPrompt
-              prompt={t('auth.hasAccountPrompt')}
-              linkLabel={t('auth.hasAccountLink')}
-              onPress={() => router.replace('/(auth)/login')}
-            />
-          </AuthRnBridge>
-        </FieldGroup.SectionFooter>
-      </FieldGroup.Section>
+      {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+
+      <AuthPrimaryButton
+        label={t('auth.registerButton')}
+        loading={loading}
+        onPress={() => void handleRegister()}
+        disabled={loading}
+      />
+      <AuthFooterPrompt
+        prompt={t('auth.hasAccountPrompt')}
+        linkLabel={t('auth.hasAccountLink')}
+        onPress={() => router.replace('/(auth)/login')}
+      />
     </AuthFormLayout>
   );
 }
