@@ -1,11 +1,11 @@
 diff --git a/node_modules/expo-image-manipulator/ios/ImageManipulatorModule.swift b/node_modules/expo-image-manipulator/ios/ImageManipulatorModule.swift
-index 207b14e..d7d838f 100644
+index 1f8c73a..5f5a79a 100644
 --- a/node_modules/expo-image-manipulator/ios/ImageManipulatorModule.swift
 +++ b/node_modules/expo-image-manipulator/ios/ImageManipulatorModule.swift
 @@ -10,17 +10,20 @@ public class ImageManipulatorModule: Module {
    public func definition() -> ModuleDefinition {
      Name("ExpoImageManipulator")
-
+ 
 -    Function("manipulate") { (source: Either<URL, SharedRef<UIImage>>) -> ImageManipulatorContext in
 +    // Shared refs must be attempted before URL conversion. Under ExpoModulesJSI,
 +    // asking the URL converter to inspect a native HostObject calls getAny(),
@@ -26,3 +26,4 @@ index 207b14e..d7d838f 100644
 +        }
          throw Exceptions.RuntimeLost()
        }
+ 

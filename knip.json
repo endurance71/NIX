@@ -15,7 +15,8 @@
     "expo-background-fetch",
     "expo-task-manager",
     "mime-db",
-    "expo-updates"
+    "expo-updates",
+    "expo-mcp"
   ],
   "ignoreBinaries": ["react-doctor"]
 }
