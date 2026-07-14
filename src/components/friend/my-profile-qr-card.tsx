@@ -61,11 +61,11 @@ export function MyProfileQrCard({
                   onError={() => setFailedForAvatarUrl(avatarUrl ?? null)}
                 />
               ) : avatarEmoji ? (
-                <Text style={[styles.avatarEmoji, { color: colors.textPrimary, fontSize: innerContentSize * 0.62 }]}>
+                <Text style={[styles.avatarEmoji, { color: lightColors.textPrimary, fontSize: innerContentSize * 0.62 }]}>
                   {avatarEmoji}
                 </Text>
               ) : fallbackInitial ? (
-                <Text style={[styles.avatarInitial, { color: colors.textPrimary, fontSize: innerContentSize * 0.46 }]}>
+                <Text style={[styles.avatarInitial, { color: lightColors.textPrimary, fontSize: innerContentSize * 0.46 }]}>
                   {normalizedInitial}
                 </Text>
               ) : (
@@ -80,7 +80,7 @@ export function MyProfileQrCard({
             </View>
           </View>
         ) : (
-          <Text style={[styles.errorText, { color: colors.error }]}>{error ?? 'Brak danych profilu do QR.'}</Text>
+          <Text style={[styles.errorText, { color: lightColors.error }]}>{error ?? 'Brak danych profilu do QR.'}</Text>
         )}
       </View>
     </View>

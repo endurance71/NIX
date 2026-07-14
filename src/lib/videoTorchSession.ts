@@ -20,7 +20,7 @@ const defaultController: VideoTorchController = {
   setTorchEnabledAsync,
 };
 
-export function shouldUseNativeVideoTorch({
+function shouldUseNativeVideoTorch({
   facing,
   flash,
   platform = process.env.EXPO_OS,

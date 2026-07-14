@@ -32,23 +32,6 @@ export function useTrackedEmail() {
   };
 }
 
-export function useAuthCredentials() {
-  const email = useTrackedNativeString();
-  const password = useTrackedNativeString();
-
-  const getTrimmedEmail = () => email.getValue().trim().toLowerCase();
-  const getPassword = () => password.getValue();
-
-  return {
-    email: email.state,
-    password: password.state,
-    onEmailChange: email.onChangeText,
-    onPasswordChange: password.onChangeText,
-    getTrimmedEmail,
-    getPassword,
-  };
-}
-
 export function useAuthRegisterCredentials() {
   const email = useTrackedNativeString();
   const password = useTrackedNativeString();

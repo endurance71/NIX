@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Image } from 'expo-image';
@@ -79,6 +79,70 @@ function openSendToPhoto(uri: string, viewDurationSec: number) {
   });
 }
 
+type PreviewVideoState = {
+  clipIndex: number;
+  readyClipKey: string | null;
+  errorClipKey: string | null;
+  errorMessage: string | null;
+  posterClipKey: string | null;
+  poster: VideoThumbnail | null;
+  firstFrameClipKey: string | null;
+  audioReady: boolean;
+};
+
+type PreviewVideoAction =
+  | { type: 'audioReady' }
+  | { type: 'advance'; segmentCount: number }
+  | { type: 'ready'; clipKey: string }
+  | { type: 'firstFrame'; clipKey: string }
+  | { type: 'error'; clipKey: string; message: string }
+  | { type: 'posterLoaded'; clipKey: string; poster: VideoThumbnail };
+
+const initialPreviewVideoState: PreviewVideoState = {
+  clipIndex: 0,
+  readyClipKey: null,
+  errorClipKey: null,
+  errorMessage: null,
+  posterClipKey: null,
+  poster: null,
+  firstFrameClipKey: null,
+  audioReady: false,
+};
+
+function previewVideoReducer(state: PreviewVideoState, action: PreviewVideoAction): PreviewVideoState {
+  switch (action.type) {
+    case 'audioReady':
+      return { ...state, audioReady: true };
+    case 'advance':
+      return {
+        ...state,
+        clipIndex: (state.clipIndex + 1) % action.segmentCount,
+        readyClipKey: null,
+        errorClipKey: null,
+        errorMessage: null,
+        posterClipKey: null,
+        poster: null,
+        firstFrameClipKey: null,
+      };
+    case 'ready':
+      return { ...state, readyClipKey: action.clipKey, errorClipKey: null, errorMessage: null };
+    case 'firstFrame':
+      return {
+        ...state,
+        firstFrameClipKey: action.clipKey,
+        readyClipKey: action.clipKey,
+        errorClipKey: null,
+        errorMessage: null,
+      };
+    case 'error':
+      return { ...state, errorClipKey: action.clipKey, errorMessage: action.message };
+    case 'posterLoaded':
+      return { ...state, posterClipKey: action.clipKey, poster: action.poster };
+    default:
+      return state;
+  }
+}
+
 function PreviewSegmentVideo({
   uri,
   segmentIndex,
@@ -111,55 +175,57 @@ function PreviewSegmentVideo({
   const autoplayAttemptRef = useRef(0);
   const onReadyRef = useRef(onReady);
   const onPlaybackErrorRef = useRef(onPlaybackError);
+  const segmentIndexRef = useRef(segmentIndex);
+  const requestAutoplayRef = useRef<(reason: string) => void>(() => {});
+  const markReadyRef = useRef<(status: string) => void>(() => {});
 
   useEffect(() => {
     onReadyRef.current = onReady;
     onPlaybackErrorRef.current = onPlaybackError;
-  });
-
-  const requestAutoplay = (reason: string) => {
-    if (errorEmittedRef.current || playingRef.current) return;
-    autoplayAttemptRef.current += 1;
-    try {
-      player.play();
-      trackEvent('preview_video_autoplay_attempt', {
-        reason,
-        attempt: autoplayAttemptRef.current,
-        status: player.status,
-        segment_index: segmentIndex,
+    segmentIndexRef.current = segmentIndex;
+    requestAutoplayRef.current = (reason: string) => {
+      if (errorEmittedRef.current || playingRef.current) return;
+      autoplayAttemptRef.current += 1;
+      try {
+        player.play();
+        trackEvent('preview_video_autoplay_attempt', {
+          reason,
+          attempt: autoplayAttemptRef.current,
+          status: player.status,
+          segment_index: segmentIndexRef.current,
+        });
+      } catch (error) {
+        trackEvent('preview_video_autoplay_error', {
+          reason,
+          attempt: autoplayAttemptRef.current,
+          status: player.status,
+          segment_index: segmentIndexRef.current,
+          error_message: error instanceof Error ? error.message : String(error ?? 'unknown'),
+        });
+      }
+    };
+    markReadyRef.current = (status: string) => {
+      if (readyEmittedRef.current) return;
+      readyEmittedRef.current = true;
+      trackEvent('preview_video_status_change', {
+        status,
+        segment_index: segmentIndexRef.current,
       });
-    } catch (error) {
-      trackEvent('preview_video_autoplay_error', {
-        reason,
-        attempt: autoplayAttemptRef.current,
-        status: player.status,
-        segment_index: segmentIndex,
-        error_message: error instanceof Error ? error.message : String(error ?? 'unknown'),
-      });
-    }
-  };
-
-  const markReady = (status: string) => {
-    if (readyEmittedRef.current) return;
-    readyEmittedRef.current = true;
-    trackEvent('preview_video_status_change', {
-      status,
-      segment_index: segmentIndex,
-    });
-    onReadyRef.current();
-  };
+      onReadyRef.current();
+    };
+  }, [onReady, onPlaybackError, player, segmentIndex]);
 
   useEventListener(player, 'statusChange', ({ status: nextStatus }) => {
     if (nextStatus === 'readyToPlay') {
-      markReady(nextStatus);
-      requestAutoplay('status-readyToPlay');
+      markReadyRef.current(nextStatus);
+      requestAutoplayRef.current('status-readyToPlay');
       return;
     }
     if (nextStatus === 'error' && !errorEmittedRef.current) {
       errorEmittedRef.current = true;
       trackEvent('preview_video_status_change', {
         status: nextStatus,
-        segment_index: segmentIndex,
+        segment_index: segmentIndexRef.current,
       });
       onPlaybackErrorRef.current();
     }
@@ -170,7 +236,7 @@ function PreviewSegmentVideo({
     trackEvent('preview_video_playing_change', {
       is_playing: isPlaying,
       status: player.status,
-      segment_index: segmentIndex,
+      segment_index: segmentIndexRef.current,
     });
   });
 
@@ -199,7 +265,7 @@ function PreviewSegmentVideo({
   }, [uri]);
 
   useEffect(() => {
-    requestAutoplay('mount');
+    requestAutoplayRef.current('mount');
     let attempts = 0;
     const retry = setInterval(() => {
       attempts += 1;
@@ -208,7 +274,7 @@ function PreviewSegmentVideo({
         return;
       }
       if (player.status === 'readyToPlay') {
-        requestAutoplay('retry-readyToPlay');
+        requestAutoplayRef.current('retry-readyToPlay');
       }
     }, PREVIEW_VIDEO_AUTOPLAY_RETRY_MS);
     return () => clearInterval(retry);
@@ -222,8 +288,8 @@ function PreviewSegmentVideo({
         current_status: player.status,
         segment_index: segmentIndex,
       });
-      requestAutoplay('watchdog');
-      markReady('watchdog-forced-ready');
+      requestAutoplayRef.current('watchdog');
+      markReadyRef.current('watchdog-forced-ready');
     }, PREVIEW_VIDEO_WATCHDOG_MS);
     return () => clearTimeout(timer);
   }, [uri, segmentIndex, player]);
@@ -236,8 +302,8 @@ function PreviewSegmentVideo({
       nativeControls={false}
       onFirstFrameRender={() => {
         onFirstFrameRender();
-        markReady('first-frame-render');
-        requestAutoplay('first-frame-render');
+        markReadyRef.current('first-frame-render');
+        requestAutoplayRef.current('first-frame-render');
       }}
     />
   );
@@ -253,31 +319,29 @@ function PreviewVideoContent({
   const { colors, statusBarStyle, isDark } = useAppTheme();
   const insets = useScreenInsets('mediaChrome');
   const styles = createStyles(colors);
-  const [clipIndex, setClipIndex] = useState(0);
-  const [videoReady, setVideoReady] = useState(false);
-  const [videoError, setVideoError] = useState<string | null>(null);
-  const [poster, setPoster] = useState<VideoThumbnail | null>(null);
-  const [firstFrameRendered, setFirstFrameRendered] = useState(false);
-  const [audioReady, setAudioReady] = useState(false);
+  const [videoState, dispatchVideoState] = useReducer(previewVideoReducer, initialPreviewVideoState);
   const segmentProgress = useSharedValue(1);
 
-  const current = segments[clipIndex];
-  const clipKey = `${clipIndex}:${current.uri}`;
+  const current = segments[videoState.clipIndex];
+  const clipKey = `${videoState.clipIndex}:${current.uri}`;
+  const videoReady = videoState.readyClipKey === clipKey;
+  const videoError = videoState.errorClipKey === clipKey ? videoState.errorMessage : null;
+  const poster = videoState.posterClipKey === clipKey ? videoState.poster : null;
+  const firstFrameRendered = videoState.firstFrameClipKey === clipKey;
 
   useEffect(() => {
     let cancelled = false;
-    setAudioReady(false);
     void configureForPlayback()
       .then(() => {
         if (!cancelled) {
-          setAudioReady(true);
+          dispatchVideoState({ type: 'audioReady' });
           trackEvent('preview_audio_session_ready', { status: 'success' });
         }
       })
       .catch((error) => {
         console.warn('Preview audio session setup failed', error);
         if (!cancelled) {
-          setAudioReady(true);
+          dispatchVideoState({ type: 'audioReady' });
           trackEvent('preview_audio_session_ready', {
             status: 'failure',
             error_message: error instanceof Error ? error.message : 'Unknown preview audio session error',
@@ -296,47 +360,46 @@ function PreviewVideoContent({
   const advanceClip = () => {
     cancelAnimation(segmentProgress);
     segmentProgress.set(1);
-    setClipIndex((i) => (i + 1) % segments.length);
-    setVideoReady(false);
-    setVideoError(null);
-    setPoster(null);
-    setFirstFrameRendered(false);
+    dispatchVideoState({ type: 'advance', segmentCount: segments.length });
   };
 
   const handleVideoReady = () => {
-    setVideoReady(true);
-    setVideoError(null);
+    dispatchVideoState({ type: 'ready', clipKey });
   };
 
   const handleFirstFrameRender = () => {
-    setFirstFrameRendered(true);
-    handleVideoReady();
+    dispatchVideoState({ type: 'firstFrame', clipKey });
   };
 
   const handleVideoPlaybackError = () => {
-    setVideoError('Nie udało się odtworzyć nagrania.');
+    dispatchVideoState({ type: 'error', clipKey, message: 'Nie udało się odtworzyć nagrania.' });
   };
 
   useEffect(() => {
     let cancelled = false;
-    setPoster(null);
-    setFirstFrameRendered(false);
     void generateVideoThumbnailAtTime(current.uri, 0, { maxWidth: 720 })
       .then((thumbnail) => {
+        if (!thumbnail) {
+          trackEvent('preview_video_thumbnail_failed', {
+            segment_index: videoState.clipIndex,
+            error_message: 'generateVideoThumbnailAtTime returned null',
+          });
+          return;
+        }
         if (!cancelled) {
-          setPoster(thumbnail);
+          dispatchVideoState({ type: 'posterLoaded', clipKey, poster: thumbnail });
         }
       })
       .catch((error) => {
         trackEvent('preview_video_thumbnail_failed', {
-          segment_index: clipIndex,
+          segment_index: videoState.clipIndex,
           error_message: error instanceof Error ? error.message : 'Unknown thumbnail error',
         });
       });
     return () => {
       cancelled = true;
     };
-  }, [current.uri, clipIndex]);
+  }, [current.uri, clipKey, videoState.clipIndex]);
 
   return (
     <Animated.View style={styles.container} exiting={FadeOut.duration(120)}>
@@ -347,8 +410,8 @@ function PreviewVideoContent({
         <View style={styles.timerHudInner}>
           <View style={styles.segmentsRow}>
             {segments.map((_, segIndex) => {
-              const isDone = segIndex < clipIndex;
-              const isActive = segIndex === clipIndex;
+              const isDone = segIndex < videoState.clipIndex;
+              const isActive = segIndex === videoState.clipIndex;
               return (
                 <View key={`seg-${segIndex}`} style={styles.segmentCell}>
                   <View style={styles.timerTrack}>
@@ -371,11 +434,11 @@ function PreviewVideoContent({
         </View>
       </View>
 
-      {audioReady ? (
+      {videoState.audioReady ? (
         <PreviewSegmentVideo
           key={clipKey}
           uri={current.uri}
-          segmentIndex={clipIndex}
+          segmentIndex={videoState.clipIndex}
           segmentProgress={segmentProgress}
           onReady={handleVideoReady}
           onFirstFrameRender={handleFirstFrameRender}
@@ -397,7 +460,7 @@ function PreviewVideoContent({
         />
       ) : null}
 
-      {(!audioReady || !videoReady) && !videoError && !poster ? (
+      {(!videoState.audioReady || !videoReady) && !videoError && !poster ? (
         <View style={styles.loadingOverlaySolid}>
           <Text style={styles.loadingHint}>Ładowanie podglądu…</Text>
         </View>
@@ -462,16 +525,14 @@ export default function PreviewScreen() {
   const [viewDurationSec, setViewDurationSec] = useState<NixViewDurationSec>(DEFAULT_NIX_VIEW_DURATION_SEC);
 
   const { segments, setSegments, clearSegments } = useVideoDraft();
-  const routeVideoSegments =
-    mode === 'video' && uri
-      ? [{ uri, durationMs: Math.max(0, Number(rawDurationMs) || 0) }]
-      : null;
+  const routeVideoSegment = mode === 'video' && uri ? { uri, durationMs: Math.max(0, Number(rawDurationMs) || 0) } : null;
+  const routeVideoSegments = routeVideoSegment ? [routeVideoSegment] : null;
   const previewVideoSegments = segments?.length ? segments : routeVideoSegments;
 
   useEffect(() => {
-    if (mode !== 'video' || segments?.length || !routeVideoSegments?.length) return;
-    setSegments(routeVideoSegments);
-  }, [mode, routeVideoSegments, segments?.length, setSegments]);
+    if (mode !== 'video' || segments?.length || !uri) return;
+    setSegments([{ uri, durationMs: Math.max(0, Number(rawDurationMs) || 0) }]);
+  }, [mode, uri, rawDurationMs, segments?.length, setSegments]);
 
   useEffect(() => {
     let cancelled = false;

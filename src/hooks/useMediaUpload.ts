@@ -461,7 +461,10 @@ export function useMediaUpload() {
                 progress: { ...task.progress, stage: 'queued', progress: 0 },
               });
             }
-            setJobs(nextJobs);
+            setJobs((current) => {
+              const restoredIds = new Set(nextJobs.map((task) => task.id));
+              return [...nextJobs, ...current.filter((task) => !restoredIds.has(task.id))];
+            });
             setIsPaused(nixeshot.paused);
           }
           setIsQueueReady(true);

@@ -1,0 +1,28 @@
+diff --git a/node_modules/expo-image-manipulator/ios/ImageManipulatorModule.swift b/node_modules/expo-image-manipulator/ios/ImageManipulatorModule.swift
+index 207b14e..d7d838f 100644
+--- a/node_modules/expo-image-manipulator/ios/ImageManipulatorModule.swift
++++ b/node_modules/expo-image-manipulator/ios/ImageManipulatorModule.swift
+@@ -10,17 +10,20 @@ public class ImageManipulatorModule: Module {
+   public func definition() -> ModuleDefinition {
+     Name("ExpoImageManipulator")
+
+-    Function("manipulate") { (source: Either<URL, SharedRef<UIImage>>) -> ImageManipulatorContext in
++    // Shared refs must be attempted before URL conversion. Under ExpoModulesJSI,
++    // asking the URL converter to inspect a native HostObject calls getAny(),
++    // which traps instead of throwing and prevents Either from trying SharedRef.
++    Function("manipulate") { (source: Either<SharedRef<UIImage>, URL>) -> ImageManipulatorContext in
+       let context = ImageManipulatorContext { [weak appContext] in
+         guard let appContext else {
+           throw Exceptions.AppContextLost()
+         }
+-        if let url: URL = source.get() {
+-          return try await loadImage(atUrl: url, appContext: appContext)
+-        }
+         if let image: SharedRef<UIImage> = source.get() {
+           return image.ref
+         }
++        if let url: URL = source.get() {
++          return try await loadImage(atUrl: url, appContext: appContext)
++        }
+         throw Exceptions.RuntimeLost()
+       }

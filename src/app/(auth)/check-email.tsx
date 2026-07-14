@@ -15,6 +15,7 @@ import {
 import { AuthRnBridge } from '../../components/ui/auth-rn-bridge';
 import { AuthBrandBlock } from '../../components/auth/AuthBrandBlock';
 import { useAuth } from '../../hooks/useAuth';
+import { runWithFinally } from '../../lib/runWithFinally';
 
 export default function CheckEmailScreen() {
   const { t } = useTranslation();
@@ -36,27 +37,32 @@ export default function CheckEmailScreen() {
     if (!otpCode.trim()) return;
     setOtpLoading(true);
     setOtpError(null);
-    try {
-      const { error: verifyError } = await verifyOTP(
-        emailLabel,
-        otpCode.trim(),
-        isRecovery ? 'recovery' : 'signup'
-      );
-      if (verifyError) {
-        // Translate or show error
-        setOtpError(verifyError.message);
-      } else {
-        if (isRecovery) {
-          router.replace('/(auth)/reset-password');
-        } else {
-          router.replace('/(auth)/onboarding');
+    await runWithFinally(
+      async () => {
+        try {
+          const { error: verifyError } = await verifyOTP(
+            emailLabel,
+            otpCode.trim(),
+            isRecovery ? 'recovery' : 'signup'
+          );
+          if (verifyError) {
+            // Translate or show error
+            setOtpError(verifyError.message);
+          } else {
+            if (isRecovery) {
+              router.replace('/(auth)/reset-password');
+            } else {
+              router.replace('/(auth)/onboarding');
+            }
+          }
+        } catch (err: any) {
+          setOtpError(err?.message || 'Error occurred');
         }
+      },
+      () => {
+        setOtpLoading(false);
       }
-    } catch (err: any) {
-      setOtpError(err?.message || 'Error occurred');
-    } finally {
-      setOtpLoading(false);
-    }
+    );
   };
 
   return (

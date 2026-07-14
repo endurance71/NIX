@@ -1,6 +1,11 @@
 import type { ReactNode } from 'react';
-import { Button, FieldGroup, ListItem, Text } from '@expo/ui';
+import { View } from 'react-native';
+import { Button, FieldGroup, ListItem, RNHostView, Switch, Text } from '@expo/ui';
+import { Button as SwiftUIButton, Image, SwipeActions } from '@expo/ui/swift-ui';
+import type { SFSymbol } from 'sf-symbols-typescript';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { resolveAppIconName, type AppIconName } from '../../theme/app-icons';
+import { AvatarCircle } from './avatar-circle';
 
 type NativeSettingsSectionProps = {
   title?: string;
@@ -17,6 +22,21 @@ type NativeSettingsRowProps = {
   leading?: ReactNode;
   trailing?: ReactNode;
   onPress?: () => void;
+  icon?: AppIconName;
+  iconColor?: string;
+  avatar?: {
+    url?: string | null;
+    storagePath?: string | null;
+    emoji?: string | null;
+    fallbackInitial?: string | null;
+    size?: number;
+  };
+  role?: 'default' | 'destructive';
+  disabled?: boolean;
+  showsChevron?: boolean;
+  switchValue?: boolean;
+  onSwitchValueChange?: (value: boolean) => void;
+  testID?: string;
 };
 
 export function NativeSettingsRow({
@@ -25,15 +45,94 @@ export function NativeSettingsRow({
   leading,
   trailing,
   onPress,
+  icon,
+  iconColor,
+  avatar,
+  role = 'default',
+  disabled = false,
+  showsChevron = false,
+  switchValue,
+  onSwitchValueChange,
+  testID,
 }: NativeSettingsRowProps) {
+  const { colors } = useAppTheme();
+  const avatarSize = avatar?.size ?? 36;
+  const foregroundColor = disabled
+    ? colors.tertiaryLabel
+    : role === 'destructive'
+      ? colors.destructive
+      : colors.label;
+  const resolvedLeading = avatar ? (
+    <RNHostView matchContents>
+      <View collapsable={false} style={{ width: avatarSize, height: avatarSize }}>
+        <AvatarCircle
+          size={avatarSize}
+          url={avatar.url}
+          storagePath={avatar.storagePath}
+          emoji={avatar.emoji}
+          fallbackInitial={avatar.fallbackInitial}
+        />
+      </View>
+    </RNHostView>
+  ) : icon ? (
+    <Image systemName={resolveAppIconName(icon) as SFSymbol} size={19} color={iconColor ?? foregroundColor} />
+  ) : (
+    leading
+  );
+  const resolvedTrailing =
+    typeof switchValue === 'boolean' && onSwitchValueChange ? (
+      <Switch
+        value={switchValue}
+        onValueChange={onSwitchValueChange}
+        disabled={disabled}
+        testID={testID ? `${testID}-switch` : undefined}
+      />
+    ) : showsChevron ? (
+      <Image systemName="chevron.right" size={13} color={colors.tertiaryLabel} />
+    ) : (
+      trailing
+    );
+
   return (
     <ListItem
-      leading={leading}
-      trailing={trailing}
+      leading={resolvedLeading}
+      trailing={resolvedTrailing}
       supportingText={supportingText}
-      onPress={onPress}>
-      {title}
+      onPress={disabled ? undefined : onPress}
+      testID={testID}>
+      <Text textStyle={{ color: foregroundColor }}>{title}</Text>
     </ListItem>
+  );
+}
+
+export function NativeSettingsSwipeActions({
+  children,
+  actionLabel,
+  onAction,
+  destructive = true,
+  allowsFullSwipe = false,
+  disabled = false,
+}: {
+  children: ReactNode;
+  actionLabel: string;
+  onAction: () => void;
+  destructive?: boolean;
+  allowsFullSwipe?: boolean;
+  disabled?: boolean;
+}) {
+  if (disabled) return <>{children}</>;
+
+  return (
+    <SwipeActions>
+      {children}
+      <SwipeActions.Actions edge="trailing" allowsFullSwipe={allowsFullSwipe}>
+        <SwiftUIButton
+          label={actionLabel}
+          role={destructive ? 'destructive' : 'default'}
+          onPress={onAction}
+        />
+      </SwipeActions.Actions>
+    </SwipeActions>
   );
 }
 

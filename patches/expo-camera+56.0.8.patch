@@ -1,5 +1,5 @@
 diff --git a/node_modules/expo-camera/ios/Current/CameraSessionManager.swift b/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
-index eb8305b..d2cc371 100644
+index eb8305b..7fe0cd3 100644
 --- a/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
 +++ b/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
 @@ -25,6 +25,9 @@ protocol CameraSessionManagerDelegate: AnyObject {
@@ -38,17 +38,24 @@ index eb8305b..d2cc371 100644
      if delegate.mode == .video {
        if self.videoFileOutput == nil {
          self.setupMovieFileCapture(withSessionConfiguration: false)
-@@ -133,6 +138,9 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+@@ -133,6 +138,16 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
        self.cleanupMovieFileCapture(withSessionConfiguration: false)
        self.updateSessionPreset(preset: delegate.pictureSize.toCapturePreset(), withSessionConfiguration: false)
      }
 +    self.session.commitConfiguration()
 +    logTorchDiagnostic(event: "setCameraMode-commit", reason: "mode=\(delegate.mode.rawValue)")
++    if delegate.active && !self.session.isRunning {
++      logTorchDiagnostic(event: "setCameraMode-restart-session", reason: "mode=\(delegate.mode.rawValue)")
++      self.session.startRunning()
++    }
++    DispatchQueue.main.async { [weak delegate] in
++      delegate?.onCameraReady()
++    }
 +    self.enableTorchForVideoRecording(reason: "setCameraMode")
    }
  
    func updateSessionAudioIsMuted(withSessionConfiguration: Bool = true) {
-@@ -174,22 +182,89 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+@@ -174,22 +189,89 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
      }
    }
  
@@ -141,7 +148,7 @@ index eb8305b..d2cc371 100644
    func setFocusMode() {
      guard let device = captureDeviceInput?.device, let delegate else {
        return
-@@ -238,23 +313,29 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+@@ -238,23 +320,29 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
    }
  
    func setupMovieFileCapture(withSessionConfiguration: Bool = true) {
@@ -176,7 +183,7 @@ index eb8305b..d2cc371 100644
        return
      }
      if withSessionConfiguration {
-@@ -268,10 +349,12 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+@@ -268,10 +356,12 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
      if session.outputs.contains(videoFileOutput) {
        session.removeOutput(videoFileOutput)
        self.videoFileOutput = nil
@@ -189,7 +196,7 @@ index eb8305b..d2cc371 100644
      guard hasAvailableCameraDevice else {
        return
      }
-@@ -291,6 +374,7 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+@@ -291,6 +381,7 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
      if session.isRunning {
        session.stopRunning()
      }
@@ -197,7 +204,7 @@ index eb8305b..d2cc371 100644
    }
  
    func addErrorNotification() {
-@@ -328,11 +412,16 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+@@ -328,11 +419,16 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
      guard let delegate else {
        return
      }
@@ -214,7 +221,7 @@ index eb8305b..d2cc371 100644
      }
      if let captureDeviceInput {
        session.removeInput(captureDeviceInput)
-@@ -344,8 +433,12 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+@@ -344,8 +440,12 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
          session.addInput(deviceInput)
          captureDeviceInput = deviceInput
          updateZoom()
@@ -227,7 +234,7 @@ index eb8305b..d2cc371 100644
        delegate.onMountError(["message": "Camera could not be started - \(error.localizedDescription)"])
      }
    }
-@@ -361,6 +454,7 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+@@ -361,6 +461,7 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
    }
  
    private func startSession() {
@@ -235,7 +242,7 @@ index eb8305b..d2cc371 100644
      guard hasAvailableCameraDevice else {
        return
      }
-@@ -391,6 +485,7 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+@@ -391,6 +492,7 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
      updateSessionPreset(preset: preset, withSessionConfiguration: false)
  
      session.commitConfiguration()
@@ -243,7 +250,7 @@ index eb8305b..d2cc371 100644
      addErrorNotification()
      delegate.changePreviewOrientation()
      delegate.barcodeScanner?.maybeStartBarcodeScanning()
-@@ -398,6 +493,6 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+@@ -398,6 +500,6 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
      DispatchQueue.main.async { [weak delegate] in
        delegate?.onCameraReady()
      }

@@ -2,17 +2,17 @@ import { PropsWithChildren } from 'react';
 import { ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { FieldGroup } from '@expo/ui';
+import { frame, refreshable } from '@expo/ui/swift-ui/modifiers';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { AppHost } from './app-host';
-import { useScreenInsets } from '../../hooks/useScreenInsets';
 
 type SettingsListScreenProps = PropsWithChildren<{
   loading?: boolean;
+  onRefresh?: () => Promise<void>;
 }>;
 
-export function SettingsListScreen({ children, loading }: SettingsListScreenProps) {
+export function SettingsListScreen({ children, loading, onRefresh }: SettingsListScreenProps) {
   const { colors, statusBarStyle } = useAppTheme();
-  const { bottomContentInset } = useScreenInsets('tabStackList');
 
   if (loading) {
     return (
@@ -27,10 +27,11 @@ export function SettingsListScreen({ children, loading }: SettingsListScreenProp
     <AppHost style={[styles.container, { backgroundColor: colors.background }]} useViewportSizeMeasurement>
       <StatusBar style={statusBarStyle} />
       <FieldGroup
-        style={{
-          backgroundColor: colors.background,
-          paddingBottom: bottomContentInset,
-        }}>
+        style={{ backgroundColor: colors.background }}
+        modifiers={[
+          frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
+          ...(onRefresh ? [refreshable(onRefresh)] : []),
+        ]}>
         {children}
       </FieldGroup>
     </AppHost>

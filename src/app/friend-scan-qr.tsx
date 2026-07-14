@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { CameraView, BarcodeScanningResult, useCameraPermissions } from 'expo-camera';
 import { router, useFocusEffect } from 'expo-router';
@@ -42,6 +42,60 @@ type ScannedData = {
   avatarEmoji: string | null;
 };
 
+type FriendInviteConfirmState = {
+  loading: boolean;
+  error: string | null;
+  friendProfile: FriendProfile | null;
+  avatarUrl: string | null;
+  relationStatus: FriendInviteRelationStatus;
+  actionLoading: boolean;
+};
+
+type FriendInviteConfirmAction =
+  | { type: 'loading' }
+  | {
+      type: 'loaded';
+      friendProfile: FriendProfile;
+      avatarUrl: string | null;
+      relationStatus: FriendInviteRelationStatus;
+    }
+  | { type: 'error'; error: string }
+  | { type: 'actionLoading'; actionLoading: boolean };
+
+const initialFriendInviteConfirmState: FriendInviteConfirmState = {
+  loading: true,
+  error: null,
+  friendProfile: null,
+  avatarUrl: null,
+  relationStatus: 'none',
+  actionLoading: false,
+};
+
+function friendInviteConfirmReducer(
+  state: FriendInviteConfirmState,
+  action: FriendInviteConfirmAction
+): FriendInviteConfirmState {
+  switch (action.type) {
+    case 'loading':
+      return { ...state, loading: true, error: null };
+    case 'loaded':
+      return {
+        ...state,
+        loading: false,
+        error: null,
+        friendProfile: action.friendProfile,
+        avatarUrl: action.avatarUrl,
+        relationStatus: action.relationStatus,
+      };
+    case 'error':
+      return { ...state, loading: false, error: action.error };
+    case 'actionLoading':
+      return { ...state, actionLoading: action.actionLoading };
+    default:
+      return state;
+  }
+}
+
 const QR_CONFIRMATION_SHEET_HEIGHT = 450;
 
 export default function FriendScanQrScreen() {
@@ -56,13 +110,13 @@ export default function FriendScanQrScreen() {
   const handledSuccessRef = useRef(false);
 
   useFocusEffect(
-    useCallback(() => {
+    () => {
       setScanningLocked(false);
       setLoading(false);
       setScannedData(null);
       scanInFlightRef.current = false;
       handledSuccessRef.current = false;
-    }, [])
+    }
   );
 
   const handleScan = async (event: BarcodeScanningResult) => {
@@ -263,65 +317,72 @@ function FriendInviteConfirmSheetContent({
   const { colors } = useAppTheme();
   const styles = createSheetStyles(colors);
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [friendProfile, setFriendProfile] = useState<FriendProfile | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [relationStatus, setRelationStatus] = useState<FriendInviteRelationStatus>('none');
-  const [actionLoading, setActionLoading] = useState(false);
-
-  const loadProfileData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const preview = token
-        ? await previewFriendInviteToken(token)
-        : await previewProfileQr(profileId ?? '');
-
-      if (preview.status === 'invalid_profile' || preview.status === 'invalid_or_expired' || !preview.profile) {
-        setError('Nie udało się wczytać tego profilu.');
-        return;
-      }
-
-      if (preview.status === 'own_profile' || preview.status === 'own_invite') {
-        setError('To jest Twój profil.');
-        return;
-      }
-
-      const mergedProfile: FriendProfile = {
-        ...preview.profile,
-        avatar_storage_path: preview.profile.avatar_storage_path ?? avatarStoragePath,
-        avatar_emoji: preview.profile.avatar_emoji ?? avatarEmoji,
-      };
-
-      let nextAvatarUrl: string | null = null;
-      if (mergedProfile.avatar_storage_path) {
-        try {
-          nextAvatarUrl = await createSignedAvatarUrl(mergedProfile.avatar_storage_path);
-        } catch (err) {
-          console.warn('Failed to load friend avatar signed URL', err);
-        }
-      }
-
-      let nextRelationStatus: FriendInviteRelationStatus = 'none';
-      try {
-        nextRelationStatus = await getFriendInviteRelationStatus(preview.profile.id);
-      } catch {
-        nextRelationStatus = 'none';
-      }
-
-      setFriendProfile(mergedProfile);
-      setAvatarUrl(nextAvatarUrl);
-      setRelationStatus(nextRelationStatus);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Nie udało się wczytać profilu.');
-    } finally {
-      setLoading(false);
-    }
-  }, [profileId, token, avatarStoragePath, avatarEmoji]);
+  const [confirmState, dispatchConfirmState] = useReducer(
+    friendInviteConfirmReducer,
+    initialFriendInviteConfirmState
+  );
+  const { loading, error, friendProfile, avatarUrl, relationStatus, actionLoading } = confirmState;
 
   useEffect(() => {
+    const loadProfileData = async () => {
+      await runWithFinally(
+        async () => {
+          try {
+            dispatchConfirmState({ type: 'loading' });
+
+            const preview = token
+              ? await previewFriendInviteToken(token)
+              : await previewProfileQr(profileId ?? '');
+
+            if (preview.status === 'invalid_profile' || preview.status === 'invalid_or_expired' || !preview.profile) {
+              dispatchConfirmState({ type: 'error', error: 'Nie udało się wczytać tego profilu.' });
+              return;
+            }
+
+            if (preview.status === 'own_profile' || preview.status === 'own_invite') {
+              dispatchConfirmState({ type: 'error', error: 'To jest Twój profil.' });
+              return;
+            }
+
+            const mergedProfile: FriendProfile = {
+              ...preview.profile,
+              avatar_storage_path: preview.profile.avatar_storage_path ?? avatarStoragePath,
+              avatar_emoji: preview.profile.avatar_emoji ?? avatarEmoji,
+            };
+
+            let nextAvatarUrl: string | null = null;
+            if (mergedProfile.avatar_storage_path) {
+              try {
+                nextAvatarUrl = await createSignedAvatarUrl(mergedProfile.avatar_storage_path);
+              } catch (err) {
+                console.warn('Failed to load friend avatar signed URL', err);
+              }
+            }
+
+            let nextRelationStatus: FriendInviteRelationStatus = 'none';
+            try {
+              nextRelationStatus = await getFriendInviteRelationStatus(preview.profile.id);
+            } catch {
+              nextRelationStatus = 'none';
+            }
+
+            dispatchConfirmState({
+              type: 'loaded',
+              friendProfile: mergedProfile,
+              avatarUrl: nextAvatarUrl,
+              relationStatus: nextRelationStatus,
+            });
+          } catch (err: unknown) {
+            dispatchConfirmState({
+              type: 'error',
+              error: err instanceof Error ? err.message : 'Nie udało się wczytać profilu.',
+            });
+          }
+        },
+        () => {}
+      );
+    };
+
     const loadProfileDataId = setTimeout(() => {
       void loadProfileData();
     }, 0);
@@ -329,7 +390,7 @@ function FriendInviteConfirmSheetContent({
     return () => {
       clearTimeout(loadProfileDataId);
     };
-  }, [loadProfileData]);
+  }, [profileId, token, avatarStoragePath, avatarEmoji]);
 
   const displayUsername = friendProfile?.username ?? username;
   const statusLine = relationStatusCopy(relationStatus);
@@ -348,7 +409,7 @@ function FriendInviteConfirmSheetContent({
     }
 
     tap('heavy');
-    setActionLoading(true);
+    dispatchConfirmState({ type: 'actionLoading', actionLoading: true });
     await runWithFinally(
       async () => {
         const result = token
@@ -384,7 +445,7 @@ function FriendInviteConfirmSheetContent({
         onDismiss();
         router.replace('/(tabs)/profile');
       },
-      () => setActionLoading(false)
+      () => dispatchConfirmState({ type: 'actionLoading', actionLoading: false })
     ).catch((err: unknown) => {
       trackEvent('friend_invite_redeem', {
         channel: 'qr',

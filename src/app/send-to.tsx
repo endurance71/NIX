@@ -118,6 +118,7 @@ export default function SendToSheet() {
 
     let successCount = 0;
     let failureCount = 0;
+    const failureReasons = new Set<string>();
     // Partie po SEND_CONCURRENCY: wewnątrz partii Promise.all; kolejne partie sekwencyjnie — rekurencja zamiast for+await dla react-doctor.
     const processBatchFromIndex = async (startIndex: number): Promise<void> => {
       if (startIndex >= selectedIdList.length) return;
@@ -142,7 +143,10 @@ export default function SendToSheet() {
 
       for (const result of results) {
         if (result.success) successCount += 1;
-        else failureCount += 1;
+        else {
+          failureCount += 1;
+          if (result.error) failureReasons.add(result.error);
+        }
       }
 
       await processBatchFromIndex(startIndex + SEND_CONCURRENCY);
@@ -160,8 +164,9 @@ export default function SendToSheet() {
       );
     }
     if (failureCount > 0) {
+      const firstFailureReason = failureReasons.values().next().value;
       notifyError('Część wiadomości nie została wysłana', {
-        message: `Niepowodzenia: ${failureCount}/${selectedCount}.`,
+        message: firstFailureReason ?? `Niepowodzenia: ${failureCount}/${selectedCount}.`,
       });
     }
 

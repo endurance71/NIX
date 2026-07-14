@@ -430,6 +430,10 @@ DECLARE
   friendship_exists BOOLEAN;
   recent_count INT;
 BEGIN
+  IF auth.uid() IS NULL OR sender IS DISTINCT FROM auth.uid() THEN
+    RETURN FALSE;
+  END IF;
+
   IF sender IS NULL OR receiver IS NULL OR sender = receiver THEN
     RETURN FALSE;
   END IF;
@@ -785,7 +789,7 @@ REVOKE ALL ON FUNCTION public.get_capture_policy_for_sender(UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.list_accepted_friends_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.fetch_inbox_nixes_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.fetch_sent_nixes_paginated(INT, TIMESTAMPTZ) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.can_send_nix(UUID, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.can_send_nix(UUID, UUID) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.log_cleanup_audit(UUID, UUID, TEXT, TEXT, TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.delete_my_conversation_with_peer(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_public_profile_by_username(TEXT) TO authenticated;
@@ -797,6 +801,7 @@ GRANT EXECUTE ON FUNCTION public.get_capture_policy_for_sender(UUID) TO authenti
 GRANT EXECUTE ON FUNCTION public.list_accepted_friends_paginated(INT, TIMESTAMPTZ) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.fetch_inbox_nixes_paginated(INT, TIMESTAMPTZ) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.fetch_sent_nixes_paginated(INT, TIMESTAMPTZ) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.can_send_nix(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.log_cleanup_audit(UUID, UUID, TEXT, TEXT, TEXT) TO service_role;
 GRANT EXECUTE ON FUNCTION public.delete_my_conversation_with_peer(UUID) TO authenticated;
 

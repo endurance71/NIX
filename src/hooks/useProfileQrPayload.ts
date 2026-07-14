@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { buildFriendInviteTokenLink } from '../lib/friendInvite';
 import { createFriendInviteQrToken } from '../services/friendService';
@@ -32,14 +32,14 @@ export function useProfileQrPayload() {
     { payload: null, loading: true, error: null }
   );
 
-  const clearRefreshTimeout = useCallback(() => {
+  const clearRefreshTimeout = () => {
     if (refreshTimeoutRef.current) {
       clearTimeout(refreshTimeoutRef.current);
       refreshTimeoutRef.current = null;
     }
-  }, []);
+  };
 
-  const loadToken = useCallback(async () => {
+  const loadToken = async () => {
     clearRefreshTimeout();
     dispatch({ type: 'loading' });
 
@@ -57,19 +57,19 @@ export function useProfileQrPayload() {
       const message = error instanceof Error ? error.message : 'Nie udało się wygenerować kodu QR.';
       dispatch({ type: 'error', error: message });
     }
-  }, [clearRefreshTimeout]);
+  };
   useEffect(() => {
     loadTokenRef.current = loadToken;
-  }, [loadToken]);
+  });
 
   useFocusEffect(
-    useCallback(() => {
+    () => {
       void loadToken();
       return clearRefreshTimeout;
-    }, [clearRefreshTimeout, loadToken])
+    }
   );
 
-  useEffect(() => clearRefreshTimeout, [clearRefreshTimeout]);
+  useEffect(() => clearRefreshTimeout);
 
   return {
     payload: state.payload,

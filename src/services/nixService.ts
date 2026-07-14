@@ -95,6 +95,22 @@ function isMissingClientUploadColumnError(error: unknown) {
   );
 }
 
+function isMissingClientUploadConflictTargetError(error: unknown) {
+  const message = dbErrorMessage(error).toLowerCase();
+  return (
+    message.includes('no unique or exclusion constraint') &&
+    message.includes('on conflict')
+  );
+}
+
+function isDuplicateKeyError(error: unknown) {
+  const code =
+    typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : '';
+  return code === '23505' || dbErrorMessage(error).toLowerCase().includes('duplicate key value');
+}
+
 function isMissingThumbnailColumnError(error: unknown) {
   const message = dbErrorMessage(error);
   return (
@@ -133,7 +149,11 @@ function mapDatabaseError(error: unknown): DomainError {
     return new DomainError('NOT_FRIEND', 'Możesz wysyłać wiadomości tylko do zaakceptowanych znajomych.');
   }
 
-  if (message.includes('can_send_nix') || message.includes('Only viewed status')) {
+  if (message.includes('permission denied for function can_send_nix')) {
+    return new DomainError('UNKNOWN', 'Konfiguracja wysyłki jest nieprawidłowa. Spróbuj ponownie później.');
+  }
+
+  if (message.includes('Only viewed status')) {
     return new DomainError('INVALID_RECEIVER', 'Nieprawidłowy odbiorca wiadomości.');
   }
 
@@ -200,9 +220,22 @@ export async function insertNix(
       const { client_upload_id: _idempotencyKey, ...legacyPayload } = nextPayload;
       return await supabase.from('nixes').insert(legacyPayload);
     }
-    return await supabase
+    const upsertResult = await supabase
       .from('nixes')
       .upsert(nextPayload, { onConflict: 'sender_id,receiver_id,client_upload_id', ignoreDuplicates: true });
+
+    if (!upsertResult.error || !isMissingClientUploadConflictTargetError(upsertResult.error)) {
+      return upsertResult;
+    }
+
+    // Starsze środowiska mają częściowy indeks client_upload_id, którego PostgREST
+    // nie może użyć jako arbitra ON CONFLICT. Zwykły INSERT nadal korzysta z tego
+    // indeksu; duplikat oznacza, że poprzednia próba już zapisała tę wiadomość.
+    const insertResult = await supabase.from('nixes').insert(nextPayload);
+    if (insertResult.error && nextPayload.client_upload_id && isDuplicateKeyError(insertResult.error)) {
+      return { ...insertResult, error: null };
+    }
+    return insertResult;
   };
 
   let { error } = await persistNix(payload, useLegacyInsert);

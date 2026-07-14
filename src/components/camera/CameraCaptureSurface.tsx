@@ -61,7 +61,7 @@ export function CameraCaptureSurface({ vm }: Props) {
   const cameraViewKey = process.env.EXPO_OS === 'ios'
     ? `${facing}:${cameraInstanceKey}`
     : `${facing}:${captureMode}:${cameraInstanceKey}`;
-  const cameraViewMode = process.env.EXPO_OS === 'ios' ? 'video' : captureMode;
+  const cameraViewMode = captureMode;
   const previousCameraPropsLogKeyRef = useRef<string | null>(null);
 
   useEffect(() => {

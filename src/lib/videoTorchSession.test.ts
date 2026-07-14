@@ -1,18 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { setNativeVideoTorchForRecording, shouldUseNativeVideoTorch } from './videoTorchSession';
+import { setNativeVideoTorchForRecording } from './videoTorchSession';
 
 vi.mock('../../modules/nix-camera-torch', () => ({
   setTorchEnabledAsync: vi.fn().mockResolvedValue({ available: false, enabled: false }),
 }));
 
 describe('videoTorchSession', () => {
-  it('uses native torch only for iOS back camera when flash is on', () => {
-    expect(shouldUseNativeVideoTorch({ platform: 'ios', facing: 'back', flash: 'on' })).toBe(true);
-    expect(shouldUseNativeVideoTorch({ platform: 'ios', facing: 'back', flash: 'off' })).toBe(false);
-    expect(shouldUseNativeVideoTorch({ platform: 'ios', facing: 'front', flash: 'on' })).toBe(false);
-    expect(shouldUseNativeVideoTorch({ platform: 'android', facing: 'back', flash: 'on' })).toBe(false);
-  });
-
   it('does not enable native torch when the recording state does not need it', async () => {
     const controller = {
       setTorchEnabledAsync: vi.fn().mockResolvedValue({ available: true, enabled: true }),

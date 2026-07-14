@@ -1,6 +1,5 @@
 import Stack from 'expo-router/stack';
 import { useAppTheme } from '../../../hooks/useAppTheme';
-import { APP_FONT_FAMILY } from '../../../theme/typography';
 
 export default function InboxTabLayout() {
   const { colors } = useAppTheme();
@@ -9,24 +8,12 @@ export default function InboxTabLayout() {
     <Stack
       screenOptions={{
         headerShown: true,
-        headerLargeTitle: true,
+        headerLargeTitle: false,
         headerTintColor: colors.label,
-        headerTransparent: true,
+        headerTransparent: false,
         headerShadowVisible: false,
-        headerLargeTitleShadowVisible: false,
-        headerStyle: { backgroundColor: 'transparent' },
-        headerLargeStyle: { backgroundColor: 'transparent' },
-        headerTitleStyle: {
-          color: colors.label,
-          fontFamily: APP_FONT_FAMILY,
-          fontWeight: '700',
-        },
-        headerLargeTitleStyle: {
-          color: colors.label,
-          fontFamily: APP_FONT_FAMILY,
-          fontWeight: '700',
-        },
-        contentStyle: { backgroundColor: colors.background },
+        headerStyle: { backgroundColor: colors.systemBackground },
+        contentStyle: { backgroundColor: colors.systemBackground },
       }}>
       <Stack.Screen name="index" />
     </Stack>

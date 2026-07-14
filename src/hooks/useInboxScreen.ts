@@ -1,0 +1,252 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import {
+  acceptFriendRequest,
+  listIncomingFriendRequests,
+  rejectFriendRequest,
+} from '../services/friendService';
+import {
+  deleteConversationWithPeer,
+  fetchInboxNixes,
+  fetchSentNixes,
+  flushCleanupQueue,
+} from '../services/nixService';
+import {
+  AVATAR_SIGNED_URL_STALE_TIME_MS,
+  createSignedAvatarUrls,
+} from '../services/avatarService';
+import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
+import { buildInboxThreads } from '../lib/inboxThreads';
+import { buildInboxRowModel, type InboxRowModel } from '../lib/inboxPresentation';
+import { getCurrentLocale } from '../lib/i18n';
+import { refreshInboxBadgeCount, setInboxBadgeCount } from '../lib/inboxBadgeStore';
+import { registerTabScrollToTop } from '../lib/tabBarScrollActions';
+import { notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
+
+async function fetchInboxNixesBundle() {
+  void flushCleanupQueue().catch(() => {});
+  const [inboxData, sentData] = await Promise.all([fetchInboxNixes(), fetchSentNixes()]);
+  return { inboxData, sentData };
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message.trim() ? error.message : fallback;
+}
+
+export function useInboxScreen() {
+  const { t } = useTranslation();
+  const locale = getCurrentLocale();
+  const queryClient = useQueryClient();
+  const lastFocusRefreshAtRef = useRef(0);
+  const inviteActionIdsRef = useRef(new Set<string>());
+  const deletingPeerIdsRef = useRef(new Set<string>());
+  const [inviteActionIds, setInviteActionIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [deletingPeerIds, setDeletingPeerIds] = useState<ReadonlySet<string>>(() => new Set());
+
+  const nixesQuery = useQuery({
+    queryKey: queryKeys.inboxNixesBundle,
+    queryFn: fetchInboxNixesBundle,
+    staleTime: 10_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const requestsQuery = useQuery({
+    queryKey: queryKeys.incomingFriendRequests,
+    queryFn: listIncomingFriendRequests,
+    staleTime: 10_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const inboxNixes = useMemo(() => nixesQuery.data?.inboxData ?? [], [nixesQuery.data]);
+  const sentNixes = useMemo(() => nixesQuery.data?.sentData ?? [], [nixesQuery.data]);
+  const requests = useMemo(() => requestsQuery.data ?? [], [requestsQuery.data]);
+  const rows = useMemo(
+    () =>
+      buildInboxThreads(inboxNixes, sentNixes).map((item) =>
+        buildInboxRowModel(item, {
+          unknownUsername: t('common.unknown'),
+          locale,
+          yesterdayLabel: t('inbox.yesterday'),
+        })
+      ),
+    [inboxNixes, locale, sentNixes, t]
+  );
+
+  const avatarPaths = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...rows.flatMap((row) => (row.avatarStoragePath ? [row.avatarStoragePath] : [])),
+          ...requests.flatMap((request) =>
+            request.requester.avatar_storage_path ? [request.requester.avatar_storage_path] : []
+          ),
+        ])
+      ).sort(),
+    [requests, rows]
+  );
+
+  const avatarQuery = useQuery({
+    queryKey: avatarSignedUrlsQueryKey(avatarPaths),
+    queryFn: () => createSignedAvatarUrls(avatarPaths),
+    enabled: avatarPaths.length > 0,
+    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
+  });
+
+  useEffect(() => {
+    if (nixesQuery.isPending) return;
+    setInboxBadgeCount(inboxNixes.filter((nix) => nix.is_viewed !== true).length);
+  }, [inboxNixes, nixesQuery.isPending]);
+
+  const invalidateInboxQueries = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests }),
+    ]);
+  }, [queryClient]);
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: queryKeys.inboxNixesBundle, type: 'active' }),
+        queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
+      ]);
+      await refreshInboxBadgeCount(queryClient);
+    } catch (error) {
+      console.error('Failed to refresh inbox', error);
+      notifyError(t('inbox.refreshFailure'));
+    }
+  }, [queryClient, t]);
+
+  const handleRetry = useCallback(async () => {
+    await Promise.all([nixesQuery.refetch(), requestsQuery.refetch()]);
+  }, [nixesQuery, requestsQuery]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const now = Date.now();
+      if (now - lastFocusRefreshAtRef.current < 2_500) return;
+      lastFocusRefreshAtRef.current = now;
+      void queryClient.refetchQueries({
+        type: 'active',
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          if (
+            key !== queryKeys.inboxNixesBundle[0] &&
+            key !== queryKeys.incomingFriendRequests[0]
+          ) {
+            return false;
+          }
+          return query.isStale();
+        },
+      });
+    }, [queryClient])
+  );
+
+  useEffect(() => registerTabScrollToTop('inbox', () => void handleRefresh()), [handleRefresh]);
+
+  const beginInviteAction = (requestId: string) => {
+    if (inviteActionIdsRef.current.has(requestId)) return false;
+    inviteActionIdsRef.current = new Set(inviteActionIdsRef.current).add(requestId);
+    setInviteActionIds(inviteActionIdsRef.current);
+    return true;
+  };
+
+  const finishInviteAction = (requestId: string) => {
+    const next = new Set(inviteActionIdsRef.current);
+    next.delete(requestId);
+    inviteActionIdsRef.current = next;
+    setInviteActionIds(next);
+  };
+
+  const handleAccept = async (requestId: string) => {
+    if (!beginInviteAction(requestId)) return;
+    try {
+      await acceptFriendRequest(requestId);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
+        invalidateInboxQueries(),
+      ]);
+      notifySuccess(t('inbox.inviteAccepted'));
+    } catch (error) {
+      notifyError(errorMessage(error, t('inbox.inviteAcceptFailure')));
+    } finally {
+      finishInviteAction(requestId);
+    }
+  };
+
+  const handleReject = async (requestId: string) => {
+    if (!beginInviteAction(requestId)) return;
+    try {
+      await rejectFriendRequest(requestId);
+      await invalidateInboxQueries();
+      notifyInfo(t('inbox.inviteRemoved'));
+    } catch (error) {
+      notifyError(errorMessage(error, t('inbox.inviteRemoveFailure')));
+    } finally {
+      finishInviteAction(requestId);
+    }
+  };
+
+  const handleDelete = async (row: InboxRowModel) => {
+    if (deletingPeerIdsRef.current.has(row.peerId)) return;
+    deletingPeerIdsRef.current = new Set(deletingPeerIdsRef.current).add(row.peerId);
+    setDeletingPeerIds(deletingPeerIdsRef.current);
+
+    try {
+      await deleteConversationWithPeer(row.peerId);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
+        refreshInboxBadgeCount(queryClient, { forceNetwork: true }),
+      ]);
+      notifySuccess(t('inbox.deleteConversationSuccess', { username: row.username }));
+    } catch (error) {
+      notifyError(errorMessage(error, t('inbox.deleteConversationFailure')));
+    } finally {
+      const next = new Set(deletingPeerIdsRef.current);
+      next.delete(row.peerId);
+      deletingPeerIdsRef.current = next;
+      setDeletingPeerIds(next);
+    }
+  };
+
+  const handleOpen = (row: InboxRowModel) => {
+    if (!row.openParams || deletingPeerIdsRef.current.has(row.peerId)) return;
+    router.push({
+      pathname: '/viewer',
+      params: {
+        id: row.openParams.id,
+        path: row.openParams.path,
+        senderId: row.openParams.senderId,
+      },
+    });
+  };
+
+  const loading =
+    (nixesQuery.isPending && nixesQuery.data === undefined) ||
+    (requestsQuery.isPending && requestsQuery.data === undefined);
+  const initialError =
+    (nixesQuery.isError && nixesQuery.data === undefined) ||
+    (requestsQuery.isError && requestsQuery.data === undefined);
+
+  return {
+    t,
+    rows,
+    requests,
+    avatarUrls: avatarQuery.data ?? {},
+    inviteActionIds,
+    deletingPeerIds,
+    loading,
+    initialError,
+    handleRefresh,
+    handleRetry,
+    handleAccept,
+    handleReject,
+    handleDelete,
+    handleOpen,
+  };
+}
+
+export type InboxScreenViewModel = ReturnType<typeof useInboxScreen>;

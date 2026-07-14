@@ -284,6 +284,65 @@ describe('nixService cleanup flow', () => {
     expect('thumbnail_b64' in payload).toBe(false);
   });
 
+  it('insertNix używa zwykłego insertu, gdy baza nie obsługuje celu ON CONFLICT', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
+    mockNixesUpsert.mockResolvedValue({
+      error: {
+        code: '42P10',
+        message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification',
+      },
+    });
+    mockNixesInsert.mockResolvedValue({ error: null });
+
+    await insertNix('receiver-1', 'nixes/sender-1/fallback.jpg', 5, {
+      mediaType: 'image',
+      clientUploadId: 'fallback-1',
+    });
+
+    expect(mockNixesInsert).toHaveBeenCalledTimes(1);
+    expect(mockNixesInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sender_id: 'sender-1',
+        receiver_id: 'receiver-1',
+        client_upload_id: 'fallback-1',
+      })
+    );
+  });
+
+  it('insertNix uznaje duplikat fallbacku za zakończoną wcześniej wysyłkę', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
+    mockNixesUpsert.mockResolvedValue({
+      error: {
+        code: '42P10',
+        message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification',
+      },
+    });
+    mockNixesInsert.mockResolvedValue({
+      error: { code: '23505', message: 'duplicate key value violates unique constraint' },
+    });
+
+    await expect(
+      insertNix('receiver-1', 'nixes/sender-1/already-sent.jpg', 5, {
+        mediaType: 'image',
+        clientUploadId: 'already-sent-1',
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it('insertNix nie przedstawia błędu uprawnień funkcji jako błędnego odbiorcy', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
+    mockNixesUpsert.mockResolvedValue({
+      error: { message: 'permission denied for function can_send_nix' },
+    });
+
+    await expect(
+      insertNix('receiver-1', 'nixes/sender-1/config-error.jpg', 5, {
+        mediaType: 'image',
+        clientUploadId: 'config-error-1',
+      })
+    ).rejects.toThrow('Konfiguracja wysyłki jest nieprawidłowa');
+  });
+
   it('fetchSentNixes zwraca historię wysłanych z mapowaniem odbiorcy', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
     mockNixesSelectEq.mockReturnValue({ order: mockNixesSelectOrder });

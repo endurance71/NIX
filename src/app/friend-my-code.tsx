@@ -1,170 +1,121 @@
-import { useEffect, useReducer } from 'react';
-import { router } from 'expo-router';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { AppRnHostView } from '../components/ui/app-rn-host-view';
+import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { FieldGroup, RNHostView } from '@expo/ui';
+import { Stack, router } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useProfileQrPayload } from '../hooks/useProfileQrPayload';
 import { MyProfileQrCard } from '../components/friend/my-profile-qr-card';
 import { useAuth } from '../hooks/useAuth';
-import { createSignedAvatarUrl } from '../services/avatarService';
-import { CurrentUserProfileRow, getCurrentUserProfile } from '../services/profileService';
-import { useScreenInsets } from '../hooks/useScreenInsets';
-import { typography } from '../theme/typography';
+import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../services/avatarService';
+import { getCurrentUserProfile } from '../services/profileService';
+import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
+import { NativeSettingsRow } from '../components/ui/native-settings';
+import { SettingsListScreen } from '../components/ui/settings-list-screen';
 
 export default function FriendMyCodeScreen() {
-  const { colors, statusBarStyle } = useAppTheme();
-  const { bottomContentInset } = useScreenInsets('tabStackList');
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
+  const { width } = useWindowDimensions();
   const { user } = useAuth();
   const qrPayload = useProfileQrPayload();
-  const [state, dispatch] = useReducer(
-    (
-      current: { profileRow: CurrentUserProfileRow | null; avatarSignedUrl: string | null },
-      action:
-        | { type: 'profile_loaded'; profileRow: CurrentUserProfileRow | null }
-        | { type: 'avatar_loaded'; avatarSignedUrl: string | null }
-    ) => {
-      switch (action.type) {
-        case 'profile_loaded':
-          return { ...current, profileRow: action.profileRow };
-        case 'avatar_loaded':
-          return { ...current, avatarSignedUrl: action.avatarSignedUrl };
-        default:
-          return current;
-      }
-    },
-    { profileRow: null, avatarSignedUrl: null }
-  );
-  const { profileRow, avatarSignedUrl } = state;
-
-  const fallbackInitial = (profileRow?.username ?? user?.email ?? '?').replace(/^@/, '').charAt(0).toUpperCase();
-
-  useEffect(() => {
-    let cancelled = false;
-    getCurrentUserProfile()
-      .then((profile) => {
-        if (!cancelled) dispatch({ type: 'profile_loaded', profileRow: profile });
-      })
-      .catch((err) => {
-        console.error('Nie udało się pobrać profilu dla QR', err);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const path = profileRow?.avatar_storage_path;
-    void (async () => {
-      if (!path) {
-        if (!cancelled) dispatch({ type: 'avatar_loaded', avatarSignedUrl: null });
-        return;
-      }
-      try {
-        const url = await createSignedAvatarUrl(path);
-        if (!cancelled) dispatch({ type: 'avatar_loaded', avatarSignedUrl: url });
-      } catch (err) {
-        console.error('Nie udało się wygenerować signed URL avatara', err);
-        if (!cancelled) dispatch({ type: 'avatar_loaded', avatarSignedUrl: null });
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [profileRow?.avatar_storage_path]);
+  const { data: profileRow = null, isPending: profilePending } = useQuery({
+    queryKey: queryKeys.currentUserProfile,
+    queryFn: getCurrentUserProfile,
+    staleTime: 1000 * 60 * 5,
+  });
+  const avatarPaths = profileRow?.avatar_storage_path ? [profileRow.avatar_storage_path] : [];
+  const { data: avatarUrls = {} } = useQuery({
+    queryKey: avatarSignedUrlsQueryKey(avatarPaths),
+    queryFn: () => createSignedAvatarUrls(avatarPaths),
+    enabled: avatarPaths.length > 0,
+    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
+  });
+  const avatarUrl = profileRow?.avatar_storage_path
+    ? avatarUrls[profileRow.avatar_storage_path] ?? null
+    : null;
+  const fallbackInitial = (profileRow?.username ?? user?.email ?? '?')
+    .replace(/^@/, '')
+    .charAt(0)
+    .toUpperCase();
+  const qrSize = Math.max(180, Math.min(236, width - 112));
 
   return (
     <>
-      <StatusBar style={statusBarStyle} />
-      <ScrollView
-        style={[styles.container, { backgroundColor: colors.background }]}
-        contentContainerStyle={[styles.content, { paddingBottom: bottomContentInset + 24 }]}
-        contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}>
-        <Text style={[styles.description, { color: colors.secondaryLabel }]}>
-          To jest stały kod QR Twojego profilu. Znajomy może go zeskanować, aby wysłać zaproszenie.
-        </Text>
-        <View style={[styles.qrPanel, { backgroundColor: colors.secondarySystemBackground }]}>
-          {qrPayload.loading ? (
-            <View style={styles.qrLoading}>
-              <ActivityIndicator color={colors.textPrimary} />
-              <Text style={[styles.qrLoadingText, { color: colors.textSecondary }]}>Generowanie kodu QR…</Text>
-            </View>
-          ) : (
-            <AppRnHostView matchContents>
-              <MyProfileQrCard
-                payload={qrPayload.payload}
-                colors={colors}
-                error={qrPayload.error}
-                centerOverlayRatio={0.3}
-                avatarUrl={avatarSignedUrl}
-                avatarStoragePath={profileRow?.avatar_storage_path ?? null}
-                avatarEmoji={profileRow?.avatar_emoji}
-                fallbackInitial={fallbackInitial}
-              />
-            </AppRnHostView>
-          )}
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/friend-scan-qr')}
-          style={({ pressed }) => [
-            styles.scanButton,
-            { backgroundColor: colors.accent, opacity: pressed ? 0.72 : 1 },
-          ]}>
-          <Text style={styles.scanButtonText}>Skanuj QR</Text>
-        </Pressable>
-      </ScrollView>
+      <SettingsListScreen loading={profilePending}>
+        <FieldGroup.Section>
+          <FieldGroup.SectionHeader>
+            <RNHostView matchContents>
+              <View style={styles.header}>
+                <Text style={[styles.description, { color: colors.secondaryLabel }]}>
+                  {t('profile.qrDescription')}
+                </Text>
+                <View style={styles.qrSlot}>
+                  {qrPayload.loading ? (
+                    <View style={styles.loading}>
+                      <ActivityIndicator color={colors.label} />
+                      <Text style={[styles.loadingText, { color: colors.secondaryLabel }]}>
+                        {t('profile.qrGenerating')}
+                      </Text>
+                    </View>
+                  ) : (
+                    <MyProfileQrCard
+                      payload={qrPayload.payload}
+                      colors={colors}
+                      error={qrPayload.error}
+                      size={qrSize}
+                      centerOverlayRatio={0.28}
+                      avatarUrl={avatarUrl}
+                      avatarStoragePath={profileRow?.avatar_storage_path ?? null}
+                      avatarEmoji={profileRow?.avatar_emoji}
+                      fallbackInitial={fallbackInitial}
+                    />
+                  )}
+                </View>
+              </View>
+            </RNHostView>
+          </FieldGroup.SectionHeader>
+          <NativeSettingsRow
+            title={t('profile.scanQr')}
+            icon="qrcode"
+            showsChevron
+            onPress={() => router.push('/friend-scan-qr')}
+            testID="my-code-scan"
+          />
+        </FieldGroup.Section>
+      </SettingsListScreen>
+      <Stack.Screen.Title>{t('profile.myQrCode')}</Stack.Screen.Title>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 28,
-    paddingTop: 20,
+  header: {
+    width: '100%',
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 14,
   },
   description: {
-    ...typography.body,
+    maxWidth: 340,
+    fontSize: 15,
+    lineHeight: 20,
     textAlign: 'center',
-    marginBottom: 18,
+    marginBottom: 20,
   },
-  qrPanel: {
-    minHeight: 312,
+  qrSlot: {
+    minHeight: 276,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 28,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-    paddingVertical: 26,
   },
-  qrLoading: {
+  loading: {
     minHeight: 260,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
   },
-  qrLoadingText: {
-    ...typography.footnote,
-    textAlign: 'center',
-  },
-  scanButton: {
-    alignSelf: 'center',
-    marginTop: 20,
-    minHeight: 44,
-    justifyContent: 'center',
-    borderRadius: 22,
-    paddingHorizontal: 20,
-  },
-  scanButtonText: {
-    ...typography.body,
-    color: '#FFFFFF',
-    fontWeight: '700',
+  loadingText: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 12,
   },
 });

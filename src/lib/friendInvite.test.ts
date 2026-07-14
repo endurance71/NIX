@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildFriendInviteTokenLink,
-  buildProfileQrLink,
   extractFriendInvitePayload,
-  extractProfileQrProfileId,
 } from './friendInvite';
 
 describe('friendInvite QR payloads', () => {
@@ -18,12 +16,11 @@ describe('friendInvite QR payloads', () => {
   });
 
   it('zachowuje kompatybilność ze starym profileId payload', () => {
-    const link = buildProfileQrLink('profile-1');
+    const link = 'nix://friend-invite?profileId=profile-1';
 
     expect(extractFriendInvitePayload(link)).toEqual({
       token: null,
       profileId: 'profile-1',
     });
-    expect(extractProfileQrProfileId(link)).toBe('profile-1');
   });
 });

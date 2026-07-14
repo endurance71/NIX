@@ -76,7 +76,6 @@ export type CameraScreenViewModel = {
 
 export function useCameraScreen(): CameraScreenViewModel {
   const isNativeSimulator = !Constants.isDevice;
-  const remountCameraOnModeChange = process.env.EXPO_OS !== 'ios';
   const { colors, statusBarStyle } = useAppTheme();
   const { setSegments } = useVideoDraft();
   const insets = useScreenInsets('cameraTab');
@@ -120,6 +119,8 @@ export function useCameraScreen(): CameraScreenViewModel {
   const isSwitchingCameraRef = useRef(false);
   const switchWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const switchRecoveryUsedRef = useRef(false);
+  const safeStopRecordingRef = useRef<() => void>(() => {});
+  const disableNativeVideoTorchRef = useRef<() => void>(() => {});
 
   const shutterScale = useSharedValue(1);
   const recordingPulseScale = useSharedValue(1);
@@ -186,6 +187,11 @@ export function useCameraScreen(): CameraScreenViewModel {
     void setNativeVideoTorchForRecording({ facing: 'back', flash: 'on' }, false);
   };
 
+  useEffect(() => {
+    safeStopRecordingRef.current = safeStopRecording;
+    disableNativeVideoTorchRef.current = disableNativeVideoTorch;
+  });
+
   useFocusEffect(
     useCallback(() => {
       dispatchCameraUi({ type: 'SET_CAMERA_ACTIVE', cameraActive: true });
@@ -194,8 +200,8 @@ export function useCameraScreen(): CameraScreenViewModel {
       return () => {
         logVideoTorchEvent('screen-blur-cleanup');
         dispatchCameraUi({ type: 'SET_CAMERA_ACTIVE', cameraActive: false });
-        safeStopRecording();
-        disableNativeVideoTorch();
+        safeStopRecordingRef.current();
+        disableNativeVideoTorchRef.current();
         if (switchWatchdogRef.current) {
           clearTimeout(switchWatchdogRef.current);
           switchWatchdogRef.current = null;
@@ -367,12 +373,10 @@ export function useCameraScreen(): CameraScreenViewModel {
     const torchRequestedForSession = flash === 'on' && facing === 'back';
     videoTorchSessionIdRef.current += 1;
     videoTorchSessionStartedAtRef.current = Date.now();
-    if (remountCameraOnModeChange) {
-      cameraReadyRef.current = false;
-    }
+    cameraReadyRef.current = false;
     cameraMountStartedAtRef.current = nowMs();
     logVideoTorchEvent('video-session-start', {}, { torchRequestedForSession });
-    dispatchCameraUi({ type: 'VIDEO_PREPARE_BEGIN', resetCameraReady: remountCameraOnModeChange });
+    dispatchCameraUi({ type: 'VIDEO_PREPARE_BEGIN' });
     logVideoTorchEvent('video-prepare-begin', {
       facing,
       flash,
@@ -432,8 +436,8 @@ export function useCameraScreen(): CameraScreenViewModel {
             return;
           }
           if (torchRequestedForSession) {
-            await waitForVideoTorchPropsCommit();
-            if (!fingerDownRef.current) {
+            const fingerStillDown = await waitForVideoTorchPropsCommit().then(() => fingerDownRef.current);
+            if (!fingerStillDown) {
               return;
             }
           }
@@ -507,12 +511,10 @@ export function useCameraScreen(): CameraScreenViewModel {
         recordingStartedRef.current = false;
         cancelAnimation(recordingElapsedMs);
         recordingElapsedMs.set(0);
-        if (remountCameraOnModeChange) {
-          cameraReadyRef.current = false;
-        }
+        cameraReadyRef.current = false;
         disableNativeVideoTorch();
         logVideoTorchEvent('video-session-end-dispatch');
-        dispatchCameraUi({ type: 'VIDEO_SESSION_END', resetCameraReady: remountCameraOnModeChange });
+        dispatchCameraUi({ type: 'VIDEO_SESSION_END' });
       }
     );
   };
@@ -624,10 +626,8 @@ export function useCameraScreen(): CameraScreenViewModel {
         async () => {
           try {
             if (captureMode !== 'picture') {
-              if (remountCameraOnModeChange) {
-                cameraReadyRef.current = false;
-              }
-              dispatchCameraUi({ type: 'SET_CAPTURE_MODE', captureMode: 'picture', resetCameraReady: remountCameraOnModeChange });
+              cameraReadyRef.current = false;
+              dispatchCameraUi({ type: 'SET_CAPTURE_MODE', captureMode: 'picture' });
               const modeReady = await waitForCameraReady(8000);
               if (!modeReady) {
                 hapticNotify('error');

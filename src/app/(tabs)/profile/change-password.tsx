@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { useEffect, useReducer } from 'react';
+import { AccessibilityInfo } from 'react-native';
+import { FieldGroup, Text, TextInput } from '@expo/ui';
+import { Stack, router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAppTheme } from '../../../hooks/useAppTheme';
-import { useScreenInsets } from '../../../hooks/useScreenInsets';
 import { notifySuccess } from '../../../lib/appNotify';
-import { APP_FONT_FAMILY, typography } from '../../../theme/typography';
-import { AppIcon } from '../../../components/ui/app-icon';
-import { NativeButton } from '../../../components/ui/native-button';
-import type { ThemeColors } from '../../../theme/colors';
+import {
+  NativeSettingsActionRow,
+  NativeSettingsRow,
+  NativeSettingsSection,
+} from '../../../components/ui/native-settings';
+import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
 
 function isReauthenticationNeededError(error: { message?: string; code?: string } | null) {
   if (!error) return false;
@@ -17,91 +20,75 @@ function isReauthenticationNeededError(error: { message?: string; code?: string 
   return code === 'reauthentication_needed' || message.includes('reauthentication');
 }
 
-function getPasswordUpdateErrorMessage(message: string) {
-  if (message.includes('Password should be at least')) return 'Nowe hasło musi mieć minimum 8 znaków.';
-  if (message.toLowerCase().includes('same password')) return 'Nowe hasło musi być inne niż poprzednie.';
-  if (message.includes('Email not confirmed')) return 'Najpierw potwierdź e-mail. Sprawdź skrzynkę.';
-  if (message.toLowerCase().includes('invalid nonce')) return 'Kod weryfikacyjny jest nieprawidłowy lub wygasł.';
+function getPasswordUpdateErrorMessage(message: string, t: (key: string) => string) {
+  if (message.includes('Password should be at least')) return t('profile.passwordMinimumError');
+  if (message.toLowerCase().includes('same password')) return t('profile.passwordSameError');
+  if (message.includes('Email not confirmed')) return t('profile.emailNotConfirmedError');
+  if (message.toLowerCase().includes('invalid nonce')) return t('profile.invalidCodeError');
   if (message.toLowerCase().includes('invalid login credentials') || message.toLowerCase().includes('incorrect password')) {
-    return 'Nieprawidłowe aktualne hasło.';
+    return t('profile.currentPasswordInvalidError');
   }
   return message;
 }
 
+type ChangePasswordFormState = {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+  nonce: string;
+  requiresNonce: boolean;
+  loading: boolean;
+  error: string | null;
+};
+
+type ChangePasswordFormAction =
+  | { type: 'field'; field: 'currentPassword' | 'newPassword' | 'confirmPassword' | 'nonce'; value: string }
+  | { type: 'loading'; loading: boolean }
+  | { type: 'error'; error: string | null }
+  | { type: 'nonceRequired'; message: string };
+
+const initialChangePasswordFormState: ChangePasswordFormState = {
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+  nonce: '',
+  requiresNonce: false,
+  loading: false,
+  error: null,
+};
+
+function changePasswordFormReducer(
+  state: ChangePasswordFormState,
+  action: ChangePasswordFormAction
+): ChangePasswordFormState {
+  switch (action.type) {
+    case 'field':
+      return { ...state, [action.field]: action.value, error: null };
+    case 'loading':
+      return { ...state, loading: action.loading };
+    case 'error':
+      return { ...state, error: action.error };
+    case 'nonceRequired':
+      return { ...state, requiresNonce: true, loading: false, error: action.message };
+    default:
+      return state;
+  }
+}
+
 export default function ChangePasswordScreen() {
-  const { colors, isDark } = useAppTheme();
-  const { bottomContentInset } = useScreenInsets('tabStackList');
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
   const { session, loading: authLoading, updatePassword, reauthenticatePasswordChange } = useAuth();
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [nonce, setNonce] = useState('');
-  const [requiresNonce, setRequiresNonce] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [form, dispatchForm] = useReducer(changePasswordFormReducer, initialChangePasswordFormState);
+  const { currentPassword, newPassword, confirmPassword, nonce, requiresNonce, loading, error } = form;
 
   useEffect(() => {
-    if (!authLoading && !session) {
-      router.replace('/(auth)/login');
-    }
+    if (!authLoading && !session) router.replace('/(auth)/login');
   }, [authLoading, session]);
 
-  const clearError = () => {
-    setError(null);
-  };
-
-  const handleSubmit = async () => {
-    const currentPasswordValue = currentPassword;
-    const newPasswordValue = newPassword;
-    const confirmPasswordValue = confirmPassword;
-    const nonceValue = nonce.trim();
-
-    if (!currentPasswordValue) {
-      setError('Wpisz aktualne hasło.');
-      return;
-    }
-    if (newPasswordValue.length < 8 || !/\d/.test(newPasswordValue) || !/[A-Z]/.test(newPasswordValue) || !/[a-z]/.test(newPasswordValue)) {
-      setError('Nowe hasło nie spełnia wymagań bezpieczeństwa.');
-      return;
-    }
-    if (newPasswordValue !== confirmPasswordValue) {
-      setError('Hasła nie są takie same.');
-      return;
-    }
-    if (requiresNonce && !nonceValue) {
-      setError('Wpisz kod weryfikacyjny z e-maila.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    const { error: updateErr } = await updatePassword(newPasswordValue, currentPasswordValue, requiresNonce ? nonceValue : undefined);
-
-    if (updateErr) {
-      if (!requiresNonce && isReauthenticationNeededError(updateErr)) {
-        const { error: reauthError } = await reauthenticatePasswordChange();
-        if (reauthError) {
-          setError(getPasswordUpdateErrorMessage(reauthError.message));
-          setLoading(false);
-          return;
-        }
-
-        setRequiresNonce(true);
-        setLoading(false);
-        setError('Wysłaliśmy kod weryfikacyjny na e-mail. Wpisz go poniżej i zapisz hasło ponownie.');
-        return;
-      }
-
-      setLoading(false);
-      setError(getPasswordUpdateErrorMessage(updateErr.message));
-      return;
-    }
-
-    setLoading(false);
-    notifySuccess('Hasło zostało zmienione.');
-    router.replace('/profile');
-  };
+  useEffect(() => {
+    if (error) void AccessibilityInfo.announceForAccessibility(error);
+  }, [error]);
 
   const checks = {
     length: newPassword.length >= 8,
@@ -110,7 +97,6 @@ export default function ChangePasswordScreen() {
     lower: /[a-z]/.test(newPassword),
     match: confirmPassword.length > 0 && newPassword === confirmPassword,
   };
-
   const isSubmitDisabled =
     loading ||
     !currentPassword ||
@@ -121,200 +107,168 @@ export default function ChangePasswordScreen() {
     !checks.match ||
     (requiresNonce && !nonce.trim());
 
-  const settingsCardColor = isDark ? colors.secondarySystemBackground : colors.tertiarySystemBackground;
+  const handleSubmit = async () => {
+    if (!currentPassword) {
+      dispatchForm({ type: 'error', error: t('profile.currentPasswordRequired') });
+      return;
+    }
+    if (!checks.length || !checks.digit || !checks.upper || !checks.lower) {
+      dispatchForm({ type: 'error', error: t('profile.passwordRequirementsError') });
+      return;
+    }
+    if (!checks.match) {
+      dispatchForm({ type: 'error', error: t('profile.passwordMismatchError') });
+      return;
+    }
+    if (requiresNonce && !nonce.trim()) {
+      dispatchForm({ type: 'error', error: t('profile.verificationCodeRequired') });
+      return;
+    }
+
+    dispatchForm({ type: 'loading', loading: true });
+    dispatchForm({ type: 'error', error: null });
+    const { error: updateError } = await updatePassword(
+      newPassword,
+      currentPassword,
+      requiresNonce ? nonce.trim() : undefined
+    );
+
+    if (updateError) {
+      if (!requiresNonce && isReauthenticationNeededError(updateError)) {
+        const { error: reauthenticationError } = await reauthenticatePasswordChange();
+        if (reauthenticationError) {
+          dispatchForm({
+            type: 'error',
+            error: getPasswordUpdateErrorMessage(reauthenticationError.message, t),
+          });
+          dispatchForm({ type: 'loading', loading: false });
+          return;
+        }
+        dispatchForm({ type: 'nonceRequired', message: t('profile.verificationCodeSent') });
+        return;
+      }
+      dispatchForm({ type: 'error', error: getPasswordUpdateErrorMessage(updateError.message, t) });
+      dispatchForm({ type: 'loading', loading: false });
+      return;
+    }
+
+    dispatchForm({ type: 'loading', loading: false });
+    notifySuccess(t('profile.passwordChanged'));
+    router.replace('/(tabs)/profile');
+  };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={[styles.content, { paddingBottom: bottomContentInset + 32 }]}
-      contentInsetAdjustmentBehavior="automatic"
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}>
-      
-      <View style={[styles.iconContainer, { borderColor: colors.accent }]}>
-        <AppIcon name="key" size={38} color={colors.accent} />
-      </View>
-
-      <Text style={[styles.title, { color: colors.label }]}>Nowe hasło</Text>
-
-      <Text style={[styles.description, { color: colors.secondaryLabel }]}>
-        Wybierz bezpieczne hasło, które jesteś w stanie zapamiętać.
-      </Text>
-
-      <View style={[styles.card, { backgroundColor: settingsCardColor }]}>
-        <TextInput
-          style={[styles.input, { color: colors.label, borderBottomColor: colors.separator }]}
-          placeholder="Aktualne hasło"
-          placeholderTextColor={colors.tertiaryLabel}
-          secureTextEntry
-          autoComplete="current-password"
-          value={currentPassword}
-          onChangeText={(text) => {
-            setCurrentPassword(text);
-            clearError();
-          }}
-        />
-        <TextInput
-          style={[styles.input, { color: colors.label, borderBottomColor: colors.separator }]}
-          placeholder="Nowe hasło"
-          placeholderTextColor={colors.tertiaryLabel}
-          secureTextEntry
-          autoComplete="new-password"
-          value={newPassword}
-          onChangeText={(text) => {
-            setNewPassword(text);
-            clearError();
-          }}
-        />
-        <TextInput
-          style={[
-            styles.input,
-            { color: colors.label, borderBottomColor: colors.separator },
-            !requiresNonce && { borderBottomWidth: 0 },
-          ]}
-          placeholder="Powtórz hasło"
-          placeholderTextColor={colors.tertiaryLabel}
-          secureTextEntry
-          autoComplete="new-password"
-          value={confirmPassword}
-          onChangeText={(text) => {
-            setConfirmPassword(text);
-            clearError();
-          }}
-        />
-        {requiresNonce ? (
+    <>
+      <SettingsListScreen loading={authLoading}>
+        <FieldGroup.Section title={t('profile.passwordSectionTitle')}>
           <TextInput
-            style={[
-              styles.input,
-              { color: colors.label, borderBottomColor: colors.separator, borderBottomWidth: 0 },
-            ]}
-            placeholder="Kod weryfikacyjny z e-maila"
-            placeholderTextColor={colors.tertiaryLabel}
+            placeholder={t('profile.currentPassword')}
             secureTextEntry
-            autoComplete="one-time-code"
-            value={nonce}
-            onChangeText={(text) => {
-              setNonce(text);
-              clearError();
-            }}
+            autoComplete="current-password"
+            editable={!loading}
+            onChangeText={(value) => dispatchForm({ type: 'field', field: 'currentPassword', value })}
+            testID="current-password"
           />
-        ) : null}
-      </View>
+          <TextInput
+            placeholder={t('profile.newPassword')}
+            secureTextEntry
+            autoComplete="new-password"
+            editable={!loading}
+            onChangeText={(value) => dispatchForm({ type: 'field', field: 'newPassword', value })}
+            testID="new-password"
+          />
+          <TextInput
+            placeholder={t('profile.confirmPassword')}
+            secureTextEntry
+            autoComplete="new-password"
+            editable={!loading}
+            onChangeText={(value) => dispatchForm({ type: 'field', field: 'confirmPassword', value })}
+            testID="confirm-password"
+          />
+          {requiresNonce ? (
+            <TextInput
+              placeholder={t('profile.verificationCode')}
+              secureTextEntry
+              autoComplete="one-time-code"
+              keyboardType="number-pad"
+              editable={!loading}
+              onChangeText={(value) => dispatchForm({ type: 'field', field: 'nonce', value })}
+              testID="verification-code"
+            />
+          ) : null}
+          <FieldGroup.SectionFooter>
+            <Text>{t('profile.passwordDescription')}</Text>
+          </FieldGroup.SectionFooter>
+        </FieldGroup.Section>
 
-      <View style={styles.checklist}>
-        <ValidationRow label="Minimum 8 znaków" checked={checks.length} colors={colors} />
-        <ValidationRow label="Przynajmniej jedna cyfra" checked={checks.digit} colors={colors} />
-        <ValidationRow label="Przynajmniej jedna duża litera" checked={checks.upper} colors={colors} />
-        <ValidationRow label="Przynajmniej jedna mała litera" checked={checks.lower} colors={colors} />
-        <ValidationRow label="Hasła są zgodne" checked={checks.match} colors={colors} />
-      </View>
+        <NativeSettingsSection title={t('profile.passwordRequirements')}>
+          <PasswordRequirementRow
+            label={t('profile.passwordLengthRequirement')}
+            checked={checks.length}
+            successColor={colors.success}
+            mutedColor={colors.tertiaryLabel}
+          />
+          <PasswordRequirementRow
+            label={t('profile.passwordDigitRequirement')}
+            checked={checks.digit}
+            successColor={colors.success}
+            mutedColor={colors.tertiaryLabel}
+          />
+          <PasswordRequirementRow
+            label={t('profile.passwordUpperRequirement')}
+            checked={checks.upper}
+            successColor={colors.success}
+            mutedColor={colors.tertiaryLabel}
+          />
+          <PasswordRequirementRow
+            label={t('profile.passwordLowerRequirement')}
+            checked={checks.lower}
+            successColor={colors.success}
+            mutedColor={colors.tertiaryLabel}
+          />
+          <PasswordRequirementRow
+            label={t('profile.passwordMatchRequirement')}
+            checked={checks.match}
+            successColor={colors.success}
+            mutedColor={colors.tertiaryLabel}
+          />
+        </NativeSettingsSection>
 
-      <View style={styles.buttonContainer}>
-        <NativeButton
-          label={loading ? 'Zapisywanie...' : 'Zapisz'}
-          disabled={isSubmitDisabled}
-          onPress={() => void handleSubmit()}
-        />
-      </View>
-
-      {error ? <Text style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
-    </ScrollView>
+        <FieldGroup.Section>
+          <NativeSettingsActionRow
+            title={loading ? t('profile.savingPassword') : t('profile.savePassword')}
+            disabled={isSubmitDisabled}
+            onPress={() => void handleSubmit()}
+          />
+          {error ? (
+            <FieldGroup.SectionFooter>
+              <Text textStyle={{ color: colors.destructive }}>{error}</Text>
+            </FieldGroup.SectionFooter>
+          ) : null}
+        </FieldGroup.Section>
+      </SettingsListScreen>
+      <Stack.Screen.Title>{t('profile.changePassword')}</Stack.Screen.Title>
+    </>
   );
 }
 
-function ValidationRow({
+function PasswordRequirementRow({
   label,
   checked,
-  colors,
+  successColor,
+  mutedColor,
 }: {
   label: string;
   checked: boolean;
-  colors: ThemeColors;
+  successColor: string;
+  mutedColor: string;
 }) {
   return (
-    <View style={styles.validationRow}>
-      <AppIcon
-        name={checked ? 'checkCircle' : 'circle'}
-        size={14}
-        color={checked ? colors.success : colors.tertiaryLabel}
-      />
-      <Text
-        style={[
-          styles.validationLabel,
-          { color: checked ? colors.label : colors.secondaryLabel },
-        ]}
-      >
-        {label}
-      </Text>
-    </View>
+    <NativeSettingsRow
+      title={label}
+      icon={checked ? 'checkCircle' : 'circle'}
+      iconColor={checked ? successColor : mutedColor}
+      disabled={!checked}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 28,
-    paddingTop: 24,
-  },
-  iconContainer: {
-    alignSelf: 'center',
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    borderWidth: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: '700',
-    fontFamily: APP_FONT_FAMILY,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  description: {
-    ...typography.body,
-    textAlign: 'center',
-    marginBottom: 28,
-    paddingHorizontal: 16,
-  },
-  card: {
-    borderRadius: 24,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-  },
-  input: {
-    ...typography.body,
-    minHeight: 58,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  checklist: {
-    marginTop: 16,
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  validationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  validationLabel: {
-    ...typography.footnote,
-  },
-  buttonContainer: {
-    marginTop: 28,
-  },
-  error: {
-    ...typography.footnote,
-    paddingHorizontal: 22,
-    paddingTop: 14,
-    textAlign: 'center',
-  },
-});
