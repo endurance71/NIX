@@ -8,11 +8,6 @@ type AppBottomSheetProps = {
   onDismiss: () => void;
   children: ReactNode;
   testID?: string;
-  /**
-   * Use snap points only for tall / scrollable sheets.
-   * Compact sheets should omit this — @expo/ui BottomSheet auto-sizes via `fitToContents`
-   * when RN content is hosted in `RNHostView matchContents` (see Expo swift-ui BottomSheet docs).
-   */
   snapPoints?: SnapPoint[];
   showDragIndicator?: boolean;
 };
@@ -39,11 +34,7 @@ export function AppBottomSheet({
       showDragIndicator={showDragIndicator}
       testID={testID}
     >
-      {hasSnapPoints ? (
-        hostedContent
-      ) : (
-        <RNHostView matchContents>{hostedContent}</RNHostView>
-      )}
+      {hasSnapPoints ? hostedContent : <RNHostView matchContents>{hostedContent}</RNHostView>}
     </BottomSheet>
   );
 }
