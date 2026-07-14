@@ -24,7 +24,6 @@ import {
 import { markViewerSlideViewed } from '../lib/viewerSlideActions';
 import { normalizeNixViewDurationSec } from '../lib/nixViewDuration';
 import { useAppTheme } from './useAppTheme';
-import { refreshInboxBadgeCount } from '../lib/inboxBadgeStore';
 import { clearMediaMemoryCache } from '../lib/mediaCache';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { queryKeys } from '../lib/queryKeys';
@@ -37,6 +36,7 @@ import { useAppStateSnapshot } from './useAppStateSnapshot';
 import { useViewerCaptureGuard } from './useViewerCaptureGuard';
 import { toViewerQueueItem } from '../lib/viewerQueue';
 import { createViewerStyles } from '../components/viewer/viewerScreen.styles';
+import { markInboxNixViewedInCache } from '../lib/inboxQuery';
 
 type NixQueueItem = {
   id: string;
@@ -144,7 +144,6 @@ export function useViewerScreen(): ViewerScreenViewModel {
   const appState = useAppStateSnapshot();
   const segmentProgress = useSharedValue(1);
   const lastFinishedSlideIdRef = useRef<string | null>(null);
-  const viewedCountRef = useRef(0);
 
   const queueRef = useRef<NixQueueItem[]>(queue);
   const slideIndexRef = useRef(slideIndex);
@@ -248,12 +247,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
       console.warn('Nie udało się zsynchronizować kolejki cleanup', err);
     });
 
-    const viewedCount = viewedCountRef;
     return () => {
-      if (viewedCount.current > 0) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
-        void refreshInboxBadgeCount(queryClient);
-      }
       void clearMediaMemoryCache();
     };
   }, [queryClient]);
@@ -271,8 +265,9 @@ export function useViewerScreen(): ViewerScreenViewModel {
     cancelAnimation(segmentProgress);
     segmentProgress.set(1);
 
+    markInboxNixViewedInCache(queryClient, item.id);
     void markViewerSlideViewed(item, () => {
-      viewedCountRef.current += 1;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
     });
 
     if (slideIndexRef.current < queueRef.current.length - 1) {
