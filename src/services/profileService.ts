@@ -64,12 +64,18 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfileRow | n
 }
 
 export async function isUsernameTaken(username: string) {
+  const user = await getCurrentUser();
   const { data, error } = await supabase.rpc('get_public_profile_by_username', {
     search_username: username,
   });
 
   if (error) throw error;
-  return Array.isArray(data) ? data.length > 0 : Boolean(data);
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== 'object' || !('id' in row)) return false;
+  if (user && row.id === user.id) return false;
+
+  return true;
 }
 
 export async function saveUsernameForCurrentUser(username: string) {

@@ -49,6 +49,13 @@ export default function ProfileTabLayout() {
         }}
       />
       <Stack.Screen
+        name="delete-account"
+        options={{
+          title: t('profile.deleteAccount'),
+          headerLargeTitle: false,
+        }}
+      />
+      <Stack.Screen
         name="privacy-policy"
         options={{
           title: t('profile.privacyPolicy'),

@@ -1,7 +1,7 @@
 # Wytyczne platformowe: native-first (iOS)
 
 **Status:** obowiązuje dla całego projektu NiX  
-**Ostatnia aktualizacja:** 2026-06-26
+**Ostatnia aktualizacja:** 2026-07-14 (Expo SDK 57 / React Native 0.86)
 
 ---
 

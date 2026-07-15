@@ -1,12 +1,18 @@
 import { supabase } from '../lib/supabase';
 
 const AUTH_REDIRECT_URL = 'nix://auth/callback';
+export const LEGAL_DOCUMENT_VERSION = '2026-07-14';
 
 export async function signInWithPassword(email: string, password: string) {
   return supabase.auth.signInWithPassword({ email, password });
 }
 
-export async function signUpWithPassword(email: string, password: string, locale: string = 'en') {
+export async function signUpWithPassword(
+  email: string,
+  password: string,
+  locale: string = 'en',
+  acceptedLegal = false
+) {
   return supabase.auth.signUp({
     email,
     password,
@@ -15,8 +21,33 @@ export async function signUpWithPassword(email: string, password: string, locale
       data: {
         language: locale,
         locale: locale,
+        ...(acceptedLegal
+          ? { terms_version: LEGAL_DOCUMENT_VERSION, privacy_version: LEGAL_DOCUMENT_VERSION }
+          : {}),
       },
     },
+  });
+}
+
+export async function recordCurrentLegalAcceptance() {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError) return { error: userError };
+  if (!user) return { error: new Error('No authenticated user') };
+
+  const { data: existing, error: existingError } = await supabase
+    .from('legal_acceptances')
+    .select('user_id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (existingError || existing) return { error: existingError };
+
+  return supabase.from('legal_acceptances').insert({
+    user_id: user.id,
+    terms_version: LEGAL_DOCUMENT_VERSION,
+    privacy_version: LEGAL_DOCUMENT_VERSION,
   });
 }
 

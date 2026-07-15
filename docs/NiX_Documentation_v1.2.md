@@ -1,7 +1,7 @@
 # Dokumentacja projektowa: NiX (v1.2)
 
 **Status:** W toku — stabilizacja MVP  
-**Stack:** React Native (Expo SDK 56) + Supabase  
+**Stack:** React Native (Expo SDK 57) + Supabase  
 **Ostatnia aktualizacja:** 2026-07-14
 
 ---
@@ -77,7 +77,7 @@ Pełna hierarchia wyboru, antywzorce i checklista PR: [native-platform-guideline
 
 | Warstwa | Technologia | Uwagi |
 | :--- | :--- | :--- |
-| **Frontend** | React Native 0.85 + Expo SDK 56 | iOS only (`platforms: ["ios"]` w `app.json`) |
+| **Frontend** | React Native 0.86 + Expo SDK 57 | iOS only (`platforms: ["ios"]` w `app.json`) |
 | **Nawigacja** | Expo Router (`src/app`) | Stack + tabs; `experiments.typedRoutes`, `reactCompiler` |
 | **UI** | Universal `@expo/ui` + RN primitives | `FieldGroup`, `List`, `TextInput`, `AppIcon`; komponenty w `src/components/ui` |
 | **Stan sieci** | TanStack React Query v5 | Klucze w `src/lib/queryKeys.ts` |

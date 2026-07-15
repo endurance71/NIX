@@ -1,6 +1,6 @@
 import type { RefObject } from 'react';
 import type { TextInputRef } from '@expo/ui';
-import { VStack } from '@expo/ui/swift-ui';
+import { HStack, VStack } from '@expo/ui/swift-ui';
 import { frame, padding } from '@expo/ui/swift-ui/modifiers';
 import {
   AuthErrorText,
@@ -64,7 +64,12 @@ export function LoginCredentialsSection({ vm, passwordRef }: LoginCredentialsSec
       </AuthFieldGroup>
 
       {vm.error ? <AuthErrorText>{vm.error}</AuthErrorText> : null}
-      <AuthTextLink label={vm.t('auth.forgotPassword')} onPress={vm.goToForgotPassword} />
+      <HStack
+        alignment="center"
+        spacing={0}
+        modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'leading' })]}>
+        <AuthTextLink label={vm.t('auth.forgotPassword')} onPress={vm.goToForgotPassword} />
+      </HStack>
     </VStack>
   );
 }

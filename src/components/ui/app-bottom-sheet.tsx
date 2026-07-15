@@ -1,15 +1,18 @@
-import type { ReactNode } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import { BottomSheet } from '@expo/ui';
-import type { SnapPoint } from '@expo/ui';
+import type { ReactElement, ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { BottomSheet, RNHostView, type SnapPoint } from '@expo/ui';
 
-const SHEET_HORIZONTAL_MARGIN = 32;
-
+/**
+ * Universal fallback for hosting React Native content in `@expo/ui` BottomSheet.
+ * The iOS implementation follows the dedicated SwiftUI pattern in
+ * `app-bottom-sheet.ios.tsx`.
+ */
 type AppBottomSheetProps = {
   isPresented: boolean;
   onDismiss: () => void;
   children: ReactNode;
   testID?: string;
+  /** Override auto-measured `{ height }` detent (e.g. scrollable half/full sheets). */
   snapPoints?: SnapPoint[];
   showDragIndicator?: boolean;
 };
@@ -22,8 +25,11 @@ export function AppBottomSheet({
   snapPoints,
   showDragIndicator = true,
 }: AppBottomSheetProps) {
-  const { width } = useWindowDimensions();
-  const contentWidth = Math.max(0, width - SHEET_HORIZONTAL_MARGIN);
+  const hasSnapPoints = Boolean(snapPoints?.length);
+
+  const hostedContent = (
+    <View style={hasSnapPoints ? styles.flexContent : styles.compactContent}>{children}</View>
+  ) as ReactElement;
 
   return (
     <BottomSheet
@@ -33,13 +39,22 @@ export function AppBottomSheet({
       showDragIndicator={showDragIndicator}
       testID={testID}
     >
-      <View style={[styles.content, { width: contentWidth }]}>{children}</View>
+      <RNHostView matchContents={!hasSnapPoints}>{hostedContent}</RNHostView>
     </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
+  compactContent: {
     alignSelf: 'stretch',
+    width: '100%',
+    flexGrow: 0,
+    flexShrink: 0,
+    backgroundColor: 'transparent',
+  },
+  flexContent: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: 'transparent',
   },
 });

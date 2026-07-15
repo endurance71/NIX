@@ -2,7 +2,9 @@ import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TextInputRef } from '@expo/ui';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
+import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAuthRegisterCredentials } from '../../hooks/useAuthCredentials';
 import {
   AuthErrorText,
@@ -21,6 +23,7 @@ function isEmailValid(email: string) {
 
 export default function RegisterScreen() {
   const { t } = useTranslation();
+  const { colors } = useAppTheme();
   const { signUp } = useAuth();
   const {
     email,
@@ -34,6 +37,7 @@ export default function RegisterScreen() {
     getConfirmPassword,
   } = useAuthRegisterCredentials();
   const [loading, setLoading] = useState(false);
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const passwordRef = useRef<TextInputRef>(null);
   const confirmPasswordRef = useRef<TextInputRef>(null);
@@ -59,10 +63,14 @@ export default function RegisterScreen() {
       setError(t('auth.passwordMismatch'));
       return;
     }
+    if (!acceptedLegal) {
+      setError(t('auth.legalAcceptanceRequired'));
+      return;
+    }
 
     setLoading(true);
     setError(null);
-    const { error: signUpError } = await signUp(cleanedEmail, passwordValue);
+    const { error: signUpError } = await signUp(cleanedEmail, passwordValue, acceptedLegal);
     setLoading(false);
 
     if (signUpError) {
@@ -134,11 +142,34 @@ export default function RegisterScreen() {
 
       {error ? <AuthErrorText>{error}</AuthErrorText> : null}
 
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: acceptedLegal }}
+        disabled={loading}
+        onPress={() => {
+          setAcceptedLegal((value) => !value);
+          clearError();
+        }}
+        style={styles.legalAcceptance}
+        testID="register-legal-acceptance">
+        <View
+          style={[
+            styles.checkbox,
+            { borderColor: colors.systemBlue },
+            acceptedLegal ? { backgroundColor: colors.systemBlue } : null,
+          ]}>
+          {acceptedLegal ? <Text style={styles.checkboxMark}>✓</Text> : null}
+        </View>
+        <Text style={[styles.legalText, { color: colors.secondaryLabel }]}>
+          {t('auth.legalAcceptance')}
+        </Text>
+      </Pressable>
+
       <AuthPrimaryButton
         label={t('auth.registerButton')}
         loading={loading}
         onPress={() => void handleRegister()}
-        disabled={loading}
+        disabled={loading || !acceptedLegal}
       />
       <AuthFooterPrompt
         prompt={t('auth.hasAccountPrompt')}
@@ -148,3 +179,17 @@ export default function RegisterScreen() {
     </AuthFormLayout>
   );
 }
+
+const styles = StyleSheet.create({
+  legalAcceptance: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 4 },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderWidth: 1,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxMark: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  legalText: { flex: 1, fontSize: 13, lineHeight: 18 },
+});

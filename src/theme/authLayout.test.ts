@@ -83,8 +83,8 @@ describe('login spacing tokens', () => {
     expect(AUTH_LOGIN_FIELD_LABEL_GAP).toBe(6);
     expect(AUTH_LOGIN_FIELD_STACK_GAP).toBe(16);
     expect(AUTH_LOGIN_HERO_TO_FORM_GAP).toBe(24);
-    expect(AUTH_LOGIN_FORM_TO_FORGOT_GAP).toBe(8);
-    expect(AUTH_LOGIN_FORGOT_TO_ACTIONS_GAP).toBe(16);
+    expect(AUTH_LOGIN_FORM_TO_FORGOT_GAP).toBe(12);
+    expect(AUTH_LOGIN_FORGOT_TO_ACTIONS_GAP).toBe(12);
     expect(AUTH_LOGIN_FORM_TO_ACTIONS_GAP).toBe(AUTH_LOGIN_FORM_TO_CTA_GAP);
     expect(AUTH_FIELD_LABELED_ROW_MIN_HEIGHT).toBeGreaterThan(AUTH_FIELD_ROW_MIN_HEIGHT);
   });
