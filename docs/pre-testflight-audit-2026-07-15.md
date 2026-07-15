@@ -12,6 +12,8 @@
 
 **Werdykt:** **NO-GO**
 
+**Aktualizacja operacyjna (15 lipca 2026, 23:44 CEST):** **INTERNAL TESTFLIGHT ACTIVE**. Podpisany build `1.0.0 (4)` ze źródła `5144911` ma w App Store Connect stan `VALID / BETA_INTERNAL_TESTING`. Build jest przypisany do wewnętrznej grupy **NiX Internal QA**, tester zespołu ma stan `INVITED`, „What to Test” jest ustawione, a Beta App Review nie zostało uruchomione. Werdykt **NO-GO** poniżej nadal dotyczy wyłącznie zewnętrznego TestFlight.
+
 ## 1. Podsumowanie wykonawcze
 
 NiX ma stabilny fundament techniczny i zaimplementowany lokalnie pakiet poprawek
@@ -21,12 +23,12 @@ Sentry SDK, spójne
 purpose strings oraz bramki jakości przed ręcznym buildem. Pierwotny błąd
 TypeScript został usunięty, a typecheck i lint po zmianach przechodzą.
 
-Aplikacji nadal nie należy udostępniać zewnętrznym testerom TestFlight. Blokują ją trzy grupy warunków zewnętrznych:
+Aplikacji nadal nie należy udostępniać zewnętrznym testerom TestFlight. Wdrożenie backendu i Internal TestFlight zostały wykonane po pierwotnym audycie; pozostają następujące warunki zewnętrzne:
 
-1. Migracja i Edge Functions bezpieczeństwa nie zostały jeszcze wdrożone i
-   przetestowane na produkcyjnym projekcie Supabase.
-2. Nie istnieje podpisany produkcyjny build EAS ani wynik testów na fizycznym
-   iPhonie; zgodnie z zakresem tego zadania płatnego buildu nie uruchomiono.
+1. Backend safety/UGC jest wdrożony bez zmiany liczników danych, ale wymaga
+   pełnego smoke moderacji i dwóch kont QA w kohorcie age gate.
+2. Podpisany build istnieje i działa w Internal TestFlight; nadal brakuje wyniku
+   dwuurządzeniowego smoke na fizycznych iPhone'ach.
 3. Expo MCP nadal wymaga ponownego OAuth, a publiczny URL polityki, App Privacy,
    dane reviewera i ustawienia App Store Connect wymagają ręcznego domknięcia.
 
@@ -42,7 +44,7 @@ Aplikacji nadal nie należy udostępniać zewnętrznym testerom TestFlight. Blok
 | iOS config | ✅ wykonane | brak background modes/Face ID, EN/PL, `check:ios-config` |
 | EAS workflow | ✅ wykonane | ręczne build/submit, gates i osobna aprobata człowieka |
 | Polityki / review notes | ✅ repo / 🟠 publikacja ręczna | dokumenty bez placeholderów, szablon TestFlight |
-| Signed EAS + device QA + Expo MCP | 🔴 niewykonane | jawne manual gates; poza zakresem automatycznych zmian |
+| Signed EAS + device QA + Expo MCP | 🟠 częściowo | EAS/ASC/Internal TestFlight gotowe; pozostają urządzenia i OAuth Expo MCP |
 
 Pozycje P0 muszą zostać zamknięte przed zewnętrznym TestFlight. Pozycje P1 powinny zostać zamknięte przed Beta App Review. P2 nie blokują pierwszego wewnętrznego buildu, ale powinny mieć właściciela i termin.
 
@@ -81,10 +83,10 @@ Pozycje P0 muszą zostać zamknięte przed zewnętrznym TestFlight. Pozycje P1 p
 | Eksport produkcyjny | `npm run export:production` | PASS, 2922 moduły, Hermes HBC 8,2 MB; upload source maps wyłączony |
 | Audyt zależności | `npm audit --omit=dev --json` | 0 podatności |
 | Walidacja workflow | `npx eas-cli@latest workflow:validate <workflow>` | PASS dla czterech workflow |
-| Lista buildów EAS | `npx eas-cli@latest build:list --platform ios --json --non-interactive` | `[]` — brak buildów iOS |
+| Podpisany build EAS | `eas build` + App Store Connect API | build `3652b636-e220-4d9c-af35-c12b52f0f7d0`, `1.0.0 (4)`, `FINISHED`; ASC `VALID / BETA_INTERNAL_TESTING` |
 | Lokalny build Release | `xcodebuild ... Release ... ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build` | PASS; finalny bundle zwalidowany, bez podpisu; upload Sentry jawnie wyłączony |
 
-Build symulatorowy arm64 nie zastępuje podpisanego archiwum urządzeniowego. Nie weryfikuje certyfikatów, profilu provisioning, uploadu do App Store Connect ani zachowania na fizycznym urządzeniu.
+Podpisane archiwum potwierdza certyfikat, provisioning i upload do App Store Connect. Nadal nie zastępuje smoke na fizycznym urządzeniu.
 
 ### 2.3 Expo MCP
 
@@ -98,7 +100,7 @@ W konsekwencji narzędzia `read_documentation`, `build_list`, `workflow_list`, `
 
 | Obszar | Status | Ocena |
 |---|---|---|
-| Build i konfiguracja Expo | 🟠 Warunkowo | konfiguracja i lokalny Release; brak podpisanego buildu EAS |
+| Build i konfiguracja Expo | 🟢 Internal | podpisany build `1.0.0 (4)` jest aktywny w Internal TestFlight |
 | Jakość kodu | 🟢 Dobry | typecheck i lint przechodzą; React Doctor 100/100 |
 | Testy automatyczne | 🟢 Dobry | 194 testy, lint i Knip przechodzą |
 | Testy urządzeń | 🔴 Blokada | brak udokumentowanego testu na fizycznym iPhonie i E2E |
@@ -107,10 +109,10 @@ W konsekwencji narzędzia `read_documentation`, `build_list`, `workflow_list`, `
 | Prywatność i prawo | 🟠 Warunkowo | teksty spójne; pozostała publikacja URL i ASC App Privacy |
 | Uprawnienia i background modes | 🟢 Dobry | EN/PL zsynchronizowane; nieużywane tryby i Face ID usunięte |
 | Bezpieczeństwo zależności | 🟢 Dobry | 0 podatności produkcyjnych; secure storage i HTTPS/Supabase |
-| UGC i moderacja | 🟠 Warunkowo | kod/report/block/proces gotowe; wymagane deploy i smoke produkcyjne |
+| UGC i moderacja | 🟠 Warunkowo | migracje i Edge Functions wdrożone; wymagany pełny smoke produkcyjny |
 | Monitoring produkcyjny | 🟠 Świadomie wyłączony | Sentry nie wysyła danych; decyzja i test przed ewentualnym uruchomieniem pozostają P1 |
 | EAS Workflow | 🟢 Dobry | build ręczny po gates; submit oddzielony aprobatą i potwierdzeniem |
-| App Store Connect / TestFlight | 🔴 Blokada | brak buildu i danych reviewera; zdalny stan MCP niezweryfikowany |
+| App Store Connect / TestFlight | 🟢 Internal / 🔴 External | build 4 w `NiX Internal QA`; external nadal blokują dane reviewera, privacy i MCP |
 | iPad / dostępność urządzeń | 🟡 Do sprawdzenia | `supportsTablet: false`; brak udokumentowanego testu compatibility mode |
 
 ## 4. Wyniki techniczne
@@ -242,8 +244,8 @@ Repozytorium zawiera gotowy szablon [`testflight-test-information.md`](testfligh
 | ID | Stan | Element | Dowód | Ryzyko | Rekomendowana zmiana | Właściciel | Kryterium akceptacji |
 |---|---|---|---|---|---|---|---|
 | P0-1 | ✅ kod / 🟠 urządzenie | Domknięcie poprawki TypeScript | SwiftUI `Button`; typecheck, lint i testy PASS | regresja akceptacji/odrzucenia zaproszeń może wystąpić tylko natywnie | wykonać smoke obu akcji na fizycznym urządzeniu | iOS / frontend | obie akcje kończą się poprawnym stanem UI/backendu bez crasha |
-| P0-2 | 🟠 deploy wymagany | Uruchomienie moderacji UGC | migracja `20260715095155…`, pięć modułów Edge/shared, viewer i ekran Bezpieczeństwo | kod bez wdrożenia nie chroni testerów; automatyczne filtrowanie prywatnych mediów nie jest wykonywane | wdrożyć migrację i funkcje, ustawić sekrety moderatora/cleanup, wykonać report/block/decision/appeal smoke | backend + trust & safety + produkt | zgłoszenie zachowuje dowód 30 dni; blokada działa w RLS/API; moderator wykonuje decyzję z audit logiem w SLA |
-| P0-3 | 🔴 otwarte | Brak podpisanego buildu i testu urządzeniowego | EAS `build:list` zwraca `[]`; tylko build symulatorowy | niewykryte problemy z signingiem, uprawnieniami, kamerą i wydajnością | po wdrożeniu P0-2 uruchomić jeden `eas build --platform ios --profile production` i zainstalować przez TestFlight | release / iOS QA | build EAS zakończony, przetworzony w App Store Connect i zaliczony smoke test na fizycznym iPhonie bez crashy |
+| P0-2 | ✅ deploy / 🟠 smoke | Uruchomienie moderacji UGC | migracje baseline+safety/push zastosowane; funkcje aktywne z JWT; liczniki danych przed/po bez zmian | niepełny smoke może ukryć regresję decyzji moderatora lub cleanup | wykonać report/block/decision/appeal/cleanup smoke na kontach QA | backend + trust & safety + produkt | zgłoszenie zachowuje dowód 30 dni; blokada działa w RLS/API; moderator wykonuje decyzję z audit logiem w SLA |
+| P0-3 | ✅ build / 🟠 urządzenie | Podpisany build i test urządzeniowy | EAS `1.0.0 (4)` FINISHED; ASC `VALID / BETA_INTERNAL_TESTING`; grupa `NiX Internal QA` zawiera build | pozostają niewykryte problemy z uprawnieniami, kamerą i wydajnością na urządzeniu | wykonać checklistę na dwóch fizycznych iPhone'ach | release / iOS QA | build zalicza pełny smoke bez crashy i utraty danych |
 
 ### P1 — zamknąć przed Beta App Review
 
@@ -258,7 +260,7 @@ Repozytorium zawiera gotowy szablon [`testflight-test-information.md`](testfligh
 | P1-7 | 🔴 dane operacyjne | Dane ASC/reviewera | szablon TestFlight gotowy; brak bezpiecznych kont demo w repo | reviewer nie przejdzie pełnego flow | utworzyć dwa konta demo, uzupełnić kontakt, rating, App Privacy i Review Notes | product / release | reviewer z nowego urządzenia realizuje pełny scenariusz wyłącznie według instrukcji |
 | P1-8 | ✅ kod / 🟠 ASC | Egzekwowanie progu wieku | deklaracja rejestracji, onboarding, `age_attestations` i blokada backendowa | rating ASC może być niespójny z polityką 16+ | po deployu wykonać testy graniczne i ustawić spójny rating | product + legal + trust & safety | konto <16 nie przechodzi; 16+ ma wersjonowaną atestację; regulamin/backend/rating są zgodne |
 | P1-9 | 🔴 OAuth | Autoryzacja Expo MCP | handshake zwraca `OAuth authorization required` | brak niezależnej weryfikacji build/workflow/crashes/feedback | ponownie uwierzytelnić Expo MCP i odczytać stan projektu | release engineering | MCP `build_list` i `workflow_list` zwracają dane; po becie crashes/feedback są udokumentowane |
-| P1-10 | ✅ lokalnie | Odtwarzalność lokalnej bazy | skonsolidowany baseline i aktywne migracje przechodzą pełny `supabase db reset`; DB lint: 0 usterek; migracja `20260715170000` naprawia stare odwołania RPC i zbędne polityki service-role | pozostaje zdalny dry-run i porównanie schematu po naprawie historii | wykonać zaszyfrowany backup, zatwierdzony repair historii i `db push --dry-run` | backend / DBA | reset i lint są czyste; zdalny dry-run zawiera wyłącznie zatwierdzone migracje, a liczniki danych pozostają bez zmian |
+| P1-10 | ✅ wykonane | Odtwarzalność i wdrożenie bazy | zaszyfrowany backup poza repo; historia lokalna/zdalna zgodna; pięć migracji wdrożonych; liczniki 12/12/2/16/18 bez zmian | przyszła migracja może ponownie wprowadzić destrukcyjne DDL | utrzymać bramki migracji, backup i porównanie liczników przy kolejnych deployach | backend / DBA | reset i lint są czyste; zdalna historia jest zgodna, a deploy nie zmienia danych poza oczekiwanym zakresem |
 
 ### P2 — dług techniczny i rozszerzenie pokrycia
 
@@ -323,15 +325,15 @@ Sprawdzić co najmniej:
 Status może zmienić się z **NO-GO** na **GO dla zewnętrznego TestFlight** dopiero, gdy:
 
 - [x] P0-1 jest zamknięte lokalnie; pozostaje smoke urządzeniowy przy zaproszeniach.
-- [ ] P0-2 jest wdrożone i przetestowane na docelowym Supabase.
-- [ ] P0-3: podpisany build i test urządzeniowy są zamknięte z dowodami.
+- [x] P0-2 jest wdrożone na docelowym Supabase; pozostaje pełny smoke funkcjonalny.
+- [ ] P0-3: podpisany build istnieje i jest w Internal TestFlight; pozostaje test urządzeniowy.
 - [x] Typecheck, lint, 194 testy, Knip, Expo Doctor i eksport produkcyjny przechodzą w jednym stanie repozytorium.
 - [x] Workflow blokuje build przy czerwonej bramce jakości i wymaga ręcznego uruchomienia.
 - [x] Źródłowy Info.plist nie deklaruje background modes, a purpose strings EN/PL przechodzą kontrolę synchronizacji.
 - [ ] Publiczna polityka prywatności działa pod HTTPS URL i odpowiada App Privacy (lokalne dokumenty są gotowe).
 - [ ] Działa monitoring produkcyjny bez wysyłania treści wiadomości i danych wrażliwych.
 - [ ] Konto reviewera i Review Notes pozwalają odtworzyć cały główny scenariusz.
-- [ ] Podpisany build EAS jest przetworzony przez App Store Connect i przechodzi smoke na fizycznym iPhonie.
+- [ ] Podpisany build EAS jest przetworzony przez App Store Connect (wykonane) i przechodzi smoke na fizycznym iPhonie (otwarte).
 - [ ] Expo MCP jest ponownie uwierzytelniony, a build/workflow/TestFlight zostały zdalnie zweryfikowane.
 
 ## 9. Źródła oficjalne
