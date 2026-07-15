@@ -1,6 +1,7 @@
 -- ============================================================
 -- NiX — Supabase SQL Setup Script v1.0
 -- Wklej całość do: Supabase Dashboard → SQL Editor → Run
+-- Nowe wdrożenia powinny używać aktywnego baseline i migracji z supabase/migrations.
 -- ============================================================
 
 
@@ -13,7 +14,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id          UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   username    TEXT UNIQUE,
   apple_id    TEXT UNIQUE,               -- NULL do czasu wdrożenia Apple Auth (Sprint 4)
-  push_token  TEXT,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT username_length CHECK (username IS NULL OR char_length(username) >= 3)
 );

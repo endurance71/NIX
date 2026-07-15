@@ -1,15 +1,7 @@
-import { createContext, PropsWithChildren, use } from 'react';
+import { PropsWithChildren } from 'react';
 import { useColorScheme } from 'react-native';
 import { darkColors, lightColors } from './colors';
-
-type AppTheme = {
-  colorScheme: 'light' | 'dark';
-  isDark: boolean;
-  colors: typeof darkColors;
-  statusBarStyle: 'light' | 'dark';
-};
-
-const ThemeContext = createContext<AppTheme | null>(null);
+import { ThemeContext, type AppTheme } from './theme';
 
 export function AppThemeProvider({ children }: PropsWithChildren) {
   const scheme = useColorScheme();
@@ -24,12 +16,4 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
   };
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
-}
-
-export function useThemeContext() {
-  const context = use(ThemeContext);
-  if (!context) {
-    throw new Error('useThemeContext must be used within AppThemeProvider');
-  }
-  return context;
 }

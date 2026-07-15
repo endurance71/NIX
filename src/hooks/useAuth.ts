@@ -15,6 +15,7 @@ import {
   signInWithGoogle as requestGoogleSignIn,
 } from '../services/socialAuthService';
 import { getCurrentLocale } from '../lib/i18n';
+import { disableCurrentPushDeviceBeforeSignOut } from '../services/pushNotificationService';
 
 type AuthState = {
   session: Session | null;
@@ -87,6 +88,9 @@ async function reauthenticatePasswordChange() {
 }
 
 async function logout() {
+  await disableCurrentPushDeviceBeforeSignOut().catch((error) => {
+    console.warn('Push device unregister before sign-out failed', error);
+  });
   clearUserCache();
   const { error } = await requestSignOut();
   return { error };

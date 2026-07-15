@@ -64,6 +64,7 @@ export function ViewerScreenSurface() {
                 onError={vm.onVideoError}
                 onPlayToEnd={vm.finishCurrentSlide}
                 onProgress={vm.onSegmentProgress}
+                paused={vm.safetyPaused}
                 style={vm.styles.image}
               />
             </View>
@@ -102,6 +103,16 @@ export function ViewerScreenSurface() {
           accessibilityLabel="Przejdź do następnego fragmentu"
           accessibilityRole="button"
         />
+      ) : null}
+      {vm.safetyAvailable ? (
+        <Pressable
+          style={[vm.styles.safetyButton, { top: vm.insets.top + 44 }]}
+          onPress={vm.openSafetyMenu}
+          disabled={vm.safetyBusy}
+          accessibilityLabel="Bezpieczeństwo wiadomości"
+          accessibilityRole="button">
+          <Text style={vm.styles.safetyButtonText}>•••</Text>
+        </Pressable>
       ) : null}
       {vm.loading && !vm.imageLoadError ? (
         <View style={vm.styles.loadingOverlaySolid}>

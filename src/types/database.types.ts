@@ -9,12 +9,71 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      age_attestations: {
+        Row: { user_id: string; minimum_age: 16; policy_version: string; attested_at: string };
+        Insert: { user_id: string; minimum_age?: 16; policy_version: string; attested_at?: string };
+        Update: { user_id?: string; minimum_age?: 16; policy_version?: string; attested_at?: string };
+      };
+      user_blocks: {
+        Row: { blocker_id: string; blocked_id: string; created_at: string };
+        Insert: { blocker_id: string; blocked_id: string; created_at?: string };
+        Update: { blocker_id?: string; blocked_id?: string; created_at?: string };
+      };
+      content_reports: {
+        Row: {
+          id: string;
+          reporter_id: string | null;
+          reported_user_id: string | null;
+          nix_id: string | null;
+          reason: string;
+          details: string | null;
+          status: string;
+          priority: 'critical' | 'normal';
+          evidence_path: string | null;
+          evidence_expires_at: string | null;
+          evidence_deleted_at: string | null;
+          created_at: string;
+          acknowledged_at: string | null;
+          resolved_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          reporter_id?: string | null;
+          reported_user_id?: string | null;
+          nix_id?: string | null;
+          reason: string;
+          details?: string | null;
+          status?: string;
+          priority?: 'critical' | 'normal';
+          evidence_path?: string | null;
+          evidence_expires_at?: string | null;
+          evidence_deleted_at?: string | null;
+          created_at?: string;
+          acknowledged_at?: string | null;
+          resolved_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          reporter_id?: string | null;
+          reported_user_id?: string | null;
+          nix_id?: string | null;
+          reason?: string;
+          details?: string | null;
+          status?: string;
+          priority?: 'critical' | 'normal';
+          evidence_path?: string | null;
+          evidence_expires_at?: string | null;
+          evidence_deleted_at?: string | null;
+          created_at?: string;
+          acknowledged_at?: string | null;
+          resolved_at?: string | null;
+        };
+      };
       profiles: {
         Row: {
           id: string;
           username: string | null;
           apple_id: string | null;
-          push_token: string | null;
           avatar_storage_path: string | null;
           avatar_emoji: string | null;
           created_at: string;
@@ -23,7 +82,6 @@ export interface Database {
           id: string;
           username?: string | null;
           apple_id?: string | null;
-          push_token?: string | null;
           avatar_storage_path?: string | null;
           avatar_emoji?: string | null;
           created_at?: string;
@@ -32,11 +90,97 @@ export interface Database {
           id?: string;
           username?: string | null;
           apple_id?: string | null;
-          push_token?: string | null;
           avatar_storage_path?: string | null;
           avatar_emoji?: string | null;
           created_at?: string;
         };
+      };
+      push_devices: {
+        Row: {
+          id: string;
+          installation_id: string;
+          user_id: string;
+          expo_push_token: string;
+          native_push_token: string | null;
+          platform: 'ios' | 'android';
+          locale: 'pl' | 'en';
+          app_version: string | null;
+          enabled: boolean;
+          disabled_reason: string | null;
+          last_seen_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          installation_id: string;
+          user_id: string;
+          expo_push_token: string;
+          native_push_token?: string | null;
+          platform: 'ios' | 'android';
+          locale?: 'pl' | 'en';
+          app_version?: string | null;
+          enabled?: boolean;
+          disabled_reason?: string | null;
+          last_seen_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['push_devices']['Insert']>;
+      };
+      push_notification_jobs: {
+        Row: {
+          id: string;
+          event_type: 'new_nix' | 'friend_request' | 'friend_accepted';
+          event_key: string;
+          recipient_id: string;
+          actor_id: string;
+          entity_id: string;
+          status: 'pending' | 'processing' | 'dispatched' | 'skipped' | 'failed';
+          attempts: number;
+          next_attempt_at: string;
+          locked_at: string | null;
+          last_error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['push_notification_jobs']['Row'], 'id' | 'status' | 'attempts' | 'next_attempt_at' | 'locked_at' | 'last_error' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          status?: Database['public']['Tables']['push_notification_jobs']['Row']['status'];
+          attempts?: number;
+          next_attempt_at?: string;
+          locked_at?: string | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['push_notification_jobs']['Insert']>;
+      };
+      push_notification_deliveries: {
+        Row: {
+          id: string;
+          job_id: string;
+          device_id: string;
+          expo_ticket_id: string | null;
+          status: 'ticketed' | 'delivered' | 'failed';
+          error_code: string | null;
+          ticket_received_at: string | null;
+          next_receipt_check_at: string | null;
+          receipt_checked_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['push_notification_deliveries']['Row'], 'id' | 'expo_ticket_id' | 'error_code' | 'ticket_received_at' | 'next_receipt_check_at' | 'receipt_checked_at' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          expo_ticket_id?: string | null;
+          error_code?: string | null;
+          ticket_received_at?: string | null;
+          next_receipt_check_at?: string | null;
+          receipt_checked_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['push_notification_deliveries']['Insert']>;
       };
       nixes: {
         Row: {
@@ -241,3 +385,9 @@ export type FriendInvite = Database['public']['Tables']['friend_invites']['Row']
 export type NixCleanupQueue = Database['public']['Tables']['nix_cleanup_queue']['Row'];
 export type NixCleanupAudit = Database['public']['Tables']['nix_cleanup_audit']['Row'];
 export type NixCapturePref = Database['public']['Tables']['nix_capture_prefs']['Row'];
+export type AgeAttestation = Database['public']['Tables']['age_attestations']['Row'];
+export type UserBlock = Database['public']['Tables']['user_blocks']['Row'];
+export type ContentReport = Database['public']['Tables']['content_reports']['Row'];
+export type PushDevice = Database['public']['Tables']['push_devices']['Row'];
+export type PushNotificationJob = Database['public']['Tables']['push_notification_jobs']['Row'];
+export type PushNotificationDelivery = Database['public']['Tables']['push_notification_deliveries']['Row'];

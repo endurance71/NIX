@@ -16,6 +16,7 @@ import {
 } from '../../components/ui/auth-form-layout';
 import { AuthLabeledField } from '../../components/ui/auth-labeled-field';
 import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
+import { isAtLeastMinimumAge, isValidBirthDate } from '../../lib/ageGate';
 
 function isEmailValid(email: string) {
   return /\S+@\S+\.\S+/.test(email);
@@ -38,6 +39,7 @@ export default function RegisterScreen() {
   } = useAuthRegisterCredentials();
   const [loading, setLoading] = useState(false);
   const [acceptedLegal, setAcceptedLegal] = useState(false);
+  const [birthDate, setBirthDate] = useState('');
   const [error, setError] = useState<string | null>(null);
   const passwordRef = useRef<TextInputRef>(null);
   const confirmPasswordRef = useRef<TextInputRef>(null);
@@ -61,6 +63,14 @@ export default function RegisterScreen() {
     }
     if (passwordValue !== confirmPasswordValue) {
       setError(t('auth.passwordMismatch'));
+      return;
+    }
+    if (!isValidBirthDate(birthDate)) {
+      setError(t('auth.birthDateInvalid'));
+      return;
+    }
+    if (!isAtLeastMinimumAge(birthDate)) {
+      setError(t('auth.minimumAgeRequired'));
       return;
     }
     if (!acceptedLegal) {
@@ -136,6 +146,20 @@ export default function RegisterScreen() {
             }}
             editable={!loading}
             testID="register-confirm-password"
+          />
+        </AuthLabeledField>
+        <AuthLabeledField label={t('auth.birthDateLabel')}>
+          <AuthTextField
+            nativeValue={birthDate}
+            placeholder={t('auth.birthDatePlaceholder')}
+            keyboardType="numbers-and-punctuation"
+            returnKeyType="done"
+            onChangeText={(text) => {
+              setBirthDate(text);
+              clearError();
+            }}
+            editable={!loading}
+            testID="register-birth-date"
           />
         </AuthLabeledField>
       </AuthFieldGroup>

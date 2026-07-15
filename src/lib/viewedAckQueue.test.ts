@@ -91,6 +91,34 @@ describe('viewed acknowledgement queue', () => {
     expect(storage.size).toBe(1);
   });
 
+  it('dostarcza ACK w kolejności i bez równoległych mutacji kolejki', async () => {
+    let activeDeliveries = 0;
+    let maxActiveDeliveries = 0;
+    const deliveredIds: string[] = [];
+    mockMarkViewed.mockImplementation(async (nixId: string) => {
+      activeDeliveries += 1;
+      maxActiveDeliveries = Math.max(maxActiveDeliveries, activeDeliveries);
+      deliveredIds.push(nixId);
+      await Promise.resolve();
+      activeDeliveries -= 1;
+    });
+
+    for (const nixId of ['one', 'two', 'three']) {
+      await enqueueViewedAck('receiver-1', {
+        nixId,
+        mediaPath: `${nixId}.jpg`,
+        createdAt: 1,
+        attemptCount: 0,
+        nextAttemptAt: 0,
+      });
+    }
+
+    await flushPendingViewedAcks('receiver-1', { force: true });
+
+    expect(deliveredIds).toEqual(['one', 'two', 'three']);
+    expect(maxActiveDeliveries).toBe(1);
+  });
+
   it('sanityzuje dane i stosuje ograniczony backoff', () => {
     expect(sanitizePendingViewedAcks([null, { nixId: '', mediaPath: '' }])).toEqual([]);
     expect(viewedAckRetryDelayMs(1)).toBe(60_000);

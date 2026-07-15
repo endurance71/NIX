@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { Stack, router } from 'expo-router';
 import { useProfileScreen } from '../../hooks/useProfileScreen';
@@ -94,7 +94,29 @@ export default function ProfileScreenSurface() {
           />
         </NativeSettingsSection>
 
+        {Platform.OS === 'ios' ? (
+          <NativeSettingsSection title={vm.t('push.sectionTitle')}>
+            <NativeSettingsRow
+              title={vm.t('push.rowTitle')}
+              supportingText={vm.pushSupportingText}
+              icon="notification"
+              switchValue={vm.pushNotificationsEnabled}
+              onSwitchValueChange={(enabled) => void vm.handlePushToggle(enabled)}
+              disabled={vm.pushNotificationsBusy}
+              testID="profile-push-notifications"
+            />
+          </NativeSettingsSection>
+        ) : null}
+
         <NativeSettingsSection title={vm.t('profile.account')}>
+          <NativeSettingsRow
+            title={vm.t('profile.safetyCenter')}
+            supportingText={vm.t('profile.safetyCenterSummary')}
+            icon="shield"
+            showsChevron
+            onPress={() => router.push('/(tabs)/profile/safety')}
+            testID="profile-safety"
+          />
           {vm.canChangePassword ? (
             <NativeSettingsRow
               title={vm.t('profile.changePassword')}

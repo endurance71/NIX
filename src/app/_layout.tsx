@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { View, ActivityIndicator, Text, Pressable } from 'react-native';
+import { View, ActivityIndicator, Text, Pressable, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { getCurrentUserProfile } from '../services/profileService';
@@ -21,22 +21,22 @@ import { configureMediaCache } from '../lib/mediaCache';
 import { configureForPlayback } from '../lib/audioSession';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableFreeze } from 'react-native-screens';
-import { initBackgroundTaskService } from '../services/backgroundTaskService';
 import { useTranslation } from 'react-i18next';
 import { AppRealtimeSync } from '../components/sync/AppRealtimeSync';
 import { queryKeys } from '../lib/queryKeys';
 import { resolveNeedsOnboarding } from '../lib/profileGate';
+import { hasCurrentAgeAttestation } from '../services/safetyService';
+import { PushNotificationsProvider } from '../context/PushNotificationsProvider';
 
 // Initialize monitoring at module load (runs once).
 initMonitoring();
 enableFreeze(true);
 
-export default function RootLayout() {
+function RootLayout() {
   const [queryClient] = useState(() => createAppQueryClient());
 
   useEffect(() => bindReactQueryAppLifecycle(), []);
   useEffect(() => configureMediaCache(), []);
-  useEffect(() => initBackgroundTaskService(() => {}), []);
   useEffect(() => {
     void configureForPlayback().catch((error) => {
       console.warn('Audio session bootstrap failed', error);
@@ -61,6 +61,8 @@ export default function RootLayout() {
   );
 }
 
+export default RootLayout;
+
 function RootNavigator() {
   const { t } = useTranslation();
   const { colors, statusBarStyle } = useAppTheme();
@@ -76,8 +78,14 @@ function RootNavigator() {
     enabled: !!session,
     retry: 2,
   });
-  const profileLoading = !!session && profilePending;
-  const needsOnboarding = resolveNeedsOnboarding(!!session, profile, profileError);
+  const { data: ageAttested = false, isPending: ageAttestationPending } = useQuery({
+    queryKey: queryKeys.currentAgeAttestation,
+    queryFn: hasCurrentAgeAttestation,
+    enabled: !!session,
+    retry: 2,
+  });
+  const profileLoading = !!session && (profilePending || ageAttestationPending);
+  const needsOnboarding = resolveNeedsOnboarding(!!session, profile, profileError, ageAttested);
   const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false);
 
   const { topContentInset, bottomContentInset } = useScreenInsets('fullscreen');
@@ -158,7 +166,7 @@ function RootNavigator() {
     );
   }
 
-  return (
+  const content = (
     <>
       <StatusBar style={statusBarStyle} />
       {session ? <AppRealtimeSync userId={session.user.id} /> : null}
@@ -233,5 +241,12 @@ function RootNavigator() {
       />
       </Stack>
     </>
+  );
+
+  if (!session || Platform.OS !== 'ios') return content;
+  return (
+    <PushNotificationsProvider userId={session.user.id} canNavigate={!needsOnboarding}>
+      {content}
+    </PushNotificationsProvider>
   );
 }

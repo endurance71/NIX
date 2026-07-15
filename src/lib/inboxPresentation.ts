@@ -1,5 +1,6 @@
 import type { InboxThreadItem } from './inboxThreads';
 import type { SentNix } from '../services/nixService';
+import type { SupportedLocale } from './i18n';
 
 export type InboxRowStatus = 'new' | 'sent' | 'opened' | 'cleaned' | 'cleanupFailed';
 
@@ -90,23 +91,35 @@ type InboxTimestampOptions = {
 };
 
 type InboxDateFormatterKind = 'time' | 'weekday' | 'date' | 'dateWithYear';
-const inboxDateFormatters = new Map<string, Intl.DateTimeFormat>();
+const inboxDateFormatters: Record<
+  SupportedLocale,
+  Record<InboxDateFormatterKind, Intl.DateTimeFormat>
+> = {
+  pl: {
+    time: new Intl.DateTimeFormat('pl', { hour: '2-digit', minute: '2-digit' }),
+    weekday: new Intl.DateTimeFormat('pl', { weekday: 'short' }),
+    date: new Intl.DateTimeFormat('pl', { day: 'numeric', month: 'short' }),
+    dateWithYear: new Intl.DateTimeFormat('pl', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }),
+  },
+  en: {
+    time: new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit' }),
+    weekday: new Intl.DateTimeFormat('en', { weekday: 'short' }),
+    date: new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short' }),
+    dateWithYear: new Intl.DateTimeFormat('en', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }),
+  },
+};
 
 function getInboxDateFormatter(locale: string, kind: InboxDateFormatterKind) {
-  const key = `${locale}:${kind}`;
-  const cached = inboxDateFormatters.get(key);
-  if (cached) return cached;
-  const options: Intl.DateTimeFormatOptions =
-    kind === 'time'
-      ? { hour: '2-digit', minute: '2-digit' }
-      : kind === 'weekday'
-        ? { weekday: 'short' }
-        : kind === 'date'
-          ? { day: 'numeric', month: 'short' }
-          : { day: 'numeric', month: 'short', year: 'numeric' };
-  const formatter = new Intl.DateTimeFormat(locale, options);
-  inboxDateFormatters.set(key, formatter);
-  return formatter;
+  const supportedLocale: SupportedLocale = locale.toLowerCase().startsWith('pl') ? 'pl' : 'en';
+  return inboxDateFormatters[supportedLocale][kind];
 }
 
 function startOfLocalDay(date: Date) {

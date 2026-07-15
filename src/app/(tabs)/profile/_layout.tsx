@@ -42,6 +42,13 @@ export default function ProfileTabLayout() {
         }}
       />
       <Stack.Screen
+        name="safety"
+        options={{
+          title: t('profile.safetyCenter'),
+          headerLargeTitle: false,
+        }}
+      />
+      <Stack.Screen
         name="change-password"
         options={{
           title: t('profile.changePassword'),

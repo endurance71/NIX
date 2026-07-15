@@ -63,7 +63,9 @@ Przepływ:
 
 ## OAuth — Google (wstrzymane)
 
-Ekran logowania ma przycisk Google, ale [`socialAuthService.signInWithGoogle`](../src/services/socialAuthService.ts) pozostaje stubem (`SOCIAL_AUTH_NOT_CONFIGURED`).
+Pakiet i wewnętrzny kontrakt pozostają w kodzie, ale ekran logowania nie oferuje
+Google. [`socialAuthService.signInWithGoogle`](../src/services/socialAuthService.ts)
+jest stubem (`SOCIAL_AUTH_NOT_CONFIGURED`) i nie wysyła danych do Google.
 
 ## Edge cases (mapowanie na UX)
 

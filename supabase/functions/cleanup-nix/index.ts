@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { isValidCleanupPayload, type CleanupPayload } from './cleanup-helpers.ts';
 
 const corsHeaders = {
@@ -15,7 +15,7 @@ function isMissingStatusColumnError(error: unknown) {
 }
 
 async function auditCleanup(
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: SupabaseClient<any, any, any, any, any>,
   status: 'queued' | 'success' | 'failed' | 'not_found' | 'forbidden',
   nixId: string,
   receiverId: string,

@@ -16,7 +16,7 @@ NiX to aplikacja Expo (iOS + Android) z efemerycznym przepływem wiadomości wiz
 2. Ustaw zmienne środowiskowe w `.env`:
    - `EXPO_PUBLIC_SUPABASE_URL=...`
    - `EXPO_PUBLIC_SUPABASE_ANON_KEY=...`
-   - (opcjonalnie) `EXPO_PUBLIC_SENTRY_DSN=...` — breadcrumbs telemetrii i crash reporting
+   - `EXPO_PUBLIC_SENTRY_DSN` jest obecnie ignorowane — Sentry pozostaje twardo wyłączone
 3. Uruchom aplikację:
    - `npm run start`
 4. (Opcjonalnie) build lokalny:
@@ -47,6 +47,7 @@ NiX to aplikacja Expo (iOS + Android) z efemerycznym przepływem wiadomości wiz
 - **Observability:** [`docs/observability.md`](docs/observability.md)
 - **Edge Function cleanup:** [`docs/cleanup-edge-function.md`](docs/cleanup-edge-function.md)
 - **Konfiguracja bazy Supabase:** [`docs/supabase_setup.sql`](docs/supabase_setup.sql)
+- **Powiadomienia push:** [`docs/push-notifications.md`](docs/push-notifications.md)
 - **Migracja pomocnicza (playback duration):** [`docs/supabase_migration_playback_duration_ms.sql`](docs/supabase_migration_playback_duration_ms.sql)
 - **Seed grafu społecznego:** [`docs/supabase_seed_social_graph.sql`](docs/supabase_seed_social_graph.sql)
 - **Dashboard SQL uploadów:** [`docs/upload-observability-dashboard.sql`](docs/upload-observability-dashboard.sql)
@@ -134,4 +135,4 @@ Wymagane sekrety funkcji:
 - **Skrzynka / viewer:** kolejka FIFO od nadawcy, signed URL, `is_viewed`, cleanup przez Edge Function + kolejka
 - **Znajomi:** wyszukiwanie, zaproszenia, **QR** (token jednorazowy), awatary (bucket `avatars`)
 - **Capture:** domyślna blokada screenshotów w viewerze; wyjątek per znajomy (`nix_capture_prefs`)
-- **Observability:** `src/lib/telemetry.ts`; opcjonalnie Sentry przez `EXPO_PUBLIC_SENTRY_DSN`
+- **Observability:** `src/lib/telemetry.ts`; Sentry SDK jest zainstalowane, ale twardo wyłączone

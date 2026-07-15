@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { unstable_batchedUpdates } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { toDomainError } from '../services/errors';
-import type { VideoSegmentDraft } from '../context/VideoDraftContext';
+import type { VideoSegmentDraft } from '../context/videoDraft';
 import {
   uploadImageWithMetadata,
   uploadVideoWithMetadata,
@@ -497,6 +497,8 @@ export function useMediaUpload() {
     void processQueueEvent();
   }, [jobs, isPaused, isQueueReady]);
 
+  // NetInfo returns the unsubscribe function that this effect returns directly.
+  // oxlint-disable-next-line react-doctor/effect-needs-cleanup
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       let nextPaused: boolean | null = null;
@@ -513,7 +515,7 @@ export function useMediaUpload() {
       }
       if (nextPaused !== null) setIsPaused(nextPaused);
     });
-    return () => unsubscribe();
+    return unsubscribe;
   }, []);
 
   const activeJobs = jobs.filter(

@@ -22,7 +22,7 @@ Audyt należy wykonać po wdrożeniu i smoke testach na urządzeniu **iOS i Andr
 - Upload ma retry, status jobów, cancel signal i progress fazowy.
 - `expo-image` ma limit cache i cleanup przy memory warning.
 - Inbox/sent/friends mają limity po stronie klienta, a SQL setup zawiera paginowane RPC.
-- Sentry jest inicjalizowane warunkowo przez `EXPO_PUBLIC_SENTRY_DSN`.
+- Sentry SDK pozostaje zainstalowane, ale runtime i upload symboli są twardo wyłączone.
 
 ## Porównanie Przed/Po
 Status po implementacji kodowej:

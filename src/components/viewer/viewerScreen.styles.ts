@@ -75,6 +75,23 @@ export function createViewerStyles(colors: ThemeColors) {
       ...StyleSheet.absoluteFill,
       zIndex: 5,
     },
+    safetyButton: {
+      position: 'absolute',
+      right: 16,
+      zIndex: 15,
+      minWidth: 44,
+      minHeight: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.viewerChromeFill,
+    },
+    safetyButtonText: {
+      ...typography.callout,
+      color: colors.label,
+      fontWeight: '800',
+      letterSpacing: 1,
+    },
     loadingOverlaySolid: {
       ...StyleSheet.absoluteFill,
       alignItems: 'center',

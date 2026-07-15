@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { VStack } from '@expo/ui/swift-ui';
 import { isUsernameTaken, getCurrentUserProfile, saveUsernameForCurrentUser } from '../../services/profileService';
 import {
@@ -19,16 +19,27 @@ import { notifyDomainError } from '../../lib/appNotify';
 import { normalizeUsername } from '../../services/friendService';
 import { runWithFinally } from '../../lib/runWithFinally';
 import { queryKeys } from '../../lib/queryKeys';
+import { isAtLeastMinimumAge, isValidBirthDate } from '../../lib/ageGate';
+import { hasCurrentAgeAttestation, recordCurrentAgeAttestation } from '../../services/safetyService';
 
 export default function OnboardingScreen() {
   const { t } = useTranslation();
   const { signOut } = useAuth();
   const queryClient = useQueryClient();
   const { username, onUsernameChange, getUsername } = useTrackedUsername();
+  const [birthDate, setBirthDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [signOutLoading, setSignOutLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const busy = loading || signOutLoading;
+  const { data: ageAttested = false } = useQuery({
+    queryKey: queryKeys.currentAgeAttestation,
+    queryFn: hasCurrentAgeAttestation,
+  });
+  const { data: currentProfile } = useQuery({
+    queryKey: queryKeys.currentUserProfile,
+    queryFn: getCurrentUserProfile,
+  });
 
   const clearError = () => {
     setError(null);
@@ -36,7 +47,15 @@ export default function OnboardingScreen() {
 
   const handleSetUsername = async () => {
     const cleaned = normalizeUsername(getUsername());
-    if (cleaned.length < 3) {
+    if (!ageAttested && !isValidBirthDate(birthDate)) {
+      setError(t('auth.birthDateInvalid'));
+      return;
+    }
+    if (!ageAttested && !isAtLeastMinimumAge(birthDate)) {
+      setError(t('auth.minimumAgeRequired'));
+      return;
+    }
+    if (!currentProfile?.username && cleaned.length < 3) {
       setError(t('auth.onboardingUsernameMin'));
       return;
     }
@@ -46,20 +65,20 @@ export default function OnboardingScreen() {
 
     await runWithFinally(
       async () => {
-        const currentProfile = await getCurrentUserProfile();
-        if (currentProfile?.username) {
-          await queryClient.refetchQueries({ queryKey: queryKeys.currentUserProfile });
-          router.replace('/(tabs)');
-          return;
+        if (!ageAttested) {
+          await recordCurrentAgeAttestation();
+          queryClient.setQueryData(queryKeys.currentAgeAttestation, true);
         }
 
-        const taken = await isUsernameTaken(cleaned);
-        if (taken) {
-          setError(t('auth.onboardingUsernameTaken'));
-          return;
+        if (!currentProfile?.username) {
+          const taken = await isUsernameTaken(cleaned);
+          if (taken) {
+            setError(t('auth.onboardingUsernameTaken'));
+            return;
+          }
+          await saveUsernameForCurrentUser(cleaned);
         }
 
-        await saveUsernameForCurrentUser(cleaned);
         await queryClient.refetchQueries({ queryKey: queryKeys.currentUserProfile });
         router.replace('/(tabs)');
       },
@@ -83,6 +102,27 @@ export default function OnboardingScreen() {
 
   return (
     <AuthFormLayout description={t('auth.onboardingDescription')}>
+      {!ageAttested ? (
+        <AuthFieldGroup
+          footer={<AuthTertiaryText>{t('auth.birthDatePrivacyHint')}</AuthTertiaryText>}>
+          <AuthTextField
+            nativeValue={birthDate}
+            placeholder={t('auth.birthDatePlaceholder')}
+            keyboardType="numbers-and-punctuation"
+            returnKeyType={currentProfile?.username ? 'go' : 'next'}
+            onSubmitEditing={() => {
+              if (currentProfile?.username) void handleSetUsername();
+            }}
+            onChangeText={(text) => {
+              setBirthDate(text);
+              clearError();
+            }}
+            editable={!busy}
+            testID="onboarding-birth-date"
+          />
+        </AuthFieldGroup>
+      ) : null}
+      {!currentProfile?.username ? (
       <AuthFieldGroup
         footer={
           <VStack alignment="leading" spacing={6}>
@@ -104,11 +144,12 @@ export default function OnboardingScreen() {
           testID="onboarding-username"
         />
       </AuthFieldGroup>
+      ) : null}
 
       {error ? <AuthErrorText>{error}</AuthErrorText> : null}
 
       <AuthPrimaryButton
-        label={t('auth.onboardingSubmit')}
+        label={currentProfile?.username ? t('auth.ageGateSubmit') : t('auth.onboardingSubmit')}
         loading={loading}
         onPress={() => void handleSetUsername()}
         disabled={busy}

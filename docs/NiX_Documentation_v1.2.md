@@ -52,7 +52,7 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 - **Skrzynka:** wątki odebrane/wysłane, usuwanie rozmowy (`delete_my_conversation_with_peer`), kolejka cleanup przy wejściu na skrzynkę.
 - **Viewer:** odtwarzanie obrazu/wideo z timerem; ochrona screenshot/nagrywania wg polityki per nadawca (domyślnie `deny`). Szczegóły: [capture-protection.md](capture-protection.md).
 - **i18n:** interfejs **PL** i **EN** (`react-i18next`, zasoby w `src/lib/i18n.ts`; metadane App Store z `src/locales/*/common.json`). Szczegóły: [i18n-guidelines.md](i18n-guidelines.md).
-- **Observability:** telemetria (`telemetry.ts`), opcjonalnie Sentry (`EXPO_PUBLIC_SENTRY_DSN`), logi uploadu w `upload_logs`. Szczegóły: [observability.md](observability.md).
+- **Observability:** lokalna telemetria (`telemetry.ts`) i logi uploadu w `upload_logs`; Sentry SDK pozostaje twardo wyłączone. Szczegóły: [observability.md](observability.md).
 - **Cleanup:** Edge Function `cleanup-nix` + kolejka `nix_cleanup_queue` + audit `nix_cleanup_audit`. Szczegóły: [cleanup-edge-function.md](cleanup-edge-function.md).
 
 ---
@@ -88,7 +88,7 @@ Pełna hierarchia wyboru, antywzorce i checklista PR: [native-platform-guideline
 | **Animacje** | Reanimated 4 + Gesture Handler | |
 | **Listy** | `@shopify/flash-list` | Tam, gdzie nie użyto SwiftUI List |
 | **Capture** | `expo-screen-capture` | Tylko w viewerze |
-| **Monitoring** | `@sentry/react-native` + breadcrumbs telemetrii | Warunkowo przez DSN |
+| **Monitoring** | lokalna telemetria; `@sentry/react-native` bez wysyłki | Twardo wyłączone |
 
 Pełny zestaw zależności: sekcja 5 oraz `package.json`.
 
@@ -135,13 +135,15 @@ Zasady:
 
 ### 2.4 Schemat bazy danych (PostgreSQL)
 
-**Źródło prawdy:** [supabase_setup.sql](supabase_setup.sql) (idempotentny skrypt: tabele, RLS, triggery, funkcje, buckety Storage).
+**Źródło prawdy:** aktywny baseline i kolejne pliki w `supabase/migrations`; [supabase_setup.sql](supabase_setup.sql) pozostaje dokumentacją bazowego schematu.
 
 Skrót encji:
 
 | Tabela / obszar | Opis |
 | :--- | :--- |
-| `profiles` | `id`, opcjonalny `username` (unikalny, case-insensitive), `apple_id`, `push_token`, `avatar_storage_path`, `avatar_emoji`, trigger blokady zmiany username |
+| `profiles` | `id`, opcjonalny `username` (unikalny, case-insensitive), `apple_id`, `avatar_storage_path`, `avatar_emoji`, trigger blokady zmiany username |
+| `push_devices` | Instalacje i Expo/native push tokeny przypisane do aktualnie zalogowanego użytkownika; przełącznik działa per urządzenie |
+| `push_notification_jobs` / `push_notification_deliveries` | Idempotentny outbox, Expo tickets i receipts dla powiadomień transakcyjnych |
 | `nixes` | Wiadomość: `sender_id`, `receiver_id`, `media_path`, `media_type`, `is_viewed`, `status` (`sent`/`viewed`/`cleaned`/`cleanup_failed`), `view_duration_sec`, `playback_duration_ms`, `thumbnail_b64`, `client_upload_id`, timestamps |
 | `friendships` | `pending` / `accepted`; rate limit insertów w polityce RLS |
 | `friend_invites` | Jednorazowe tokeny QR (hash MD5, TTL 5 min) |
@@ -195,7 +197,7 @@ Szczegóły: [video-pipeline.md](video-pipeline.md).
 
 ### 2.11 Observability
 
-Telemetria jako eventy + czasy trwania; produkcyjnie breadcrumbs Sentry; `upload_logs` i dashboard SQL.
+Telemetria jako eventy + czasy trwania w development; produkcyjnie brak zdalnego sinka; `upload_logs` i dashboard SQL.
 
 Szczegóły: [observability.md](observability.md).
 
@@ -264,7 +266,7 @@ src/
 
 - Inbox (SwiftUI list), viewer, statusy nixów, cleanup + kolejka + audit
 - Znajomi, zaproszenia QR, awatary
-- Capture protection per znajomy; i18n PL/EN; telemetria + Sentry (opcjonalnie)
+- Capture protection per znajomy; i18n PL/EN; lokalna telemetria; Sentry twardo wyłączone
 - Edge Function `cleanup-nix` w repozytorium
 
 ### Sprint 4: Apple Auth — **oczekuje na Apple Developer Account**
@@ -293,7 +295,7 @@ Wersje dokładne w repozytorium — kluczowe pakiety:
 | `expo-screen-capture` | ^55.0.13 | Blokada capture |
 | `tus-js-client` | ^4.3.1 | Resumable upload |
 | `i18next` / `react-i18next` | ^26 / ^17 | Tłumaczenia |
-| `@sentry/react-native` | ~7.11.0 | Crash / breadcrumbs |
+| `@sentry/react-native` | ~7.11.0 | Zainstalowane, runtime i upload symboli wyłączone |
 
 Instalacja typowa: `npx expo install <pakiet>` dla modułów Expo.
 

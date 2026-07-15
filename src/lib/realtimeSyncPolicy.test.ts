@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { queryKeys } from './queryKeys';
-import { createSyncAreaDebouncer, realtimeQueryKeysForArea } from './realtimeSyncPolicy';
+import {
+  createSyncAreaDebouncer,
+  finalizeRealtimeChannelUnsubscribe,
+  realtimeQueryKeysForArea,
+} from './realtimeSyncPolicy';
 
 describe('realtime sync policy', () => {
   afterEach(() => vi.useRealTimers());
@@ -42,5 +46,21 @@ describe('realtime sync policy', () => {
     scheduler.cancel();
     vi.runAllTimers();
     expect(onFlush).not.toHaveBeenCalled();
+  });
+
+  it('zamyka zasoby kanału po poprawnym unsubscribe podczas unmount', async () => {
+    const channel = { teardown: vi.fn() };
+
+    await finalizeRealtimeChannelUnsubscribe(channel, Promise.resolve('ok'));
+
+    expect(channel.teardown).toHaveBeenCalledOnce();
+  });
+
+  it('nie wymusza teardown po timeout odpowiedzi serwera', async () => {
+    const channel = { teardown: vi.fn() };
+
+    await finalizeRealtimeChannelUnsubscribe(channel, Promise.resolve('timed out'));
+
+    expect(channel.teardown).not.toHaveBeenCalled();
   });
 });

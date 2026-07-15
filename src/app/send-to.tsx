@@ -7,7 +7,7 @@ import { listAcceptedFriends, type FriendProfile } from '../services/friendServi
 import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../services/avatarService';
 import { toDomainError } from '../services/errors';
 import { useMediaUpload } from '../hooks/useMediaUpload';
-import { useVideoDraft } from '../context/VideoDraftContext';
+import { useVideoDraft } from '../context/videoDraft';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
@@ -19,6 +19,7 @@ import { toggleSetValue } from '../lib/selection';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { notifyError, notifySuccess } from '../lib/appNotify';
 import { selection, tap } from '../lib/haptics';
+import { usePushNotifications } from '../context/pushNotifications';
 
 const SEND_CONCURRENCY = 2;
 
@@ -85,6 +86,7 @@ export default function SendToSheet() {
   const isVideo = mode === 'video' && !uri;
   const { segments, clearSegments } = useVideoDraft();
   const { uploadNix, uploadVideoSegments } = useMediaUpload();
+  const { offerAfterSuccessfulSend } = usePushNotifications();
   const { data: profiles = [], isPending: loading } = useQuery({
     queryKey: queryKeys.acceptedFriends,
     queryFn: () => listAcceptedFriends({ limit: 50 }),
@@ -173,6 +175,9 @@ export default function SendToSheet() {
     setIsSending(false);
     sendLockRef.current = false;
     router.dismissAll();
+    if (successCount > 0) {
+      setTimeout(() => void offerAfterSuccessfulSend(), 400);
+    }
   };
 
   const toggleSelection = (id: string) => {

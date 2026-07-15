@@ -24,6 +24,7 @@ import {
 } from '../lib/profileScreenActions';
 import { getPendingInviteCount } from '../lib/profileFriendsPresentation';
 import { userHasEmailPasswordIdentity } from '../lib/authProviders';
+import { usePushNotifications } from '../context/pushNotifications';
 
 export function useProfileScreen() {
   const { t } = useTranslation();
@@ -31,6 +32,7 @@ export function useProfileScreen() {
   const { colors, statusBarStyle } = useAppTheme();
   const { user, signOut } = useAuth();
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const pushNotifications = usePushNotifications();
 
   const { data: profileRow = null, isPending: profilePending } = useQuery({
     queryKey: queryKeys.currentUserProfile,
@@ -139,6 +141,12 @@ export function useProfileScreen() {
   const hasAvatar = Boolean(profileRow?.avatar_storage_path || profileRow?.avatar_emoji);
   const initialLetter = (profileUsername ?? user?.email ?? '?').replace(/^@/, '').charAt(0).toUpperCase();
   const canChangePassword = userHasEmailPasswordIdentity(user);
+  const pushSupportingText = t(`push.state.${pushNotifications.state}`);
+
+  const handlePushToggle = async (enabled: boolean) => {
+    if (enabled) await pushNotifications.enable();
+    else await pushNotifications.disable();
+  };
 
   return {
     profilePending,
@@ -159,5 +167,9 @@ export function useProfileScreen() {
     handleListRefresh,
     handleSignOut,
     canChangePassword,
+    pushNotificationsEnabled: pushNotifications.state === 'enabled',
+    pushNotificationsBusy: pushNotifications.busy || pushNotifications.state === 'loading',
+    pushSupportingText,
+    handlePushToggle,
   };
 }

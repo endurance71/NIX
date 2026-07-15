@@ -401,6 +401,32 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
+# Keep JWT verification explicit for every deployed function. Administrative
+# functions additionally require the service-role bearer and an app secret.
+[functions.cleanup-nix]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.report-content]
+verify_jwt = true
+
+[functions.block-user]
+verify_jwt = true
+
+[functions.moderation-admin]
+verify_jwt = true
+
+[functions.cleanup-moderation-evidence]
+verify_jwt = true
+
+[functions.push-dispatch]
+verify_jwt = true
+
+[functions.push-receipts]
+verify_jwt = true
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

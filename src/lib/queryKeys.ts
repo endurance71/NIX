@@ -8,6 +8,9 @@ export const queryKeys = {
   incomingFriendRequests: ['incomingFriendRequests'] as const,
   outgoingFriendRequests: ['outgoingFriendRequests'] as const,
   inboxNixesBundle: ['inboxNixesBundle'] as const,
+  currentAgeAttestation: ['currentAgeAttestation'] as const,
+  blockedUsers: ['blockedUsers'] as const,
+  contentReports: ['contentReports'] as const,
 };
 
 const avatarSignedUrlsPrefix = 'avatarSignedUrls' as const;

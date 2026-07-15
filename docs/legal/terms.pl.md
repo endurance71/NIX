@@ -1,22 +1,24 @@
 # Regulamin NiX
 
-**Wersja:** 2026-07-14  
-**Data wejścia w życie:** [DO UZUPEŁNIENIA]
+**Wersja:** 2026-07-15
+**Data wejścia w życie:** 15 lipca 2026 r.
 
 ## Usługa i konto
 
 NiX jest usługą MT Hub Damian Motyliński umożliwiającą wymianę
 efemerycznych wiadomości multimedialnych między zaakceptowanymi znajomymi. Aby
-korzystać z usługi, musisz utworzyć konto i podać prawdziwe dane wymagane przez
-formularz. Odpowiadasz za ochronę dostępu do konta.
+korzystać z usługi, musisz utworzyć konto, podać prawdziwe dane wymagane przez
+formularz, mieć ukończone 16 lat i potwierdzić spełnienie tego progu. Odpowiadasz
+za ochronę dostępu do konta.
 
 ## Zasady korzystania
 
 Nie wolno publikować ani przesyłać treści bez prawa do ich użycia, niezgodnych z
 prawem, naruszających cudzą prywatność, prawa autorskie lub bezpieczeństwo, ani
-obchodzić zabezpieczeń usługi. Możemy ograniczyć konto, gdy jest to konieczne dla
-bezpieczeństwa, prawa lub ochrony innych osób, z informacją o podstawie i sposobie
-odwołania [DO UZUPEŁNIENIA].
+obchodzić zabezpieczeń usługi. Odbiorca może zgłosić wiadomość i zablokować
+nadawcę. Możemy ostrzec, czasowo zawiesić lub zablokować konto, gdy jest to
+konieczne dla bezpieczeństwa, prawa lub ochrony innych osób. Od decyzji możesz
+odwołać się przez kontakt@damianmotylinski.pl; odpowiemy po ponownej ocenie sprawy.
 
 ## Treści, dostępność i zakończenie
 

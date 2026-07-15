@@ -1,7 +1,7 @@
-# NiX — pakiet prawny (wersja robocza)
+# NiX — pakiet prawny przed publikacją
 
-**Wersja:** 2026-07-14  
-**Status:** nie publikować przed uzupełnieniem danych administratora i weryfikacją prawną.
+**Wersja:** 2026-07-15
+**Status:** treść kompletna technicznie; wymaga akceptacji prawnej i publikacji HTTPS.
 
 Ten katalog jest źródłem wersjonowanych treści dla aplikacji i przyszłej strony HTTPS:
 
@@ -9,9 +9,9 @@ Ten katalog jest źródłem wersjonowanych treści dla aplikacji i przyszłej st
 - `terms.pl.md` / `terms.en.md`
 - `account-deletion.md`
 
-Przed publikacją właściciel produktu musi uzupełnić wszystkie oznaczenia
-`[DO UZUPEŁNIENIA]`, potwierdzić okresy retencji oraz zawarte umowy powierzenia.
-Następnie identyczną zatwierdzoną wersję należy opublikować pod trwałymi adresami
+Przed publikacją właściciel produktu musi zatwierdzić okresy retencji, regiony,
+umowy powierzenia i mechanizmy transferu każdego dostawcy. Następnie identyczną
+wersję należy opublikować pod trwałymi adresami
 HTTPS, wpisać URL polityki i wsparcia w App Store Connect oraz zaktualizować
 deklarację App Privacy.
 

@@ -13,6 +13,7 @@ export function ViewerNixVideo({
   onError,
   onPlayToEnd,
   onProgress,
+  paused = false,
   style,
 }: {
   uri: string;
@@ -21,6 +22,7 @@ export function ViewerNixVideo({
   onError: () => void;
   onPlayToEnd: () => void;
   onProgress?: (nextProgress: number) => void;
+  paused?: boolean;
   style: StyleProp<ViewStyle>;
 }) {
   const player = useVideoPlayer({ uri }, (p) => {
@@ -57,7 +59,7 @@ export function ViewerNixVideo({
         onReadyRef.current();
       }
       try {
-        player.play();
+        if (!paused) player.play();
       } catch {
         // ignorujemy — kolejny statusChange/error obsłuży sytuację
       }
@@ -73,6 +75,11 @@ export function ViewerNixVideo({
     readyEmittedRef.current = false;
     errorEmittedRef.current = false;
   }, [uri]);
+
+  useEffect(() => {
+    if (paused) player.pause();
+    else if (readyEmittedRef.current) player.play();
+  }, [paused, player]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

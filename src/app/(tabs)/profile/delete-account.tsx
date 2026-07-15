@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAppTheme } from '../../../hooks/useAppTheme';
 import { userHasEmailPasswordIdentity } from '../../../lib/authProviders';
+import { reauthenticateForAccountDeletion } from '../../../lib/accountDeletionReauthentication';
 import { clearMediaMemoryCache } from '../../../lib/mediaCache';
 import { clearUploadQueueNixeshot } from '../../../lib/uploadQueuePersistence';
 import { clearPendingViewedAcks } from '../../../lib/viewedAckQueue';
@@ -44,13 +45,13 @@ export default function DeleteAccountScreen() {
     setLoading(true);
     setError(null);
     try {
-      if (hasPassword && user.email) {
-        const { error: authError } = await signIn(user.email, password);
-        if (authError) throw authError;
-      } else {
-        const { error: authError } = await signInWithApple();
-        if (authError) throw authError;
-      }
+      await reauthenticateForAccountDeletion({
+        hasPassword,
+        email: user.email,
+        password,
+        signIn,
+        signInWithApple,
+      });
 
       await deleteCurrentAccount();
       await Promise.allSettled([

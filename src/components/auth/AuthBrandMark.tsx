@@ -1,4 +1,4 @@
-import { Image as RNImage } from 'react-native';
+import { Asset } from 'expo-asset';
 import { Image, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityHidden,
@@ -10,11 +10,10 @@ import {
 import { AUTH_LOGIN_LOGO_CORNER_RADIUS, AUTH_LOGIN_LOGO_SIZE } from '../../theme/authLayout';
 
 const logoHero = require('../../../assets/brand/app/ios-light.png');
+const logoUri = Asset.fromModule(logoHero).uri;
 
 /** App icon for login hero. ios-light in both modes until ios-dark hero crop is fixed. */
 export function AuthBrandMark() {
-  const logoUri = RNImage.resolveAssetSource(logoHero).uri;
-
   return (
     <VStack spacing={0} modifiers={[frame({ alignment: 'center' })]}>
       <Image

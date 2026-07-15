@@ -1,0 +1,73 @@
+name: Internal TestFlight — NiX Internal QA
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  checks:
+    name: Internal TestFlight quality gates
+    environment: production
+    runs_on: linux-medium
+    steps:
+      - uses: eas/checkout
+      - name: Verify checked-out source is immutable
+        run: git diff --exit-code && git diff --cached --exit-code
+      - uses: eas/install_node_modules
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm run test
+      - name: Dead code
+        run: npm run check-knip
+      - name: Expo Doctor
+        run: npm run expo-doctor
+      - name: Expo dependency alignment
+        run: npm run expo-install-check
+      - name: Native iOS configuration
+        run: npm run check:ios-config
+      - name: Sentry hard-off policy
+        run: npm run check:sentry-disabled
+      - name: Supabase migration safety
+        run: npm run check:supabase-migrations
+      - name: Edge Functions typecheck
+        run: npm run deno:check
+      - name: Edge Functions tests
+        run: npm run deno:test
+      - name: React Doctor (full, zero warnings)
+        run: npm run doctor:react:ci
+      - name: React Doctor (new issues)
+        run: npm run doctor:react:changed -- --base main --blocking error --no-score
+      - name: Internal TestFlight configuration
+        run: npm run check:internal-testflight-config
+      - name: Hermes production export
+        run: npm run export:production
+
+  paid_build_approval:
+    name: Approve paid signed build from this SHA
+    needs: [checks]
+    type: require-approval
+
+  build_ios:
+    name: Signed iOS store build
+    needs: [paid_build_approval]
+    type: build
+    params:
+      platform: ios
+      profile: production
+
+  distribute_internal:
+    name: Distribute only to NiX Internal QA
+    needs: [build_ios]
+    type: testflight
+    params:
+      build_id: ${{ needs.build_ios.outputs.build_id }}
+      profile: production
+      internal_groups: ['NiX Internal QA']
+      changelog: |
+        NiX 1.0.0 — first internal QA build.
+        Test email registration/login and Sign in with Apple (Google is not active), 16+ onboarding, username and QR friend flows, photo/video capture and upload, offline/resume, report/block/unblock, moderation, push notifications if enabled, and account deletion.
+        Verify denial and later granting of camera, microphone, photos and notifications. Sentry is installed but hard-disabled; report crashes through TestFlight feedback.
+      submit_beta_review: false
+      wait_processing_timeout_seconds: 1800

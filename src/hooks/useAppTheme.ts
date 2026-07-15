@@ -1,4 +1,4 @@
-import { useThemeContext } from '../theme/theme-context';
+import { useThemeContext } from '../theme/theme';
 
 export function useAppTheme() {
   return useThemeContext();

@@ -24,7 +24,7 @@ import { NativeChromeIconButton } from '../components/ui/native-chrome-icon-butt
 import { NativePreviewSendButton } from '../components/ui/native-preview-send-button';
 import PreviewDurationMenu from '../components/ui/preview-duration-menu';
 import { useScreenInsets } from '../hooks/useScreenInsets';
-import { useVideoDraft, type VideoSegmentDraft } from '../context/VideoDraftContext';
+import { useVideoDraft, type VideoSegmentDraft } from '../context/videoDraft';
 import { configureForPlayback } from '../lib/audioSession';
 import { trackEvent } from '../lib/telemetry';
 import { tap } from '../lib/haptics';

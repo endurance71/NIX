@@ -1,5 +1,6 @@
-import { Button, FieldGroup, RNHostView, Text, TextInput } from '@expo/ui';
-import { HStack } from '@expo/ui/swift-ui';
+import { FieldGroup, RNHostView, Text, TextInput } from '@expo/ui';
+import { Button, HStack } from '@expo/ui/swift-ui';
+import { buttonStyle, disabled as swiftDisabled } from '@expo/ui/swift-ui/modifiers';
 import { Stack, router } from 'expo-router';
 import { Alert } from 'react-native';
 import { useFriendsScreen } from '../../../hooks/useFriendsScreen';
@@ -108,16 +109,14 @@ export default function FriendsScreen() {
                         <HStack alignment="center" spacing={4}>
                           <Button
                             label={vm.t('profile.rejectInvite')}
-                            variant="text"
                             role="destructive"
-                            disabled={loading}
                             onPress={() => void vm.handleReject(request.id)}
+                            modifiers={[buttonStyle('plain'), swiftDisabled(loading)]}
                           />
                           <Button
                             label={loading ? vm.t('common.loading') : vm.t('profile.acceptInvite')}
-                            variant="text"
-                            disabled={loading}
                             onPress={() => void vm.handleAccept(request.id)}
+                            modifiers={[buttonStyle('plain'), swiftDisabled(loading)]}
                           />
                         </HStack>
                       </RNHostView>

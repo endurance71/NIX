@@ -17,6 +17,9 @@ type AppBottomSheetProps = {
   showDragIndicator?: boolean;
 };
 
+// Metro resolves this fallback on non-iOS platforms; deslop only follows the
+// iOS variant selected from the extensionless import.
+// react-doctor-disable-next-line deslop/unused-export
 export function AppBottomSheet({
   isPresented,
   onDismiss,

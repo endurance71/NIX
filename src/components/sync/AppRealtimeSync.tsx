@@ -8,6 +8,7 @@ import { trackEvent } from '../../lib/telemetry';
 import { flushPendingViewedAcks } from '../../lib/viewedAckQueue';
 import {
   createSyncAreaDebouncer,
+  finalizeRealtimeChannelUnsubscribe,
   realtimeQueryKeysForArea,
   type SyncArea,
 } from '../../lib/realtimeSyncPolicy';
@@ -18,6 +19,9 @@ const DEGRADED_POLL_INTERVAL_MS = 15_000;
 export function AppRealtimeSync({ userId }: { userId: string }) {
   const queryClient = useQueryClient();
 
+  // Every allocation is released by the returned teardown; the rule does not
+  // recognize the chained Supabase subscription and asynchronous unsubscribe.
+  // oxlint-disable-next-line react-doctor/effect-needs-cleanup
   useEffect(() => {
     let active = AppState.currentState === 'active';
     let channelHealthy = false;
@@ -139,7 +143,7 @@ export function AppRealtimeSync({ userId }: { userId: string }) {
       stopDegradedPolling();
       appStateSubscription.remove();
       networkSubscription();
-      void supabase.removeChannel(channel);
+      void finalizeRealtimeChannelUnsubscribe(channel, channel.unsubscribe());
     };
   }, [queryClient, userId]);
 

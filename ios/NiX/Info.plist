@@ -55,32 +55,18 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_expo._tcp</string>
-	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>NiX potrzebuje dostępu do kamery, aby przechwytywać i wysyłać wiadomości.</string>
-	<key>NSFaceIDUsageDescription</key>
-	<string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Expo Dev Launcher uses the local network to discover and connect to development servers running on your computer.</string>
+	<string>NiX uses the camera to take photos and videos that you choose to send to friends.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>NiX potrzebuje dostępu do mikrofonu, aby nagrywać wiadomości wideo.</string>
+	<string>NiX uses the microphone to record sound in video messages that you choose to send.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>NiX potrzebuje dostępu do zdjęć, aby ustawić awatar profilu.</string>
+	<string>NiX uses your photo library when you choose a profile avatar or select a photo or video to send to friends.</string>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
 	</array>
 	<key>RCTNewArchEnabled</key>
 	<true/>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>fetch</string>
-		<string>processing</string>
-		<string>audio</string>
-	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>SplashScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>

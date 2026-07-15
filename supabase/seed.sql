@@ -1,0 +1,2 @@
+-- Intentionally empty.
+-- QA accounts and production-like data must be created outside the repository.

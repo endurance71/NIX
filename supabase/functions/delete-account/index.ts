@@ -17,25 +17,6 @@ function getBearerToken(req: Request) {
   return value?.startsWith('Bearer ') ? value.slice(7).trim() : null;
 }
 
-async function removePrefix(
-  client: ReturnType<typeof createClient>,
-  bucket: 'avatars' | 'media-vault',
-  prefix: string
-) {
-  const { data, error } = await client.storage.from(bucket).list(prefix, { limit: 1000 });
-  if (error) throw error;
-  if (!data?.length) return;
-
-  const files = data.filter((item) => item.id).map((item) => `${prefix}/${item.name}`);
-  const directories = data.filter((item) => !item.id).map((item) => `${prefix}/${item.name}`);
-
-  if (files.length) {
-    const { error: removeError } = await client.storage.from(bucket).remove(files);
-    if (removeError) throw removeError;
-  }
-  await Promise.all(directories.map((directory) => removePrefix(client, bucket, directory)));
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -57,6 +38,29 @@ Deno.serve(async (req) => {
   if (userError || !user) return json({ error: 'Unauthorized' }, 401);
 
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const removePrefix = async (
+    bucket: 'avatars' | 'media-vault',
+    prefix: string
+  ): Promise<void> => {
+    const { data, error } = await serviceClient.storage.from(bucket).list(prefix, { limit: 1000 });
+    if (error) throw error;
+    if (!data?.length) return;
+
+    const files: string[] = [];
+    const directories: string[] = [];
+    for (const item of data) {
+      const path = `${prefix}/${item.name}`;
+      if (item.id) files.push(path);
+      else directories.push(path);
+    }
+
+    if (files.length) {
+      const { error: removeError } = await serviceClient.storage.from(bucket).remove(files);
+      if (removeError) throw removeError;
+    }
+    await Promise.all(directories.map((directory) => removePrefix(bucket, directory)));
+  };
+
   try {
     const { data: paths, error: pathsError } = await serviceClient.rpc('delete_my_account_data', {
       p_user_id: user.id,
@@ -66,18 +70,22 @@ Deno.serve(async (req) => {
     // All uploaded Nix media is owned by its sender and stored below nixes/<uid>.
     // Avatars are stored below <uid>. The explicit path list also supports legacy
     // paths and media received from another user.
-    await removePrefix(serviceClient, 'media-vault', `nixes/${user.id}`);
-    await removePrefix(serviceClient, 'avatars', user.id);
-    const mediaPaths = (paths ?? [])
-      .map((row: { media_path?: string | null }) => row.media_path)
-      .filter((path): path is string => Boolean(path));
+    await removePrefix('media-vault', `nixes/${user.id}`);
+    await removePrefix('avatars', user.id);
+    const mediaPaths: string[] = [];
+    const legacyAvatarPaths: string[] = [];
+    for (const row of paths ?? []) {
+      const candidate = row as {
+        media_path?: string | null;
+        avatar_path?: string | null;
+      };
+      if (candidate.media_path) mediaPaths.push(candidate.media_path);
+      if (candidate.avatar_path) legacyAvatarPaths.push(candidate.avatar_path);
+    }
     if (mediaPaths.length) {
       const { error: mediaError } = await serviceClient.storage.from('media-vault').remove(mediaPaths);
       if (mediaError) throw mediaError;
     }
-    const legacyAvatarPaths = (paths ?? [])
-      .map((row: { avatar_path?: string | null }) => row.avatar_path)
-      .filter((path): path is string => Boolean(path));
     if (legacyAvatarPaths.length) {
       const { error: avatarError } = await serviceClient.storage.from('avatars').remove(legacyAvatarPaths);
       if (avatarError) throw avatarError;

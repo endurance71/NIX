@@ -24,6 +24,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "environment": "production",
       "env": {
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "SENTRY_DISABLE_XCODE_DEBUG_UPLOAD": "true"
@@ -31,6 +32,11 @@
       "ios": {
         "resourceClass": "m-medium"
       }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {}
     }
   }
 }

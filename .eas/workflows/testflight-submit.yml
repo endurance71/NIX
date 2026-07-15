@@ -1,0 +1,38 @@
+name: Submit an approved build to TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        type: string
+        required: true
+        description: Existing signed EAS production build ID approved after device QA
+      external_group:
+        type: string
+        required: true
+        description: Existing App Store Connect external tester group
+      confirmation:
+        type: choice
+        required: true
+        description: Confirm privacy, UGC, reviewer data and physical-device QA are complete
+        options:
+          - DO_NOT_SUBMIT
+          - SUBMIT_APPROVED_BUILD
+
+jobs:
+  approval:
+    name: Human release approval
+    if: ${{ inputs.confirmation == 'SUBMIT_APPROVED_BUILD' }}
+    type: require-approval
+
+  distribute_external_beta:
+    name: Upload and request external Beta App Review
+    needs: [approval]
+    type: testflight
+    params:
+      build_id: ${{ inputs.build_id }}
+      profile: production
+      external_groups:
+        - ${{ inputs.external_group }}
+      changelog: See docs/testflight-test-information.md for the approved test scope.
+      submit_beta_review: true

@@ -121,6 +121,18 @@ async function deliverViewedAck(userId: string, ack: PendingViewedAck) {
   }
 }
 
+function deliverViewedAcksSerially(userId: string, acknowledgements: PendingViewedAck[]) {
+  return acknowledgements.reduce<Promise<number>>(
+    (deliveredPromise, acknowledgement) =>
+      deliveredPromise.then((delivered) =>
+        deliverViewedAck(userId, acknowledgement).then(
+          (wasDelivered) => delivered + (wasDelivered ? 1 : 0)
+        )
+      ),
+    Promise.resolve(0)
+  );
+}
+
 export async function acknowledgeViewedNix(item: { id: string; media_path: string }) {
   const user = await getCurrentUser();
   if (!user) return false;
@@ -148,11 +160,7 @@ export function flushPendingViewedAcks(userId: string, options?: { force?: boole
     const now = Date.now();
     const queue = await readQueue(userId);
     const due = queue.filter((ack) => options?.force || ack.nextAttemptAt <= now);
-    let delivered = 0;
-    for (const ack of due) {
-      if (await deliverViewedAck(userId, ack)) delivered += 1;
-    }
-    return delivered;
+    return deliverViewedAcksSerially(userId, due);
   })().finally(() => {
     inFlightFlushes.delete(userId);
   });

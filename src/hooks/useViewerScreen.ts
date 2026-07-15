@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useEffectEvent } from 'react';
 import type { ViewStyle } from 'react-native';
-import { unstable_batchedUpdates } from 'react-native';
+import { ActionSheetIOS, Alert, unstable_batchedUpdates } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Image as ExpoImage } from 'expo-image';
 import type { VideoThumbnail } from 'expo-video';
@@ -37,6 +37,10 @@ import { useViewerCaptureGuard } from './useViewerCaptureGuard';
 import { toViewerQueueItem } from '../lib/viewerQueue';
 import { createViewerStyles } from '../components/viewer/viewerScreen.styles';
 import { markInboxNixViewedInCache } from '../lib/inboxQuery';
+import { useTranslation } from 'react-i18next';
+import { blockUser, reportNix, type ReportReason } from '../services/safetyService';
+import { notifyDomainError, notifySuccess } from '../lib/appNotify';
+import { runWithFinally } from '../lib/runWithFinally';
 
 type NixQueueItem = {
   id: string;
@@ -82,9 +86,14 @@ export type ViewerScreenViewModel = {
   onPrimaryImageError: (event: unknown) => void;
   onFallbackImageLoad: () => void;
   onFallbackImageError: () => void;
+  safetyAvailable: boolean;
+  safetyBusy: boolean;
+  safetyPaused: boolean;
+  openSafetyMenu: () => void;
 };
 
 export function useViewerScreen(): ViewerScreenViewModel {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { colors, statusBarStyle, isDark } = useAppTheme();
   const insets = useScreenInsets('mediaChrome');
@@ -142,6 +151,8 @@ export function useViewerScreen(): ViewerScreenViewModel {
     videoThumbnailOverlay,
   } = mediaState;
   const appState = useAppStateSnapshot();
+  const [safetyBusy, setSafetyBusy] = useState(false);
+  const [safetyPaused, setSafetyPaused] = useState(false);
   const segmentProgress = useSharedValue(1);
   const lastFinishedSlideIdRef = useRef<string | null>(null);
 
@@ -401,7 +412,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
   }, [nextNix?.media_path, nextNix?.media_type, signedUrlTtlSec, queueLoading, closing]);
 
   useEffect(() => {
-    if (queueLoading || closing || !queue.length) return;
+    if (queueLoading || closing || !queue.length || safetyPaused) return;
     const nix = displayedNix;
     if (!nix?.media_path) return;
     if (!loading && imageUrl && imageReady && !imageLoadError) {
@@ -441,6 +452,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
     imageReady,
     imageLoadError,
     segmentProgress,
+    safetyPaused,
   ]);
 
   const activeSegmentMaskStyle = useAnimatedStyle<ViewStyle>(() => ({
@@ -494,6 +506,91 @@ export function useViewerScreen(): ViewerScreenViewModel {
     finishCurrentSlide();
   };
 
+  const handleReport = async (reason: ReportReason) => {
+    const item = queueRef.current[slideIndexRef.current];
+    if (!item) {
+      setSafetyPaused(false);
+      return;
+    }
+    setSafetyBusy(true);
+    await runWithFinally(
+      async () => {
+        await reportNix(item.id, reason);
+        await queryClient.invalidateQueries({ queryKey: queryKeys.contentReports });
+        notifySuccess(t('viewer.reportSuccess'));
+        setSafetyPaused(false);
+        finishCurrentSlide();
+      },
+      () => setSafetyBusy(false)
+    ).catch((error: unknown) => {
+      notifyDomainError(error, t('viewer.reportFailure'));
+      setSafetyPaused(false);
+    });
+  };
+
+  const showReportReasons = () => {
+    const reasons: ReportReason[] = [
+      'harassment', 'hate', 'sexual_content', 'violence', 'self_harm',
+      'impersonation', 'spam', 'privacy', 'illegal_content', 'other',
+    ];
+    const options = reasons.map((reason) => t(`profile.reportReason.${reason}`));
+    options.push(t('common.cancel'));
+    ActionSheetIOS.showActionSheetWithOptions(
+      { title: t('viewer.reportReasonTitle'), options, cancelButtonIndex: reasons.length },
+      (index) => {
+        const reason = reasons[index];
+        if (!reason) {
+          setSafetyPaused(false);
+          return;
+        }
+        void handleReport(reason);
+      }
+    );
+  };
+
+  const confirmBlock = () => {
+    if (!paramSenderId) {
+      setSafetyPaused(false);
+      return;
+    }
+    Alert.alert(t('viewer.blockConfirmTitle'), t('viewer.blockConfirmMessage'), [
+      { text: t('common.cancel'), style: 'cancel', onPress: () => setSafetyPaused(false) },
+      {
+        text: t('viewer.blockAction'),
+        style: 'destructive',
+        onPress: () => {
+          setSafetyBusy(true);
+          void blockUser(paramSenderId)
+            .then(async () => {
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: queryKeys.blockedUsers }),
+                queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
+                queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
+              ]);
+              notifySuccess(t('viewer.blockSuccess'));
+              router.back();
+            })
+            .catch((error: unknown) => {
+              notifyDomainError(error, t('viewer.blockFailure'));
+              setSafetyPaused(false);
+            })
+            .finally(() => setSafetyBusy(false));
+        },
+      },
+    ]);
+  };
+
+  const openSafetyMenu = () => {
+    if (!paramSenderId || safetyBusy) return;
+    setSafetyPaused(true);
+    cancelAnimation(segmentProgress);
+    Alert.alert(t('viewer.safetyTitle'), undefined, [
+      { text: t('viewer.reportAction'), onPress: showReportReasons },
+      { text: t('viewer.blockAction'), style: 'destructive', onPress: confirmBlock },
+      { text: t('common.cancel'), style: 'cancel', onPress: () => setSafetyPaused(false) },
+    ]);
+  };
+
   const isBootLoading = queueLoading || (!queue.length && !closing);
 
   return {
@@ -526,5 +623,9 @@ export function useViewerScreen(): ViewerScreenViewModel {
     onPrimaryImageError,
     onFallbackImageLoad,
     onFallbackImageError,
+    safetyAvailable: Boolean(paramSenderId),
+    safetyBusy,
+    safetyPaused,
+    openSafetyMenu,
   };
 }

@@ -12,6 +12,7 @@ export type AppIconName =
   | 'flashOff'
   | 'document'
   | 'inbox'
+  | 'notification'
   | 'lock'
   | 'mic'
   | 'micOff'
@@ -40,6 +41,7 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   flashOff: 'bolt.slash',
   document: 'doc.text',
   inbox: 'tray',
+  notification: 'bell',
   lock: 'lock',
   mic: 'mic',
   micOff: 'mic.slash',

@@ -101,7 +101,7 @@ Konfiguracja: [apple-sign-in-setup.md](./apple-sign-in-setup.md).
 
 - [ ] Wygenerowanie zaproszenia QR (`friend-my-code`) — token z krótkim TTL (5 min w SQL).
 - [ ] Skan / deep link drugim kontem → `friend-invite` / confirm — relacja `pending` lub auto-akceptacja przy odwrotnym pending.
-- [ ] Telemetria `friend_qr_scan` / `friend_invite_redeem` widoczna w dev (console) lub Sentry breadcrumbs.
+- [ ] Telemetria `friend_qr_scan` / `friend_invite_redeem` widoczna lokalnie w konsoli dev.
 
 ### Przepływ wiadomości
 

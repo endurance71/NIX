@@ -1,13 +1,41 @@
 name: Preview (internal)
 
 on:
-  pull_request: {}
+  workflow_dispatch: {}
 
 jobs:
+  checks:
+    name: Preflight quality gates
+    runs_on: linux-medium
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm run test
+      - name: Dead code
+        run: npm run check-knip
+      - name: Expo Doctor
+        run: npm run expo-doctor
+      - name: Expo dependency alignment
+        run: npm run expo-install-check
+      - name: Native iOS configuration
+        run: npm run check:ios-config
+      - name: Sentry hard-off policy
+        run: npm run check:sentry-disabled
+      - name: React Doctor (full, zero warnings)
+        run: npm run doctor:react:ci
+      - name: React Doctor (new issues)
+        run: npm run doctor:react:changed -- --base main --blocking error --no-score
+      - name: Hermes production export
+        run: npm run export:production
   build_ios_preview:
     name: Build iOS preview
+    needs: [checks]
     type: build
     params:
       platform: ios
       profile: preview
-

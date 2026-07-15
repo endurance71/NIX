@@ -21,7 +21,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useScreenInsets, type ScreenInsetsResult } from './useScreenInsets';
 import { useAppTheme } from './useAppTheme';
 import { VIDEO_HOLD_THRESHOLD_MS, VIDEO_TOTAL_MAX_DURATION_MS } from '../lib/videoRecordingLimits';
-import { useVideoDraft } from '../context/VideoDraftContext';
+import { useVideoDraft } from '../context/videoDraft';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { scheduleCameraSwitchWatchdog } from '../lib/cameraSwitchWatchdog';
 import { configureForRecording } from '../lib/audioSession';

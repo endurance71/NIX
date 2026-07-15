@@ -2,6 +2,17 @@ import { queryKeys } from './queryKeys';
 
 export type SyncArea = 'inbox' | 'friends';
 
+type RealtimeChannelTeardown = {
+  teardown: () => void;
+};
+
+export async function finalizeRealtimeChannelUnsubscribe(
+  channel: RealtimeChannelTeardown,
+  unsubscribeResult: Promise<string>
+) {
+  if ((await unsubscribeResult) === 'ok') channel.teardown();
+}
+
 export function createSyncAreaDebouncer(
   onFlush: (areas: ReadonlySet<SyncArea>) => void,
   delayMs: number

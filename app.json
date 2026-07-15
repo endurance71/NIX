@@ -22,13 +22,9 @@
       },
       "usesAppleSignIn": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "NiX potrzebuje dostępu do kamery, aby przechwytywać i wysyłać wiadomości.",
-        "NSMicrophoneUsageDescription": "NiX potrzebuje dostępu do mikrofonu, aby nagrywać wiadomości wideo.",
-        "NSPhotoLibraryUsageDescription": "NiX potrzebuje dostępu do zdjęć i filmów, aby korzystać z multimediów.",
-        "UIBackgroundModes": [
-          "fetch",
-          "processing"
-        ],
+        "NSCameraUsageDescription": "NiX uses the camera to take photos and videos that you choose to send to friends.",
+        "NSMicrophoneUsageDescription": "NiX uses the microphone to record sound in video messages that you choose to send.",
+        "NSPhotoLibraryUsageDescription": "NiX uses your photo library when you choose a profile avatar or select a photo or video to send to friends.",
         "ITSAppUsesNonExemptEncryption": false,
         "UIViewControllerBasedStatusBarAppearance": false
       }
@@ -36,6 +32,7 @@
     "scheme": "nix",
     "plugins": [
       "expo-localization",
+      "expo-notifications",
       [
         "expo-build-properties",
         {
@@ -58,21 +55,33 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "NiX potrzebuje dostępu do kamery, aby przechwytywać i wysyłać wiadomości.",
-          "microphonePermission": "NiX potrzebuje dostępu do mikrofonu, aby nagrywać wiadomości wideo."
+          "cameraPermission": "NiX uses the camera to take photos and videos that you choose to send to friends.",
+          "microphonePermission": "NiX uses the microphone to record sound in video messages that you choose to send."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "NiX potrzebuje dostępu do zdjęć, aby ustawić awatar profilu."
+          "photosPermission": "NiX uses your photo library when you choose a profile avatar or select a photo or video to send to friends."
         }
       ],
-      "expo-video",
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
+        }
+      ],
       "expo-secure-store",
       "react-native-compressor",
       "expo-image",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": false,
+          "enableBackgroundRecording": false
+        }
+      ],
       "expo-asset",
       "expo-status-bar",
       "expo-apple-authentication",
