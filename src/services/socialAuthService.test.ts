@@ -5,8 +5,17 @@ import {
   signInWithGoogle,
 } from './socialAuthService';
 
-const { mockAuth, mockAppleAuth, mockCrypto, mockSaveAppleId } = vi.hoisted(() => ({
+const {
+  mockAuth,
+  mockAppleAuth,
+  mockCrypto,
+  mockFrom,
+  mockLegalAcceptanceLookup,
+  mockLegalAcceptanceInsert,
+  mockSaveAppleId,
+} = vi.hoisted(() => ({
   mockAuth: {
+    getUser: vi.fn(),
     signInWithIdToken: vi.fn(),
     updateUser: vi.fn(),
     generateRawNonce: vi.fn(() => 'raw-nonce-123'),
@@ -24,12 +33,16 @@ const { mockAuth, mockAppleAuth, mockCrypto, mockSaveAppleId } = vi.hoisted(() =
     digestStringAsync: vi.fn(async () => 'hashed-nonce'),
     CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
   },
+  mockFrom: vi.fn(),
+  mockLegalAcceptanceLookup: vi.fn(),
+  mockLegalAcceptanceInsert: vi.fn(),
   mockSaveAppleId: vi.fn(),
 }));
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
     auth: mockAuth,
+    from: mockFrom,
   },
 }));
 
@@ -48,7 +61,19 @@ describe('socialAuthService', () => {
       data: { session: { access_token: 'token' }, user: { id: 'user-1' } },
       error: null,
     });
+    mockAuth.getUser.mockResolvedValue({
+      data: { user: { id: 'user-1' } },
+      error: null,
+    });
     mockAuth.updateUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
+    mockLegalAcceptanceLookup.mockResolvedValue({ data: null, error: null });
+    mockLegalAcceptanceInsert.mockResolvedValue({ data: null, error: null });
+    mockFrom.mockImplementation(() => ({
+      select: () => ({
+        eq: () => ({ maybeSingle: mockLegalAcceptanceLookup }),
+      }),
+      insert: mockLegalAcceptanceInsert,
+    }));
     mockSaveAppleId.mockResolvedValue(undefined);
   });
 
@@ -85,6 +110,11 @@ describe('socialAuthService', () => {
       },
     });
     expect(mockSaveAppleId).toHaveBeenCalledWith('apple-user-123');
+    expect(mockLegalAcceptanceInsert).toHaveBeenCalledWith({
+      user_id: 'user-1',
+      terms_version: '2026-07-15',
+      privacy_version: '2026-07-15',
+    });
   });
 
   it('ignoruje anulowanie Apple bez błędu', async () => {

@@ -5,20 +5,25 @@ operations. Do not cross a remote gate without a named approver and a recorded S
 
 ## 1. Local preparation
 
-1. Run all npm gates and `supabase db reset` on a fresh local stack.
+1. Run all npm gates and `supabase db reset` on a fresh local stack, followed by
+   `npm run check:supabase-db-lint`.
 2. Confirm the active migration list starts with
    `20260714104841_remote_baseline.sql` and contains only explicitly approved
    forward migrations.
    Migration `20260715160000_add_push_notifications.sql` was introduced by a
    concurrent workstream and requires an explicit include/exclude decision before
-   commits, migration-history repair or deploy.
+   migration-history repair or deploy. Migration
+   `20260715170000_remove_redundant_service_role_policies.sql` is mandatory: it
+   removes redundant service-role RLS predicates and repairs RPC references left
+   behind by the `snaps` to `nixes` rename.
 3. Confirm rollback SQL in `supabase/rollback/20260715_internal_safety_soft_rollback.sql`
    works against a local copy.
 4. Commit logical changes, push the branch and record `git rev-parse HEAD`.
 
 Current local evidence (15 July 2026): React Doctor 100/100, Expo Doctor 19/19,
 194 tests, Knip, TypeScript, lint, Deno, Hermes export, fresh `supabase db reset`,
-cohort compatibility assertions, soft rollback and unsigned iOS Release all pass.
+Supabase DB lint with zero findings, cohort compatibility assertions, soft rollback
+and unsigned iOS Release all pass.
 These results do not authorize any remote operation.
 
 ## 2. Backup gate

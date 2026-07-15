@@ -14,6 +14,7 @@ export function sentryDisabledViolations() {
   const eas = JSON.parse(read('eas.json'));
   const monitoring = read('src/lib/monitoring.ts');
   const layout = read('src/app/_layout.tsx');
+  const metroConfig = read('metro.config.js');
   const edgeHttp = read('supabase/functions/_shared/http.ts');
   const xcodeEnv = read('ios/.xcode.env');
   const xcodeProject = read('ios/NiX.xcodeproj/project.pbxproj');
@@ -37,6 +38,9 @@ export function sentryDisabledViolations() {
   }
   if (layout.includes('Sentry.wrap(')) {
     violations.push('the root layout must not be wrapped by Sentry while monitoring is disabled');
+  }
+  if (metroConfig.includes('getSentryExpoConfig') || metroConfig.includes('@sentry/react-native/metro')) {
+    violations.push('Metro must use the standard Expo config while Sentry is hard-disabled');
   }
   if (!edgeHttp.includes('const SENTRY_RUNTIME_ENABLED = false;')) {
     violations.push('the Edge Function hard-off flag is missing');

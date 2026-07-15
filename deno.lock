@@ -18,7 +18,6 @@
         "npm:@supabase/supabase-js@^2.108.2",
         "npm:@tanstack/react-query@^5.101.1",
         "npm:@types/react@~19.2.5",
-        "npm:base64-js@^1.5.1",
         "npm:eslint-config-expo@57.0",
         "npm:eslint@^9.39.4",
         "npm:expo-apple-authentication@~57.0.1",

@@ -258,7 +258,7 @@ Repozytorium zawiera gotowy szablon [`testflight-test-information.md`](testfligh
 | P1-7 | 🔴 dane operacyjne | Dane ASC/reviewera | szablon TestFlight gotowy; brak bezpiecznych kont demo w repo | reviewer nie przejdzie pełnego flow | utworzyć dwa konta demo, uzupełnić kontakt, rating, App Privacy i Review Notes | product / release | reviewer z nowego urządzenia realizuje pełny scenariusz wyłącznie według instrukcji |
 | P1-8 | ✅ kod / 🟠 ASC | Egzekwowanie progu wieku | deklaracja rejestracji, onboarding, `age_attestations` i blokada backendowa | rating ASC może być niespójny z polityką 16+ | po deployu wykonać testy graniczne i ustawić spójny rating | product + legal + trust & safety | konto <16 nie przechodzi; 16+ ma wersjonowaną atestację; regulamin/backend/rating są zgodne |
 | P1-9 | 🔴 OAuth | Autoryzacja Expo MCP | handshake zwraca `OAuth authorization required` | brak niezależnej weryfikacji build/workflow/crashes/feedback | ponownie uwierzytelnić Expo MCP i odczytać stan projektu | release engineering | MCP `build_list` i `workflow_list` zwracają dane; po becie crashes/feedback są udokumentowane |
-| P1-10 | 🟠 otwarte | Odtwarzalność lokalnej bazy | nowa migracja przechodzi na izolowanym PostgreSQL, ale `supabase start` z czystego repo zatrzymuje się na pierwszej migracji: brak wcześniejszego `prevent_username_change()` | brak pełnego testu całego łańcucha migracji i gorszy disaster recovery | dodać zatwierdzony, zanonimizowany baseline schematu sprzed `20260508104000` albo skonsolidować historię dla nowych środowisk | backend / DBA | `supabase db reset` z czystego klona przechodzi, a diff schematu względem projektu docelowego jest pusty |
+| P1-10 | ✅ lokalnie | Odtwarzalność lokalnej bazy | skonsolidowany baseline i aktywne migracje przechodzą pełny `supabase db reset`; DB lint: 0 usterek; migracja `20260715170000` naprawia stare odwołania RPC i zbędne polityki service-role | pozostaje zdalny dry-run i porównanie schematu po naprawie historii | wykonać zaszyfrowany backup, zatwierdzony repair historii i `db push --dry-run` | backend / DBA | reset i lint są czyste; zdalny dry-run zawiera wyłącznie zatwierdzone migracje, a liczniki danych pozostają bez zmian |
 
 ### P2 — dług techniczny i rozszerzenie pokrycia
 
@@ -350,6 +350,6 @@ Status może zmienić się z **NO-GO** na **GO dla zewnętrznego TestFlight** do
 - Nie wysłano aplikacji do App Store Connect/TestFlight.
 - Nie wykonywano testów na fizycznym urządzeniu ani na koncie reviewera.
 - Expo MCP był skonfigurowany, ale jego zdalne narzędzia nie przeszły inicjalizacji bez ponownego OAuth.
-- Nowa migracja przeszła walidację składni i uprawnień na izolowanym PostgreSQL. Pełny `supabase start` z czystej historii jest blokowany przez starszy brak baseline'u opisany jako P1-10.
+- Pełny lokalny `supabase db reset` oraz DB lint przechodzą z czystej historii. Nie wykonano jeszcze zdalnego repair historii, dry-run ani deployu.
 - App Store Connect, certyfikaty, provisioning, App Privacy, rating wieku, crash data i feedback pozostają do potwierdzenia po pierwszym buildzie.
 - Audyt jest oceną techniczną zgodności i gotowości, a nie poradą prawną.

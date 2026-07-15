@@ -9,6 +9,7 @@ const expected = [
   '20260714221000_record_legal_acceptance.sql',
   '20260715095155_add_safety_moderation_and_age_gate.sql',
   '20260715160000_add_push_notifications.sql',
+  '20260715170000_remove_redundant_service_role_policies.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
@@ -44,6 +45,31 @@ for (const marker of [
   "age_gate_mode IN ('cohort', 'all')",
 ]) {
   if (!safety.includes(marker)) failures.push(`safety migration is missing ${marker}`);
+}
+
+const hardening = await readFile(path.join(migrationsDir, expected[5]), 'utf8');
+for (const policy of [
+  'friend_invites_update',
+  'nix_cleanup_audit_insert',
+  'nix_cleanup_audit_select',
+  'nix_cleanup_queue_delete',
+  'upload_logs_delete',
+  'storage_delete',
+]) {
+  if (!hardening.includes(`DROP POLICY IF EXISTS ${policy}`)) {
+    failures.push(`service-role hardening migration does not remove ${policy}`);
+  }
+}
+if (/auth\.role\(\)\s*=\s*'service_role'/i.test(hardening)) {
+  failures.push('service-role hardening migration must not recreate service-role RLS predicates');
+}
+for (const marker of [
+  'CREATE OR REPLACE FUNCTION public.delete_my_conversation_with_peer',
+  'DELETE FROM public.nixes',
+  'CREATE OR REPLACE FUNCTION public.get_capture_policy_for_sender',
+  'FROM public.nix_capture_prefs',
+]) {
+  if (!hardening.includes(marker)) failures.push(`RPC rename hardening is missing ${marker}`);
 }
 
 const config = await readFile(path.join(root, 'supabase', 'config.toml'), 'utf8');

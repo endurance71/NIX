@@ -18,6 +18,7 @@ without changing the linked Supabase project, EAS credentials or App Store Conne
 - [x] Sentry hard-off, iOS config and Hermes production export pass.
 - [x] Deno check/tests pass for every function currently in the worktree.
 - [x] `supabase db reset` succeeds from the consolidated baseline.
+- [x] Supabase DB lint reports zero schema/function findings after reset.
 - [x] Active migrations contain no `TRUNCATE` or unbounded `DELETE`.
 - [x] Local unsigned iOS Release succeeds and validates the final app bundle.
 
@@ -26,6 +27,7 @@ without changing the linked Supabase project, EAS credentials or App Store Conne
 - [ ] Encrypted schema/data backup and pre-deploy counts are stored outside the repo.
 - [ ] Remote migration history is repaired only after local reset passes.
 - [ ] Dry-run shows only the approved post-baseline migrations.
+- [ ] The mandatory `20260715170000` RLS/RPC hardening migration is included.
 - [ ] Decide whether concurrent push-notification changes belong to this release;
       do not repair or deploy migration `20260715160000` until that scope is approved.
 - [ ] `MODERATOR_API_SECRET` and `MODERATION_CLEANUP_SECRET` are random 32+ byte secrets.

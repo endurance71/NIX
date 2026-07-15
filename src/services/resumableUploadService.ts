@@ -1,6 +1,4 @@
-import * as FileSystem from 'expo-file-system/legacy';
 import * as tus from 'tus-js-client';
-import { toByteArray as base64ToBytes } from 'base64-js';
 import { supabase } from '../lib/supabase';
 import { DomainError } from './errors';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
@@ -35,52 +33,6 @@ export type ResumableUploadOptions = {
   onProgress?: (progress: ResumableUploadProgress) => void;
 };
 
-/**
- * Strumieniowy odczyt pliku z dysku — czyta wyłącznie żądany fragment, bez
- * wczytywania całego pliku do RAM. Wymaga `expo-file-system/legacy`, który
- * obsługuje `position` + `length` przy `encoding: 'base64'`.
- */
-class ChunkedFileSource {
-  size: number;
-  private fileUri: string;
-
-  constructor(fileUri: string, size: number) {
-    this.fileUri = fileUri;
-    this.size = size;
-  }
-
-  async slice(start: number, end: number): Promise<{ value: Blob | null; done: boolean }> {
-    const clampedEnd = Math.min(end, this.size);
-    const length = clampedEnd - start;
-    const done = clampedEnd >= this.size;
-
-    if (length <= 0) {
-      return { value: null, done };
-    }
-
-    const base64 = await FileSystem.readAsStringAsync(this.fileUri, {
-      encoding: 'base64',
-      position: start,
-      length,
-    });
-    const bytes = base64ToBytes(base64);
-    // Blob ma natywne pole `size` wymagane przez tus do walidacji końcowego
-    // chunka. Pojedynczy chunk to maks. 6 MB — bezpieczne dla pamięci.
-    const blob = new Blob([bytes as BlobPart], { type: 'application/octet-stream' });
-    return { value: blob, done };
-  }
-
-  close() {
-    // brak zasobów do zwolnienia
-  }
-}
-
-class ChunkedFileReader {
-  async openFile(input: { fileUri: string; size: number }) {
-    return new ChunkedFileSource(input.fileUri, input.size);
-  }
-}
-
 function getSupabaseUrl(): string {
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
   if (typeof url !== 'string' || url.length === 0) {
@@ -107,16 +59,12 @@ export async function uploadResumable(options: ResumableUploadOptions): Promise<
   const supabaseUrl = getSupabaseUrl();
   const accessToken = await getAccessToken();
   const startedAt = nowMs();
-  // RN iOS nie wspiera Blob([Uint8Array]) dla PATCH body, więc chwilowo
-  // wymuszamy stabilny tryb `native_uri` na wszystkich platformach.
-  // TODO: wrócić do chunked reader po wdrożeniu natywnego typu body bez BlobPart.
-  const useCustomReader = false;
 
   trackEvent('resumable_upload_started', {
     bucket: options.bucket,
     media_bytes: options.fileSizeBytes,
     chunk_size_bytes: RESUMABLE_CHUNK_SIZE_BYTES,
-    reader_mode: useCustomReader ? 'chunked_reader' : 'native_uri',
+    reader_mode: 'native_uri',
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -125,20 +73,15 @@ export async function uploadResumable(options: ResumableUploadOptions): Promise<
     let settled = false;
 
     const upload = new tus.Upload(
-      useCustomReader
-        ? // Custom fileReader: chunkowanie przez expo-file-system/legacy.
-          ({ fileUri: options.fileUri, size: options.fileSizeBytes } as unknown as Blob)
-        : // Fallback iOS: natywna ścieżka RN tus dla `uri`.
-          ({ uri: options.fileUri } as unknown as Blob),
+      // tus-js-client uses React Native's native URI reader, so the complete
+      // file is never materialized as a JavaScript Blob.
+      { uri: options.fileUri } as unknown as Blob,
       {
         endpoint: `${supabaseUrl}/storage/v1/upload/resumable`,
         retryDelays: DEFAULT_RETRY_DELAYS_MS,
         chunkSize: RESUMABLE_CHUNK_SIZE_BYTES,
         uploadSize: options.fileSizeBytes,
         removeFingerprintOnSuccess: true,
-        ...(useCustomReader
-          ? { fileReader: new ChunkedFileReader() as unknown as tus.UploadOptions['fileReader'] }
-          : {}),
         headers: {
           authorization: `Bearer ${accessToken}`,
           'x-upsert': options.upsert ? 'true' : 'false',
