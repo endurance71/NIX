@@ -1,8 +1,8 @@
 const path = require("path");
-const { getDefaultConfig } = require("expo/metro-config");
+const { getSentryExpoConfig } = require("@sentry/react-native/metro");
 
 /** @type {import('expo/metro-config').MetroConfig} */
-const config = getDefaultConfig(__dirname);
+const config = getSentryExpoConfig(__dirname);
 
 // react-native-qrcode-svg only needs `QRCode.create` from `qrcode`. Resolving the
 // package normally loads `lib/browser.js`, which pulls `./can-promise` — Metro 0.83

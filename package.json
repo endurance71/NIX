@@ -12,13 +12,16 @@
     "react-doctor": "npx -y react-doctor@latest . --verbose",
     "react-doctor:score": "npx -y react-doctor@latest . --score",
     "react-doctor:diff": "npx -y react-doctor@latest . --verbose --diff",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "export:production": "SENTRY_DISABLE_AUTO_UPLOAD=true SENTRY_DISABLE_XCODE_DEBUG_UPLOAD=true expo export --platform ios --output-dir dist",
+    "check:sentry-disabled": "node scripts/check-sentry-disabled.mjs"
   },
   "dependencies": {
     "@expo/ui": "~57.0.4",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "12.0.1",
     "@react-native-google-signin/google-signin": "^16.1.2",
+    "@sentry/react-native": "~7.11.0",
     "@shopify/flash-list": "2.0.2",
     "@supabase/supabase-js": "^2.108.2",
     "@tanstack/react-query": "^5.101.1",
@@ -88,6 +91,7 @@
     ]
   },
   "allowScripts": {
+    "@sentry/cli@2.58.4": true,
     "fsevents@2.3.3": true,
     "unrs-resolver@1.12.2": true
   },

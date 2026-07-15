@@ -86,7 +86,8 @@
         }
       ],
       "@react-native-google-signin/google-signin",
-      "./plugins/withIosXcodeSpacesInPathFix.js"
+      "./plugins/withIosXcodeSpacesInPathFix.js",
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true,

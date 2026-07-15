@@ -6,16 +6,28 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "SENTRY_DISABLE_XCODE_DEBUG_UPLOAD": "true"
+      }
     },
     "preview": {
       "distribution": "internal",
+      "env": {
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "SENTRY_DISABLE_XCODE_DEBUG_UPLOAD": "true"
+      },
       "ios": {
         "resourceClass": "m-medium"
       }
     },
     "production": {
       "autoIncrement": true,
+      "env": {
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "SENTRY_DISABLE_XCODE_DEBUG_UPLOAD": "true"
+      },
       "ios": {
         "resourceClass": "m-medium"
       }
