@@ -7,6 +7,8 @@ const en = readFileSync(new URL('../ios/NiX/Supporting/en.lproj/InfoPlist.string
 const pl = readFileSync(new URL('../ios/NiX/Supporting/pl.lproj/InfoPlist.strings', import.meta.url), 'utf8');
 const entitlements = readFileSync(new URL('../ios/NiX/NiX.entitlements', import.meta.url), 'utf8');
 const project = readFileSync(new URL('../ios/NiX.xcodeproj/project.pbxproj', import.meta.url), 'utf8');
+const xcodeEnv = readFileSync(new URL('../ios/.xcode.env', import.meta.url), 'utf8');
+const easIgnore = readFileSync(new URL('../.easignore', import.meta.url), 'utf8');
 
 const purposeKeys = ['NSCameraUsageDescription', 'NSMicrophoneUsageDescription', 'NSPhotoLibraryUsageDescription'];
 let failed = false;
@@ -48,6 +50,14 @@ if (!app.plugins?.includes('expo-notifications')) fail('expo-notifications plugi
 if (!entitlements.includes('<key>aps-environment</key>')) fail('aps-environment is missing from NiX.entitlements');
 if (app.ios.usesAppleSignIn && !entitlements.includes('<key>com.apple.developer.applesignin</key>')) {
   fail('Sign in with Apple entitlement is missing from NiX.entitlements');
+}
+for (const generatedPath of ['ios/Pods/', 'ios/build/', 'ios/.xcode.env.local']) {
+  if (!easIgnore.split(/\r?\n/).includes(generatedPath)) {
+    fail(`${generatedPath} must be excluded from the EAS archive`);
+  }
+}
+if (project.includes('HERMES_CLI_PATH') || xcodeEnv.includes('HERMES_CLI_PATH')) {
+  fail('HERMES_CLI_PATH must be resolved on the build worker, not persisted in native configuration');
 }
 if (!assertSentryDisabled()) failed = true;
 if (failed) process.exit(1);

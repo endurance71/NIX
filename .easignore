@@ -6,3 +6,17 @@ supabase/
 *.md
 .DS_Store
 nix-icons/
+
+# Native build products must be regenerated on the EAS worker. Uploading local
+# Pods leaks machine-specific xcconfig values (for example HERMES_CLI_PATH) and
+# makes the cloud archive non-reproducible.
+ios/Pods/
+ios/build/
+ios/.xcode.env.local
+ios/DerivedData/
+
+# Local tooling and test output are not inputs to the store build.
+coverage/
+.cache/
+.turbo/
+*.log
