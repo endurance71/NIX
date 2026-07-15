@@ -21,6 +21,10 @@ function storageKey(userId: string) {
   return `${STORAGE_PREFIX}.${userId}`;
 }
 
+export async function clearPendingViewedAcks(userId: string) {
+  await AsyncStorage.removeItem(storageKey(userId));
+}
+
 export function viewedAckRetryDelayMs(attemptCount: number) {
   if (attemptCount <= 1) return 60_000;
   if (attemptCount === 2) return 5 * 60_000;

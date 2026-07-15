@@ -1,28 +1,38 @@
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { NativeSettingsEmptyRow, NativeSettingsSection } from '../../../components/ui/native-settings';
+import { getCurrentLocale } from '../../../lib/i18n';
+import { legalDocuments } from '../../../lib/legalDocuments';
+import {
+  NativeSettingsEmptyRow,
+  NativeSettingsRow,
+  NativeSettingsSection,
+} from '../../../components/ui/native-settings';
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
 
 export default function PrivacyPolicyScreen() {
   const { t } = useTranslation();
+  const document = legalDocuments[getCurrentLocale()].privacy;
 
   return (
     <>
       <SettingsListScreen>
-        <NativeSettingsSection title={t('profile.privacyPolicyDataTitle')}>
-          <NativeSettingsEmptyRow text={t('profile.privacyPolicyDataBody')} />
+        <NativeSettingsSection title={`${t('profile.privacyPolicy')} · ${document.version}`}>
+          <NativeSettingsEmptyRow text={document.effectiveDate} />
         </NativeSettingsSection>
-        <NativeSettingsSection title={t('profile.privacyPolicyMediaTitle')}>
-          <NativeSettingsEmptyRow text={t('profile.privacyPolicyMediaBody')} />
-        </NativeSettingsSection>
-        <NativeSettingsSection title={t('profile.privacyPolicySocialTitle')}>
-          <NativeSettingsEmptyRow text={t('profile.privacyPolicySocialBody')} />
-        </NativeSettingsSection>
-        <NativeSettingsSection title={t('profile.privacyPolicySecurityTitle')}>
-          <NativeSettingsEmptyRow text={t('profile.privacyPolicySecurityBody')} />
-        </NativeSettingsSection>
-        <NativeSettingsSection title={t('profile.privacyPolicyContactTitle')}>
-          <NativeSettingsEmptyRow text={t('profile.privacyPolicyContactBody')} />
+        {document.sections.map((section) => (
+          <NativeSettingsSection key={section.title} title={section.title}>
+            <NativeSettingsEmptyRow text={section.body} />
+          </NativeSettingsSection>
+        ))}
+        <NativeSettingsSection>
+          <NativeSettingsRow
+            title={t('profile.deleteAccount')}
+            icon="trash"
+            role="destructive"
+            showsChevron
+            onPress={() => router.push('/(tabs)/profile/delete-account')}
+            testID="privacy-policy-delete-account"
+          />
         </NativeSettingsSection>
       </SettingsListScreen>
       <Stack.Screen.Title>{t('profile.privacyPolicy')}</Stack.Screen.Title>

@@ -56,9 +56,9 @@ async function signInWithApple() {
   return { data, error };
 }
 
-async function signUp(email: string, password: string) {
+async function signUp(email: string, password: string, acceptedLegal = false) {
   const locale = getCurrentLocale();
-  const { data, error } = await requestPasswordSignUp(email, password, locale);
+  const { data, error } = await requestPasswordSignUp(email, password, locale, acceptedLegal);
   return { data, error };
 }
 

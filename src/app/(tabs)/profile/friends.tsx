@@ -1,4 +1,5 @@
-import { Button, FieldGroup, Text, TextInput } from '@expo/ui';
+import { Button, FieldGroup, RNHostView, Text, TextInput } from '@expo/ui';
+import { HStack } from '@expo/ui/swift-ui';
 import { Stack, router } from 'expo-router';
 import { Alert } from 'react-native';
 import { useFriendsScreen } from '../../../hooks/useFriendsScreen';
@@ -89,7 +90,7 @@ export default function FriendsScreen() {
               return (
                 <NativeSettingsSwipeActions
                   key={request.id}
-                  actionLabel={vm.t('profile.removeInvite')}
+                  actionLabel={vm.t('profile.rejectInvite')}
                   disabled={loading}
                   onAction={() => void vm.handleReject(request.id)}>
                   <NativeSettingsRow
@@ -103,12 +104,23 @@ export default function FriendsScreen() {
                     }}
                     disabled={loading}
                     trailing={
-                      <Button
-                        label={loading ? vm.t('common.loading') : vm.t('profile.acceptInvite')}
-                        variant="text"
-                        disabled={loading}
-                        onPress={() => void vm.handleAccept(request.id)}
-                      />
+                      <RNHostView matchContents>
+                        <HStack alignment="center" spacing={4}>
+                          <Button
+                            label={vm.t('profile.rejectInvite')}
+                            variant="text"
+                            role="destructive"
+                            disabled={loading}
+                            onPress={() => void vm.handleReject(request.id)}
+                          />
+                          <Button
+                            label={loading ? vm.t('common.loading') : vm.t('profile.acceptInvite')}
+                            variant="text"
+                            disabled={loading}
+                            onPress={() => void vm.handleAccept(request.id)}
+                          />
+                        </HStack>
+                      </RNHostView>
                     }
                     testID={`incoming-request-${request.id}`}
                   />

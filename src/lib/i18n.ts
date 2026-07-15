@@ -68,6 +68,8 @@ const resources = {
         invalidEmail: 'Podaj poprawny adres e-mail.',
         passwordMin: 'Hasło musi mieć minimum 8 znaków.',
         passwordMismatch: 'Hasła nie są takie same.',
+        legalAcceptance: 'Akceptuję Regulamin i Politykę prywatności NiX.',
+        legalAcceptanceRequired: 'Aby utworzyć konto, zaakceptuj Regulamin i Politykę prywatności.',
         accountExists: 'To konto już istnieje. Zaloguj się.',
         noAccountPrompt: 'Nie masz konta?',
         noAccountLink: 'Zarejestruj się',
@@ -178,6 +180,7 @@ const resources = {
         incomingInvites: 'Zaproszenia ({{count}})',
         incomingInviteStatus: 'Zaproszenie przychodzące',
         acceptInvite: 'Przyjmij',
+        rejectInvite: 'Odrzuć',
         removeInvite: 'Usuń',
         outgoingInvites: 'Wysłane zaproszenia ({{count}})',
         outgoingInviteStatus: 'Oczekuje na akceptację',
@@ -200,10 +203,10 @@ const resources = {
         creatorValue: 'Twórca: {{creator}}',
         privacyPolicyDataTitle: 'Dane konta',
         privacyPolicyDataBody:
-          'NiX przechowuje dane potrzebne do działania konta: adres e-mail, nazwę użytkownika, awatar oraz ustawienia profilu.',
+          'Administratorem jest MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, NIP 8393229228. NiX przetwarza e-mail, dane konta, nazwę użytkownika, awatar i ustawienia profilu, aby świadczyć usługę.',
         privacyPolicyMediaTitle: 'Zdjęcia i wideo',
         privacyPolicyMediaBody:
-          'Dostęp do kamery, mikrofonu i biblioteki zdjęć służy wyłącznie do tworzenia wiadomości, nagrywania wideo oraz ustawiania awatara.',
+          'Dostęp do kamery, mikrofonu i biblioteki zdjęć służy wyłącznie do tworzenia wiadomości, nagrywania wideo oraz ustawiania awatara. Dane konta przechowujemy do usunięcia konta, a media usuwamy po odczycie zgodnie z funkcją produktu.',
         privacyPolicySocialTitle: 'Znajomi i zaproszenia',
         privacyPolicySocialBody:
           'Relacje znajomych, zaproszenia i kody QR są używane do łączenia kont oraz wysyłania wiadomości tylko do zaakceptowanych znajomych.',
@@ -212,10 +215,10 @@ const resources = {
           'Wiadomości są dostępne tylko dla wybranych odbiorców. Aplikacja stosuje ograniczenia wyświetlania, czyszczenie wygasłych treści i ustawienia ochrony screenshotów.',
         privacyPolicyContactTitle: 'Kontakt',
         privacyPolicyContactBody:
-          'W sprawach dotyczących prywatności skontaktuj się z właścicielem aplikacji pod adresem motylinski.damian@gmail.com.',
+          'W sprawach prywatności, dostępu, sprostowania, usunięcia, ograniczenia, sprzeciwu lub przenoszenia danych napisz na kontakt@damianmotylinski.pl. Konto usuniesz w Profil → Konto → Usuń konto.',
         termsAccountTitle: 'Konto',
         termsAccountBody:
-          'Korzystając z NiX, odpowiadasz za bezpieczeństwo swojego konta oraz poprawność danych podanych podczas rejestracji.',
+          'NiX jest usługą MT Hub Damian Motyliński. Korzystając z niej, odpowiadasz za bezpieczeństwo konta oraz poprawność danych podanych podczas rejestracji.',
         termsContentTitle: 'Treści',
         termsContentBody:
           'Wysyłaj tylko treści, do których masz prawo i które nie naruszają prywatności, bezpieczeństwa ani praw innych osób.',
@@ -227,7 +230,7 @@ const resources = {
           'NiX może okresowo zmieniać funkcje, ograniczać dostęp lub prowadzić prace techniczne potrzebne do utrzymania aplikacji.',
         termsChangesTitle: 'Zmiany regulaminu',
         termsChangesBody:
-          'Regulamin może być aktualizowany wraz z rozwojem aplikacji. Dalsze korzystanie z NiX oznacza akceptację aktualnych zasad.',
+          'O istotnej zmianie regulaminu poinformujemy przed jej wejściem w życie. Pytania i reklamacje: kontakt@damianmotylinski.pl.',
         passwordSectionTitle: 'Nowe hasło',
         passwordDescription: 'Wybierz bezpieczne hasło. Zmiana może wymagać kodu weryfikacyjnego wysłanego e-mailem.',
         currentPassword: 'Aktualne hasło',
@@ -258,6 +261,18 @@ const resources = {
         signOut: 'Wyloguj',
         signOutConfirmTitle: 'Wylogować się?',
         signOutConfirmMessage: 'Czy na pewno chcesz się wylogować ze swojego konta?',
+        deleteAccount: 'Usuń konto',
+        deleteAccountTitle: 'Usuń konto',
+        deleteAccountDescription:
+          'Ta operacja jest nieodwracalna. Usuniemy konto, profil, relacje, wiadomości i przechowywane multimedia.',
+        deleteAccountConfirmLabel: 'Wpisz swoją nazwę użytkownika, aby potwierdzić',
+        deleteAccountPasswordLabel: 'Aktualne hasło',
+        deleteAccountReauthenticateApple: 'Potwierdź przez Apple',
+        deleteAccountAction: 'Usuń konto na zawsze',
+        deleteAccountProcessing: 'Usuwanie konta…',
+        deleteAccountConfirmationError: 'Wpisz swoją nazwę użytkownika, aby potwierdzić.',
+        deleteAccountPasswordError: 'Wpisz aktualne hasło.',
+        deleteAccountFailed: 'Nie udało się usunąć konta. Spróbuj ponownie.',
       },
       notify: {
         refreshFailedTitle: 'Odświeżenie nie powiodło się.',
@@ -337,6 +352,8 @@ const resources = {
         invalidEmail: 'Enter a valid email address.',
         passwordMin: 'Password must be at least 8 characters.',
         passwordMismatch: 'Passwords do not match.',
+        legalAcceptance: 'I accept the NiX Terms of Use and Privacy Policy.',
+        legalAcceptanceRequired: 'Accept the Terms of Use and Privacy Policy to create an account.',
         accountExists: 'This account already exists. Sign in.',
         noAccountPrompt: "Don't have an account?",
         noAccountLink: 'Register',
@@ -445,6 +462,7 @@ const resources = {
         incomingInvites: 'Invites ({{count}})',
         incomingInviteStatus: 'Incoming invite',
         acceptInvite: 'Accept',
+        rejectInvite: 'Decline',
         removeInvite: 'Remove',
         outgoingInvites: 'Sent invites ({{count}})',
         outgoingInviteStatus: 'Waiting for acceptance',
@@ -467,10 +485,10 @@ const resources = {
         creatorValue: 'Creator: {{creator}}',
         privacyPolicyDataTitle: 'Account data',
         privacyPolicyDataBody:
-          'NiX stores the data needed to run your account: email address, username, avatar, and profile settings.',
+          'Controller: MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. NiX processes email, account data, username, avatar, and profile settings to provide the service.',
         privacyPolicyMediaTitle: 'Photos and video',
         privacyPolicyMediaBody:
-          'Camera, microphone, and photo library access are used only to create messages, record video, and set your avatar.',
+          'Camera, microphone, and photo-library access are used only to create messages, record video, and set your avatar. Account data is retained until account deletion and media is removed after viewing according to the product feature.',
         privacyPolicySocialTitle: 'Friends and invites',
         privacyPolicySocialBody:
           'Friend relationships, invites, and QR codes are used to connect accounts and send messages only to accepted friends.',
@@ -479,10 +497,10 @@ const resources = {
           'Messages are available only to selected recipients. The app uses display limits, expired-content cleanup, and screenshot protection settings.',
         privacyPolicyContactTitle: 'Contact',
         privacyPolicyContactBody:
-          'For privacy matters, contact the app owner at motylinski.damian@gmail.com.',
+          'For privacy, access, rectification, erasure, restriction, objection, or portability requests, contact kontakt@damianmotylinski.pl. Delete your account in Profile → Account → Delete account.',
         termsAccountTitle: 'Account',
         termsAccountBody:
-          'By using NiX, you are responsible for keeping your account secure and providing accurate registration details.',
+          'NiX is a service operated by MT Hub Damian Motyliński. You are responsible for keeping your account secure and providing accurate registration details.',
         termsContentTitle: 'Content',
         termsContentBody:
           'Send only content you have the right to share and that does not violate another person’s privacy, safety, or rights.',
@@ -494,7 +512,7 @@ const resources = {
           'NiX may occasionally change features, limit access, or perform maintenance needed to keep the app running.',
         termsChangesTitle: 'Changes to these terms',
         termsChangesBody:
-          'These terms may be updated as the app evolves. Continuing to use NiX means accepting the current rules.',
+          'We will notify you before material changes take effect. Questions and complaints: kontakt@damianmotylinski.pl.',
         passwordSectionTitle: 'New password',
         passwordDescription: 'Choose a secure password. The change may require a verification code sent by email.',
         currentPassword: 'Current password',
@@ -525,6 +543,18 @@ const resources = {
         signOut: 'Sign out',
         signOutConfirmTitle: 'Sign out?',
         signOutConfirmMessage: 'Are you sure you want to sign out of your account?',
+        deleteAccount: 'Delete account',
+        deleteAccountTitle: 'Delete account',
+        deleteAccountDescription:
+          'This action is irreversible. We will remove your account, profile, relationships, messages, and stored media.',
+        deleteAccountConfirmLabel: 'Enter your username to confirm',
+        deleteAccountPasswordLabel: 'Current password',
+        deleteAccountReauthenticateApple: 'Confirm with Apple',
+        deleteAccountAction: 'Delete account permanently',
+        deleteAccountProcessing: 'Deleting account…',
+        deleteAccountConfirmationError: 'Enter your username to confirm.',
+        deleteAccountPasswordError: 'Enter your current password.',
+        deleteAccountFailed: 'We could not delete your account. Please try again.',
       },
       notify: {
         refreshFailedTitle: 'Refresh failed.',

@@ -2,6 +2,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import { supabase } from '../lib/supabase';
 import { saveAppleIdForCurrentUser } from './profileService';
+import { recordCurrentLegalAcceptance } from './authService';
 
 export type SocialAuthProvider = 'google' | 'apple';
 
@@ -150,6 +151,7 @@ export async function signInWithApple() {
 
     try {
       await persistAppleProfileMetadata(credential.fullName, credential.user);
+      await recordCurrentLegalAcceptance();
     } catch (profileError) {
       console.warn('Apple profile metadata persistence failed', profileError);
     }

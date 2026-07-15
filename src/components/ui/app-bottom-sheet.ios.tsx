@@ -4,6 +4,7 @@ import { BottomSheet, Group, Host, RNHostView } from '@expo/ui/swift-ui';
 import {
   presentationDetents,
   presentationDragIndicator,
+  type ModifierConfig,
   type PresentationDetent,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SnapPoint } from '@expo/ui';
@@ -24,9 +25,11 @@ function snapPointToDetent(snapPoint: SnapPoint): PresentationDetent {
 }
 
 /**
- * iOS: swift-ui BottomSheet with RNHostView matchContents.
- * Avoid universal BottomSheet here — its Group adds `frame(maxWidth: Infinity)`, which makes
- * fitToContents measure the fallback `.medium` detent (~50% screen) instead of RN content height.
+ * Native iOS BottomSheet following Expo's React Native content pattern:
+ * `fitToContents` + `Group` + `RNHostView matchContents`.
+ *
+ * The presentation background is intentionally untouched so iOS can render
+ * its system translucent material (Liquid Glass on iOS 26).
  */
 export function AppBottomSheet({
   isPresented,
@@ -37,28 +40,29 @@ export function AppBottomSheet({
   showDragIndicator = true,
 }: AppBottomSheetProps) {
   const hasSnapPoints = Boolean(snapPoints?.length);
-
-  const groupModifiers = [
+  const groupModifiers: ModifierConfig[] = [
     presentationDragIndicator(showDragIndicator ? 'visible' : 'hidden'),
-    ...(hasSnapPoints ? [presentationDetents(snapPoints!.map(snapPointToDetent))] : []),
   ];
 
+  if (hasSnapPoints) {
+    groupModifiers.push(presentationDetents(snapPoints!.map(snapPointToDetent)));
+  }
+
   const hostedContent = (
-    <View style={hasSnapPoints ? styles.flexContent : styles.matchContent}>{children}</View>
+    <View style={hasSnapPoints ? styles.flexContent : styles.compactContent}>{children}</View>
   ) as ReactElement;
 
   return (
-    <Host style={{ position: 'absolute' }} pointerEvents="none">
+    <Host style={styles.host} pointerEvents="none">
       <BottomSheet
         isPresented={isPresented}
-        onIsPresentedChange={(presented) => {
-          if (!presented) onDismiss();
-        }}
+        onIsPresentedChange={() => undefined}
+        onDismiss={onDismiss}
         fitToContents={!hasSnapPoints}
         testID={testID}
       >
         <Group modifiers={groupModifiers}>
-          {hasSnapPoints ? hostedContent : <RNHostView matchContents>{hostedContent}</RNHostView>}
+          <RNHostView matchContents={!hasSnapPoints}>{hostedContent}</RNHostView>
         </Group>
       </BottomSheet>
     </Host>
@@ -66,15 +70,19 @@ export function AppBottomSheet({
 }
 
 const styles = StyleSheet.create({
-  matchContent: {
+  host: {
+    position: 'absolute',
+  },
+  compactContent: {
     alignSelf: 'stretch',
     width: '100%',
     flexGrow: 0,
     flexShrink: 0,
+    backgroundColor: 'transparent',
   },
   flexContent: {
-    alignSelf: 'stretch',
-    width: '100%',
     flex: 1,
+    width: '100%',
+    backgroundColor: 'transparent',
   },
 });
