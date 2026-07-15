@@ -65,9 +65,5 @@ jobs:
       build_id: ${{ needs.build_ios.outputs.build_id }}
       profile: production
       internal_groups: ['NiX Internal QA']
-      changelog: |
-        NiX 1.0.0 — first internal QA build.
-        Test email registration/login and Sign in with Apple (Google is not active), 16+ onboarding, username and QR friend flows, photo/video capture and upload, offline/resume, report/block/unblock, moderation, push notifications if enabled, and account deletion.
-        Verify denial and later granting of camera, microphone, photos and notifications. Sentry is installed but hard-disabled; report crashes through TestFlight feedback.
       submit_beta_review: false
       wait_processing_timeout_seconds: 1800
