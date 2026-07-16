@@ -7,8 +7,6 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import type { VideoThumbnail } from 'expo-video';
 import { StatusBar } from 'expo-status-bar';
 import Animated, {
-  FadeIn,
-  FadeOut,
   useSharedValue,
   useAnimatedStyle,
   cancelAnimation,
@@ -29,6 +27,7 @@ import { configureForPlayback } from '../lib/audioSession';
 import { trackEvent } from '../lib/telemetry';
 import { tap } from '../lib/haptics';
 import { generateVideoThumbnailAtTime } from '../lib/videoThumbnails';
+import { disableViewerCaptureProtection } from '../lib/viewerCaptureProtection';
 import {
   DEFAULT_NIX_VIEW_DURATION_SEC,
   loadPreferredNixViewDuration,
@@ -402,7 +401,7 @@ function PreviewVideoContent({
   }, [current.uri, clipKey, videoState.clipIndex]);
 
   return (
-    <Animated.View style={styles.container} exiting={FadeOut.duration(120)}>
+    <View style={styles.container}>
       <StatusBar style={statusBarStyle} hidden />
 
       <View style={[styles.timerHudShell, { top: insets.top + VIDEO_PREVIEW_TIMER_HUD_TOP }]}>
@@ -509,7 +508,7 @@ function PreviewVideoContent({
           />
         </View>
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -544,6 +543,12 @@ export default function PreviewScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    void disableViewerCaptureProtection().catch((error) => {
+      console.warn('Could not clear screen capture protection before preview', error);
+    });
+  }, []);
+
   if (mode === 'video') {
     if (!previewVideoSegments?.length) {
       return (
@@ -575,7 +580,7 @@ export default function PreviewScreen() {
   }
 
   return (
-    <Animated.View style={styles.container} entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)}>
+    <View style={styles.container}>
       <StatusBar style={statusBarStyle} hidden />
 
       <Image source={{ uri }} style={styles.image} contentFit="cover" cachePolicy="none" />
@@ -606,7 +611,7 @@ export default function PreviewScreen() {
           />
         </View>
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
