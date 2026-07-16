@@ -140,7 +140,7 @@ Stwierdzone wcześniej rozbieżności zostały usunięte:
 - pluginy `expo-audio` i `expo-video` jawnie wyłączają background playback/recording/PiP;
 - `expo-background-fetch`, `expo-task-manager`, serwis foreground udający background oraz wszystkie `UIBackgroundModes` usunięto;
 - `scripts/check-ios-config.mjs` blokuje powrót rozbieżności i zbędnych kluczy Face ID/local network.
-- 2026-07-16: OTA zostało aktywowane przez `expo-updates`, URL projektu EAS, politykę runtime `appVersion` i kanał `production`; wymaga nowego buildu natywnego 1.0.1.
+- 2026-07-16: OTA zostało aktywowane przez `expo-updates`, URL projektu EAS, jawny runtime `1.0.1` wymagany przez bare workflow i kanał `production`; wymaga nowego buildu natywnego 1.0.1.
 
 ### 4.3 React Doctor — 100/100 po naprawach
 

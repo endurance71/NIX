@@ -42,7 +42,7 @@ if (!plist.includes('<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>')) {
 }
 const expectedUpdatesUrl = `https://u.expo.dev/${app.extra?.eas?.projectId}`;
 if (app.updates?.url !== expectedUpdatesUrl) fail('updates.url must target the configured EAS project');
-if (app.runtimeVersion?.policy !== 'appVersion') fail('runtimeVersion must use the appVersion policy');
+if (app.runtimeVersion !== app.version) fail('runtimeVersion must match the app version in the bare workflow');
 if (!expoPlist.includes('<key>EXUpdatesEnabled</key>\n    <true/>')) fail('EXUpdatesEnabled must be true');
 if (!expoPlist.includes(`<key>EXUpdatesRuntimeVersion</key>\n    <string>${app.version}</string>`)) {
   fail('native EXUpdatesRuntimeVersion differs from app version');

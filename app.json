@@ -106,9 +106,7 @@
       "enableBsdiffPatchSupport": true,
       "url": "https://u.expo.dev/c7ada746-56ff-4e91-827c-8ec2686650b8"
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.1",
     "locales": {
       "en": "./src/locales/en/common.json",
       "pl": "./src/locales/pl/common.json"
