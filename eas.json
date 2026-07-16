@@ -10,7 +10,8 @@
       "env": {
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "SENTRY_DISABLE_XCODE_DEBUG_UPLOAD": "true"
-      }
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
@@ -20,7 +21,8 @@
       },
       "ios": {
         "resourceClass": "m-medium"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
@@ -31,7 +33,8 @@
       },
       "ios": {
         "resourceClass": "m-medium"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {

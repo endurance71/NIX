@@ -2,7 +2,7 @@
   "expo": {
     "name": "NiX",
     "slug": "nix-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "platforms": [
       "ios"
     ],
@@ -103,7 +103,11 @@
       "reactCompiler": true
     },
     "updates": {
-      "enableBsdiffPatchSupport": true
+      "enableBsdiffPatchSupport": true,
+      "url": "https://u.expo.dev/c7ada746-56ff-4e91-827c-8ec2686650b8"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     },
     "locales": {
       "en": "./src/locales/en/common.json",

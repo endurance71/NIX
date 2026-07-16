@@ -7,6 +7,9 @@ const production = eas.build?.production;
 const submit = eas.submit?.production?.ios;
 
 if (production?.environment !== 'production') failures.push('production build must use EAS environment production');
+if (production?.channel !== 'production') failures.push('production build must use the production OTA channel');
+if (eas.build?.preview?.channel !== 'preview') failures.push('preview build must use the preview OTA channel');
+if (eas.build?.development?.channel !== 'development') failures.push('development build must use the development OTA channel');
 if (production?.env?.SENTRY_DISABLE_AUTO_UPLOAD !== 'true') failures.push('Sentry source-map upload must be disabled');
 if (production?.env?.SENTRY_DISABLE_XCODE_DEBUG_UPLOAD !== 'true') failures.push('Sentry dSYM upload must be disabled');
 if ('SENTRY_DSN' in (production?.env ?? {})) failures.push('SENTRY_DSN must not be present');

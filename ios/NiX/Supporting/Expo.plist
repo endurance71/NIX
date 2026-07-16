@@ -7,8 +7,12 @@
     <key>EXUpdatesEnableBsdiffPatchSupport</key>
     <true/>
     <key>EXUpdatesEnabled</key>
-    <false/>
+    <true/>
     <key>EXUpdatesLaunchWaitMs</key>
     <integer>0</integer>
+    <key>EXUpdatesRuntimeVersion</key>
+    <string>1.0.1</string>
+    <key>EXUpdatesURL</key>
+    <string>https://u.expo.dev/c7ada746-56ff-4e91-827c-8ec2686650b8</string>
   </dict>
 </plist>

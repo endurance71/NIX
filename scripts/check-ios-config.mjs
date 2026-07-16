@@ -3,6 +3,7 @@ import { assertSentryDisabled } from './check-sentry-disabled.mjs';
 
 const app = JSON.parse(readFileSync(new URL('../app.json', import.meta.url), 'utf8')).expo;
 const plist = readFileSync(new URL('../ios/NiX/Info.plist', import.meta.url), 'utf8');
+const expoPlist = readFileSync(new URL('../ios/NiX/Supporting/Expo.plist', import.meta.url), 'utf8');
 const en = readFileSync(new URL('../ios/NiX/Supporting/en.lproj/InfoPlist.strings', import.meta.url), 'utf8');
 const pl = readFileSync(new URL('../ios/NiX/Supporting/pl.lproj/InfoPlist.strings', import.meta.url), 'utf8');
 const entitlements = readFileSync(new URL('../ios/NiX/NiX.entitlements', import.meta.url), 'utf8');
@@ -38,6 +39,16 @@ if (!plist.includes(`<key>CFBundleShortVersionString</key>\n\t<string>${app.vers
 }
 if (!plist.includes('<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>')) {
   fail('ITSAppUsesNonExemptEncryption must be false');
+}
+const expectedUpdatesUrl = `https://u.expo.dev/${app.extra?.eas?.projectId}`;
+if (app.updates?.url !== expectedUpdatesUrl) fail('updates.url must target the configured EAS project');
+if (app.runtimeVersion?.policy !== 'appVersion') fail('runtimeVersion must use the appVersion policy');
+if (!expoPlist.includes('<key>EXUpdatesEnabled</key>\n    <true/>')) fail('EXUpdatesEnabled must be true');
+if (!expoPlist.includes(`<key>EXUpdatesRuntimeVersion</key>\n    <string>${app.version}</string>`)) {
+  fail('native EXUpdatesRuntimeVersion differs from app version');
+}
+if (!expoPlist.includes(`<key>EXUpdatesURL</key>\n    <string>${expectedUpdatesUrl}</string>`)) {
+  fail('native EXUpdatesURL differs from app.json');
 }
 if (!project.includes(`PRODUCT_BUNDLE_IDENTIFIER = ${app.ios.bundleIdentifier};`)) {
   fail('native PRODUCT_BUNDLE_IDENTIFIER differs from app.json');
