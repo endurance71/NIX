@@ -48,7 +48,3 @@ export function enableViewerCaptureProtection() {
 export function disableViewerCaptureProtection() {
   return enqueueTransition(disableNativeProtection);
 }
-
-export function __resetViewerCaptureProtectionForTests() {
-  transitionQueue = Promise.resolve();
-}

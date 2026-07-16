@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as ScreenCapture from 'expo-screen-capture';
 import {
-  __resetViewerCaptureProtectionForTests,
   disableViewerCaptureProtection,
   enableViewerCaptureProtection,
 } from './viewerCaptureProtection';
@@ -28,7 +27,6 @@ function deferred() {
 
 describe('viewerCaptureProtection', () => {
   beforeEach(() => {
-    __resetViewerCaptureProtectionForTests();
     allowScreenCaptureAsync.mockReset().mockResolvedValue(undefined);
     disableAppSwitcherProtectionAsync.mockReset().mockResolvedValue(undefined);
     enableAppSwitcherProtectionAsync.mockReset().mockResolvedValue(undefined);
