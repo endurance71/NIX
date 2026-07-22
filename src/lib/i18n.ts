@@ -166,7 +166,8 @@ const resources = {
         removeAvatarConfirmMessage: 'Profil wróci do domyślnego obrazu.',
         missingUsername: 'brak_nazwy_użytkownika',
         myQrCode: 'Mój kod QR',
-        qrDescription: 'To jest stały kod QR Twojego profilu. Znajomy może go zeskanować, aby wysłać zaproszenie.',
+        qrDescription:
+          'Kod QR odświeża się automatycznie i jest ważny kilka minut. Znajomy może go zeskanować, aby wysłać zaproszenie.',
         qrGenerating: 'Generowanie kodu QR…',
         social: 'Społeczność',
         friendsTitle: 'Znajomi',
@@ -524,7 +525,8 @@ const resources = {
         removeAvatarConfirmMessage: 'Your profile will return to the default image.',
         missingUsername: 'missing_username',
         myQrCode: 'My QR code',
-        qrDescription: 'This is your permanent profile QR code. A friend can scan it to send you an invite.',
+        qrDescription:
+          'This QR code refreshes automatically and stays valid for a few minutes. A friend can scan it to send you an invite.',
         qrGenerating: 'Generating QR code…',
         social: 'Social',
         friendsTitle: 'Friends',

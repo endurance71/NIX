@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
 import { CameraView, BarcodeScanningResult, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect } from 'expo-router';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -35,14 +35,16 @@ export default function FriendScanQrScreen() {
   const scanInFlightRef = useRef(false);
   const handledSuccessRef = useRef(false);
 
-  useFocusEffect(() => {
-    setScanningLocked(false);
-    setLoading(false);
-    setSheetPresented(false);
-    setScannedData(null);
-    scanInFlightRef.current = false;
-    handledSuccessRef.current = false;
-  });
+  useFocusEffect(
+    useCallback(() => {
+      setScanningLocked(false);
+      setLoading(false);
+      setSheetPresented(false);
+      setScannedData(null);
+      scanInFlightRef.current = false;
+      handledSuccessRef.current = false;
+    }, [])
+  );
 
   const requestSheetDismiss = () => {
     setSheetPresented(false);
@@ -186,10 +188,21 @@ export default function FriendScanQrScreen() {
   }
 
   if (!permission.granted) {
+    const canAskAgain = permission.canAskAgain !== false;
     return (
       <View style={[styles.container, styles.center]}>
-        <NativeSectionCard title="Dostęp do kamery" subtitle="Aby skanować QR, potrzebny jest dostęp do kamery.">
-          <NativeButton label="Udziel dostępu" onPress={requestPermission} />
+        <NativeSectionCard
+          title="Dostęp do kamery"
+          subtitle={
+            canAskAgain
+              ? 'Aby skanować QR, potrzebny jest dostęp do kamery.'
+              : 'Dostęp do kamery został wcześniej odmówiony. Włącz go w Ustawieniach, aby skanować kody QR.'
+          }
+        >
+          <NativeButton
+            label={canAskAgain ? 'Udziel dostępu' : 'Otwórz Ustawienia'}
+            onPress={canAskAgain ? requestPermission : () => void Linking.openSettings()}
+          />
         </NativeSectionCard>
       </View>
     );
