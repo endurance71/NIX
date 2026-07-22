@@ -66,13 +66,41 @@ export async function getPushPermissionState() {
   return resolvePushPermissionState(await Notifications.getPermissionsAsync());
 }
 
+const IOS_PUSH_PERMISSIONS = {
+  allowAlert: true,
+  allowBadge: true,
+  allowSound: true,
+} as const;
+
 export async function requestPushPermission() {
   const current = await getPushPermissionState();
   if (current !== 'not_determined') return current;
   const next = await Notifications.requestPermissionsAsync({
-    ios: { allowAlert: true, allowBadge: false, allowSound: true },
+    ios: IOS_PUSH_PERMISSIONS,
   });
   return resolvePushPermissionState(next);
+}
+
+/** Re-request badge option for installs that were granted without allowBadge. */
+export async function ensureBadgePermission() {
+  if (Platform.OS !== 'ios') return;
+  const permissions = await Notifications.getPermissionsAsync();
+  if (resolvePushPermissionState(permissions) !== 'granted') return;
+  if (permissions.ios?.allowsBadge === true) return;
+  await Notifications.requestPermissionsAsync({ ios: IOS_PUSH_PERMISSIONS });
+}
+
+export async function syncAppIconBadge(count: number) {
+  if (Platform.OS !== 'ios') return;
+  try {
+    await Notifications.setBadgeCountAsync(Math.max(0, Math.floor(count)));
+  } catch (error) {
+    console.warn('App icon badge sync failed', error);
+  }
+}
+
+export async function clearAppIconBadge() {
+  await syncAppIconBadge(0);
 }
 
 function normalizeDeviceState(value: unknown): PushDeviceState {
@@ -131,6 +159,7 @@ export async function disableCurrentPushDevice(userId: string, reason: string) {
   });
   if (error) throw error;
   await setLocalPushDesired(userId, false);
+  await clearAppIconBadge();
 }
 
 export async function disableCurrentPushDeviceBeforeSignOut() {
@@ -143,6 +172,7 @@ export async function disableCurrentPushDeviceBeforeSignOut() {
     p_installation_id: installationId,
     p_reason: 'signed_out',
   });
+  await clearAppIconBadge();
 }
 
 export function openSystemNotificationSettings() {

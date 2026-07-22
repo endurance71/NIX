@@ -31,6 +31,16 @@ Use separate sender and receiver accounts from a controlled domain.
 - Confirm a control account outside the age cohort still works without an attestation;
   a QA cohort account must be blocked until it records the current 16+ attestation.
 
+## Push notifications
+
+Use two physical iPhones (or one device with two accounts across installs). Do not test push in Expo Go.
+
+- Enable notifications in Profile; confirm iOS permission prompt / Settings recovery after deny.
+- Send a new NiX: receiver gets a push in foreground, background and after cold start; tap opens inbox.
+- Send a friend request and accept it: both events deliver a push with the expected copy.
+- Confirm the Inbox tab badge shows the unread NiX count and clears after the message is viewed.
+- Confirm the app icon badge matches the unread NiX count; it updates after viewing a NiX (or returning to the app) and clears on sign-out / disabling push. Friend request or accept must not inflate the icon badge beyond unread NiXes.
+
 ## Diagnostics
 
 - Sentry must produce no breadcrumbs, envelopes, source-map upload or dSYM upload,

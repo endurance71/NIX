@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { PushNotificationsContext, type PushNotificationUiState } from './pushNotifications';
 import {
   disableCurrentPushDevice,
+  ensureBadgePermission,
   getInstallationId,
   getLocalPushDesired,
   getPushDeviceState,
@@ -34,7 +35,7 @@ import { trackEvent } from '../lib/telemetry';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldPlaySound: true,
-    shouldSetBadge: false,
+    shouldSetBadge: true,
     shouldShowBanner: true,
     shouldShowList: true,
   }),
@@ -77,12 +78,14 @@ async function refreshPushNotificationState(
       return;
     }
     if (permission === 'granted' && desired && !remote.enabled) {
+      await ensureBadgePermission();
       await registerCurrentPushDevice(userId);
       setState('enabled');
       return;
     }
     if (permission === 'granted' && remote.enabled) {
       if (!desired) await setLocalPushDesired(userId, true);
+      await ensureBadgePermission();
       setState('enabled');
       return;
     }
@@ -170,6 +173,7 @@ export function PushNotificationsProvider({
           return;
         }
         await registerCurrentPushDevice(userId);
+        await ensureBadgePermission();
         setState('enabled');
         trackEvent('push_device_toggle', { enabled: true });
       } catch (error) {

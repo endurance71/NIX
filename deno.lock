@@ -43,6 +43,7 @@
         "npm:expo-secure-store@~57.0.1",
         "npm:expo-splash-screen@~57.0.4",
         "npm:expo-status-bar@~57.0.1",
+        "npm:expo-updates@~57.0.7",
         "npm:expo-video@~57.0.1",
         "npm:expo@~57.0.6",
         "npm:graphemer@^1.4.0",

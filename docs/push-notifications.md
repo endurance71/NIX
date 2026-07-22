@@ -10,17 +10,15 @@ NiX używa `expo-notifications`, Expo Push Service oraz dwóch Supabase Edge Fun
 4. Wdróż funkcje:
    - `supabase functions deploy push-dispatch`
    - `supabase functions deploy push-receipts`
-5. W Supabase Database Webhooks utwórz webhook `push-jobs-dispatch`:
-   - tabela `push_notification_jobs`, zdarzenie `INSERT`;
-   - Edge Function `push-dispatch`, metoda `POST`, timeout co najmniej 5 s;
-   - nagłówek Authorization z service role key.
-6. W Supabase Cron skonfiguruj wywołania z service-role Authorization:
-   - `push-dispatch` co minutę — fallback dla zaległych i retry;
-   - `push-receipts` co 5 minut;
-   - `select public.prune_push_notification_history()` raz dziennie.
+5. Włącz pipeline dispatch (migracja `20260722193000_enable_push_dispatch_pipeline.sql`):
+   - trigger `push_jobs_dispatch_webhook` na `INSERT` do `push_notification_jobs` → `private.invoke_push_dispatch()` (`pg_net`, timeout 5 s);
+   - Cron `push-dispatch` co minutę, `push-receipts` co 5 minut, `prune-push-notification-history` raz dziennie;
+   - w Vault ustaw sekret `push_dispatch_service_role` = service role JWT (Authorization Bearer).
+6. Przed pierwszym włączeniem dispatch oznacz zaległe `pending` joby jako `skipped`, żeby nie floodować starymi zdarzeniami.
 7. Skonfiguruj Apple Push Notifications key przez `eas credentials`, a następnie wykonaj nowy development build i production/TestFlight build. Push nie należy testować w Expo Go.
+8. Production/TestFlight: potwierdź `aps-environment=production` w podpisanych entitlements IPA (w repo `ios/NiX/NiX.entitlements` może zostać `development` dla lokalnych buildów — EAS nadpisuje przy store/TF).
 
-Nie zapisuj `EXPO_ACCESS_TOKEN` ani service role key w repozytorium. Funkcje odrzucają wywołania bez dokładnego tokenu service role.
+Nie zapisuj `EXPO_ACCESS_TOKEN` ani service role key w repozytorium. Funkcje wymagają Bearera service-role (dokładny klucz albo JWT z `role=service_role` po weryfikacji bramy).
 
 ## Walidacja
 
@@ -28,6 +26,8 @@ Nie zapisuj `EXPO_ACCESS_TOKEN` ani service role key w repozytorium. Funkcje odr
 - Sprawdź zgodę, odmowę, ponowne włączenie przez Ustawienia iOS i przełącznik w Profilu.
 - Dla każdego typu zdarzenia sprawdź foreground, background i cold start.
 - Sprawdź dwa konta na jednej instalacji oraz jedno konto na dwóch instalacjach.
+- Badge ikony aplikacji = liczba nieprzeczytanych NiXów (jak tab Inbox): klient syncuje przez `setBadgeCountAsync`, a `push-dispatch` ustawia `badge` w payloadzie Expo na bieżące unread. Friend request/accept nie zawyżają badge.
+- Po wylogowaniu lub wyłączeniu push badge ikony wraca do 0.
 - Po 15–20 minutach sprawdź `push_notification_deliveries`; `DeviceNotRegistered` musi dezaktywować urządzenie.
 
 ## Monitoring i awaryjne wyłączenie

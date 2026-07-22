@@ -86,6 +86,16 @@ Deno.serve(async (req) => {
         await markJob(job, 'dispatched', null);
         return;
       }
+
+      const { count: unreadCount, error: unreadError } = await client
+        .from('nixes')
+        .select('id', { count: 'exact', head: true })
+        .eq('receiver_id', job.recipient_id)
+        .eq('status', 'sent')
+        .neq('is_viewed', true);
+      if (unreadError) throw unreadError;
+      const badge = unreadCount ?? 0;
+
       const username = actor?.username ?? 'nix_user';
       let retryableFailure: string | null = null;
 
@@ -94,6 +104,7 @@ Deno.serve(async (req) => {
         const messages = batch.map((device) => ({
           to: device.expo_push_token,
           sound: 'default',
+          badge,
           ...pushCopy(job.event_type, username, device.locale),
           data: { version: 1, type: job.event_type, entityId: job.entity_id, actorId: job.actor_id },
         }));
