@@ -8,6 +8,7 @@ import {
   isSocialAuthNotConfiguredError,
 } from '../services/socialAuthService';
 import { tap, notify } from '../lib/haptics';
+import { runWithFinally } from '../lib/runWithFinally';
 
 function getAppleSignInErrorMessage(message: string, t: (key: string) => string) {
   if (message === APPLE_SIGN_IN_ERROR_CODES.NO_IDENTITY_TOKEN) {
@@ -95,20 +96,24 @@ export function useLoginScreen() {
     setLoading(true);
     setError(null);
     tap('medium');
-    try {
-      const { error: signInError } = await signIn(trimmedEmail, passwordValue);
+    await runWithFinally(
+      async () => {
+        try {
+          const { error: signInError } = await signIn(trimmedEmail, passwordValue);
 
-      if (signInError) {
-        setError(getAuthErrorMessage(signInError.message, t));
-        notify('error');
-      } else {
-        notify('success');
-      }
-    } catch (cause) {
-      setError(getAuthErrorMessage(cause instanceof Error ? cause.message : String(cause), t));
-      notify('error');
-    }
-    setLoading(false);
+          if (signInError) {
+            setError(getAuthErrorMessage(signInError.message, t));
+            notify('error');
+          } else {
+            notify('success');
+          }
+        } catch (cause) {
+          setError(getAuthErrorMessage(cause instanceof Error ? cause.message : String(cause), t));
+          notify('error');
+        }
+      },
+      () => setLoading(false)
+    );
   };
 
   const handleAppleSignIn = async () => {
@@ -118,25 +123,29 @@ export function useLoginScreen() {
     setAppleLoading(true);
     tap('medium');
 
-    try {
-      const { data, error: appleError } = await signInWithApple();
+    await runWithFinally(
+      async () => {
+        try {
+          const { data, error: appleError } = await signInWithApple();
 
-      if (appleError) {
-        if (isSocialAuthNotConfiguredError(appleError.message)) {
-          setError(t('auth.socialAuthNotConfiguredApple'));
-          notify('error');
-        } else {
-          setError(getAppleSignInErrorMessage(appleError.message, t));
+          if (appleError) {
+            if (isSocialAuthNotConfiguredError(appleError.message)) {
+              setError(t('auth.socialAuthNotConfiguredApple'));
+              notify('error');
+            } else {
+              setError(getAppleSignInErrorMessage(appleError.message, t));
+              notify('error');
+            }
+          } else if (data?.session) {
+            notify('success');
+          }
+        } catch (cause) {
+          setError(getAppleSignInErrorMessage(cause instanceof Error ? cause.message : String(cause), t));
           notify('error');
         }
-      } else if (data?.session) {
-        notify('success');
-      }
-    } catch (cause) {
-      setError(getAppleSignInErrorMessage(cause instanceof Error ? cause.message : String(cause), t));
-      notify('error');
-    }
-    setAppleLoading(false);
+      },
+      () => setAppleLoading(false)
+    );
   };
 
   return {

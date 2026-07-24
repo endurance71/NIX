@@ -142,22 +142,26 @@ export function useChatScreen(peerId: string) {
       sortMessagesAscending([...old, optimisticMsg])
     );
 
-    try {
-      await sendTextMessage({
-        receiverId: peerId,
-        body: trimmed,
-        clientMessageId,
-      });
-      await invalidateChat();
-    } catch (error) {
-      queryClient.setQueryData<TextMessage[]>(queryKeys.textMessagesWithPeer(peerId), (old = []) =>
-        old.filter((m) => m.client_message_id !== clientMessageId)
-      );
-      notifyDomainError(error, t('chat.sendFailure'));
-      setInputBody(trimmed);
-      setComposerKey((key) => key + 1);
-    }
-    setSending(false);
+    await runWithFinally(
+      async () => {
+        try {
+          await sendTextMessage({
+            receiverId: peerId,
+            body: trimmed,
+            clientMessageId,
+          });
+          await invalidateChat();
+        } catch (error) {
+          queryClient.setQueryData<TextMessage[]>(queryKeys.textMessagesWithPeer(peerId), (old = []) =>
+            old.filter((m) => m.client_message_id !== clientMessageId)
+          );
+          notifyDomainError(error, t('chat.sendFailure'));
+          setInputBody(trimmed);
+          setComposerKey((key) => key + 1);
+        }
+      },
+      () => setSending(false)
+    );
   };
 
   const peerUsername = peerProfileQuery.data?.username ?? 'user';

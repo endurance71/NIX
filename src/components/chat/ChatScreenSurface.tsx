@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActionSheetIOS,
   ActivityIndicator,
@@ -374,11 +374,11 @@ function MessageBubble({
   const isOptimistic = message.id.startsWith('temp-') || Boolean(message.isSending);
 
   useEffect(() => {
-    focusShift.value = withSpring(isFocused ? BUBBLE_FOCUS_SHIFT : 0, appleUiSpring);
+    focusShift.set(withSpring(isFocused ? BUBBLE_FOCUS_SHIFT : 0, appleUiSpring));
   }, [isFocused, focusShift]);
 
   const focusStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: focusShift.value }],
+    transform: [{ translateY: focusShift.get() }],
   }));
 
   const openPickerFromBubble = () => {
@@ -498,20 +498,18 @@ function ReactionPickerOverlay({
 
   useEffect(() => {
     if (open) {
-      closing.value = 0;
-      progress.value = withSpring(1, appleUiSpring);
+      closing.set(0);
+      progress.set(withSpring(1, appleUiSpring));
       return;
     }
-    closing.value = 1;
+    closing.set(1);
     // Close idzie do scale≈0 (nie do 0.55) — inaczej pasek „stoi” w miniaturze i dopiero unmount.
-    progress.value = withTiming(
-      0,
-      { duration: 180, easing: Easing.out(Easing.cubic) },
-      (finished) => {
+    progress.set(
+      withTiming(0, { duration: duration.medium, easing: Easing.out(Easing.cubic) }, (finished) => {
         if (finished) {
           runOnJS(onExited)();
         }
-      }
+      })
     );
   }, [open, onExited, progress, closing]);
 
@@ -520,8 +518,8 @@ function ReactionPickerOverlay({
    * Open: 0.55→1. Close: 1→0 (ten sam progress=1 na styku, bez skoku).
    */
   const barStyle = useAnimatedStyle(() => {
-    const p = Math.min(1, Math.max(0, progress.value));
-    const scale = closing.value === 1 ? p : 0.55 + p * 0.45;
+    const p = Math.min(1, Math.max(0, progress.get()));
+    const scale = closing.get() === 1 ? p : 0.55 + p * 0.45;
     return {
       transform: [
         { scale },
@@ -761,33 +759,34 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     return () => cancelAnimationFrame(id);
   }, [timeline.length]);
 
-  const requestClosePicker = useCallback(() => {
+  const requestClosePicker = () => {
     setPickerOpen(false);
-  }, []);
+  };
 
-  const finishClosePicker = useCallback(() => {
+  const finishClosePicker = () => {
     setPicker(null);
     setPickerOpen(false);
-  }, []);
+  };
 
-  const openPickerForMessage = useCallback(
-    (message: OptimisticTextMessage, isOwn: boolean, layout: BubbleWindowLayout) => {
-      rootRef.current?.measureInWindow((rootX, rootY, rootW) => {
-        const rootWidth = rootW > 0 ? rootW : layout.width;
-        setPicker({
-          messageId: message.id,
-          isOwn,
-          x: layout.x - rootX,
-          y: layout.y - rootY,
-          width: layout.width,
-          height: layout.height,
-          rootWidth,
-        });
-        setPickerOpen(true);
+  const openPickerForMessage = (
+    message: OptimisticTextMessage,
+    isOwn: boolean,
+    layout: BubbleWindowLayout
+  ) => {
+    rootRef.current?.measureInWindow((rootX, rootY, rootW) => {
+      const rootWidth = rootW > 0 ? rootW : layout.width;
+      setPicker({
+        messageId: message.id,
+        isOwn,
+        x: layout.x - rootX,
+        y: layout.y - rootY,
+        width: layout.width,
+        height: layout.height,
+        rootWidth,
       });
-    },
-    []
-  );
+      setPickerOpen(true);
+    });
+  };
 
   const openReportSheet = (message: OptimisticTextMessage) => {
     const reasons = vm.reportReasons;
@@ -852,10 +851,11 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
             estimatedItemSize={56}
             keyExtractor={(item) => item.id}
             getItemType={(item) => item.type}
-            // Manual paddingTop compensates for headerTransparent — automatic would
-            // double-apply top inset on scroll and jump content to mid-screen.
+            // Manual inset compensates for headerTransparent — contentInset
+            // shifts without reflowing rows (avoids jump vs dynamic padding*).
             contentInsetAdjustmentBehavior="never"
-            contentContainerStyle={{ paddingTop: listTopInset, paddingBottom: listBottomInset }}
+            contentInset={{ top: listTopInset, bottom: listBottomInset }}
+            contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
             onScrollBeginDrag={requestClosePicker}
@@ -930,6 +930,9 @@ const styles = StyleSheet.create({
   },
   listArea: {
     flex: 1,
+  },
+  listContent: {
+    flexGrow: 1,
   },
   row: {
     width: '100%',

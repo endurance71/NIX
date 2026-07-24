@@ -47,7 +47,7 @@ jobs:
       - name: React Doctor (full, zero warnings)
         run: npm run doctor:react:ci
       - name: React Doctor (new issues)
-        run: npm run doctor:react:changed -- --base HEAD~1 --blocking error --no-score
+        run: npm run doctor:react:changed -- --base main --blocking error --no-score
       - name: Internal TestFlight configuration
         run: npm run check:internal-testflight-config
       - name: Hermes production export

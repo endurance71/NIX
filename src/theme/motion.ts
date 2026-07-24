@@ -10,9 +10,6 @@ import { useReducedMotion } from 'react-native-reanimated';
  */
 export const appleUiSpring = { damping: 17, stiffness: 210, mass: 0.85 } as const;
 
-/** Szybszy spring do press scale (CTA) — mały bounce. */
-export const pressSpring = { damping: 28, stiffness: 420, mass: 0.7 } as const;
-
 export const duration = {
   /** Mikro-feedback, flash, short fades. */
   fast: 120,

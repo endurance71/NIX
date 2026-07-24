@@ -14,6 +14,7 @@ import { getCurrentUserProfile } from '../../../services/profileService';
 import { deleteCurrentAccount } from '../../../services/accountService';
 import { NativeSettingsActionRow } from '../../../components/ui/native-settings';
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
+import { runWithFinally } from '../../../lib/runWithFinally';
 
 export default function DeleteAccountScreen() {
   const { t } = useTranslation();
@@ -44,28 +45,34 @@ export default function DeleteAccountScreen() {
 
     setLoading(true);
     setError(null);
-    try {
-      await reauthenticateForAccountDeletion({
-        hasPassword,
-        email: user.email,
-        password,
-        signIn,
-        signInWithApple,
-      });
+    await runWithFinally(
+      async () => {
+        try {
+          await reauthenticateForAccountDeletion({
+            hasPassword,
+            email: user.email,
+            password,
+            signIn,
+            signInWithApple,
+          });
 
-      await deleteCurrentAccount();
-      await Promise.allSettled([
-        clearUploadQueueNixeshot(),
-        clearPendingViewedAcks(user.id),
-        clearMediaMemoryCache(),
-      ]);
-      queryClient.clear();
-      await signOut();
-      router.replace('/(auth)/login');
-    } catch (cause) {
-      setError(cause instanceof Error && cause.message ? cause.message : t('profile.deleteAccountFailed'));
-      setLoading(false);
-    }
+          await deleteCurrentAccount();
+          await Promise.allSettled([
+            clearUploadQueueNixeshot(),
+            clearPendingViewedAcks(user.id),
+            clearMediaMemoryCache(),
+          ]);
+          queryClient.clear();
+          await signOut();
+          router.replace('/(auth)/login');
+        } catch (cause) {
+          setError(
+            cause instanceof Error && cause.message ? cause.message : t('profile.deleteAccountFailed')
+          );
+        }
+      },
+      () => setLoading(false)
+    );
   };
 
   return (
