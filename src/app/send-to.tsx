@@ -20,6 +20,7 @@ import { toggleSetValue } from '../lib/selection';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { notifyError, notifySuccess } from '../lib/appNotify';
 import { selection, tap } from '../lib/haptics';
+import { runWithFinally } from '../lib/runWithFinally';
 import { usePushNotifications } from '../context/pushNotifications';
 import { APP_ICON_SIZE } from '../theme/app-icons';
 
@@ -189,33 +190,39 @@ export default function SendToSheet() {
     };
 
     let completed = false;
-    try {
-      await processBatchFromIndex(0);
+    await runWithFinally(
+      async () => {
+        try {
+          await processBatchFromIndex(0);
 
-      if (isVideo) clearSegments();
-      else clearPhotoUri();
-      void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
+          if (isVideo) clearSegments();
+          else clearPhotoUri();
+          void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
 
-      if (successCount > 0) {
-        notifySuccess(
-          'Wysyłka zakończona',
-          failureCount > 0 ? { message: `Błędy: ${failureCount}/${selectedCount}.` } : undefined
-        );
+          if (successCount > 0) {
+            notifySuccess(
+              'Wysyłka zakończona',
+              failureCount > 0 ? { message: `Błędy: ${failureCount}/${selectedCount}.` } : undefined
+            );
+          }
+          if (failureCount > 0) {
+            const firstFailureReason = failureReasons.values().next().value;
+            notifyError('Część wiadomości nie została wysłana', {
+              message: firstFailureReason ?? `Niepowodzenia: ${failureCount}/${selectedCount}.`,
+            });
+          }
+          completed = true;
+        } catch (err) {
+          notifyError('Wysyłka nie powiodła się', {
+            message: toDomainError(err, 'Spróbuj ponownie za chwilę.').message,
+          });
+        }
+      },
+      () => {
+        setIsSending(false);
+        sendLockRef.current = false;
       }
-      if (failureCount > 0) {
-        const firstFailureReason = failureReasons.values().next().value;
-        notifyError('Część wiadomości nie została wysłana', {
-          message: firstFailureReason ?? `Niepowodzenia: ${failureCount}/${selectedCount}.`,
-        });
-      }
-      completed = true;
-    } catch (err) {
-      notifyError('Wysyłka nie powiodła się', {
-        message: toDomainError(err, 'Spróbuj ponownie za chwilę.').message,
-      });
-    }
-    setIsSending(false);
-    sendLockRef.current = false;
+    );
     if (!completed) return;
 
     router.dismissAll();

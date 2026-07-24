@@ -56,11 +56,6 @@ export default {
         rules: ['react-doctor/no-array-index-as-key'],
       },
       {
-        // Success path navigates away / signs out; loading reset lives in catch only.
-        files: ['src/app/(tabs)/profile/delete-account.tsx'],
-        rules: ['react-doctor/no-loading-flag-reset-outside-finally'],
-      },
-      {
         // Public helpers exercised by unit tests; react-doctor import graph misses test files.
         // Intl formatters are created once per locale/options key via module-level Map cache.
         files: ['src/lib/chatTimeline.ts'],
@@ -71,19 +66,7 @@ export default {
         rules: ['deslop/unused-export'],
       },
       {
-        // FlashList bottom inset tracks keyboard/composer height; contentInset is not available on FlashList the same way.
-        files: ['src/components/chat/ChatScreenSurface.tsx'],
-        rules: [
-          'react-doctor/rn-scrollview-dynamic-padding',
-          'react-doctor/react-compiler-no-manual-memoization',
-        ],
-      },
-      {
-        // Press scale uses Reanimated shared values; Gesture.Tap refactor deferred to keep Glass send hit targets stable.
-        files: ['src/components/ui/pressable-scale.tsx'],
-        rules: ['react-doctor/rn-pressable-shared-value-mutation'],
-      },
-      {
+        // Exercised by unit tests; react-doctor import graph misses *.test.ts.
         files: ['src/services/messageReactionService.ts'],
         rules: ['deslop/unused-export'],
       },

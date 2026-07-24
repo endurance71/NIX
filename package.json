@@ -20,7 +20,7 @@
     "deno:check": "npx -y deno check --lock=deno.lock supabase/functions/_shared/http.ts supabase/functions/_shared/service-auth.ts supabase/functions/_shared/push.ts supabase/functions/cleanup-nix/index.ts supabase/functions/delete-account/index.ts supabase/functions/report-content/index.ts supabase/functions/block-user/index.ts supabase/functions/moderation-admin/index.ts supabase/functions/cleanup-moderation-evidence/index.ts supabase/functions/push-dispatch/index.ts supabase/functions/push-receipts/index.ts",
     "deno:test": "npx -y deno test --lock=deno.lock supabase/functions/_shared/http_test.ts supabase/functions/_shared/service-auth_test.ts",
     "doctor:react": "react-doctor . --verbose",
-    "doctor:react:ci": "react-doctor . --verbose --blocking error --no-score",
+    "doctor:react:ci": "react-doctor . --verbose --blocking warning --no-score",
     "doctor:react:score": "react-doctor . --score",
     "doctor:react:changed": "react-doctor . --verbose --scope changed --include-untracked",
     "postinstall": "patch-package"

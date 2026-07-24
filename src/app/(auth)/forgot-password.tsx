@@ -11,6 +11,7 @@ import {
 } from '../../components/ui/auth-form-layout';
 import { AuthLabeledField } from '../../components/ui/auth-labeled-field';
 import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
+import { runWithFinally } from '../../lib/runWithFinally';
 
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();
@@ -32,18 +33,22 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     setError(null);
-    try {
-      const { error: resetError } = await requestPasswordReset(cleanedEmail);
+    await runWithFinally(
+      async () => {
+        try {
+          const { error: resetError } = await requestPasswordReset(cleanedEmail);
 
-      if (resetError) {
-        setError(resetError.message);
-      } else {
-        router.replace({ pathname: '/(auth)/check-email', params: { email: cleanedEmail, mode: 'recovery' } });
-      }
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-    setLoading(false);
+          if (resetError) {
+            setError(resetError.message);
+          } else {
+            router.replace({ pathname: '/(auth)/check-email', params: { email: cleanedEmail, mode: 'recovery' } });
+          }
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : String(cause));
+        }
+      },
+      () => setLoading(false)
+    );
   };
 
   return (
