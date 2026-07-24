@@ -10,6 +10,8 @@ import {
   TextInput,
   useWindowDimensions,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import {
   GlassView,
@@ -26,10 +28,12 @@ import Animated, {
   Easing,
   runOnJS,
   useAnimatedKeyboard,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 import type { ChatScreenViewModel, OptimisticTextMessage } from '../../hooks/useChatScreen';
 import { useAppTheme } from '../../hooks/useAppTheme';
@@ -54,6 +58,8 @@ type ChatScreenSurfaceProps = {
 
 export type ChatComposerProps = {
   vm: ChatScreenViewModel;
+  keyboardHeight: SharedValue<number>;
+  restingPad: number;
 };
 
 type BubbleWindowLayout = {
@@ -78,8 +84,30 @@ const BUBBLE_CORNER_RADIUS = 18;
 const BUBBLE_MAX_WIDTH_RATIO = 0.72;
 const COMPOSER_CONTROL_SIZE = 44;
 const COMPOSER_CONTENT_HEIGHT = 78;
+/** Minimalny pad composera przy otwartej klawiaturze (nad klawiaturą). */
+const COMPOSER_KEYBOARD_PAD = 8;
 /** Soft scroll-edge fade nad composerem (zamiast Stack.Toolbar). */
 const COMPOSER_EDGE_FADE_EXTRA = 28;
+
+/**
+ * Wspólne, zaokrąglone metryki klawiatury — margin listy i pad composera
+ * muszą pochodzić z tych samych liczb (inaczej ~1–2 px skoku na końcu).
+ *
+ * - marginBottom = kb → kurczy box z absolute composerem nad klawiaturą
+ *   (paddingBottom rodzica NIE rusza absolute children w RN)
+ * - composerPad = inset - kb → safe-area w spoczynku, 8 px nad klawiaturą
+ */
+function chatKeyboardMetrics(keyboardHeight: number, restingPad: number) {
+  'worklet';
+  const kb = Math.round(Math.max(0, keyboardHeight));
+  const rest = Math.round(restingPad);
+  const inset = Math.max(rest, kb + COMPOSER_KEYBOARD_PAD);
+  return {
+    marginBottom: kb,
+    composerPad: inset - kb,
+    lift: inset - rest,
+  };
+}
 const REACTION_BADGE_SIZE = 28;
 /** Ile miejsca nad dymkiem rezerwujemy na badge (żeby nie nachodził na poprzednią wiadomość). */
 const REACTION_BADGE_OVERHANG = Math.ceil(REACTION_BADGE_SIZE * 0.55);
@@ -625,31 +653,26 @@ function DateSeparator({ label }: { label: string }) {
 }
 
 /**
- * Overlay nad FlashList — `GlassView` (expo-glass-effect) sampluje bąbelki pod spodem.
- * Pozycja względem klawiatury: `useAnimatedKeyboard` (UI thread; bez KAV —
- * KAV + absolute composer zostawia szary pas). Bez opacity na GlassView.
+ * Overlay nad FlashList — `GlassView` sampluje bąbelki pod spodem.
+ * Rodzic: marginBottom = kb. Tu: paddingBottom = safe-area / min. pad nad KB.
  */
-function ChatComposer({ vm }: ChatComposerProps) {
+function ChatComposer({ vm, keyboardHeight, restingPad }: ChatComposerProps) {
   const { colors } = useAppTheme();
-  const { bottomContentInset } = useScreenInsets('stackHeader');
   const canSend = Boolean(vm.inputBody.trim()) && !vm.sending;
   const useGlass = canUseLiquidGlass();
-  const keyboard = useAnimatedKeyboard();
-  const restingPad = Math.max(bottomContentInset, 10);
 
   const composerStyle = useAnimatedStyle(() => {
-    const kb = keyboard.height.value;
+    const { composerPad } = chatKeyboardMetrics(keyboardHeight.value, restingPad);
     return {
-      bottom: kb,
-      paddingBottom: kb > 0.5 ? 8 : restingPad,
+      bottom: 0,
+      paddingBottom: composerPad,
     };
   });
 
   const edgeFadeStyle = useAnimatedStyle(() => {
-    const kb = keyboard.height.value;
-    const pad = kb > 0.5 ? 8 : restingPad;
+    const { composerPad } = chatKeyboardMetrics(keyboardHeight.value, restingPad);
     return {
-      height: COMPOSER_CONTENT_HEIGHT + pad + COMPOSER_EDGE_FADE_EXTRA,
+      height: COMPOSER_CONTENT_HEIGHT + composerPad + COMPOSER_EDGE_FADE_EXTRA,
     };
   });
 
@@ -745,11 +768,52 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
   const isEmpty = vm.messages.length === 0 && vm.nixes.length === 0;
   const listRef = useRef<FlashListRef<ChatTimelineItem<UnifiedChatTextMessage>>>(null);
   const rootRef = useRef<View>(null);
+  const scrollOffsetRef = useRef(0);
+  const restingPad = Math.max(bottomContentInset, 10);
   const listTopInset = top + STACK_NAV_BAR_HEIGHT + 8;
-  const listBottomInset =
-    COMPOSER_CONTENT_HEIGHT + Math.max(bottomContentInset, 10) + COMPOSER_EDGE_FADE_EXTRA;
+  const listBottomInset = COMPOSER_CONTENT_HEIGHT + restingPad + COMPOSER_EDGE_FADE_EXTRA;
+  const keyboard = useAnimatedKeyboard();
   const [picker, setPicker] = useState<ReactionPickerState | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  const listAreaStyle = useAnimatedStyle(() => {
+    const { marginBottom } = chatKeyboardMetrics(keyboard.height.value, restingPad);
+    return { marginBottom };
+  });
+
+  /**
+   * Offset listy w momencie startu unoszenia composera.
+   * Scroll = base + lift z tych samych zaokrąglonych metryk co layout.
+   */
+  const scrollBaseRef = useRef<number | null>(null);
+
+  const applyKeyboardScroll = (keyboardHeight: number) => {
+    const { lift } = chatKeyboardMetrics(keyboardHeight, restingPad);
+
+    if (keyboardHeight < 0.5) {
+      scrollBaseRef.current = null;
+      return;
+    }
+
+    if (lift <= 0) return;
+
+    if (scrollBaseRef.current == null) {
+      scrollBaseRef.current = scrollOffsetRef.current;
+    }
+
+    const target = Math.max(0, scrollBaseRef.current + lift);
+    if (Math.abs(target - scrollOffsetRef.current) < 0.1) return;
+    scrollOffsetRef.current = target;
+    listRef.current?.scrollToOffset({ offset: target, animated: false });
+  };
+
+  useAnimatedReaction(
+    () => keyboard.height.value,
+    (current, previous) => {
+      if (previous == null && current < 0.5) return;
+      runOnJS(applyKeyboardScroll)(current);
+    }
+  );
 
   useEffect(() => {
     if (timeline.length === 0) return;
@@ -758,6 +822,10 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     });
     return () => cancelAnimationFrame(id);
   }, [timeline.length]);
+
+  const onListScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+  };
 
   const requestClosePicker = () => {
     setPickerOpen(false);
@@ -829,7 +897,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
       ref={rootRef}
       collapsable={false}
       style={[styles.root, { backgroundColor: colors.systemBackground }]}>
-      <View style={styles.listArea}>
+      <Animated.View style={[styles.listArea, listAreaStyle]}>
         {vm.messagesLoading ? (
           <View style={styles.centered}>
             <ActivityIndicator color={colors.label} />
@@ -860,6 +928,8 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
             ]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
+            onScroll={onListScroll}
+            scrollEventThrottle={16}
             onScrollBeginDrag={requestClosePicker}
             renderItem={({ item }) => {
               if (item.type === 'separator') {
@@ -896,8 +966,8 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
             }}
           />
         )}
-        <ChatComposer vm={vm} />
-      </View>
+        <ChatComposer vm={vm} keyboardHeight={keyboard.height} restingPad={restingPad} />
+      </Animated.View>
 
       {picker && pickerMessage ? (
         <ReactionPickerOverlay
@@ -1086,6 +1156,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
+    bottom: 0,
     paddingHorizontal: 12,
     paddingTop: 8,
     backgroundColor: 'transparent',
