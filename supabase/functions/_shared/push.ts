@@ -1,7 +1,7 @@
 export const EXPO_PUSH_SEND_URL = 'https://exp.host/--/api/v2/push/send';
 export const EXPO_PUSH_RECEIPTS_URL = 'https://exp.host/--/api/v2/push/getReceipts';
 
-export type PushEventType = 'new_nix' | 'friend_request' | 'friend_accepted';
+export type PushEventType = 'new_nix' | 'friend_request' | 'friend_accepted' | 'new_text_message';
 
 export type PushJob = {
   id: string;
@@ -34,10 +34,12 @@ export function pushCopy(type: PushEventType, actorLabel: string, locale: 'pl' |
   const actor = actorLabel.trim() || '@nix_user';
   if (locale === 'pl') {
     if (type === 'new_nix') return { title: 'NiX', body: `${actor} wysyła Ci nowy NiX` };
+    if (type === 'new_text_message') return { title: 'Wiadomość', body: `${actor} wysyła Ci wiadomość` };
     if (type === 'friend_request') return { title: 'Nowe zaproszenie', body: `${actor} chce dodać Cię do znajomych` };
     return { title: 'Nowa znajomość', body: `Ty i ${actor} jesteście teraz znajomymi` };
   }
   if (type === 'new_nix') return { title: 'NiX', body: `${actor} sent you a new NiX` };
+  if (type === 'new_text_message') return { title: 'Message', body: `${actor} sent you a message` };
   if (type === 'friend_request') return { title: 'New friend request', body: `${actor} wants to add you as a friend` };
   return { title: 'New friend', body: `You and ${actor} are now friends` };
 }
