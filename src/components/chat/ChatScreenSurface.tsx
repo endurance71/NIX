@@ -17,6 +17,7 @@ import {
   isGlassEffectAPIAvailable,
   isLiquidGlassAvailable,
 } from 'expo-glass-effect';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import type { SFSymbol } from 'sf-symbols-typescript';
@@ -39,6 +40,8 @@ const BUBBLE_CORNER_RADIUS = 18;
 const BUBBLE_MAX_WIDTH_RATIO = 0.72;
 const COMPOSER_CONTROL_SIZE = 44;
 const COMPOSER_CONTENT_HEIGHT = 78;
+/** Soft scroll-edge fade nad composerem (zamiast Stack.Toolbar). */
+const COMPOSER_EDGE_FADE_EXTRA = 48;
 
 function canUseLiquidGlass(): boolean {
   if (Platform.OS !== 'ios') return false;
@@ -189,6 +192,12 @@ export function ChatComposer({ vm }: ChatComposerProps) {
   const keyboardOpen = keyboardHeight > 0;
   const composerBottomPad = keyboardOpen ? 8 : Math.max(bottomContentInset, 10);
   const fallbackFill = { backgroundColor: colors.secondarySystemFill };
+  /**
+   * Jak scroll-edge pod headerem: tylko miękki fade do systemBackground.
+   * BlurView tu zbierał kolor bąbelków (fioletowy „glow”) — nie jak u góry.
+   */
+  const bg = colors.systemBackground.length >= 7 ? colors.systemBackground.slice(0, 7) : colors.systemBackground;
+  const edgeFadeHeight = COMPOSER_CONTENT_HEIGHT + composerBottomPad + COMPOSER_EDGE_FADE_EXTRA;
 
   const inputField = (
     <TextInput
@@ -214,6 +223,13 @@ export function ChatComposer({ vm }: ChatComposerProps) {
           paddingBottom: composerBottomPad,
         },
       ]}>
+      <LinearGradient
+        pointerEvents="none"
+        colors={[`${bg}00`, `${bg}D9`, `${bg}FF`]}
+        locations={[0, 0.4, 1]}
+        style={[styles.composerEdgeFade, { height: edgeFadeHeight }]}
+      />
+
       <View style={styles.composerRow}>
         {useGlass ? (
           <GlassView style={styles.inputGlass} glassEffectStyle="regular" isInteractive>
@@ -223,32 +239,32 @@ export function ChatComposer({ vm }: ChatComposerProps) {
           <View style={[styles.inputGlass, fallbackFill]}>{inputField}</View>
         )}
 
-        {/*
-          Glass i ikona to rodzeństwo w Pressable — Host/Image jako child GlassView
-          wyjeżdża poza środek (SwiftUI Host nie centruje się w UIVisualEffectView).
-        */}
         <Pressable
           onPress={() => void vm.handleSend()}
           disabled={!canSend}
           accessibilityRole="button"
           accessibilityLabel={vm.t('chat.send')}
-          style={[styles.sendHit, { opacity: canSend ? 1 : 0.4 }]}>
+          accessibilityState={{ disabled: !canSend }}>
           {useGlass ? (
-            <GlassView
-              style={styles.sendGlassBg}
-              glassEffectStyle="regular"
-              isInteractive
-              pointerEvents="none"
-            />
+            <GlassView style={styles.sendGlass} glassEffectStyle="regular" isInteractive>
+              <SymbolView
+                name={'arrow.up' as SFSymbol}
+                size={18}
+                tintColor={colors.accent}
+                weight="semibold"
+                style={{ opacity: canSend ? 1 : 0.4 }}
+              />
+            </GlassView>
           ) : (
-            <View style={[styles.sendGlassBg, fallbackFill]} pointerEvents="none" />
+            <View style={[styles.sendGlass, fallbackFill, { opacity: canSend ? 1 : 0.4 }]}>
+              <SymbolView
+                name={'arrow.up' as SFSymbol}
+                size={18}
+                tintColor={colors.accent}
+                weight="semibold"
+              />
+            </View>
           )}
-          <SymbolView
-            name={'arrow.up' as SFSymbol}
-            size={18}
-            tintColor={colors.accent}
-            weight="semibold"
-          />
         </Pressable>
       </View>
 
@@ -448,6 +464,12 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     backgroundColor: 'transparent',
   },
+  composerEdgeFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   composerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -466,17 +488,12 @@ const styles = StyleSheet.create({
     padding: 0,
     margin: 0,
   },
-  sendHit: {
+  sendGlass: {
     width: COMPOSER_CONTROL_SIZE,
     height: COMPOSER_CONTROL_SIZE,
     borderRadius: COMPOSER_CONTROL_SIZE / 2,
-    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  sendGlassBg: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: COMPOSER_CONTROL_SIZE / 2,
   },
   footerRow: {
     flexDirection: 'row',
