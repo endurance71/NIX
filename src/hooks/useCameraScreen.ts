@@ -272,19 +272,22 @@ export function useCameraScreen(): CameraScreenViewModel {
       lastZoomCommitMs.set(0);
     })
     .onUpdate((event) => {
+      'worklet';
       const nextZoom = Math.max(0, Math.min(1, zoomAtGestureStart.get() + (event.scale - 1) * 0.22));
       zoomShared.set(nextZoom);
-      // Commit do React state throttled (~30 Hz) — płynniejszy ProMotion niż runOnJS co klatkę.
-      const now = performance.now();
-      if (now - lastZoomCommitMs.get() >= 32) {
-        lastZoomCommitMs.set(now);
+      // Commit do React state co ~3. klatkę (~30 Hz przy 120) — bez Date/performance w ciele hooka.
+      const tick = lastZoomCommitMs.get() + 1;
+      lastZoomCommitMs.set(tick);
+      if (tick % 3 === 0) {
         runOnJS(setZoomFromGesture)(nextZoom);
       }
     })
     .onEnd(() => {
+      lastZoomCommitMs.set(0);
       runOnJS(setZoomFromGesture)(zoomShared.get());
     })
     .onFinalize(() => {
+      lastZoomCommitMs.set(0);
       runOnJS(setZoomFromGesture)(zoomShared.get());
     });
 

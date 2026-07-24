@@ -72,6 +72,8 @@ describe('mediaService', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
         blob: async () => blob,
         arrayBuffer: async () => blob.arrayBuffer(),
       })
@@ -97,6 +99,8 @@ describe('mediaService', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
         blob: async () => blob,
         arrayBuffer: async () => blob.arrayBuffer(),
       })

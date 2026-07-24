@@ -468,20 +468,29 @@ function ReactionPickerOverlay({
   /**
    * Przy wyborze emoji React batchuje: open=false + nowy selectedEmoji (kosz).
    * Bez snapshota pasek zmienia width/left w trakcie close → skok wyglądający jak scale.
+   * Aktualizacja snapshota w trakcie renderu gdy open (dozwolony pattern „adjusting state”).
    */
-  const layoutSnapshotRef = useRef({
+  const [frozenLayout, setFrozenLayout] = useState({
     left: liveLayout.left,
     barWidth: liveLayout.barWidth,
     selectedEmoji,
   });
   if (open) {
-    layoutSnapshotRef.current = {
-      left: liveLayout.left,
-      barWidth: liveLayout.barWidth,
-      selectedEmoji,
-    };
+    if (
+      frozenLayout.left !== liveLayout.left ||
+      frozenLayout.barWidth !== liveLayout.barWidth ||
+      frozenLayout.selectedEmoji !== selectedEmoji
+    ) {
+      setFrozenLayout({
+        left: liveLayout.left,
+        barWidth: liveLayout.barWidth,
+        selectedEmoji,
+      });
+    }
   }
-  const { left, barWidth, selectedEmoji: displayEmoji } = layoutSnapshotRef.current;
+  const { left, barWidth, selectedEmoji: displayEmoji } = open
+    ? { left: liveLayout.left, barWidth: liveLayout.barWidth, selectedEmoji }
+    : frozenLayout;
 
   const progress = useSharedValue(0);
   /** 0 = open curve (0.55→1), 1 = close curve (1→0). Bez skoku w momencie startu close. */

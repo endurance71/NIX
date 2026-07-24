@@ -15,6 +15,9 @@ const expected = [
   '20260724092500_update_public_profile_rpcs_add_display_name.sql',
   '20260724120000_add_text_messages_realtime_chat.sql',
   '20260724123000_schedule_cleanup_text_messages.sql',
+  '20260724150000_add_message_reactions.sql',
+  '20260724160000_add_message_reaction_push.sql',
+  '20260724170000_fix_enqueue_push_nested_table_guards.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();

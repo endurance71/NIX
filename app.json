@@ -97,7 +97,8 @@
       ],
       "@react-native-google-signin/google-signin",
       "./plugins/withIosXcodeSpacesInPathFix.js",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,

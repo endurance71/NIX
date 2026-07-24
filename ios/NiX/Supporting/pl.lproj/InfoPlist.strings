@@ -1,1 +1,4 @@
 appName = "NiX";
+"NSCameraUsageDescription" = "NiX używa aparatu do zdjęć i filmów, które wybierasz, by wysłać znajomym.";
+"NSMicrophoneUsageDescription" = "NiX używa mikrofonu do dźwięku w wiadomościach wideo, które wybierasz, by wysłać.";
+"NSPhotoLibraryUsageDescription" = "NiX używa biblioteki zdjęć, gdy wybierasz awatar albo zdjęcie lub film do wysłania znajomym.";
