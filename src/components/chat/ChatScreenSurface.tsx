@@ -1,4 +1,5 @@
 import { ActionSheetIOS, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { TextInput } from '@expo/ui';
 import {
   Button,
   ContentUnavailableView,
@@ -6,7 +7,6 @@ import {
   List,
   ProgressView,
   Text,
-  TextInput,
   VStack,
 } from '@expo/ui/swift-ui';
 import {
