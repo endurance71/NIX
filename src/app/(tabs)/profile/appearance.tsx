@@ -2,7 +2,8 @@ import { View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { RNHostView } from '@expo/ui';
+import { AccentAppearancePreview } from '../../../components/ui/accent-appearance-preview';
+import { AccentColorSwatch } from '../../../components/ui/accent-color-swatch';
 import {
   NativeSettingsRow,
   NativeSettingsSection,
@@ -20,6 +21,9 @@ export default function AppearanceScreen() {
   return (
     <>
       <SettingsListScreen>
+        <NativeSettingsSection>
+          <AccentAppearancePreview />
+        </NativeSettingsSection>
         <NativeSettingsSection title={t('profile.accentColorSectionTitle')}>
           {ACCENT_PRESETS.map((preset) => {
             const swatchColor = resolveAccentColor(preset.id, colorScheme);
@@ -28,18 +32,7 @@ export default function AppearanceScreen() {
               <NativeSettingsRow
                 key={preset.id}
                 title={t(preset.labelKey)}
-                leading={
-                  <RNHostView matchContents>
-                    <View
-                      style={{
-                        width: SWATCH_SIZE,
-                        height: SWATCH_SIZE,
-                        borderRadius: SWATCH_SIZE / 2,
-                        backgroundColor: swatchColor,
-                      }}
-                    />
-                  </RNHostView>
-                }
+                leading={<AccentColorSwatch color={swatchColor} size={SWATCH_SIZE} />}
                 trailing={
                   selected ? (
                     <SymbolView

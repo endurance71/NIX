@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { Button, FieldGroup, ListItem, RNHostView, Switch, Text } from '@expo/ui';
-import { Button as SwiftUIButton, HStack, SwipeActions, VStack } from '@expo/ui/swift-ui';
+import { Button as SwiftUIButton, HStack, Image as SwiftImage, SwipeActions, VStack } from '@expo/ui/swift-ui';
 import { SymbolView } from 'expo-symbols';
 import {
   font,
@@ -92,6 +92,12 @@ export function NativeSettingsRow({
   ) : (
     leading
   );
+  // Always SwiftImage for disclosure — SymbolView inside / beside SwiftUI accessories
+  // diverges in weight/tint from plain trailing chevrons.
+  const chevron = showsChevron ? (
+    <SwiftImage systemName="chevron.right" size={13} color={colors.tertiaryLabel} />
+  ) : null;
+
   const resolvedTrailing =
     typeof switchValue === 'boolean' && onSwitchValueChange ? (
       <Switch
@@ -101,10 +107,13 @@ export function NativeSettingsRow({
         modifiers={[tint(colors.accent)]}
         testID={testID ? `${testID}-switch` : undefined}
       />
-    ) : showsChevron ? (
-      <SymbolView name="chevron.right" size={13} tintColor={colors.tertiaryLabel} fallback={<View style={{ width: 13, height: 13 }} />} />
+    ) : trailing && chevron ? (
+      <HStack alignment="center" spacing={8}>
+        {trailing}
+        {chevron}
+      </HStack>
     ) : (
-      trailing
+      trailing ?? chevron
     );
 
   return (

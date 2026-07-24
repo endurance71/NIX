@@ -21,6 +21,8 @@ Dozwolona jest **wyłącznie** personalizacja tintu interaktywnego przez stałe 
 - **Nie** zmieniaj: tła, labele, destructive, success/warning/error, `buttonPrimaryBg`.
 - Light/dark **zawsze** z systemu — aplikacja nie wymusza trybu jasnego/ciemnego.
 - Preferencja jest lokalna na urządzeniu (AsyncStorage); bez sync konta w v1.
+- Wiersz „Kolor akcentu” na Profilu: ikona po lewej, **swatch koloru przy chevronie** (bez nazwy jako subtitle) — `AccentColorSwatch`.
+- Ekran Wygląd: **live preview** u góry (`AccentAppearancePreview`) + lista presetów; wybór od razu aktualizuje tint i podgląd.
 
 ## Zasady użycia
 

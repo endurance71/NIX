@@ -191,6 +191,7 @@ const resources = {
         appearanceTitle: 'Wygląd',
         accentColor: 'Kolor akcentu',
         accentColorSectionTitle: 'Kolor akcentu',
+        accentAppearancePreviewA11y: 'Podgląd koloru akcentu: {{color}}',
         accentPresets: {
           blue: 'Niebieski',
           indigo: 'Indygo',
@@ -583,6 +584,7 @@ const resources = {
         appearanceTitle: 'Appearance',
         accentColor: 'Accent color',
         accentColorSectionTitle: 'Accent color',
+        accentAppearancePreviewA11y: 'Accent color preview: {{color}}',
         accentPresets: {
           blue: 'Blue',
           indigo: 'Indigo',

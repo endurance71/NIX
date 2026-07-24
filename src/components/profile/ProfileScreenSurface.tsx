@@ -6,6 +6,7 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { useProfileScreen } from '../../hooks/useProfileScreen';
 import { registerTabScrollToTop } from '../../lib/tabBarScrollActions';
 import { HeaderQrButton } from '../navigation/header-qr-button';
+import { AccentColorSwatch } from '../ui/accent-color-swatch';
 import {
   NativeSettingsCenteredFooter,
   NativeSettingsRow,
@@ -15,7 +16,7 @@ import { SettingsListScreen } from '../ui/settings-list-screen';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
-  const { colors, accentPresetId } = useAppTheme();
+  const { colors } = useAppTheme();
   const appVersion = Constants.expoConfig?.version ?? vm.t('common.unknown');
   const socialSummary =
     vm.pendingInviteCount > 0
@@ -74,9 +75,9 @@ export default function ProfileScreenSurface() {
         <NativeSettingsSection title={vm.t('profile.appearanceSectionTitle')}>
           <NativeSettingsRow
             title={vm.t('profile.accentColor')}
-            supportingText={vm.t(`profile.accentPresets.${accentPresetId}`)}
             icon="paintpalette"
             iconColor={colors.accent}
+            trailing={<AccentColorSwatch color={colors.accent} />}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/appearance')}
             testID="profile-appearance"
