@@ -8,12 +8,15 @@ describe('push notification payload', () => {
     actorId: '22222222-2222-2222-2222-222222222222',
   } as const;
 
-  it.each(['new_nix', 'friend_request', 'friend_accepted', 'new_text_message'] as const)(
-    'accepts the supported %s payload',
-    (type) => {
-      expect(parsePushNotificationData({ ...base, type })).toEqual({ ...base, type });
-    }
-  );
+  it.each([
+    'new_nix',
+    'friend_request',
+    'friend_accepted',
+    'new_text_message',
+    'message_reaction',
+  ] as const)('accepts the supported %s payload', (type) => {
+    expect(parsePushNotificationData({ ...base, type })).toEqual({ ...base, type });
+  });
 
   it('rejects unknown or incomplete payloads', () => {
     expect(parsePushNotificationData({ ...base, type: 'marketing' })).toBeNull();
@@ -26,6 +29,10 @@ describe('push notification payload', () => {
     expect(routeForPushNotification({ ...base, type: 'friend_request' })).toBe('/(tabs)/inbox');
     expect(routeForPushNotification({ ...base, type: 'friend_accepted' })).toBe('/(tabs)/profile/friends');
     expect(routeForPushNotification({ ...base, type: 'new_text_message' })).toEqual({
+      pathname: '/chat/[peerId]',
+      params: { peerId: '22222222-2222-2222-2222-222222222222' },
+    });
+    expect(routeForPushNotification({ ...base, type: 'message_reaction' })).toEqual({
       pathname: '/chat/[peerId]',
       params: { peerId: '22222222-2222-2222-2222-222222222222' },
     });

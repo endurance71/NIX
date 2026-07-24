@@ -118,9 +118,10 @@ async function processPushNotificationResponse({
   const data = parsePushNotificationData(response.notification.request.content.data);
   if (!data) return;
   handledResponses.current.add(identifier);
-  if (data.type === 'new_text_message') {
+  if (data.type === 'new_text_message' || data.type === 'message_reaction') {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.textMessagesWithPeer(data.actorId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.messageReactionsWithPeer(data.actorId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.inboxActivityBundle }),
       queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
     ]);

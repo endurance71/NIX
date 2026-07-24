@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { formatPushActorLabel, pushCopy, retryAt } from './push';
+import { formatPushActorLabel, pushCopy, reactionGlyph, retryAt } from './push';
 
 describe('push Edge Function helpers', () => {
   it('formats actor label from display name with username fallback', () => {
@@ -23,6 +23,20 @@ describe('push Edge Function helpers', () => {
     expect(pushCopy('friend_accepted', formatPushActorLabel(null, 'ania'), 'pl').body).toBe(
       'Ty i @ania jesteście teraz znajomymi'
     );
+    expect(pushCopy('message_reaction', formatPushActorLabel(null, 'ania'), 'pl', 'heart')).toEqual({
+      title: 'Wiadomość',
+      body: '@ania zareagował(a): ❤️',
+    });
+    expect(pushCopy('message_reaction', formatPushActorLabel(null, 'ania'), 'en', 'hahaha')).toEqual({
+      title: 'Message',
+      body: '@ania reacted: 😂',
+    });
+  });
+
+  it('maps reaction emoji tokens to glyphs with a safe fallback', () => {
+    expect(reactionGlyph('thumbsup')).toBe('👍');
+    expect(reactionGlyph('unknown')).toBe('💬');
+    expect(reactionGlyph(null)).toBe('💬');
   });
 
   it('uses display name in localized copy when provided', () => {

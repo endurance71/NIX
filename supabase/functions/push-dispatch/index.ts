@@ -47,6 +47,25 @@ Deno.serve(async (req) => {
         .eq('id', job.entity_id).maybeSingle();
       return Boolean(row && row.sender_id === job.actor_id && row.receiver_id === job.recipient_id && new Date(row.expires_at).getTime() > Date.now());
     }
+    if (job.event_type === 'message_reaction') {
+      const { data: reaction } = await client.from('message_reactions').select('user_id, message_id, emoji')
+        .eq('id', job.entity_id).maybeSingle();
+      if (!reaction || reaction.user_id !== job.actor_id) return false;
+      const keyRest = job.event_key.startsWith('message_reaction:')
+        ? job.event_key.slice('message_reaction:'.length)
+        : '';
+      const emojiSep = keyRest.lastIndexOf(':');
+      const expectedEmoji = emojiSep >= 0 ? keyRest.slice(emojiSep + 1) : '';
+      // event_key = message_reaction:{reactionId}:{emoji} — stale if emoji already changed again
+      if (!expectedEmoji || reaction.emoji !== expectedEmoji) return false;
+      const { data: message } = await client.from('text_messages').select('sender_id, expires_at')
+        .eq('id', reaction.message_id).maybeSingle();
+      return Boolean(
+        message
+        && message.sender_id === job.recipient_id
+        && new Date(message.expires_at).getTime() > Date.now()
+      );
+    }
     const { data: row } = await client.from('friendships').select('user_id, friend_id, status')
       .eq('id', job.entity_id).maybeSingle();
     if (job.event_type === 'friend_request') {
@@ -103,6 +122,12 @@ Deno.serve(async (req) => {
       const badge = unreadCount ?? 0;
 
       const actorLabel = formatPushActorLabel(actor?.display_name, actor?.username);
+      let reactionEmoji: string | null = null;
+      if (job.event_type === 'message_reaction') {
+        const { data: reaction } = await client.from('message_reactions').select('emoji')
+          .eq('id', job.entity_id).maybeSingle();
+        reactionEmoji = reaction?.emoji ?? null;
+      }
       let retryableFailure: string | null = null;
 
       for (let offset = 0; offset < devices.length; offset += 100) {
@@ -111,7 +136,7 @@ Deno.serve(async (req) => {
           to: device.expo_push_token,
           sound: 'default',
           badge,
-          ...pushCopy(job.event_type, actorLabel, device.locale),
+          ...pushCopy(job.event_type, actorLabel, device.locale, reactionEmoji),
           data: { version: 1, type: job.event_type, entityId: job.entity_id, actorId: job.actor_id },
         }));
         const response = await fetch(EXPO_PUSH_SEND_URL, {
