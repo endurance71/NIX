@@ -23,6 +23,8 @@ export type ThemeColors = {
   systemBackground: string;
   secondarySystemBackground: string;
   tertiarySystemBackground: string;
+  /** Tło wierszy FieldGroup / ustawień (jak pola w Profilu). */
+  secondarySystemGroupedBackground: string;
   separator: string;
   opaqueSeparator: string;
   systemFill: string;
@@ -59,6 +61,7 @@ export const darkColors: ThemeColors = {
   systemBackground: '#000000',
   secondarySystemBackground: '#1C1C1E',
   tertiarySystemBackground: '#2C2C2E',
+  secondarySystemGroupedBackground: '#1C1C1E',
   separator: '#54545899',
   opaqueSeparator: '#38383A',
   systemFill: '#7878805C',
@@ -95,6 +98,7 @@ export const lightColors: ThemeColors = {
   systemBackground: '#FFFFFF',
   secondarySystemBackground: '#F2F2F7',
   tertiarySystemBackground: '#FFFFFF',
+  secondarySystemGroupedBackground: '#FFFFFF',
   separator: '#3C3C434A',
   opaqueSeparator: '#C6C6C8',
   systemFill: '#78788033',

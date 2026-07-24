@@ -1,11 +1,14 @@
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { InboxScreenSurface } from '../../../components/inbox/InboxScreenSurface';
+import { HeaderQrButton } from '../../../components/navigation/header-qr-button';
+import { useAppTheme } from '../../../hooks/useAppTheme';
 import { useInboxScreen } from '../../../hooks/useInboxScreen';
 import type { InboxRowModel } from '../../../lib/inboxPresentation';
 
 export default function InboxScreen() {
   const vm = useInboxScreen();
+  const { colors } = useAppTheme();
 
   const requestDelete = (row: InboxRowModel) => {
     Alert.alert(
@@ -28,10 +31,20 @@ export default function InboxScreen() {
         options={{
           headerLargeTitle: true,
           headerTitle: vm.t('inbox.title'),
+          headerRight: () => <HeaderQrButton />,
           headerSearchBarOptions: {
-            placeholder: 'Szukaj',
+            placeholder: vm.t('inbox.searchPlaceholder'),
             hideWhenScrolling: false,
-            onChangeText: (e) => {
+            barTintColor: colors.secondarySystemGroupedBackground,
+            textColor: colors.label,
+            tintColor: colors.systemBlue,
+            ...(Platform.OS === 'android'
+              ? {
+                  hintTextColor: colors.secondaryLabel,
+                  headerIconColor: colors.secondaryLabel,
+                }
+              : {}),
+            onChangeText: (_e) => {
               // TODO: Implement search filter in VM if needed
             },
           },

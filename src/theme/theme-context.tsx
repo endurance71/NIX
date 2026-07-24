@@ -1,5 +1,6 @@
 import { PropsWithChildren } from 'react';
 import { useColorScheme } from 'react-native';
+import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import { darkColors, lightColors } from './colors';
 import { ThemeContext, type AppTheme } from './theme';
 
@@ -15,5 +16,9 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
     statusBarStyle: isDark ? 'light' : 'dark',
   };
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={value}>
+      <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>{children}</ThemeProvider>
+    </ThemeContext.Provider>
+  );
 }

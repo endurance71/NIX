@@ -122,6 +122,7 @@ const resources = {
       },
       inbox: {
         title: 'Skrzynka',
+        searchPlaceholder: 'Szukaj',
         openNixA11y: 'Otwórz nix od @{{username}}',
         sentToA11y: 'Wysłano do @{{username}}',
         openHint: 'Otwiera nieprzeczytaną wiadomość.',
@@ -486,6 +487,7 @@ const resources = {
       },
       inbox: {
         title: 'Inbox',
+        searchPlaceholder: 'Search',
         openNixA11y: 'Open nix from @{{username}}',
         sentToA11y: 'Sent to @{{username}}',
         openHint: 'Opens the unread message.',

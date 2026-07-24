@@ -5,6 +5,7 @@ import { Stack, router } from 'expo-router';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useProfileScreen } from '../../hooks/useProfileScreen';
 import { registerTabScrollToTop } from '../../lib/tabBarScrollActions';
+import { HeaderQrButton } from '../navigation/header-qr-button';
 import {
   NativeSettingsCenteredFooter,
   NativeSettingsRow,
@@ -33,6 +34,11 @@ export default function ProfileScreenSurface() {
 
   return (
     <>
+      <Stack.Screen
+        options={{
+          headerRight: () => <HeaderQrButton />,
+        }}
+      />
       <SettingsListScreen loading={vm.profilePending} onRefresh={vm.handleListRefresh}>
         {/* Top Section: Identity & QR Code */}
         <NativeSettingsSection>
