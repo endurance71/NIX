@@ -42,6 +42,11 @@ Deno.serve(async (req) => {
         .eq('id', job.entity_id).maybeSingle();
       return row?.sender_id === job.actor_id && row?.receiver_id === job.recipient_id && row?.status === 'sent';
     }
+    if (job.event_type === 'new_text_message') {
+      const { data: row } = await client.from('text_messages').select('sender_id, receiver_id, expires_at')
+        .eq('id', job.entity_id).maybeSingle();
+      return Boolean(row && row.sender_id === job.actor_id && row.receiver_id === job.recipient_id && new Date(row.expires_at).getTime() > Date.now());
+    }
     const { data: row } = await client.from('friendships').select('user_id, friend_id, status')
       .eq('id', job.entity_id).maybeSingle();
     if (job.event_type === 'friend_request') {
