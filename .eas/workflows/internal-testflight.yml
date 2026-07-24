@@ -11,7 +11,16 @@ jobs:
     steps:
       - uses: eas/checkout
       - name: Verify checked-out source is immutable
-        run: git diff --exit-code && git diff --cached --exit-code
+        run: |
+          # Pełny checkout z --ref: wymagaj czystego drzewa.
+          # Upload archiwum (brak powiązanego repo): .easignore usuwa tracked pliki
+          # (docs/, supabase/, *.md, .cursor) — wtedy git diff byłby fałszywie brudny.
+          if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ -n "${EAS_BUILD_GIT_COMMIT_HASH:-}" ]; then
+            git diff --exit-code
+            git diff --cached --exit-code
+          else
+            echo "Skipping strict git cleanliness for archive-based workflow uploads."
+          fi
       - uses: eas/install_node_modules
       - name: Typecheck
         run: npm run typecheck
