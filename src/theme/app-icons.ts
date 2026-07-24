@@ -29,7 +29,8 @@ export type AppIconName =
   | 'signOut'
   | 'shield'
   | 'key'
-  | 'circle';
+  | 'circle'
+  | 'paintpalette';
 
 const APP_ICONS: Record<AppIconName, SFSymbol> = {
   camera: 'camera',
@@ -61,6 +62,7 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   shield: 'shield',
   key: 'key',
   circle: 'circle',
+  paintpalette: 'paintpalette',
 };
 
 export function resolveAppIconName(name: AppIconName): SFSymbol {

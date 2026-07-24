@@ -8,12 +8,14 @@ import {
   NativeSettingsSection,
 } from '../../../components/ui/native-settings';
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
+import { useAppTheme } from '../../../hooks/useAppTheme';
 import { notifyDomainError, notifySuccess } from '../../../lib/appNotify';
 import { queryKeys } from '../../../lib/queryKeys';
 import { listBlockedUsers, listMyContentReports, unblockUser } from '../../../services/safetyService';
 
 export default function SafetyScreen() {
   const { t } = useTranslation();
+  const { colors } = useAppTheme();
   const queryClient = useQueryClient();
   const blockedQuery = useQuery({ queryKey: queryKeys.blockedUsers, queryFn: listBlockedUsers });
   const reportsQuery = useQuery({ queryKey: queryKeys.contentReports, queryFn: listMyContentReports });
@@ -82,7 +84,7 @@ export default function SafetyScreen() {
           )}
         </NativeSettingsSection>
       </SettingsListScreen>
-      <Stack.Screen.Title>{t('profile.safetyCenter')}</Stack.Screen.Title>
+      <Stack.Screen.Title style={{ color: colors.label }}>{t('profile.safetyCenter')}</Stack.Screen.Title>
     </>
   );
 }

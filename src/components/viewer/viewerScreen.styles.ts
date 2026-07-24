@@ -4,13 +4,17 @@ import type { ThemeColors } from '../../theme/colors';
 
 const TIMER_TRACK_HEIGHT = 8;
 
+/** Cinema surfaces stay black in both light and dark (same as camera / preview). */
+const VIEWER_CINEMA_BACKGROUND = '#000000';
+
 export function createViewerStyles(colors: ThemeColors) {
   const progressBlue = colors.systemBlue;
   const trackSoftWhite = colors.viewerChromeFill;
+  const chromeTint = colors.cameraControlTint;
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.systemBackground,
+      backgroundColor: VIEWER_CINEMA_BACKGROUND,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -69,7 +73,7 @@ export function createViewerStyles(colors: ThemeColors) {
     imageContainer: {
       width: '100%',
       height: '100%',
-      backgroundColor: colors.systemBackground,
+      backgroundColor: VIEWER_CINEMA_BACKGROUND,
     },
     dismissArea: {
       ...StyleSheet.absoluteFill,
@@ -88,7 +92,7 @@ export function createViewerStyles(colors: ThemeColors) {
     },
     safetyButtonText: {
       ...typography.callout,
-      color: colors.label,
+      color: chromeTint,
       fontWeight: '800',
       letterSpacing: 1,
     },
@@ -103,17 +107,17 @@ export function createViewerStyles(colors: ThemeColors) {
       ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.systemBackground,
+      backgroundColor: VIEWER_CINEMA_BACKGROUND,
       paddingHorizontal: 24,
     },
     captureBlurMask: {
       ...StyleSheet.absoluteFill,
-      backgroundColor: colors.systemBackground,
+      backgroundColor: VIEWER_CINEMA_BACKGROUND,
       zIndex: 20,
     },
     errorText: {
       ...typography.callout,
-      color: colors.label,
+      color: chromeTint,
       textAlign: 'center',
       marginBottom: 14,
     },
@@ -121,11 +125,11 @@ export function createViewerStyles(colors: ThemeColors) {
       paddingHorizontal: 14,
       paddingVertical: 10,
       borderRadius: 10,
-      backgroundColor: colors.secondarySystemBackground,
+      backgroundColor: colors.viewerChromeFill,
     },
     backButtonText: {
       ...typography.footnote,
-      color: colors.label,
+      color: chromeTint,
       fontWeight: '700',
     },
   });

@@ -178,7 +178,7 @@ function RootNavigator() {
         screenOptions={{
           headerShown: false,
           headerBackButtonDisplayMode: 'minimal',
-          headerTintColor: colors.label,
+          headerTintColor: colors.accent,
           headerTitleStyle: {
             fontFamily: APP_FONT_FAMILY,
             fontWeight: '700',
@@ -208,12 +208,29 @@ function RootNavigator() {
         }}
       />
       <Stack.Screen
+        name="viewer"
+        options={{
+          headerShown: false,
+          contentStyle: { backgroundColor: '#000000' },
+        }}
+      />
+      <Stack.Screen
         name="friend-my-code"
         options={{
           presentation: 'card',
           headerShown: true,
-          title: t('root.qrMyCode'),
-          headerBackButtonDisplayMode: 'minimal',
+          title: t('profile.myQrCode'),
+          headerBackButtonDisplayMode: 'default',
+          headerTransparent: true,
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: 'transparent' },
+          headerTintColor: colors.accent,
+          headerTitleStyle: {
+            fontFamily: APP_FONT_FAMILY,
+            fontWeight: '700',
+            color: colors.label,
+          },
+          contentStyle: { backgroundColor: colors.background },
         }}
       />
       <Stack.Screen
@@ -226,6 +243,12 @@ function RootNavigator() {
           headerTransparent: true,
           headerShadowVisible: false,
           headerStyle: { backgroundColor: 'transparent' },
+          headerTintColor: colors.cameraControlTint,
+          headerTitleStyle: {
+            fontFamily: APP_FONT_FAMILY,
+            fontWeight: '700',
+            color: colors.cameraControlTint,
+          },
         }}
       />
       <Stack.Screen

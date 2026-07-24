@@ -1,8 +1,16 @@
-import { FieldGroup, RNHostView, Text, TextInput } from '@expo/ui';
-import { Button, HStack } from '@expo/ui/swift-ui';
-import { buttonStyle, disabled as swiftDisabled } from '@expo/ui/swift-ui/modifiers';
+import { FieldGroup, ListItem, RNHostView, Text, TextInput } from '@expo/ui';
+import { Button, HStack, ProgressView } from '@expo/ui/swift-ui';
+import {
+  accessibilityLabel,
+  buttonBorderShape,
+  buttonStyle,
+  controlSize,
+  fixedSize,
+  padding,
+  tint,
+} from '@expo/ui/swift-ui/modifiers';
 import { Stack, router } from 'expo-router';
-import { Alert } from 'react-native';
+import { Alert, View } from 'react-native';
 import { useFriendsScreen } from '../../../hooks/useFriendsScreen';
 import {
   NativeSettingsActionRow,
@@ -12,14 +20,18 @@ import {
   NativeSettingsSwipeActions,
 } from '../../../components/ui/native-settings';
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
+import { AvatarCircle } from '../../../components/ui/avatar-circle';
 import {
   isFriendRowBusy,
   isOutgoingRequestBusy,
 } from '../../../lib/profileFriendsPresentation';
 
+const INVITE_AVATAR_SIZE = 44;
+
 export default function FriendsScreen() {
   const vm = useFriendsScreen();
   const inviteBusy = vm.actionLoadingId === 'invite';
+  const { colors } = vm;
 
   const confirmCancelInvite = (requestId: string, username: string) => {
     Alert.alert(
@@ -88,42 +100,67 @@ export default function FriendsScreen() {
             {vm.requests.map((request) => {
               const avatarPath = request.requester.avatar_storage_path ?? null;
               const loading = vm.actionLoadingId === request.id;
+              const title =
+                request.requester.display_name || `@${request.requester.username}`;
               return (
-                <NativeSettingsSwipeActions
+                <ListItem
                   key={request.id}
-                  actionLabel={vm.t('profile.rejectInvite')}
-                  disabled={loading}
-                  onAction={() => void vm.handleReject(request.id)}>
-                  <NativeSettingsRow
-                    title={request.requester.display_name || `@${request.requester.username}`}
-                    supportingText={vm.t('profile.incomingInviteStatus')}
-                    avatar={{
-                      url: avatarPath ? vm.incomingAvatarUrls[avatarPath] ?? null : null,
-                      storagePath: avatarPath,
-                      emoji: request.requester.avatar_emoji ?? null,
-                      fallbackInitial: request.requester.username,
-                    }}
-                    disabled={loading}
-                    trailing={
-                      <RNHostView matchContents>
-                        <HStack alignment="center" spacing={4}>
-                          <Button
-                            label={vm.t('profile.rejectInvite')}
-                            role="destructive"
-                            onPress={() => void vm.handleReject(request.id)}
-                            modifiers={[buttonStyle('plain'), swiftDisabled(loading)]}
-                          />
-                          <Button
-                            label={loading ? vm.t('common.loading') : vm.t('profile.acceptInvite')}
-                            onPress={() => void vm.handleAccept(request.id)}
-                            modifiers={[buttonStyle('plain'), swiftDisabled(loading)]}
-                          />
-                        </HStack>
-                      </RNHostView>
-                    }
-                    testID={`incoming-request-${request.id}`}
-                  />
-                </NativeSettingsSwipeActions>
+                  testID={`incoming-request-${request.id}`}
+                  leading={
+                    <RNHostView matchContents>
+                      <View
+                        collapsable={false}
+                        style={{ width: INVITE_AVATAR_SIZE, height: INVITE_AVATAR_SIZE }}>
+                        <AvatarCircle
+                          size={INVITE_AVATAR_SIZE}
+                          url={avatarPath ? vm.incomingAvatarUrls[avatarPath] ?? null : null}
+                          storagePath={avatarPath}
+                          emoji={request.requester.avatar_emoji ?? null}
+                          fallbackInitial={request.requester.username}
+                        />
+                      </View>
+                    </RNHostView>
+                  }
+                  supportingText={
+                    loading ? (
+                      <ProgressView
+                        modifiers={[
+                          padding({ top: 8 }),
+                          accessibilityLabel(vm.t('common.loading')),
+                        ]}
+                      />
+                    ) : (
+                      <HStack
+                        alignment="center"
+                        spacing={8}
+                        modifiers={[padding({ top: 8 })]}>
+                        <Button
+                          label={vm.t('profile.rejectInvite')}
+                          onPress={() => void vm.handleReject(request.id)}
+                          modifiers={[
+                            buttonStyle('bordered'),
+                            buttonBorderShape('capsule'),
+                            controlSize('small'),
+                            fixedSize(),
+                            tint(colors.secondaryLabel),
+                          ]}
+                        />
+                        <Button
+                          label={vm.t('profile.acceptInvite')}
+                          onPress={() => void vm.handleAccept(request.id)}
+                          modifiers={[
+                            buttonStyle('borderedProminent'),
+                            buttonBorderShape('capsule'),
+                            controlSize('small'),
+                            fixedSize(),
+                            tint(colors.accent),
+                          ]}
+                        />
+                      </HStack>
+                    )
+                  }>
+                  <Text textStyle={{ color: colors.label }}>{title}</Text>
+                </ListItem>
               );
             })}
           </NativeSettingsSection>
@@ -193,7 +230,7 @@ export default function FriendsScreen() {
           </FieldGroup.SectionFooter>
         </FieldGroup.Section>
       </SettingsListScreen>
-      <Stack.Screen.Title>{vm.t('profile.friendsTitle')}</Stack.Screen.Title>
+      <Stack.Screen.Title style={{ color: vm.colors.label }}>{vm.t('profile.friendsTitle')}</Stack.Screen.Title>
     </>
   );
 }

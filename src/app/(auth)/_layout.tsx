@@ -13,7 +13,8 @@ export default function AuthLayout() {
         headerLargeTitle: false,
         headerTransparent: false,
         headerShadowVisible: false,
-        headerTintColor: colors.label,
+        headerTintColor: colors.accent,
+        headerTitleStyle: { color: colors.label },
         headerStyle: { backgroundColor: colors.background },
         contentStyle: { backgroundColor: colors.background },
       }}

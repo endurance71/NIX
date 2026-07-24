@@ -7,9 +7,20 @@ Ten projekt używa systemowego motywu (`light`/`dark`, `userInterfaceStyle: auto
 ## Źródło prawdy
 
 - Tokeny kolorów: `src/theme/colors.ts`
+- Presety akcentu: `src/theme/accent-presets.ts`
+- Preferencja akcentu (AsyncStorage): `src/lib/accentPreference.ts`
 - Role typografii: `src/theme/typography.ts`
 - Provider i kontekst motywu: `src/theme/theme-context.tsx`
 - Hook do użycia w ekranach: `src/hooks/useAppTheme.ts`
+
+## Personalizacja akcentu
+
+Dozwolona jest **wyłącznie** personalizacja tintu interaktywnego przez stałe presety (ekran Profil → Wygląd):
+
+- Nadpisywane tokeny: `accent`, `systemBlue` i `info` (zawsze z tego samego koloru presetu).
+- **Nie** zmieniaj: tła, labele, destructive, success/warning/error, `buttonPrimaryBg`.
+- Light/dark **zawsze** z systemu — aplikacja nie wymusza trybu jasnego/ciemnego.
+- Preferencja jest lokalna na urządzeniu (AsyncStorage); bez sync konta w v1.
 
 ## Zasady użycia
 
@@ -22,6 +33,9 @@ Ten projekt używa systemowego motywu (`light`/`dark`, `userInterfaceStyle: auto
   - `accent`, `success`, `warning`, `error`, `info`
   - `buttonPrimaryBg`, `buttonPrimaryText`
   - role iOS (mapowane systemowo na obu platformach): `label`, `secondaryLabel`, `tertiaryLabel`, `systemBackground`, `secondarySystemBackground`, `separator`, `systemFill`, `systemBlue`, `destructive`
+- Dla elementów interaktywnych (tab tint, unread, checkmark, CTA link, header back/tint, toolbar icons) preferuj `colors.accent` lub `colors.systemBlue` — po wyborze presetu są tożsame z `info`.
+- Tytuły headerów i labele tekstowe: `colors.label` (nie akcent).
+- Chrome kamery / preview: `colors.cameraControlTint` — nie podmieniaj na accent.
 - Używaj ról z `typography` (`largeTitle`, `title2`, `headline`, `body`, `callout`, `footnote`, `caption`) zamiast lokalnych rozmiarów tekstu, jeśli ekran nie ma wyjątkowego powodu.
 - Komponenty `@expo/ui` (`Text`, `Button`, `TextInput`) preferuj nad ręcznie stylowanym RN `Text` tam, gdzie to możliwe — renderują natywną typografię platformy.
 - Przed większym refaktorem UI `npm run lint` ma przechodzić bez warningów.
@@ -29,6 +43,7 @@ Ten projekt używa systemowego motywu (`light`/`dark`, `userInterfaceStyle: auto
 ## StatusBar i nawigacja
 
 - `StatusBar` ustawiaj dynamicznie: `style={statusBarStyle}`.
+- `headerTintColor` (back / toolbar tint) → `colors.accent`; tytuły → `colors.label`.
 - Dla tabów używaj koloru z tokenów (`colors.accent`) zamiast stałych wartości.
 - Tab bar: **iOS** `NativeTabs` (`app-tabs-layout.ios.tsx`, ikony bez podpisów); **Android** custom tabs (`FloatingTabBar`, floating pill, ikony bez podpisów). Nie używaj JS `Tabs` z React Navigation do głównej nawigacji.
 
@@ -38,3 +53,4 @@ Ten projekt używa systemowego motywu (`light`/`dark`, `userInterfaceStyle: auto
 2. Zadbaj o kontrast tekstu i elementów interaktywnych w obu trybach.
 3. Ustaw dynamiczny `StatusBar` jeśli ekran go kontroluje.
 4. Sprawdź ekran ręcznie w `light` i `dark` na **iOS Simulator i Android emulatorze**.
+5. Przy zmianach tintu: smoke z 2–3 presetami akcentu (np. blue, purple, teal) w light i dark.

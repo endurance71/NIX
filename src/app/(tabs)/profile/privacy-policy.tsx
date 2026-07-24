@@ -7,9 +7,11 @@ import {
   NativeSettingsSection,
 } from '../../../components/ui/native-settings';
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
+import { useAppTheme } from '../../../hooks/useAppTheme';
 
 export default function PrivacyPolicyScreen() {
   const { t } = useTranslation();
+  const { colors } = useAppTheme();
   const document = legalDocuments[getCurrentLocale()].privacy;
 
   return (
@@ -24,7 +26,7 @@ export default function PrivacyPolicyScreen() {
           </NativeSettingsSection>
         ))}
       </SettingsListScreen>
-      <Stack.Screen.Title>{t('profile.privacyPolicy')}</Stack.Screen.Title>
+      <Stack.Screen.Title style={{ color: colors.label }}>{t('profile.privacyPolicy')}</Stack.Screen.Title>
     </>
   );
 }

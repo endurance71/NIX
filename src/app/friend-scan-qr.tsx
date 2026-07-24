@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
 import { CameraView, BarcodeScanningResult, useCameraPermissions } from 'expo-camera';
+import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect } from 'expo-router';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
@@ -35,14 +36,16 @@ export default function FriendScanQrScreen() {
   const scanInFlightRef = useRef(false);
   const handledSuccessRef = useRef(false);
 
-  useFocusEffect(() => {
-    setScanningLocked(false);
-    setLoading(false);
-    setSheetPresented(false);
-    setScannedData(null);
-    scanInFlightRef.current = false;
-    handledSuccessRef.current = false;
-  });
+  useFocusEffect(
+    useCallback(() => {
+      setScanningLocked(false);
+      setLoading(false);
+      setSheetPresented(false);
+      setScannedData(null);
+      scanInFlightRef.current = false;
+      handledSuccessRef.current = false;
+    }, [])
+  );
 
   const requestSheetDismiss = () => {
     setSheetPresented(false);
@@ -57,7 +60,15 @@ export default function FriendScanQrScreen() {
   };
 
   const handleScan = async (event: BarcodeScanningResult) => {
-    if (scanInFlightRef.current || scanningLocked || loading || scannedData) return;
+    if (
+      scanInFlightRef.current ||
+      handledSuccessRef.current ||
+      scanningLocked ||
+      loading ||
+      scannedData
+    ) {
+      return;
+    }
     scanInFlightRef.current = true;
     setScanningLocked(true);
     setLoading(true);
@@ -208,6 +219,7 @@ export default function FriendScanQrScreen() {
 
   return (
     <View style={styles.container}>
+      <StatusBar style="light" />
       <CameraView
         style={styles.camera}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
@@ -216,7 +228,7 @@ export default function FriendScanQrScreen() {
       {loading && !scannedData && (
         <View style={StyleSheet.absoluteFill}>
           <View style={[styles.container, styles.center, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
-            <ActivityIndicator size="large" color="#ffffff" />
+            <ActivityIndicator size="large" color={colors.cameraControlTint} />
           </View>
         </View>
       )}

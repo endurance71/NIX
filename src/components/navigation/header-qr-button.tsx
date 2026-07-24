@@ -18,7 +18,7 @@ export function HeaderQrButton() {
 
   const handlePress = () => {
     tap('light');
-    router.push('/friend-my-code');
+    router.push('/(tabs)/profile/my-code');
   };
 
   if (Platform.OS === 'ios') {
@@ -31,7 +31,7 @@ export function HeaderQrButton() {
             frame({ width: 36, height: 36 }),
             swiftAccessibilityLabel(label),
           ]}>
-          <SwiftImage systemName="qrcode.viewfinder" size={22} color={colors.label} />
+          <SwiftImage systemName="qrcode.viewfinder" size={22} color={colors.accent} />
         </Button>
       </Host>
     );
@@ -44,7 +44,7 @@ export function HeaderQrButton() {
       accessibilityRole="button"
       hitSlop={10}
       style={({ pressed }) => [styles.androidPressable, pressed && styles.pressed]}>
-      <AppIcon name="qrcode" size={24} color={colors.label} />
+      <AppIcon name="qrcode" size={24} color={colors.accent} />
     </Pressable>
   );
 }

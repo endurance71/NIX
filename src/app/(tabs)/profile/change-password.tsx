@@ -247,7 +247,7 @@ export default function ChangePasswordScreen() {
           ) : null}
         </FieldGroup.Section>
       </SettingsListScreen>
-      <Stack.Screen.Title>{t('profile.changePassword')}</Stack.Screen.Title>
+      <Stack.Screen.Title style={{ color: colors.label }}>{t('profile.changePassword')}</Stack.Screen.Title>
     </>
   );
 }

@@ -53,6 +53,7 @@ const supportsContentUnavailableView =
 type InboxScreenSurfaceProps = {
   vm: InboxScreenViewModel;
   onRequestDelete: (row: InboxRowModel) => void;
+  onRequestBlock: (row: InboxRowModel) => void;
 };
 
 type Translate = InboxScreenViewModel['t'];
@@ -215,6 +216,7 @@ function MessageRow({
   isFirst,
   onOpen,
   onDelete,
+  onBlock,
   t,
 }: {
   row: InboxRowModel;
@@ -223,8 +225,10 @@ function MessageRow({
   isFirst: boolean;
   onOpen: () => void;
   onDelete: () => void;
+  onBlock: () => void;
   t: Translate;
 }) {
+  const { colors } = useAppTheme();
   const content = (
     <MessageRowContent row={row} avatarUrl={avatarUrl} busy={busy} isFirst={isFirst} onOpen={onOpen} t={t} />
   );
@@ -235,7 +239,17 @@ function MessageRow({
     <SwipeActions>
       {content}
       <SwipeActions.Actions edge="trailing" allowsFullSwipe={false}>
-        <Button label={t('inbox.delete')} role="destructive" onPress={onDelete} />
+        {/* Bez role=destructive: SwiftUI List od razu animuje wiersz poza listę przed Alertem. */}
+        <Button
+          label={t('inbox.delete')}
+          onPress={onDelete}
+          modifiers={[tint(colors.destructive)]}
+        />
+        <Button
+          label={t('inbox.block')}
+          onPress={onBlock}
+          modifiers={[tint(colors.destructive)]}
+        />
       </SwipeActions.Actions>
     </SwipeActions>
   );
@@ -427,7 +441,7 @@ function InboxUnavailableState({
   );
 }
 
-function InboxList({ vm, onRequestDelete }: InboxScreenSurfaceProps) {
+function InboxList({ vm, onRequestDelete, onRequestBlock }: InboxScreenSurfaceProps) {
   const { colors, statusBarStyle } = useAppTheme();
   const listModifiers = [
     frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
@@ -445,10 +459,11 @@ function InboxList({ vm, onRequestDelete }: InboxScreenSurfaceProps) {
         key={row.id}
         row={row}
         avatarUrl={avatarUrl}
-        busy={vm.deletingPeerIds.has(row.peerId)}
+        busy={vm.busyPeerIds.has(row.peerId)}
         isFirst={index === 0}
         onOpen={() => vm.handleOpen(row)}
         onDelete={() => onRequestDelete(row)}
+        onBlock={() => onRequestBlock(row)}
         t={vm.t}
       />
     );

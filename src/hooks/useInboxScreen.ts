@@ -20,9 +20,10 @@ import { buildInboxThreads } from '../lib/inboxThreads';
 import { buildInboxRowModel, type InboxRowModel } from '../lib/inboxPresentation';
 import { getCurrentLocale } from '../lib/i18n';
 import { registerTabScrollToTop } from '../lib/tabBarScrollActions';
-import { notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
+import { notifyDomainError, notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
 import { inboxNixesBundleQueryOptions } from '../lib/inboxQuery';
 import { runWithFinally } from '../lib/runWithFinally';
+import { blockUser } from '../services/safetyService';
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -45,9 +46,9 @@ export function useInboxScreen() {
   const locale = getCurrentLocale();
   const queryClient = useQueryClient();
   const inviteActionIdsRef = useRef(new Set<string>());
-  const deletingPeerIdsRef = useRef(new Set<string>());
+  const busyPeerIdsRef = useRef(new Set<string>());
   const [inviteActionIds, setInviteActionIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [deletingPeerIds, setDeletingPeerIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [busyPeerIds, setBusyPeerIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const nixesQuery = useQuery(inboxNixesBundleQueryOptions());
 
@@ -164,10 +165,22 @@ export function useInboxScreen() {
     );
   };
 
+  const beginPeerAction = (peerId: string) => {
+    if (busyPeerIdsRef.current.has(peerId)) return false;
+    busyPeerIdsRef.current = new Set(busyPeerIdsRef.current).add(peerId);
+    setBusyPeerIds(busyPeerIdsRef.current);
+    return true;
+  };
+
+  const finishPeerAction = (peerId: string) => {
+    const next = new Set(busyPeerIdsRef.current);
+    next.delete(peerId);
+    busyPeerIdsRef.current = next;
+    setBusyPeerIds(next);
+  };
+
   const handleDelete = async (row: InboxRowModel) => {
-    if (deletingPeerIdsRef.current.has(row.peerId)) return;
-    deletingPeerIdsRef.current = new Set(deletingPeerIdsRef.current).add(row.peerId);
-    setDeletingPeerIds(deletingPeerIdsRef.current);
+    if (!beginPeerAction(row.peerId)) return;
 
     await runWithFinally(
       async () => {
@@ -179,17 +192,33 @@ export function useInboxScreen() {
           notifyError(errorMessage(error, t('inbox.deleteConversationFailure')));
         }
       },
-      () => {
-        const next = new Set(deletingPeerIdsRef.current);
-        next.delete(row.peerId);
-        deletingPeerIdsRef.current = next;
-        setDeletingPeerIds(next);
-      }
+      () => finishPeerAction(row.peerId)
+    );
+  };
+
+  const handleBlock = async (row: InboxRowModel) => {
+    if (!beginPeerAction(row.peerId)) return;
+
+    await runWithFinally(
+      async () => {
+        try {
+          await blockUser(row.peerId);
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: queryKeys.blockedUsers }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
+          ]);
+          notifySuccess(t('viewer.blockSuccess'));
+        } catch (error) {
+          notifyDomainError(error, t('viewer.blockFailure'));
+        }
+      },
+      () => finishPeerAction(row.peerId)
     );
   };
 
   const handleOpen = (row: InboxRowModel) => {
-    if (!row.openParams || deletingPeerIdsRef.current.has(row.peerId)) return;
+    if (!row.openParams || busyPeerIdsRef.current.has(row.peerId)) return;
     router.push({
       pathname: '/viewer',
       params: {
@@ -213,7 +242,7 @@ export function useInboxScreen() {
     requests,
     avatarUrls: avatarQuery.data ?? {},
     inviteActionIds,
-    deletingPeerIds,
+    busyPeerIds,
     loading,
     initialError,
     handleRefresh,
@@ -221,6 +250,7 @@ export function useInboxScreen() {
     handleAccept,
     handleReject,
     handleDelete,
+    handleBlock,
     handleOpen,
   };
 }

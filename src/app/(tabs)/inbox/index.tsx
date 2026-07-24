@@ -25,6 +25,17 @@ export default function InboxScreen() {
     );
   };
 
+  const requestBlock = (row: InboxRowModel) => {
+    Alert.alert(vm.t('viewer.blockConfirmTitle'), vm.t('viewer.blockConfirmMessage'), [
+      { text: vm.t('common.cancel'), style: 'cancel' },
+      {
+        text: vm.t('viewer.blockAction'),
+        style: 'destructive',
+        onPress: () => void vm.handleBlock(row),
+      },
+    ]);
+  };
+
   return (
     <>
       <Stack.Screen
@@ -50,7 +61,7 @@ export default function InboxScreen() {
           },
         }}
       />
-      <InboxScreenSurface vm={vm} onRequestDelete={requestDelete} />
+      <InboxScreenSurface vm={vm} onRequestDelete={requestDelete} onRequestBlock={requestBlock} />
     </>
   );
 }

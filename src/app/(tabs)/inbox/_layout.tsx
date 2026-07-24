@@ -9,7 +9,7 @@ export default function InboxTabLayout() {
       screenOptions={{
         headerShown: true,
         headerLargeTitle: true,
-        headerTintColor: colors.label,
+        headerTintColor: colors.accent,
         headerTransparent: true,
         headerShadowVisible: false,
         headerLargeTitleShadowVisible: false,

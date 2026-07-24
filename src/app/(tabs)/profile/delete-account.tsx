@@ -116,7 +116,7 @@ export default function DeleteAccountScreen() {
           ) : null}
         </FieldGroup.Section>
       </SettingsListScreen>
-      <Stack.Screen.Title>{t('profile.deleteAccount')}</Stack.Screen.Title>
+      <Stack.Screen.Title style={{ color: colors.label }}>{t('profile.deleteAccount')}</Stack.Screen.Title>
     </>
   );
 }

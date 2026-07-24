@@ -84,7 +84,7 @@ export default function FriendMyCodeScreen() {
           />
         </FieldGroup.Section>
       </SettingsListScreen>
-      <Stack.Screen.Title>{t('profile.myQrCode')}</Stack.Screen.Title>
+      <Stack.Screen.Title style={{ color: colors.label }}>{t('profile.myQrCode')}</Stack.Screen.Title>
     </>
   );
 }

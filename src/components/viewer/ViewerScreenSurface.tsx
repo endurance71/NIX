@@ -16,7 +16,7 @@ export function ViewerScreenSurface() {
   if (vm.isBootLoading) {
     return (
       <View style={vm.styles.container}>
-        <ActivityIndicator color={vm.colors.label} />
+        <ActivityIndicator color={vm.colors.cameraControlTint} />
       </View>
     );
   }
@@ -116,7 +116,7 @@ export function ViewerScreenSurface() {
       ) : null}
       {vm.loading && !vm.imageLoadError ? (
         <View style={vm.styles.loadingOverlaySolid}>
-          <ActivityIndicator color={vm.colors.label} />
+          <ActivityIndicator color={vm.colors.cameraControlTint} />
         </View>
       ) : null}
       {vm.imageLoadError ? (

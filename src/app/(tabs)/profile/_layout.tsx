@@ -11,7 +11,7 @@ export default function ProfileTabLayout() {
       screenOptions={{
         headerShown: true,
         headerLargeTitle: true,
-        headerTintColor: colors.label,
+        headerTintColor: colors.accent,
         headerTransparent: true,
         headerShadowVisible: false,
         headerLargeTitleShadowVisible: false,
@@ -45,6 +45,13 @@ export default function ProfileTabLayout() {
         name="safety"
         options={{
           title: t('profile.safetyCenter'),
+          headerLargeTitle: false,
+        }}
+      />
+      <Stack.Screen
+        name="appearance"
+        options={{
+          title: t('profile.appearanceTitle'),
           headerLargeTitle: false,
         }}
       />

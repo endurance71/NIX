@@ -49,7 +49,7 @@ export default function AppTabsLayout() {
         <NativeTabs.Trigger.Label>{t('tabs.camera')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="inbox" contentStyle={{ backgroundColor: colors.background }}>
+      <NativeTabs.Trigger name="inbox" contentStyle={{ backgroundColor: colors.systemBackground }}>
         <NativeTabs.Trigger.Icon sf="tray" />
         <NativeTabs.Trigger.Label>{t('tabs.inbox')}</NativeTabs.Trigger.Label>
         {count > 0 ? <NativeTabs.Trigger.Badge>{String(count)}</NativeTabs.Trigger.Badge> : null}

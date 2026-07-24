@@ -15,7 +15,7 @@ import { SettingsListScreen } from '../ui/settings-list-screen';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
-  const { colors } = useAppTheme();
+  const { colors, accentPresetId } = useAppTheme();
   const appVersion = Constants.expoConfig?.version ?? vm.t('common.unknown');
   const socialSummary =
     vm.pendingInviteCount > 0
@@ -63,9 +63,23 @@ export default function ProfileScreenSurface() {
             title={vm.t('profile.friendsTitle')}
             supportingText={socialSummary}
             icon="profile"
+            iconColor={colors.accent}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/friends')}
             testID="profile-friends"
+          />
+        </NativeSettingsSection>
+
+        {/* Appearance */}
+        <NativeSettingsSection title={vm.t('profile.appearanceSectionTitle')}>
+          <NativeSettingsRow
+            title={vm.t('profile.accentColor')}
+            supportingText={vm.t(`profile.accentPresets.${accentPresetId}`)}
+            icon="paintpalette"
+            iconColor={colors.accent}
+            showsChevron
+            onPress={() => router.push('/(tabs)/profile/appearance')}
+            testID="profile-appearance"
           />
         </NativeSettingsSection>
 
@@ -75,6 +89,7 @@ export default function ProfileScreenSurface() {
             <NativeSettingsRow
               title={vm.t('profile.changePassword')}
               icon="key"
+              iconColor={colors.accent}
               showsChevron
               onPress={() => router.push('/(tabs)/profile/change-password')}
               testID="profile-change-password"
@@ -83,6 +98,7 @@ export default function ProfileScreenSurface() {
           <NativeSettingsRow
             title={vm.t('profile.privateAccount', 'Konto prywatne')}
             icon="lock"
+            iconColor={colors.accent}
             switchValue={vm.profileRow?.is_private ?? false}
             onSwitchValueChange={(val) => void vm.handleTogglePrivacy(val)}
             testID="profile-private-account"
@@ -90,6 +106,7 @@ export default function ProfileScreenSurface() {
           <NativeSettingsRow
             title={vm.t('profile.safetyCenter')}
             icon="shield"
+            iconColor={colors.accent}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/safety')}
             testID="profile-safety"
@@ -98,6 +115,7 @@ export default function ProfileScreenSurface() {
             <NativeSettingsRow
               title={vm.t('profile.notifications', 'Powiadomienia')}
               icon="notification"
+              iconColor={colors.accent}
               switchValue={vm.pushNotificationsEnabled}
               onSwitchValueChange={(enabled) => void vm.handlePushToggle(enabled)}
               disabled={vm.pushNotificationsBusy}
@@ -111,6 +129,7 @@ export default function ProfileScreenSurface() {
           <NativeSettingsRow
             title={vm.avatarBusy ? vm.t('profile.changeAvatarLoading') : vm.t('profile.changeAvatar')}
             icon="photoLibrary"
+            iconColor={colors.accent}
             disabled={vm.avatarBusy}
             onPress={() => void vm.handlePickAvatarPhoto()}
             testID="profile-change-avatar"
@@ -119,7 +138,7 @@ export default function ProfileScreenSurface() {
             <NativeSettingsRow
               title={vm.t('profile.removeAvatar')}
               icon="trash"
-              role="destructive"
+              iconColor={colors.accent}
               disabled={vm.avatarBusy}
               onPress={() =>
                 Alert.alert(
@@ -145,18 +164,21 @@ export default function ProfileScreenSurface() {
           <NativeSettingsRow
             title={vm.t('profile.rateApp', 'Oceń aplikację')}
             icon="star"
+            iconColor={colors.accent}
             onPress={() => void vm.handleRateApp()}
             testID="profile-rate-app"
           />
           <NativeSettingsRow
             title={vm.t('profile.contactSupport', 'Napisz do nas')}
             icon="email"
+            iconColor={colors.accent}
             onPress={vm.handleSupport}
             testID="profile-support"
           />
           <NativeSettingsRow
             title={vm.t('profile.privacyPolicy')}
             icon="document"
+            iconColor={colors.accent}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/privacy-policy')}
             testID="profile-privacy-policy"
@@ -164,6 +186,7 @@ export default function ProfileScreenSurface() {
           <NativeSettingsRow
             title={vm.t('profile.terms')}
             icon="document"
+            iconColor={colors.accent}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/terms')}
             testID="profile-terms"
@@ -204,7 +227,9 @@ export default function ProfileScreenSurface() {
 
         <NativeSettingsCenteredFooter lines={accountFooterLines} />
       </SettingsListScreen>
-      <Stack.Screen.Title large>{vm.t('profile.title')}</Stack.Screen.Title>
+      <Stack.Screen.Title large style={{ color: colors.label }} largeStyle={{ color: colors.label }}>
+        {vm.t('profile.title')}
+      </Stack.Screen.Title>
     </>
   );
 }

@@ -11,6 +11,7 @@ import {
   listRowInsets,
   listRowSeparator,
   multilineTextAlignment,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { useAppTheme } from '../../hooks/useAppTheme';
@@ -97,6 +98,7 @@ export function NativeSettingsRow({
         value={switchValue}
         onValueChange={onSwitchValueChange}
         disabled={disabled}
+        modifiers={[tint(colors.accent)]}
         testID={testID ? `${testID}-switch` : undefined}
       />
     ) : showsChevron ? (
