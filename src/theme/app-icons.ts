@@ -73,7 +73,7 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   personAdd: 'person.badge.plus',
   profile: 'person.crop.circle',
   photoLibrary: 'photo.on.rectangle.angled',
-  send: 'arrow.up.circle.fill',
+  send: 'arrow.up',
   compose: 'square.and.pencil',
   more: 'ellipsis',
   timer: 'timer',

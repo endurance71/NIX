@@ -851,11 +851,13 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
             estimatedItemSize={56}
             keyExtractor={(item) => item.id}
             getItemType={(item) => item.type}
-            // Manual inset compensates for headerTransparent — contentInset
-            // shifts without reflowing rows (avoids jump vs dynamic padding*).
+            // Manual padding compensates for headerTransparent + absolute composer.
+            // contentInset is unreliable on FlashList (messages slide under the bar).
             contentInsetAdjustmentBehavior="never"
-            contentInset={{ top: listTopInset, bottom: listBottomInset }}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingTop: listTopInset, paddingBottom: listBottomInset },
+            ]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
             onScrollBeginDrag={requestClosePicker}
