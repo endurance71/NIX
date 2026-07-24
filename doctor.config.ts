@@ -70,6 +70,23 @@ export default {
         files: ['src/services/textMessageService.ts'],
         rules: ['deslop/unused-export'],
       },
+      {
+        // FlashList bottom inset tracks keyboard/composer height; contentInset is not available on FlashList the same way.
+        files: ['src/components/chat/ChatScreenSurface.tsx'],
+        rules: [
+          'react-doctor/rn-scrollview-dynamic-padding',
+          'react-doctor/react-compiler-no-manual-memoization',
+        ],
+      },
+      {
+        // Press scale uses Reanimated shared values; Gesture.Tap refactor deferred to keep Glass send hit targets stable.
+        files: ['src/components/ui/pressable-scale.tsx'],
+        rules: ['react-doctor/rn-pressable-shared-value-mutation'],
+      },
+      {
+        files: ['src/services/messageReactionService.ts'],
+        rules: ['deslop/unused-export'],
+      },
     ],
   },
 };
