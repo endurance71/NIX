@@ -37,6 +37,7 @@ export function AppRealtimeSync({ userId }: { userId: string }) {
       );
       if (areas.has('textChat') || areas.has('inbox')) {
         promises.push(queryClient.invalidateQueries({ queryKey: ['textMessagesWithPeer'] }));
+        promises.push(queryClient.invalidateQueries({ queryKey: ['messageReactionsWithPeer'] }));
         promises.push(queryClient.invalidateQueries({ queryKey: ['chatNixesWithPeer'] }));
       }
       await Promise.all(promises);
@@ -115,6 +116,11 @@ export function AppRealtimeSync({ userId }: { userId: string }) {
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'text_messages', filter: `sender_id=eq.${userId}` },
+        onTextChatChange
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'message_reactions' },
         onTextChatChange
       )
       .on(

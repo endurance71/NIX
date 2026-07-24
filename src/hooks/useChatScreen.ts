@@ -9,11 +9,18 @@ import {
   fetchTextMessagesWithPeer,
   sendTextMessage,
 } from '../services/textMessageService';
+import {
+  fetchMessageReactionsWithPeer,
+  groupReactionsByMessageId,
+  removeMessageReaction,
+  upsertMessageReaction,
+} from '../services/messageReactionService';
 import { fetchChatNixesWithPeer, fetchNixPublicProfiles, type ChatNixEvent } from '../services/nixService';
 import { createSignedAvatarUrls } from '../services/avatarService';
 import { reportContent, type ReportReason } from '../services/safetyService';
 import { notifyDomainError, notifySuccess } from '../lib/appNotify';
-import type { TextMessage } from '../types/database.types';
+import { selection } from '../lib/haptics';
+import type { MessageReaction, MessageReactionEmoji, TextMessage } from '../types/database.types';
 
 function generateClientMessageId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -66,6 +73,14 @@ export function useChatScreen(peerId: string) {
     select: (rows) => sortMessagesAscending(rows),
   });
 
+  const reactionsQuery = useQuery({
+    queryKey: queryKeys.messageReactionsWithPeer(peerId),
+    queryFn: () => fetchMessageReactionsWithPeer(peerId),
+    staleTime: 2_000,
+    enabled: Boolean(peerId),
+    refetchOnWindowFocus: true,
+  });
+
   const nixesQuery = useQuery({
     queryKey: ['chatNixesWithPeer', peerId] as const,
     queryFn: () => fetchChatNixesWithPeer(peerId, 50),
@@ -76,6 +91,7 @@ export function useChatScreen(peerId: string) {
 
   const messages: OptimisticTextMessage[] = messagesQuery.data ?? [];
   const nixes: ChatNixEvent[] = nixesQuery.data ?? [];
+  const reactionsByMessageId = groupReactionsByMessageId(reactionsQuery.data ?? []);
 
   const reportReasons = CHAT_REPORT_REASON_IDS.map((id) => ({
     id,
@@ -85,6 +101,7 @@ export function useChatScreen(peerId: string) {
   const invalidateChat = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.textMessagesWithPeer(peerId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.messageReactionsWithPeer(peerId) }),
       queryClient.invalidateQueries({ queryKey: ['chatNixesWithPeer', peerId] }),
       queryClient.invalidateQueries({ queryKey: queryKeys.inboxActivityBundle }),
       queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
@@ -150,6 +167,84 @@ export function useChatScreen(peerId: string) {
     }
   };
 
+  const handleSetReaction = async (message: TextMessage, emoji: MessageReactionEmoji) => {
+    if (!currentUserId || message.id.startsWith('temp-')) return;
+
+    const existing = (reactionsQuery.data ?? []).find(
+      (reaction) => reaction.message_id === message.id && reaction.user_id === currentUserId
+    );
+    if (existing?.emoji === emoji) {
+      selection();
+      return;
+    }
+
+    selection();
+    const previous = reactionsQuery.data ?? [];
+    const nowIso = new Date().toISOString();
+    const optimistic: MessageReaction[] = [
+      ...previous.filter(
+        (reaction) => !(reaction.message_id === message.id && reaction.user_id === currentUserId)
+      ),
+      {
+        id: existing?.id ?? `temp-reaction-${message.id}`,
+        message_id: message.id,
+        user_id: currentUserId,
+        emoji,
+        created_at: existing?.created_at ?? nowIso,
+        updated_at: nowIso,
+      },
+    ];
+
+    queryClient.setQueryData<MessageReaction[]>(
+      queryKeys.messageReactionsWithPeer(peerId),
+      optimistic
+    );
+
+    try {
+      await upsertMessageReaction(message.id, emoji);
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.messageReactionsWithPeer(peerId),
+      });
+    } catch (error) {
+      queryClient.setQueryData<MessageReaction[]>(
+        queryKeys.messageReactionsWithPeer(peerId),
+        previous
+      );
+      notifyDomainError(error, t('chat.reactionFailure'));
+    }
+  };
+
+  const handleRemoveReaction = async (message: TextMessage) => {
+    if (!currentUserId || message.id.startsWith('temp-')) return;
+
+    const existing = (reactionsQuery.data ?? []).find(
+      (reaction) => reaction.message_id === message.id && reaction.user_id === currentUserId
+    );
+    if (!existing) return;
+
+    selection();
+    const previous = reactionsQuery.data ?? [];
+    queryClient.setQueryData<MessageReaction[]>(
+      queryKeys.messageReactionsWithPeer(peerId),
+      previous.filter(
+        (reaction) => !(reaction.message_id === message.id && reaction.user_id === currentUserId)
+      )
+    );
+
+    try {
+      await removeMessageReaction(message.id);
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.messageReactionsWithPeer(peerId),
+      });
+    } catch (error) {
+      queryClient.setQueryData<MessageReaction[]>(
+        queryKeys.messageReactionsWithPeer(peerId),
+        previous
+      );
+      notifyDomainError(error, t('chat.reactionFailure'));
+    }
+  };
+
   const handleOpenNix = (nix: ChatNixEvent) => {
     if (nix.direction !== 'received' || nix.is_viewed || !nix.media_path) return;
     if (nix.status === 'cleaned' || nix.status === 'cleanup_failed') return;
@@ -179,6 +274,7 @@ export function useChatScreen(peerId: string) {
     peerLoading: peerProfileQuery.isPending,
     messages,
     nixes,
+    reactionsByMessageId,
     messagesLoading,
     messagesError: messagesQuery.isError || nixesQuery.isError,
     inputBody,
@@ -188,9 +284,15 @@ export function useChatScreen(peerId: string) {
     reportReasons,
     handleSend,
     handleReportMessage,
+    handleSetReaction,
+    handleRemoveReaction,
     handleOpenNix,
     refetchMessages: async () => {
-      await Promise.all([messagesQuery.refetch(), nixesQuery.refetch()]);
+      await Promise.all([
+        messagesQuery.refetch(),
+        reactionsQuery.refetch(),
+        nixesQuery.refetch(),
+      ]);
     },
   };
 }

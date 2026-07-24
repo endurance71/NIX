@@ -6,6 +6,17 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+export const MESSAGE_REACTION_EMOJIS = [
+  'heart',
+  'thumbsup',
+  'thumbsdown',
+  'hahaha',
+  'exclamation',
+  'question',
+] as const;
+
+export type MessageReactionEmoji = (typeof MESSAGE_REACTION_EMOJIS)[number];
+
 export interface Database {
   public: {
     Tables: {
@@ -409,6 +420,32 @@ export interface Database {
           client_message_id?: string | null;
         };
       };
+      message_reactions: {
+        Row: {
+          id: string;
+          message_id: string;
+          user_id: string;
+          emoji: MessageReactionEmoji;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          message_id: string;
+          user_id: string;
+          emoji: MessageReactionEmoji;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          message_id?: string;
+          user_id?: string;
+          emoji?: MessageReactionEmoji;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
   };
 }
@@ -416,6 +453,7 @@ export interface Database {
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type Nix = Database['public']['Tables']['nixes']['Row'];
 export type TextMessage = Database['public']['Tables']['text_messages']['Row'];
+export type MessageReaction = Database['public']['Tables']['message_reactions']['Row'];
 export type Friendship = Database['public']['Tables']['friendships']['Row'];
 export type FriendInvite = Database['public']['Tables']['friend_invites']['Row'];
 export type NixCleanupQueue = Database['public']['Tables']['nix_cleanup_queue']['Row'];
