@@ -309,20 +309,9 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
   const startedAt = nowMs();
   const limit = normalizePageLimit(options.limit);
 
-  const inboxSelectFull = `
-      id,
-      sender_id,
-      media_path,
-      media_type,
-      playback_duration_ms,
-      thumbnail_b64,
-      created_at,
-      is_viewed,
-      status,
-      view_duration_sec
-    `;
-
-  const inboxSelectNoThumbnail = `
+  // Lista Skrzynki nie renderuje miniaturek — `thumbnail_b64` zostaje w
+  // `fetchUnreadInboxQueueFromSender` / viewerze (TTFP), nie w cold-fetchu listy.
+  const inboxSelectList = `
       id,
       sender_id,
       media_path,
@@ -357,25 +346,12 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
 
   let inboxQuery = supabase
     .from('nixes')
-    .select(inboxSelectFull)
+    .select(inboxSelectList)
     .eq('receiver_id', user.id);
   if (options.beforeCreatedAt) {
     inboxQuery = inboxQuery.lt('created_at', options.beforeCreatedAt);
   }
   let { data, error } = await inboxQuery.order('created_at', { ascending: false }).limit(limit);
-
-  if (error && isMissingThumbnailColumnError(error)) {
-    let retryQuery = supabase
-      .from('nixes')
-      .select(inboxSelectNoThumbnail)
-      .eq('receiver_id', user.id);
-    if (options.beforeCreatedAt) {
-      retryQuery = retryQuery.lt('created_at', options.beforeCreatedAt);
-    }
-    const retry = await retryQuery.order('created_at', { ascending: false }).limit(limit);
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
 
   if (error && isMissingPlaybackDurationColumnError(error)) {
     let retryQuery = supabase
@@ -411,7 +387,7 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
       media_type: typeof nix.media_type === 'string' ? nix.media_type : 'image',
       playback_duration_ms:
         typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
-      thumbnail_b64: typeof nix.thumbnail_b64 === 'string' ? nix.thumbnail_b64 : null,
+      thumbnail_b64: null,
       view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
     }));
   }
@@ -457,7 +433,7 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
     media_type: typeof nix.media_type === 'string' ? nix.media_type : 'image',
     playback_duration_ms:
       typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
-    thumbnail_b64: typeof nix.thumbnail_b64 === 'string' ? nix.thumbnail_b64 : null,
+    thumbnail_b64: null,
     view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
     sender: senderMap.get(nix.sender_id)
       ? {
@@ -643,6 +619,76 @@ export async function fetchSentNixes(options: NixPageOptions = {}) {
     limit,
   });
   return result;
+}
+
+export type ChatNixEvent = {
+  id: string;
+  direction: 'sent' | 'received';
+  created_at: string;
+  media_type: string;
+  media_path: string | null;
+  thumbnail_b64: string | null;
+  is_viewed: boolean;
+  status: 'sent' | 'viewed' | 'cleaned' | 'cleanup_failed';
+  view_duration_sec: number;
+};
+
+/** NiXy w obu kierunkach z danym peerm — do unified czatu. */
+export async function fetchChatNixesWithPeer(peerId: string, limit = 50): Promise<ChatNixEvent[]> {
+  const user = await getCurrentUser();
+  if (!user || !peerId) return [];
+  const pageLimit = normalizePageLimit(limit);
+
+  const { data, error } = await supabase
+    .from('nixes')
+    .select(
+      `
+      id,
+      sender_id,
+      receiver_id,
+      created_at,
+      media_path,
+      media_type,
+      thumbnail_b64,
+      is_viewed,
+      status,
+      view_duration_sec
+    `
+    )
+    .or(
+      `and(sender_id.eq.${user.id},receiver_id.eq.${peerId}),and(sender_id.eq.${peerId},receiver_id.eq.${user.id})`
+    )
+    .order('created_at', { ascending: false })
+    .limit(pageLimit);
+
+  if (error) throw mapDatabaseError(error);
+
+  return ((data ?? []) as Array<{
+    id: string;
+    sender_id: string;
+    receiver_id: string;
+    created_at: string;
+    media_path: string | null;
+    media_type: string | null;
+    thumbnail_b64: string | null;
+    is_viewed: boolean | null;
+    status: ChatNixEvent['status'] | null;
+    view_duration_sec: number | null;
+  }>).map((nix) => {
+    const direction: 'sent' | 'received' = nix.sender_id === user.id ? 'sent' : 'received';
+    const isViewed = nix.is_viewed === true || nix.status === 'viewed' || nix.status === 'cleaned';
+    return {
+      id: nix.id,
+      direction,
+      created_at: nix.created_at,
+      media_type: nix.media_type === 'video' ? 'video' : 'image',
+      media_path: nix.media_path,
+      thumbnail_b64: nix.thumbnail_b64 ?? null,
+      is_viewed: isViewed,
+      status: nix.status ?? (isViewed ? 'viewed' : 'sent'),
+      view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
+    };
+  });
 }
 
 export async function deleteConversationWithPeer(peerProfileId: string) {

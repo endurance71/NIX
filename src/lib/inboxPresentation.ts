@@ -4,6 +4,8 @@ import type { SupportedLocale } from './i18n';
 
 export type InboxRowStatus = 'new' | 'sent' | 'opened' | 'cleaned' | 'cleanupFailed';
 
+export type InboxRowMediaType = 'image' | 'video';
+
 export type InboxRowModel = {
   id: string;
   peerId: string;
@@ -17,7 +19,8 @@ export type InboxRowModel = {
   timestampLabel: string;
   avatarStoragePath: string | null;
   avatarEmoji: string | null;
-  subtitlePreview?: string | null;
+  /** Typ mediów NiXa; `null` dla wiadomości tekstowych i wysłanych (status zamiast typu). */
+  mediaType: InboxRowMediaType | null;
   openParams: {
     id: string;
     path: string;
@@ -63,7 +66,7 @@ export function buildInboxRowModel(
       timestampLabel: formatInboxTimestamp(textMessage.created_at, locale, { now, yesterdayLabel }),
       avatarStoragePath: peerProfile?.avatar_storage_path ?? null,
       avatarEmoji: peerProfile?.avatar_emoji ?? null,
-      subtitlePreview: textMessage.body,
+      mediaType: null,
       openParams: null,
     };
   }
@@ -87,7 +90,7 @@ export function buildInboxRowModel(
       timestampLabel: formatInboxTimestamp(nix.created_at, locale, { now, yesterdayLabel }),
       avatarStoragePath: nix.sender?.avatar_storage_path ?? null,
       avatarEmoji: nix.sender?.avatar_emoji ?? null,
-      subtitlePreview: null,
+      mediaType: nix.media_type === 'video' ? 'video' : 'image',
       openParams: unread
         ? {
             id: nix.id,
@@ -114,7 +117,7 @@ export function buildInboxRowModel(
     timestampLabel: formatInboxTimestamp(nix.created_at, locale, { now, yesterdayLabel }),
     avatarStoragePath: nix.receiver?.avatar_storage_path ?? null,
     avatarEmoji: nix.receiver?.avatar_emoji ?? null,
-    subtitlePreview: null,
+    mediaType: null,
     openParams: null,
   };
 }

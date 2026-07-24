@@ -13,6 +13,7 @@ const {
   mockGetCurrentUser,
   mockInvoke,
   mockRpc,
+  mockNixesSelect,
   mockNixesSelectEq,
   mockNixesSelectOrder,
   mockNixesSelectLimit,
@@ -40,11 +41,15 @@ const {
   const nixesSelectOrder = vi.fn();
   const nixesSelectLimit = vi.fn();
   const nixesSelectEq = vi.fn();
+  const nixesSelect = vi.fn(() => ({
+    eq: nixesSelectEq,
+  }));
 
   return {
     mockGetCurrentUser: vi.fn(),
     mockInvoke: vi.fn(),
     mockRpc: vi.fn(),
+    mockNixesSelect: nixesSelect,
     mockNixesSelectEqValue: { order: nixesSelectOrder },
     mockNixesSelectEq: nixesSelectEq,
     mockNixesSelectOrder: nixesSelectOrder,
@@ -85,9 +90,7 @@ vi.mock('../lib/supabase', () => ({
           update: () => ({ eq: mockNixesUpdateEq }),
           insert: mockNixesInsert,
           upsert: mockNixesUpsert,
-          select: () => ({
-            eq: mockNixesSelectEq,
-          }),
+          select: mockNixesSelect,
         };
       }
 
@@ -439,6 +442,10 @@ describe('nixService cleanup flow', () => {
 
     const result = await fetchInboxNixes();
 
+    expect(mockNixesSelect).toHaveBeenCalled();
+    const selectArg = String(mockNixesSelect.mock.calls.at(0)?.at(0) ?? '');
+    expect(selectArg).not.toContain('thumbnail_b64');
+    expect(result[0].thumbnail_b64).toBeNull();
     expect(result[0].sender).toEqual({
       username: 'emulator',
       display_name: 'emulator_nazwa',

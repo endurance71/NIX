@@ -21,14 +21,18 @@ export async function sendTextMessage({
   clientMessageId,
 }: SendTextMessageParams): Promise<TextMessage> {
   const user = await getCurrentUser();
+  if (!user) {
+    throw new DomainError('UNAUTHORIZED', 'Wymagane logowanie.');
+  }
+
   const trimmedBody = body.trim();
 
   if (!trimmedBody) {
-    throw new DomainError('MESSAGE_EMPTY', 'Wiadomość nie może być pusta.');
+    throw new DomainError('INVALID_INPUT', 'Wiadomość nie może być pusta.');
   }
 
   if (trimmedBody.length > 2000) {
-    throw new DomainError('MESSAGE_TOO_LONG', 'Wiadomość przekracza limit 2000 znaków.');
+    throw new DomainError('INVALID_INPUT', 'Wiadomość przekracza limit 2000 znaków.');
   }
 
   const { data, error } = await supabase
@@ -44,7 +48,6 @@ export async function sendTextMessage({
 
   if (error) {
     if (error.code === '23505' && clientMessageId) {
-      // Duplicate client_message_id (idempotency key already inserted)
       const { data: existing } = await supabase
         .from('text_messages')
         .select('*')
@@ -58,12 +61,12 @@ export async function sendTextMessage({
 
     if (error.message.includes('can_send_text_message') || error.code === '42501') {
       throw new DomainError(
-        'NOT_FRIENDS_OR_RESTRICTED',
+        'NOT_FRIEND',
         'Nie możesz wysłać wiadomości do tego użytkownika (wymagana relacja znajomości).'
       );
     }
 
-    throw new DomainError('SEND_MESSAGE_FAILED', error.message || 'Nie udało się wysłać wiadomości.');
+    throw new DomainError('UNKNOWN', error.message || 'Nie udało się wysłać wiadomości.');
   }
 
   return data;
@@ -81,10 +84,18 @@ export async function fetchTextMessagesWithPeer({
   });
 
   if (error) {
-    throw new DomainError('FETCH_MESSAGES_FAILED', error.message || 'Błąd pobierania wiadomości.');
+    throw new DomainError('UNKNOWN', error.message || 'Błąd pobierania wiadomości.');
   }
 
-  return (data || []).map((row: any) => ({
+  return (data || []).map((row: {
+    id: string;
+    sender_id: string;
+    receiver_id: string;
+    body: string;
+    created_at: string;
+    expires_at: string;
+    client_message_id: string | null;
+  }) => ({
     id: row.id,
     sender_id: row.sender_id,
     receiver_id: row.receiver_id,
@@ -101,7 +112,7 @@ export async function deleteTextMessageConversation(peerId: string): Promise<num
   });
 
   if (error) {
-    throw new DomainError('DELETE_CONVERSATION_FAILED', error.message || 'Nie udało się usunąć rozmowy.');
+    throw new DomainError('UNKNOWN', error.message || 'Nie udało się usunąć rozmowy.');
   }
 
   return data ?? 0;
@@ -113,11 +124,13 @@ export type RecentTextMessageItem = TextMessage & {
 
 export async function fetchRecentTextMessagesForInbox(): Promise<RecentTextMessageItem[]> {
   const user = await getCurrentUser();
+  if (!user) return [];
+
   const now = new Date().toISOString();
 
   const { data, error } = await supabase
     .from('text_messages')
-    .select('*')
+    .select('id, sender_id, receiver_id, body, created_at, expires_at, client_message_id')
     .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
     .gt('expires_at', now)
     .order('created_at', { ascending: false })

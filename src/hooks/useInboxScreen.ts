@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
@@ -24,10 +24,6 @@ import { notifyDomainError, notifyError, notifyInfo, notifySuccess } from '../li
 import { inboxNixesBundleQueryOptions } from '../lib/inboxQuery';
 import { runWithFinally } from '../lib/runWithFinally';
 import { blockUser } from '../services/safetyService';
-
-function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message.trim() ? error.message : fallback;
-}
 
 async function refreshInboxQueries(queryClient: QueryClient, failureMessage: string) {
   try {
@@ -55,7 +51,7 @@ export function useInboxScreen() {
   const requestsQuery = useQuery({
     queryKey: queryKeys.incomingFriendRequests,
     queryFn: listIncomingFriendRequests,
-    staleTime: 10_000,
+    staleTime: 1000 * 60,
     refetchOnWindowFocus: false,
   });
 
@@ -102,12 +98,23 @@ export function useInboxScreen() {
     await Promise.all([nixesQuery.refetch(), requestsQuery.refetch()]);
   };
 
-  useFocusEffect(() => {
-    void Promise.all([
-      queryClient.refetchQueries({ queryKey: queryKeys.inboxNixesBundle, type: 'active' }),
-      queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
-    ]);
-  });
+  useFocusEffect(
+    useCallback(() => {
+      void queryClient.refetchQueries({
+        type: 'active',
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          if (
+            key !== queryKeys.inboxNixesBundle[0] &&
+            key !== queryKeys.incomingFriendRequests[0]
+          ) {
+            return false;
+          }
+          return query.isStale();
+        },
+      });
+    }, [queryClient])
+  );
 
   useEffect(
     () =>
@@ -238,12 +245,12 @@ export function useInboxScreen() {
     }
   };
 
-  const loading =
-    (nixesQuery.isPending && nixesQuery.data === undefined) ||
-    (requestsQuery.isPending && requestsQuery.data === undefined);
-  const initialError =
-    (nixesQuery.isError && nixesQuery.data === undefined) ||
-    (requestsQuery.isError && requestsQuery.data === undefined);
+  // Full-screen loader tylko od bundla wątków — friend requests ładują się
+  // niezależnie i nie powinny blokować listy wiadomości.
+  const loading = nixesQuery.isPending && nixesQuery.data === undefined;
+  const initialError = nixesQuery.isError && nixesQuery.data === undefined;
+  const requestsReady = !(requestsQuery.isPending && requestsQuery.data === undefined);
+  const showEmpty = requestsReady && requests.length === 0 && rows.length === 0;
 
   return {
     t,
@@ -254,6 +261,7 @@ export function useInboxScreen() {
     busyPeerIds,
     loading,
     initialError,
+    showEmpty,
     handleRefresh,
     handleRetry,
     handleAccept,

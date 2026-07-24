@@ -99,17 +99,31 @@ export default function SendToSheet() {
   const { segments, clearSegments } = useVideoDraft();
   const { uploadNix, uploadVideoSegments } = useMediaUpload();
   const { offerAfterSuccessfulSend } = usePushNotifications();
-  const { data: profiles = [], isPending: loading } = useQuery({
+  const {
+    data: profiles = [],
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: queryKeys.acceptedFriends,
     queryFn: () => listAcceptedFriends({ limit: 50 }),
     staleTime: 1000 * 60 * 2,
   });
 
+  // Only refetch when stale — formSheet can re-fire focus during presentation;
+  // invalidateQueries would cancel in-flight fetches and leave isPending spinning.
   useFocusEffect(
     useCallback(() => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
+      void queryClient.refetchQueries({
+        queryKey: queryKeys.acceptedFriends,
+        type: 'active',
+        stale: true,
+      });
     }, [queryClient])
   );
+
+  const showInitialLoader = isLoading && profiles.length === 0;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [isSending, setIsSending] = useState(false);
@@ -220,8 +234,24 @@ export default function SendToSheet() {
       <Text style={stylesForTheme.title}>Wyślij do</Text>
       <Text style={stylesForTheme.subtitle}>Wybierz jednego lub wielu znajomych</Text>
 
-      {loading ? (
+      {showInitialLoader ? (
         <ActivityIndicator color={colors.label} style={styles.loading} />
+      ) : isError ? (
+        <View style={stylesForTheme.emptyState}>
+          <Text style={stylesForTheme.emptyStateText}>Nie udało się wczytać znajomych.</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Spróbuj ponownie"
+            onPress={() => void refetch()}
+            style={styles.retryButton}
+            disabled={isFetching}>
+            {isFetching ? (
+              <ActivityIndicator color={colors.label} />
+            ) : (
+              <Text style={[styles.retryButtonText, { color: colors.systemBlue }]}>Spróbuj ponownie</Text>
+            )}
+          </Pressable>
+        </View>
       ) : (
         <View style={stylesForTheme.listWrap}>
           <FlashList
@@ -294,6 +324,16 @@ const styles = StyleSheet.create({
   },
   loading: {
     marginTop: 20,
+  },
+  retryButton: {
+    marginTop: 16,
+    alignSelf: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  retryButtonText: {
+    ...typography.headline,
   },
   sendButtonDisabled: {
     opacity: 0.5,

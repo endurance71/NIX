@@ -101,6 +101,20 @@ function statusLabel(status: InboxRowStatus, t: Translate) {
   }
 }
 
+function rowSubtitle(row: InboxRowModel, t: Translate) {
+  // Wysłane NiXy: status dostarczenia/czyszczenia (Wysłano, Usunięto, …).
+  if (row.kind === 'nix' && row.direction === 'sent') {
+    return statusLabel(row.status, t);
+  }
+  if (row.kind === 'text') {
+    return t('inbox.previewText');
+  }
+  if (row.mediaType === 'video') {
+    return t('inbox.previewVideo');
+  }
+  return t('inbox.previewPhoto');
+}
+
 function MessageRowContent({
   row,
   avatarUrl,
@@ -117,7 +131,7 @@ function MessageRowContent({
   t: Translate;
 }) {
   const { colors } = useAppTheme();
-  const label = row.kind === 'text' && row.subtitlePreview ? row.subtitlePreview : statusLabel(row.status, t);
+  const label = rowSubtitle(row, t);
   const canOpen = !busy;
 
   const baseModifiers = [
@@ -139,7 +153,7 @@ function MessageRowContent({
 
   return (
     <HStack
-      alignment="top"
+      alignment="center"
       spacing={12}
       modifiers={baseModifiers}>
       <HStack alignment="center" spacing={8}>
@@ -157,7 +171,6 @@ function MessageRowContent({
         spacing={3}
         modifiers={[
           frame({ maxWidth: Infinity, alignment: 'leading' }),
-          padding({ top: 2 }),
           layoutPriority(1),
         ]}>
         <Text
@@ -185,25 +198,33 @@ function MessageRowContent({
       {busy ? (
         <ProgressView modifiers={[accessibilityLabel(t('common.loading'))]} />
       ) : (
-        <VStack alignment="trailing" spacing={4} modifiers={[padding({ top: 2 }), layoutPriority(2)]}>
-          <Text
-            modifiers={[
-              font({ textStyle: 'subheadline' }),
-              foregroundStyle(row.unread ? colors.systemBlue : { type: 'hierarchical', style: 'secondary' }),
-              lineLimit(1),
-            ]}>
-            {row.timestampLabel}
-          </Text>
-          {row.unread && (
-            <Circle
+        <HStack alignment="center" spacing={8} modifiers={[layoutPriority(2)]}>
+          <VStack alignment="trailing" spacing={4}>
+            <Text
               modifiers={[
-                frame({ width: 10, height: 10 }),
-                foregroundStyle(colors.systemBlue),
-                accessibilityHidden(),
-              ]}
-            />
-          )}
-        </VStack>
+                font({ textStyle: 'subheadline' }),
+                foregroundStyle(row.unread ? colors.systemBlue : { type: 'hierarchical', style: 'secondary' }),
+                lineLimit(1),
+              ]}>
+              {row.timestampLabel}
+            </Text>
+            {row.unread && (
+              <Circle
+                modifiers={[
+                  frame({ width: 10, height: 10 }),
+                  foregroundStyle(colors.systemBlue),
+                  accessibilityHidden(),
+                ]}
+              />
+            )}
+          </VStack>
+          <Image
+            systemName="chevron.right"
+            size={13}
+            color={colors.tertiaryLabel}
+            modifiers={[accessibilityHidden()]}
+          />
+        </HStack>
       )}
     </HStack>
   );
@@ -536,7 +557,7 @@ export function InboxScreenSurface(props: InboxScreenSurfaceProps) {
     );
   }
 
-  if (vm.requests.length === 0 && vm.rows.length === 0) {
+  if (vm.showEmpty) {
     return (
       <InboxUnavailableState
         kind="empty"

@@ -30,6 +30,12 @@ export type ThemeColors = {
   systemFill: string;
   secondarySystemFill: string;
   systemBlue: string;
+  /** Outgoing chat bubble (true iMessage blue — not user accent). */
+  chatBubbleOwn: string;
+  /** Incoming chat bubble fill (iMessage-style gray). */
+  chatBubbleIncoming: string;
+  /** Label on outgoing chat bubbles. */
+  onChatBubbleOwn: string;
   destructive: string;
   cameraControlBackground: string;
   cameraControlTint: string;
@@ -67,6 +73,9 @@ export const darkColors: ThemeColors = {
   systemFill: '#7878805C',
   secondarySystemFill: '#78788052',
   systemBlue: '#0A84FF',
+  chatBubbleOwn: '#0A84FF',
+  chatBubbleIncoming: '#3A3A3C',
+  onChatBubbleOwn: '#FFFFFF',
   destructive: '#FF453A',
   cameraControlBackground: '#00000059',
   cameraControlTint: '#FFFFFF',
@@ -104,6 +113,9 @@ export const lightColors: ThemeColors = {
   systemFill: '#78788033',
   secondarySystemFill: '#78788029',
   systemBlue: '#007AFF',
+  chatBubbleOwn: '#007AFF',
+  chatBubbleIncoming: '#E9E9EB',
+  onChatBubbleOwn: '#FFFFFF',
   destructive: '#FF3B30',
   cameraControlBackground: '#00000059',
   cameraControlTint: '#FFFFFF',

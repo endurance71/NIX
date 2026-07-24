@@ -1,6 +1,17 @@
 import type { InboxNix, SentNix } from '../services/nixService';
 import type { RecentTextMessageItem } from '../services/textMessageService';
 
+export type InboxPeerProfile = {
+  username: string;
+  display_name?: string | null;
+  avatar_storage_path?: string | null;
+  avatar_emoji?: string | null;
+};
+
+export type TextMessageForInbox = RecentTextMessageItem & {
+  peerProfile?: InboxPeerProfile | null;
+};
+
 export type InboxThreadItem =
   | {
       id: string;
@@ -22,13 +33,14 @@ export type InboxThreadItem =
       direction: 'received' | 'sent';
       timestamp: number;
       textMessage: RecentTextMessageItem;
-      peerProfile?: {
-        username: string;
-        display_name?: string | null;
-        avatar_storage_path?: string | null;
-        avatar_emoji?: string | null;
-      } | null;
+      peerProfile?: InboxPeerProfile | null;
     };
+
+type PeerThreadState = {
+  latest: InboxThreadItem;
+  latestUnreadReceived: Extract<InboxThreadItem, { kind: 'nix'; direction: 'received' }> | null;
+  bestProfile: InboxPeerProfile | null;
+};
 
 function peerUserId(item: InboxThreadItem): string {
   if (item.kind === 'text') {
@@ -42,18 +54,73 @@ function timestampFrom(createdAt: string): number {
   return Number.isFinite(value) ? value : 0;
 }
 
+function profileFromItem(item: InboxThreadItem): InboxPeerProfile | null {
+  if (item.kind === 'text') {
+    return item.peerProfile?.username ? item.peerProfile : null;
+  }
+  if (item.direction === 'received') {
+    const sender = item.nix.sender;
+    return sender?.username
+      ? {
+          username: sender.username,
+          display_name: sender.display_name ?? null,
+          avatar_storage_path: sender.avatar_storage_path ?? null,
+          avatar_emoji: sender.avatar_emoji ?? null,
+        }
+      : null;
+  }
+  const receiver = item.nix.receiver;
+  return receiver?.username
+    ? {
+        username: receiver.username,
+        display_name: receiver.display_name ?? null,
+        avatar_storage_path: receiver.avatar_storage_path ?? null,
+        avatar_emoji: receiver.avatar_emoji ?? null,
+      }
+    : null;
+}
+
+function withEnrichedProfile(item: InboxThreadItem, profile: InboxPeerProfile | null): InboxThreadItem {
+  if (!profile) return item;
+  if (item.kind === 'text') {
+    return { ...item, peerProfile: item.peerProfile?.username ? item.peerProfile : profile };
+  }
+  if (item.direction === 'received') {
+    if (item.nix.sender?.username) return item;
+    return {
+      ...item,
+      nix: {
+        ...item.nix,
+        sender: {
+          username: profile.username,
+          display_name: profile.display_name ?? null,
+          avatar_storage_path: profile.avatar_storage_path ?? null,
+          avatar_emoji: profile.avatar_emoji ?? null,
+        },
+      },
+    };
+  }
+  if (item.nix.receiver?.username) return item;
+  return {
+    ...item,
+    nix: {
+      ...item.nix,
+      receiver: {
+        username: profile.username,
+        display_name: profile.display_name ?? null,
+        avatar_storage_path: profile.avatar_storage_path ?? null,
+        avatar_emoji: profile.avatar_emoji ?? null,
+      },
+    },
+  };
+}
+
 export function buildInboxThreads(
   inboxNixes: readonly InboxNix[],
   sentNixes: readonly SentNix[],
-  textMessages: readonly RecentTextMessageItem[] = []
+  textMessages: readonly TextMessageForInbox[] = []
 ): InboxThreadItem[] {
-  const byPeer = new Map<
-    string,
-    {
-      latest: InboxThreadItem;
-      latestUnreadReceived: InboxThreadItem | null;
-    }
-  >();
+  const byPeer = new Map<string, PeerThreadState>();
 
   const items: InboxThreadItem[] = [
     ...inboxNixes.map((nix) => ({
@@ -78,12 +145,14 @@ export function buildInboxThreads(
         direction: isReceived ? ('received' as const) : ('sent' as const),
         timestamp: timestampFrom(msg.created_at),
         textMessage: msg,
+        peerProfile: msg.peerProfile ?? null,
       };
     }),
   ];
 
   for (const item of items) {
     const id = peerUserId(item);
+    const profile = profileFromItem(item);
     const prev = byPeer.get(id);
     const isUnreadReceivedNix =
       item.kind === 'nix' && item.direction === 'received' && item.nix.is_viewed !== true;
@@ -92,8 +161,13 @@ export function buildInboxThreads(
       byPeer.set(id, {
         latest: item,
         latestUnreadReceived: isUnreadReceivedNix ? item : null,
+        bestProfile: profile,
       });
       continue;
+    }
+
+    if (profile && !prev.bestProfile?.username) {
+      prev.bestProfile = profile;
     }
 
     if (item.timestamp > prev.latest.timestamp) {
@@ -109,6 +183,6 @@ export function buildInboxThreads(
   }
 
   return [...byPeer.values()]
-    .map((entry) => entry.latestUnreadReceived ?? entry.latest)
+    .map((entry) => withEnrichedProfile(entry.latestUnreadReceived ?? entry.latest, entry.bestProfile))
     .sort((a, b) => b.timestamp - a.timestamp);
 }

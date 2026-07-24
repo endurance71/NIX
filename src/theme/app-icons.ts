@@ -22,6 +22,8 @@ export type AppIconName =
   | 'profile'
   | 'photoLibrary'
   | 'send'
+  | 'sendCircle'
+  | 'compose'
   | 'timer'
   | 'trash'
   | 'qrcode'
@@ -54,6 +56,8 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   profile: 'person.crop.circle',
   photoLibrary: 'photo.on.rectangle.angled',
   send: 'paperplane',
+  sendCircle: 'arrow.up.circle.fill',
+  compose: 'square.and.pencil',
   timer: 'timer',
   trash: 'trash',
   qrcode: 'qrcode.viewfinder',

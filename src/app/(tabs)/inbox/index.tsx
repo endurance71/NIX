@@ -1,7 +1,7 @@
 import { Alert, Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { InboxScreenSurface } from '../../../components/inbox/InboxScreenSurface';
-import { HeaderQrButton } from '../../../components/navigation/header-qr-button';
+import { HeaderComposeButton } from '../../../components/navigation/header-compose-button';
 import { useAppTheme } from '../../../hooks/useAppTheme';
 import { useInboxScreen } from '../../../hooks/useInboxScreen';
 import type { InboxRowModel } from '../../../lib/inboxPresentation';
@@ -42,7 +42,7 @@ export default function InboxScreen() {
         options={{
           headerLargeTitle: true,
           headerTitle: vm.t('inbox.title'),
-          headerRight: () => <HeaderQrButton />,
+          headerRight: () => <HeaderComposeButton />,
           headerSearchBarOptions: {
             placeholder: vm.t('inbox.searchPlaceholder'),
             hideWhenScrolling: false,

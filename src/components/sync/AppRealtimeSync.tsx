@@ -37,6 +37,7 @@ export function AppRealtimeSync({ userId }: { userId: string }) {
       );
       if (areas.has('textChat') || areas.has('inbox')) {
         promises.push(queryClient.invalidateQueries({ queryKey: ['textMessagesWithPeer'] }));
+        promises.push(queryClient.invalidateQueries({ queryKey: ['chatNixesWithPeer'] }));
       }
       await Promise.all(promises);
     };

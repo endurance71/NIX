@@ -90,7 +90,9 @@ export function inboxNixesBundleQueryOptions() {
   return {
     queryKey: queryKeys.inboxNixesBundle,
     queryFn: fetchInboxNixesBundle,
-    staleTime: 10_000,
+    // Realtime invaliduje przy nowych wiadomościach; krótki staleTime tylko
+    // generował ciężkie refetchy przy focus / przełączaniu tabów.
+    staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   } as const;

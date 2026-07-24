@@ -1,15 +1,17 @@
-import { useState, useCallback } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './useAuth';
-import { useAppTheme } from './useAppTheme';
-import { queryKeys } from '../lib/queryKeys';
+import { queryKeys, avatarSignedUrlsQueryKey } from '../lib/queryKeys';
+import { sortMessagesAscending } from '../lib/chatTimeline';
 import {
   fetchTextMessagesWithPeer,
   sendTextMessage,
 } from '../services/textMessageService';
-import { fetchNixPublicProfiles } from '../services/profileService';
-import { reportContent } from '../services/safetyService';
+import { fetchChatNixesWithPeer, fetchNixPublicProfiles, type ChatNixEvent } from '../services/nixService';
+import { createSignedAvatarUrls } from '../services/avatarService';
+import { reportContent, type ReportReason } from '../services/safetyService';
 import { notifyDomainError, notifySuccess } from '../lib/appNotify';
 import type { TextMessage } from '../types/database.types';
 
@@ -25,17 +27,18 @@ export type OptimisticTextMessage = TextMessage & {
   sendFailed?: boolean;
 };
 
+const CHAT_REPORT_REASON_IDS = ['harassment', 'spam', 'other'] as const satisfies readonly ReportReason[];
+
 export function useChatScreen(peerId: string) {
-  const { t } = useTranslation();
-  const { colors } = useAppTheme();
+  const { t, i18n } = useTranslation();
   const { session } = useAuth();
   const currentUserId = session?.user?.id ?? '';
   const queryClient = useQueryClient();
 
   const [inputBody, setInputBody] = useState('');
+  const [composerKey, setComposerKey] = useState(0);
   const [sending, setSending] = useState(false);
 
-  // Peer profile query
   const peerProfileQuery = useQuery({
     queryKey: ['peerProfile', peerId],
     queryFn: async () => {
@@ -46,16 +49,51 @@ export function useChatScreen(peerId: string) {
     enabled: Boolean(peerId),
   });
 
-  // Messages query
+  const peerAvatarPath = peerProfileQuery.data?.avatar_storage_path ?? null;
+  const peerAvatarQuery = useQuery({
+    queryKey: avatarSignedUrlsQueryKey(peerAvatarPath ? [peerAvatarPath] : []),
+    queryFn: () => createSignedAvatarUrls(peerAvatarPath ? [peerAvatarPath] : []),
+    staleTime: 5 * 60_000,
+    enabled: Boolean(peerAvatarPath),
+  });
+
   const messagesQuery = useQuery({
     queryKey: queryKeys.textMessagesWithPeer(peerId),
     queryFn: () => fetchTextMessagesWithPeer({ peerId, limit: 50 }),
     staleTime: 2_000,
     enabled: Boolean(peerId),
     refetchOnWindowFocus: true,
+    select: (rows) => sortMessagesAscending(rows),
+  });
+
+  const nixesQuery = useQuery({
+    queryKey: ['chatNixesWithPeer', peerId] as const,
+    queryFn: () => fetchChatNixesWithPeer(peerId, 50),
+    staleTime: 2_000,
+    enabled: Boolean(peerId),
+    refetchOnWindowFocus: true,
   });
 
   const messages: OptimisticTextMessage[] = messagesQuery.data ?? [];
+  const nixes: ChatNixEvent[] = nixesQuery.data ?? [];
+
+  const reportReasons = useMemo(
+    () =>
+      CHAT_REPORT_REASON_IDS.map((id) => ({
+        id,
+        label: t(`chat.reportReasons.${id}`),
+      })),
+    [t]
+  );
+
+  const invalidateChat = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.textMessagesWithPeer(peerId) }),
+      queryClient.invalidateQueries({ queryKey: ['chatNixesWithPeer', peerId] }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.inboxActivityBundle }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
+    ]);
+  }, [peerId, queryClient]);
 
   const handleSend = useCallback(async () => {
     const trimmed = inputBody.trim();
@@ -77,12 +115,11 @@ export function useChatScreen(peerId: string) {
     };
 
     setInputBody('');
+    setComposerKey((key) => key + 1);
     setSending(true);
 
-    // Optimistic cache update
-    queryClient.setQueryData<TextMessage[]>(
-      queryKeys.textMessagesWithPeer(peerId),
-      (old = []) => [optimisticMsg, ...old]
+    queryClient.setQueryData<TextMessage[]>(queryKeys.textMessagesWithPeer(peerId), (old = []) =>
+      sortMessagesAscending([...old, optimisticMsg])
     );
 
     try {
@@ -91,32 +128,26 @@ export function useChatScreen(peerId: string) {
         body: trimmed,
         clientMessageId,
       });
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.textMessagesWithPeer(peerId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.inboxActivityBundle }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
-      ]);
+      await invalidateChat();
     } catch (error) {
-      // Mark failed or revert
-      queryClient.setQueryData<TextMessage[]>(
-        queryKeys.textMessagesWithPeer(peerId),
-        (old = []) => old.filter((m) => m.client_message_id !== clientMessageId)
+      queryClient.setQueryData<TextMessage[]>(queryKeys.textMessagesWithPeer(peerId), (old = []) =>
+        old.filter((m) => m.client_message_id !== clientMessageId)
       );
       notifyDomainError(error, t('chat.sendFailure'));
       setInputBody(trimmed);
+      setComposerKey((key) => key + 1);
     } finally {
       setSending(false);
     }
-  }, [inputBody, sending, peerId, currentUserId, queryClient, t]);
+  }, [inputBody, sending, peerId, currentUserId, queryClient, t, invalidateChat]);
 
   const handleReportMessage = useCallback(
-    async (message: TextMessage) => {
+    async (message: TextMessage, reason: ReportReason) => {
       try {
         await reportContent({
           reportedUserId: message.sender_id,
           textMessageId: message.id,
-          reason: 'inappropriate_text',
+          reason,
           details: 'User reported text message in chat screen.',
         });
         notifySuccess(t('chat.reportSuccess'));
@@ -127,22 +158,51 @@ export function useChatScreen(peerId: string) {
     [t]
   );
 
+  const handleOpenNix = useCallback(
+    (nix: ChatNixEvent) => {
+      if (nix.direction !== 'received' || nix.is_viewed || !nix.media_path) return;
+      if (nix.status === 'cleaned' || nix.status === 'cleanup_failed') return;
+      router.push({
+        pathname: '/viewer',
+        params: {
+          id: nix.id,
+          path: nix.media_path,
+          senderId: peerId,
+        },
+      });
+    },
+    [peerId]
+  );
+
+  const peerAvatarUrl = peerAvatarPath ? peerAvatarQuery.data?.[peerAvatarPath] ?? null : null;
+  const messagesLoading =
+    (messagesQuery.isPending && messagesQuery.data === undefined) ||
+    (nixesQuery.isPending && nixesQuery.data === undefined);
+
   return {
     t,
-    colors,
+    locale: i18n.language || 'pl',
     currentUserId,
     peerId,
     peerProfile: peerProfileQuery.data,
+    peerAvatarUrl,
+    peerAvatarPath,
     peerLoading: peerProfileQuery.isPending,
     messages,
-    messagesLoading: messagesQuery.isPending && messagesQuery.data === undefined,
-    messagesError: messagesQuery.isError,
+    nixes,
+    messagesLoading,
+    messagesError: messagesQuery.isError || nixesQuery.isError,
     inputBody,
     setInputBody,
+    composerKey,
     sending,
+    reportReasons,
     handleSend,
     handleReportMessage,
-    refetchMessages: messagesQuery.refetch,
+    handleOpenNix,
+    refetchMessages: async () => {
+      await Promise.all([messagesQuery.refetch(), nixesQuery.refetch()]);
+    },
   };
 }
 

@@ -35,7 +35,10 @@ describe('buildInboxThreads', () => {
       []
     );
 
-    expect(threads.map((item) => item.nix.id)).toEqual(['new', 'old']);
+    expect(threads.map((item) => (item.kind === 'nix' ? item.nix.id : item.textMessage.id))).toEqual([
+      'new',
+      'old',
+    ]);
   });
 
   it('pokazuje najnowszy nieprzeczytany odebrany nix przed nowszym wysłanym do tej samej osoby', () => {
@@ -46,7 +49,10 @@ describe('buildInboxThreads', () => {
 
     expect(threads).toHaveLength(1);
     expect(threads[0].direction).toBe('received');
-    expect(threads[0].nix.id).toBe('unread');
+    expect(threads[0].kind).toBe('nix');
+    if (threads[0].kind === 'nix') {
+      expect(threads[0].nix.id).toBe('unread');
+    }
   });
 
   it('łączy wysłane i odebrane po rozmówcy oraz zachowuje avatar path w nixie', () => {
@@ -65,7 +71,10 @@ describe('buildInboxThreads', () => {
 
     expect(threads).toHaveLength(1);
     expect(threads[0].direction).toBe('sent');
-    expect(threads[0].nix.id).toBe('latest');
+    expect(threads[0].kind).toBe('nix');
+    if (threads[0].kind === 'nix') {
+      expect(threads[0].nix.id).toBe('latest');
+    }
   });
 
   it('zwraca pustą listę dla pustych danych', () => {
@@ -90,7 +99,15 @@ describe('buildInboxThreads', () => {
 
   it('poprawnie wyznacza najnowszą aktywność gdy wiadomość tekstowa jest nowsza od NiXa', () => {
     const threads = buildInboxThreads(
-      [inbox({ id: 'old-nix', sender_id: 'peer-1', created_at: '2026-05-01T10:00:00Z', is_viewed: true })],
+      [
+        inbox({
+          id: 'old-nix',
+          sender_id: 'peer-1',
+          created_at: '2026-05-01T10:00:00Z',
+          is_viewed: true,
+          sender: { username: 'alice', avatar_storage_path: null, avatar_emoji: null },
+        }),
+      ],
       [],
       [
         {
@@ -110,6 +127,38 @@ describe('buildInboxThreads', () => {
     expect(threads[0].kind).toBe('text');
     if (threads[0].kind === 'text') {
       expect(threads[0].textMessage.body).toBe('Cześć!');
+      expect(threads[0].peerProfile?.username).toBe('alice');
+    }
+  });
+
+  it('przekazuje peerProfile z bundla tekstowego', () => {
+    const threads = buildInboxThreads(
+      [],
+      [],
+      [
+        {
+          id: 'text-1',
+          sender_id: 'peer-1',
+          receiver_id: 'me',
+          body: 'Hej',
+          created_at: '2026-05-01T11:00:00Z',
+          expires_at: '2026-05-02T11:00:00Z',
+          client_message_id: null,
+          peer_id: 'peer-1',
+          peerProfile: {
+            username: 'bob',
+            display_name: 'Bob',
+            avatar_storage_path: null,
+            avatar_emoji: null,
+          },
+        },
+      ]
+    );
+
+    expect(threads).toHaveLength(1);
+    expect(threads[0].kind).toBe('text');
+    if (threads[0].kind === 'text') {
+      expect(threads[0].peerProfile?.username).toBe('bob');
     }
   });
 });

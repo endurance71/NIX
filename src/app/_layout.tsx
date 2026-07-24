@@ -261,11 +261,25 @@ function RootNavigator() {
           presentation: 'card',
           headerShown: true,
           headerBackButtonDisplayMode: 'minimal',
+          headerTransparent: true,
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: 'transparent' },
+          headerBackground: () => null,
           headerTintColor: colors.accent,
-          contentStyle: { backgroundColor: colors.background },
+          contentStyle: { backgroundColor: colors.systemBackground },
         }}
       />
 
+      <Stack.Screen
+        name="new-chat"
+        options={{
+          presentation: 'formSheet',
+          sheetGrabberVisible: true,
+          sheetInitialDetentIndex: 0,
+          sheetAllowedDetents: [0.55, 0.9],
+          contentStyle: { backgroundColor: 'transparent' },
+        }}
+      />
       <Stack.Screen
         name="send-to"
         options={{

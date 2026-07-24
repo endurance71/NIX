@@ -59,6 +59,23 @@ export async function reportNix(nixId: string, reason: ReportReason, details?: s
   return String(data.reportId);
 }
 
+export async function reportContent(params: {
+  reason: ReportReason;
+  nixId?: string;
+  textMessageId?: string;
+  reportedUserId?: string;
+  details?: string;
+}): Promise<string> {
+  const data = await invokeSafetyFunction('report-content', {
+    reason: params.reason,
+    nixId: params.nixId,
+    textMessageId: params.textMessageId,
+    reportedUserId: params.reportedUserId,
+    details: params.details,
+  });
+  return String(data.reportId);
+}
+
 export async function blockUser(userId: string): Promise<void> {
   await invokeSafetyFunction('block-user', { blockedUserId: userId });
 }

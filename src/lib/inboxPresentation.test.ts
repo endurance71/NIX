@@ -10,6 +10,7 @@ import {
 function receivedItem(nix: Partial<InboxNix> = {}): InboxThreadItem {
   return {
     id: 'received-nix-1',
+    kind: 'nix',
     direction: 'received',
     timestamp: 1,
     nix: {
@@ -44,6 +45,7 @@ function sentNix(partial: Partial<SentNix> = {}): SentNix {
 function sentItem(nix: Partial<SentNix> = {}): InboxThreadItem {
   return {
     id: 'sent-nix-1',
+    kind: 'nix',
     direction: 'sent',
     timestamp: 1,
     nix: sentNix(nix),
@@ -105,6 +107,7 @@ describe('buildInboxRowModel', () => {
       direction: 'received',
       unread: true,
       status: 'new',
+      mediaType: 'image',
       avatarStoragePath: 'avatars/ania.jpg',
       avatarEmoji: '🌿',
       openParams: {
@@ -112,6 +115,41 @@ describe('buildInboxRowModel', () => {
         path: 'media/photo.jpg',
         senderId: 'friend-1',
       },
+    });
+  });
+
+  it('mapuje wideo jako mediaType video', () => {
+    const row = buildInboxRowModel(receivedItem({ media_type: 'video' }), presentationOptions);
+    expect(row.mediaType).toBe('video');
+  });
+
+  it('mapuje wiadomość tekstową bez treści w podglądzie', () => {
+    const row = buildInboxRowModel(
+      {
+        id: 'text-1',
+        kind: 'text',
+        direction: 'received',
+        timestamp: 1,
+        textMessage: {
+          id: 'tm-1',
+          peer_id: 'friend-1',
+          sender_id: 'friend-1',
+          receiver_id: 'me',
+          body: 'tajna treść',
+          created_at: new Date(2026, 6, 14, 9, 5).toISOString(),
+          expires_at: new Date(2026, 6, 15, 9, 5).toISOString(),
+          client_message_id: null,
+        },
+        peerProfile: { username: 'ania', avatar_storage_path: null, avatar_emoji: null },
+      },
+      presentationOptions
+    );
+
+    expect(row).toMatchObject({
+      kind: 'text',
+      peerId: 'friend-1',
+      mediaType: null,
+      unread: false,
     });
   });
 
@@ -136,6 +174,7 @@ describe('buildInboxRowModel', () => {
       username: 'ola',
       direction: 'sent',
       status: 'opened',
+      mediaType: null,
       avatarEmoji: '🐕',
       openParams: null,
     });
