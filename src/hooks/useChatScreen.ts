@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './useAuth';
 import { queryKeys, avatarSignedUrlsQueryKey } from '../lib/queryKeys';
 import { sortMessagesAscending } from '../lib/chatTimeline';
+import { runWithFinally } from '../lib/runWithFinally';
 import {
   fetchTextMessagesWithPeer,
   sendTextMessage,
@@ -15,9 +16,14 @@ import {
   removeMessageReaction,
   upsertMessageReaction,
 } from '../services/messageReactionService';
-import { fetchChatNixesWithPeer, fetchNixPublicProfiles, type ChatNixEvent } from '../services/nixService';
+import {
+  deleteConversationWithPeer,
+  fetchChatNixesWithPeer,
+  fetchNixPublicProfiles,
+  type ChatNixEvent,
+} from '../services/nixService';
 import { createSignedAvatarUrls } from '../services/avatarService';
-import { reportContent, type ReportReason } from '../services/safetyService';
+import { blockUser, reportContent, type ReportReason } from '../services/safetyService';
 import { notifyDomainError, notifySuccess } from '../lib/appNotify';
 import { selection } from '../lib/haptics';
 import type { MessageReaction, MessageReactionEmoji, TextMessage } from '../types/database.types';
@@ -45,6 +51,7 @@ export function useChatScreen(peerId: string) {
   const [inputBody, setInputBody] = useState('');
   const [composerKey, setComposerKey] = useState(0);
   const [sending, setSending] = useState(false);
+  const peerActionBusyRef = useRef(false);
 
   const peerProfileQuery = useQuery({
     queryKey: ['peerProfile', peerId],
@@ -153,6 +160,8 @@ export function useChatScreen(peerId: string) {
     setSending(false);
   };
 
+  const peerUsername = peerProfileQuery.data?.username ?? 'user';
+
   const handleReportMessage = async (message: TextMessage, reason: ReportReason) => {
     try {
       await reportContent({
@@ -165,6 +174,78 @@ export function useChatScreen(peerId: string) {
     } catch (error) {
       notifyDomainError(error, t('chat.reportFailure'));
     }
+  };
+
+  const handleReportPeer = async (reason: ReportReason) => {
+    if (!peerId || peerActionBusyRef.current) return;
+    peerActionBusyRef.current = true;
+    await runWithFinally(
+      async () => {
+        try {
+          await reportContent({
+            reportedUserId: peerId,
+            reason,
+            details: 'User reported peer from chat header menu.',
+          });
+          notifySuccess(t('chat.reportPeerSuccess'));
+        } catch (error) {
+          notifyDomainError(error, t('chat.reportPeerFailure'));
+        }
+      },
+      () => {
+        peerActionBusyRef.current = false;
+      }
+    );
+  };
+
+  const handleBlockPeer = async () => {
+    if (!peerId || peerActionBusyRef.current) return;
+    peerActionBusyRef.current = true;
+    await runWithFinally(
+      async () => {
+        try {
+          await blockUser(peerId);
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: queryKeys.blockedUsers }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.inboxActivityBundle }),
+          ]);
+          notifySuccess(t('viewer.blockSuccess'));
+          router.back();
+        } catch (error) {
+          notifyDomainError(error, t('viewer.blockFailure'));
+        }
+      },
+      () => {
+        peerActionBusyRef.current = false;
+      }
+    );
+  };
+
+  const handleDeleteConversation = async () => {
+    if (!peerId || peerActionBusyRef.current) return;
+    peerActionBusyRef.current = true;
+    await runWithFinally(
+      async () => {
+        try {
+          await deleteConversationWithPeer(peerId);
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.inboxActivityBundle }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.textMessagesWithPeer(peerId) }),
+            queryClient.invalidateQueries({ queryKey: ['chatNixesWithPeer', peerId] }),
+          ]);
+          notifySuccess(t('inbox.deleteConversationSuccess', { username: peerUsername }));
+          router.back();
+        } catch (error) {
+          notifyDomainError(error, t('inbox.deleteConversationFailure'));
+        }
+      },
+      () => {
+        peerActionBusyRef.current = false;
+      }
+    );
   };
 
   const handleSetReaction = async (message: TextMessage, emoji: MessageReactionEmoji) => {
@@ -284,6 +365,9 @@ export function useChatScreen(peerId: string) {
     reportReasons,
     handleSend,
     handleReportMessage,
+    handleReportPeer,
+    handleBlockPeer,
+    handleDeleteConversation,
     handleSetReaction,
     handleRemoveReaction,
     handleOpenNix,

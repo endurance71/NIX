@@ -24,6 +24,7 @@ export type AppIconName =
   | 'send'
   | 'sendCircle'
   | 'compose'
+  | 'more'
   | 'timer'
   | 'trash'
   | 'qrcode'
@@ -58,6 +59,7 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   send: 'paperplane',
   sendCircle: 'arrow.up.circle.fill',
   compose: 'square.and.pencil',
+  more: 'ellipsis',
   timer: 'timer',
   trash: 'trash',
   qrcode: 'qrcode.viewfinder',

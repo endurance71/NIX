@@ -42,6 +42,7 @@ import {
 } from '../../services/messageReactionService';
 import type { ChatNixEvent } from '../../services/nixService';
 import type { MessageReaction, MessageReactionEmoji } from '../../types/database.types';
+import { STACK_NAV_BAR_HEIGHT } from '../../theme/safeArea';
 import { typography } from '../../theme/typography';
 
 type ChatScreenSurfaceProps = {
@@ -75,7 +76,7 @@ const BUBBLE_MAX_WIDTH_RATIO = 0.72;
 const COMPOSER_CONTROL_SIZE = 44;
 const COMPOSER_CONTENT_HEIGHT = 78;
 /** Soft scroll-edge fade nad composerem (zamiast Stack.Toolbar). */
-const COMPOSER_EDGE_FADE_EXTRA = 48;
+const COMPOSER_EDGE_FADE_EXTRA = 28;
 const REACTION_BADGE_SIZE = 28;
 /** Ile miejsca nad dymkiem rezerwujemy na badge (żeby nie nachodził na poprzednią wiadomość). */
 const REACTION_BADGE_OVERHANG = Math.ceil(REACTION_BADGE_SIZE * 0.55);
@@ -723,14 +724,16 @@ function ChatComposer({ vm }: ChatComposerProps) {
 
 export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
   const { colors } = useAppTheme();
-  const { bottomContentInset } = useScreenInsets('stackHeader');
+  const { top, bottomContentInset } = useScreenInsets('stackHeader');
   const { width: windowWidth } = useWindowDimensions();
   const bubbleMaxWidth = Math.round(windowWidth * BUBBLE_MAX_WIDTH_RATIO);
   const timeline = buildUnifiedChatTimeline(vm.messages, vm.nixes, vm.locale);
   const isEmpty = vm.messages.length === 0 && vm.nixes.length === 0;
   const listRef = useRef<FlashListRef<ChatTimelineItem<UnifiedChatTextMessage>>>(null);
   const rootRef = useRef<View>(null);
-  const listBottomInset = COMPOSER_CONTENT_HEIGHT + Math.max(bottomContentInset, 10);
+  const listTopInset = top + STACK_NAV_BAR_HEIGHT + 8;
+  const listBottomInset =
+    COMPOSER_CONTENT_HEIGHT + Math.max(bottomContentInset, 10) + COMPOSER_EDGE_FADE_EXTRA;
   const [picker, setPicker] = useState<ReactionPickerState | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -833,8 +836,10 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
             estimatedItemSize={56}
             keyExtractor={(item) => item.id}
             getItemType={(item) => item.type}
-            contentInsetAdjustmentBehavior="automatic"
-            contentContainerStyle={[styles.listContent, { paddingBottom: listBottomInset }]}
+            // Manual paddingTop compensates for headerTransparent — automatic would
+            // double-apply top inset on scroll and jump content to mid-screen.
+            contentInsetAdjustmentBehavior="never"
+            contentContainerStyle={{ paddingTop: listTopInset, paddingBottom: listBottomInset }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
             onScrollBeginDrag={requestClosePicker}
@@ -909,9 +914,6 @@ const styles = StyleSheet.create({
   },
   listArea: {
     flex: 1,
-  },
-  listContent: {
-    paddingTop: 8,
   },
   row: {
     width: '100%',

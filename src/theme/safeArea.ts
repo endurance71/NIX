@@ -3,6 +3,8 @@ export const SHEET_TOP_PADDING = 24;
 export const SHEET_BOTTOM_MIN_PADDING = 16;
 export const NATIVE_TAB_BAR_CAMERA_OFFSET = 24;
 export const NATIVE_TAB_BAR_CONTENT_OFFSET = 132;
+/** iOS stack nav bar height (excluding status bar / safe area top). */
+export const STACK_NAV_BAR_HEIGHT = 44;
 
 export type ScreenInsetPolicy = 'fullscreen' | 'stackHeader' | 'tabStackList' | 'cameraTab' | 'sheet' | 'mediaChrome';
 
