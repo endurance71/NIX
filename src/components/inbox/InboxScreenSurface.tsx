@@ -117,8 +117,8 @@ function MessageRowContent({
   t: Translate;
 }) {
   const { colors } = useAppTheme();
-  const label = statusLabel(row.status, t);
-  const canOpen = Boolean(row.openParams) && !busy;
+  const label = row.kind === 'text' && row.subtitlePreview ? row.subtitlePreview : statusLabel(row.status, t);
+  const canOpen = !busy;
 
   const baseModifiers = [
     frame({ maxWidth: Infinity, minHeight: 52, alignment: 'leading' }),
@@ -133,7 +133,7 @@ function MessageRowContent({
   }
 
   if (canOpen) {
-    baseModifiers.push(accessibilityHint(t('inbox.openHint')));
+    baseModifiers.push(accessibilityHint(row.kind === 'nix' && row.unread ? t('inbox.openHint') : t('inbox.openChatHint')));
     baseModifiers.push(onTapGesture(onOpen));
   }
 

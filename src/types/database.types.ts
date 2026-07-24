@@ -380,12 +380,42 @@ export interface Database {
           created_at?: string;
         };
       };
+      text_messages: {
+        Row: {
+          id: string;
+          sender_id: string;
+          receiver_id: string;
+          body: string;
+          created_at: string;
+          expires_at: string;
+          client_message_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          sender_id: string;
+          receiver_id: string;
+          body: string;
+          created_at?: string;
+          expires_at?: string;
+          client_message_id?: string | null;
+        };
+        Update: {
+          id?: string;
+          sender_id?: string;
+          receiver_id?: string;
+          body?: string;
+          created_at?: string;
+          expires_at?: string;
+          client_message_id?: string | null;
+        };
+      };
     };
   };
 }
 
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type Nix = Database['public']['Tables']['nixes']['Row'];
+export type TextMessage = Database['public']['Tables']['text_messages']['Row'];
 export type Friendship = Database['public']['Tables']['friendships']['Row'];
 export type FriendInvite = Database['public']['Tables']['friend_invites']['Row'];
 export type NixCleanupQueue = Database['public']['Tables']['nix_cleanup_queue']['Row'];

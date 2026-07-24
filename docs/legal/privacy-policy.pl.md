@@ -47,8 +47,9 @@ Konto, profil, potwierdzenie wieku i relacje przechowujemy do usunięcia konta.
 Aktywne tokeny powiadomień przechowujemy do wyłączenia powiadomień, wylogowania,
 usunięcia konta albo otrzymania informacji, że urządzenie nie jest już zarejestrowane.
 Techniczną historię dostarczenia powiadomień przechowujemy do 30 dni.
-Treść mediów usuwamy po odczycie. Gdy odbiorca zgłosi wiadomość, zabezpieczamy
-kopię wyłącznie na potrzeby moderacji i usuwamy ją po 30 dniach. Rozstrzygnięte
+Treść mediów usuwamy po odczycie. Efemeryczne wiadomości tekstowe usuwamy automatycznie
+po 24 godzinach od wysłania. Gdy odbiorca zgłosi wiadomość (multimedialną lub tekstową),
+zabezpieczamy materiał dowodowy wyłącznie na potrzeby moderacji i usuwamy go po 30 dniach. Rozstrzygnięte
 zgłoszenia i audyt decyzji przechowujemy do 365 dni, a logi techniczne do 30 dni.
 Otwarte zgłoszenie może pozostać do rozstrzygnięcia.
 Po usunięciu konta usuwamy dane aplikacyjne i pliki, z wyjątkiem minimalnych

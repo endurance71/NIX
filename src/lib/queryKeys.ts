@@ -8,6 +8,8 @@ export const queryKeys = {
   incomingFriendRequests: ['incomingFriendRequests'] as const,
   outgoingFriendRequests: ['outgoingFriendRequests'] as const,
   inboxNixesBundle: ['inboxNixesBundle'] as const,
+  inboxActivityBundle: ['inboxActivityBundle'] as const,
+  textMessagesWithPeer: (peerId: string) => ['textMessagesWithPeer', peerId] as const,
   currentAgeAttestation: ['currentAgeAttestation'] as const,
   blockedUsers: ['blockedUsers'] as const,
   contentReports: ['contentReports'] as const,

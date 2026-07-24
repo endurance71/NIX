@@ -61,8 +61,9 @@ export function useInboxScreen() {
 
   const inboxNixes = nixesQuery.data?.inboxData ?? [];
   const sentNixes = nixesQuery.data?.sentData ?? [];
+  const textMessages = nixesQuery.data?.textMessagesData ?? [];
   const requests = requestsQuery.data ?? [];
-  const rows = buildInboxThreads(inboxNixes, sentNixes).map((item) =>
+  const rows = buildInboxThreads(inboxNixes, sentNixes, textMessages).map((item) =>
     buildInboxRowModel(item, {
       unknownUsername: t('common.unknown'),
       locale,
@@ -138,11 +139,11 @@ export function useInboxScreen() {
           await acceptFriendRequest(requestId);
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
-            invalidateInboxQueries(),
+            queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests }),
           ]);
-          notifySuccess(t('inbox.inviteAccepted'));
+          notifySuccess(t('friends.acceptSuccess'));
         } catch (error) {
-          notifyError(errorMessage(error, t('inbox.inviteAcceptFailure')));
+          notifyDomainError(error, t('friends.acceptFailure'));
         }
       },
       () => finishInviteAction(requestId)
@@ -155,10 +156,10 @@ export function useInboxScreen() {
       async () => {
         try {
           await rejectFriendRequest(requestId);
-          await invalidateInboxQueries();
-          notifyInfo(t('inbox.inviteRemoved'));
+          await queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests });
+          notifyInfo(t('friends.rejectSuccess'));
         } catch (error) {
-          notifyError(errorMessage(error, t('inbox.inviteRemoveFailure')));
+          notifyDomainError(error, t('friends.rejectFailure'));
         }
       },
       () => finishInviteAction(requestId)
@@ -187,9 +188,9 @@ export function useInboxScreen() {
         try {
           await deleteConversationWithPeer(row.peerId);
           await queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
-          notifySuccess(t('inbox.deleteConversationSuccess', { username: row.username }));
+          notifySuccess(t('inbox.deleteConversationSuccess'));
         } catch (error) {
-          notifyError(errorMessage(error, t('inbox.deleteConversationFailure')));
+          notifyDomainError(error, t('inbox.deleteConversationFailure'));
         }
       },
       () => finishPeerAction(row.peerId)
@@ -218,15 +219,23 @@ export function useInboxScreen() {
   };
 
   const handleOpen = (row: InboxRowModel) => {
-    if (!row.openParams || busyPeerIdsRef.current.has(row.peerId)) return;
-    router.push({
-      pathname: '/viewer',
-      params: {
-        id: row.openParams.id,
-        path: row.openParams.path,
-        senderId: row.openParams.senderId,
-      },
-    });
+    if (busyPeerIdsRef.current.has(row.peerId)) return;
+
+    if (row.kind === 'nix' && row.unread && row.openParams) {
+      router.push({
+        pathname: '/viewer',
+        params: {
+          id: row.openParams.id,
+          path: row.openParams.path,
+          senderId: row.openParams.senderId,
+        },
+      });
+    } else {
+      router.push({
+        pathname: '/chat/[peerId]',
+        params: { peerId: row.peerId },
+      });
+    }
   };
 
   const loading =

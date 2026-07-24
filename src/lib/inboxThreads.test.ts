@@ -77,14 +77,39 @@ describe('buildInboxThreads', () => {
       [inbox({ id: 'r1', sender_id: 'friend-a', created_at: '2026-05-01T10:00:00Z' })],
       [sent({ id: 's1', receiver_id: 'friend-b', created_at: '2026-05-01T11:00:00Z' })]
     );
-    expect(beforeDelete.map((item) => item.direction === 'received' ? item.nix.sender_id : item.nix.receiver_id)).toEqual([
+    expect(beforeDelete.map((item) => item.kind === 'nix' ? (item.direction === 'received' ? item.nix.sender_id : item.nix.receiver_id) : item.textMessage.peer_id)).toEqual([
       'friend-b',
       'friend-a',
     ]);
 
     const afterDelete = buildInboxThreads([], [sent({ id: 's1', receiver_id: 'friend-b', created_at: '2026-05-01T11:00:00Z' })]);
-    expect(afterDelete.map((item) => item.direction === 'received' ? item.nix.sender_id : item.nix.receiver_id)).toEqual([
+    expect(afterDelete.map((item) => item.kind === 'nix' ? (item.direction === 'received' ? item.nix.sender_id : item.nix.receiver_id) : item.textMessage.peer_id)).toEqual([
       'friend-b',
     ]);
+  });
+
+  it('poprawnie wyznacza najnowszą aktywność gdy wiadomość tekstowa jest nowsza od NiXa', () => {
+    const threads = buildInboxThreads(
+      [inbox({ id: 'old-nix', sender_id: 'peer-1', created_at: '2026-05-01T10:00:00Z', is_viewed: true })],
+      [],
+      [
+        {
+          id: 'text-1',
+          sender_id: 'peer-1',
+          receiver_id: 'me',
+          body: 'Cześć!',
+          created_at: '2026-05-01T11:00:00Z',
+          expires_at: '2026-05-02T11:00:00Z',
+          client_message_id: null,
+          peer_id: 'peer-1',
+        },
+      ]
+    );
+
+    expect(threads).toHaveLength(1);
+    expect(threads[0].kind).toBe('text');
+    if (threads[0].kind === 'text') {
+      expect(threads[0].textMessage.body).toBe('Cześć!');
+    }
   });
 });

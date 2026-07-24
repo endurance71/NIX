@@ -42,7 +42,8 @@ Account, profile, age confirmation, and relationship data are retained until del
 Active notification tokens are retained until notifications are disabled, the user
 signs out, the account is deleted, or the device is reported as unregistered.
 Technical notification-delivery history is retained for up to 30 days.
-Media is removed after viewing. If a recipient reports a message, an evidence copy is
+Media is removed after viewing. Ephemeral text messages are automatically deleted 24 hours after sending.
+If a recipient reports a message (media or text), an evidence copy is
 kept only for moderation and deleted after 30 days. Resolved reports and decision audit
 records are retained for up to 365 days; technical logs for up to 30 days.
 An open report may remain until resolved. Account deletion removes application data and

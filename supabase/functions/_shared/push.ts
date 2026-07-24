@@ -19,8 +19,19 @@ export type PushDevice = {
   locale: 'pl' | 'en';
 };
 
-export function pushCopy(type: PushEventType, username: string, locale: 'pl' | 'en') {
-  const actor = `@${username.replace(/^@/, '')}`;
+/** Display name if set; otherwise `@username` (inbox-style). */
+export function formatPushActorLabel(
+  displayName: string | null | undefined,
+  username: string | null | undefined
+): string {
+  const trimmedDisplay = typeof displayName === 'string' ? displayName.trim() : '';
+  if (trimmedDisplay) return trimmedDisplay;
+  const handle = (typeof username === 'string' ? username : '').replace(/^@/, '').trim();
+  return `@${handle || 'nix_user'}`;
+}
+
+export function pushCopy(type: PushEventType, actorLabel: string, locale: 'pl' | 'en') {
+  const actor = actorLabel.trim() || '@nix_user';
   if (locale === 'pl') {
     if (type === 'new_nix') return { title: 'NiX', body: `${actor} wysyła Ci nowy NiX` };
     if (type === 'friend_request') return { title: 'Nowe zaproszenie', body: `${actor} chce dodać Cię do znajomych` };

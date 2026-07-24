@@ -255,6 +255,16 @@ function RootNavigator() {
         name="friend-invite"
         options={{ presentation: 'card', headerShown: true, title: t('root.invite') }}
       />
+      <Stack.Screen
+        name="chat/[peerId]"
+        options={{
+          presentation: 'card',
+          headerShown: true,
+          headerBackButtonDisplayMode: 'minimal',
+          headerTintColor: colors.accent,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
 
       <Stack.Screen
         name="send-to"

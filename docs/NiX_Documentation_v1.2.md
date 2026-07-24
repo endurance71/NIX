@@ -27,8 +27,8 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 ### 1.2 Kluczowe filary
 
 1. **Prywatność:** Sign in with Apple (iOS) + Supabase Auth e-mail+hasło (e-mail wyłącznie w warstwie auth, bez kolumny e-mail w `profiles`).
-2. **Speed-to-Camera:** Szybki dostęp do kamery z zakładki głównej.
-3. **True Ephemeral:** Po obejrzeniu — cleanup mediów ze Storage i finalizacja cyklu życia wiadomości (status `cleaned`, kolejka retry).
+2. **Speed-to-Camera & Chat:** Szybki dostęp do kamery z zakładki głównej oraz natywny efemeryczny chat tekstowy 1:1 (TTL 24h).
+3. **True Ephemeral:** Po obejrzeniu (dla NiXów) lub po 24 godzinach od wysłania (dla tekstu) — automatyczny cleanup i usuwanie z bazy.
 4. **Native-first (naczelny wyznacznik):** Każda warstwa UI i UX jest oceniana pod kątem natywnych konwencji **iOS i Android**. Domyślnie universal `@expo/ui` (SwiftUI / Jetpack Compose), moduły Expo z mostem natywnym, systemowy motyw; RN primitives tylko tam, gdzie natywna warstwa nie wystarcza. Szczegóły: [native-platform-guidelines.md](native-platform-guidelines.md).
 5. **Budget-first:** Supabase Free Tier → Pro przy wzroście.
 
@@ -40,6 +40,9 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 | **US.2** | Zalogowany | Widzieć kamerę jako domyślny ekran | Szybko nagrać lub zrobić zdjęcie |
 | **US.3** | Nadawca | Wybrać odbiorcę z zaakceptowanych znajomych | Wysłać NiX do konkretnej osoby |
 | **US.4** | Odbiorca | Zobaczyć NiX z limitem czasu i polityką capture | Treść znika po zasadach produktu |
+| **US.5** | Nadawca / Odbiorca | Prowadzić chat tekstowy 1:1 z akceptowanym znajomym | Wiadomości automatycznie znikały po 24 godzinach |
+| **US.6** | Użytkownik | Usunąć historię rozmowy tekstowej / NiXów z danym znajomym | Wycofać całą historię interakcji z inboxa |
+| **US.7** | Odbiorca | Zgłosić niewłaściwą wiadomość tekstową do moderacji | Zabezpieczyć dowód naruszenia w celach bezpieczeństwa |
 
 ### 1.4 Wymagania funkcjonalne
 
@@ -49,11 +52,12 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 - **Kamera:** front/back, zoom pinch, flash, zdjęcie (tap) i wideo (przytrzymanie); segmenty do **30 s**, sumarycznie do **180 s** na jedno przytrzymanie; opcjonalne wyciszenie mikrofonu przy nagrywaniu.
 - **Preview / Send-to:** wybór czasu wyświetlania u odbiorcy: **5, 15, 30, 60, 180** sekund (`view_duration_sec`); wysyłka tylko do **zaakceptowanych** znajomych.
 - **Multimedia:** obrazy i wideo (`media_type`: `image` | `video`); upload wideo z retry TUS (resumable); embedded miniatura JPEG w `nixes.thumbnail_b64` dla wideo; limit rozmiaru pliku wideo po stronie klienta **100 MB** (bucket `media-vault` do **400 MB**). Szczegóły: [video-pipeline.md](video-pipeline.md).
-- **Skrzynka:** wątki odebrane/wysłane, usuwanie rozmowy (`delete_my_conversation_with_peer`), kolejka cleanup przy wejściu na skrzynkę.
+- **Chat Tekstowy (1:1 Realtime, TTL 24h):** dedykowana tabela `text_messages`, automatyczne wygasanie (`expires_at = created_at + 24h`), rate-limit 30 msgs/min, maks. 2000 znaków na wiadomość, bez treść w Push (tylko powiadomienie z nazwiskiem nadawcy). Ekran `/chat/[peerId]` bazuje na natywnym SwiftUI List / `@expo/ui`.
+- **Skrzynka:** połączone wątki odebranych/wysłanych NiXów i tekstu, usuwanie rozmowy (`delete_my_conversation_with_peer`), kolejka cleanup przy wejściu na skrzynkę.
 - **Viewer:** odtwarzanie obrazu/wideo z timerem; ochrona screenshot/nagrywania wg polityki per nadawca (domyślnie `deny`). Szczegóły: [capture-protection.md](capture-protection.md).
 - **i18n:** interfejs **PL** i **EN** (`react-i18next`, zasoby w `src/lib/i18n.ts`; metadane App Store z `src/locales/*/common.json`). Szczegóły: [i18n-guidelines.md](i18n-guidelines.md).
 - **Observability:** lokalna telemetria (`telemetry.ts`) i logi uploadu w `upload_logs`; Sentry SDK pozostaje twardo wyłączone. Szczegóły: [observability.md](observability.md).
-- **Cleanup:** Edge Function `cleanup-nix` + kolejka `nix_cleanup_queue` + audit `nix_cleanup_audit`. Szczegóły: [cleanup-edge-function.md](cleanup-edge-function.md).
+- **Cleanup:** Edge Function `cleanup-nix` oraz Edge Function `cleanup-text-messages` wywoływana cyklicznie przez `pg_cron`. Szczegóły: [cleanup-edge-function.md](cleanup-edge-function.md).
 
 ---
 

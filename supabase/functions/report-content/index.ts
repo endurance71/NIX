@@ -31,14 +31,14 @@ Deno.serve(async (req) => {
   if (!supabaseUrl || !anonKey || !serviceRoleKey) return json({ error: 'Server is not configured' }, 500);
   if (!token) return json({ error: 'Missing bearer token' }, 401);
 
-  let payload: { reason?: string; nixId?: string; reportedUserId?: string; details?: string };
+  let payload: { reason?: string; nixId?: string; textMessageId?: string; reportedUserId?: string; details?: string };
   try {
     payload = await req.json();
   } catch {
     return json({ error: 'Invalid JSON payload' }, 400);
   }
   if (!payload.reason || !REPORT_REASONS.has(payload.reason)) return json({ error: 'Invalid report reason' }, 400);
-  if (!payload.nixId && !payload.reportedUserId) return json({ error: 'A message or user is required' }, 400);
+  if (!payload.nixId && !payload.textMessageId && !payload.reportedUserId) return json({ error: 'A message or user is required' }, 400);
   if (payload.details && payload.details.length > 500) return json({ error: 'Details are too long' }, 400);
 
   const authClient = createClient(supabaseUrl, anonKey, {
@@ -47,10 +47,24 @@ Deno.serve(async (req) => {
   const { data: userData, error: userError } = await authClient.auth.getUser();
   if (userError || !userData.user) return json({ error: 'Unauthorized' }, 401);
 
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  let reportedUserId = payload.reportedUserId ?? null;
+
+  if (payload.textMessageId && !reportedUserId) {
+    const { data: textMsg } = await serviceClient
+      .from('text_messages')
+      .select('sender_id')
+      .eq('id', payload.textMessageId)
+      .maybeSingle();
+    if (textMsg?.sender_id) {
+      reportedUserId = textMsg.sender_id;
+    }
+  }
+
   const { data, error } = await authClient.rpc('create_content_report', {
     p_reason: payload.reason,
     p_nix_id: payload.nixId ?? null,
-    p_reported_user_id: payload.reportedUserId ?? null,
+    p_reported_user_id: reportedUserId,
     p_details: payload.details?.trim() || null,
   });
   if (error) {
@@ -60,7 +74,39 @@ Deno.serve(async (req) => {
 
   const report = Array.isArray(data) ? data[0] : data;
   if (!report?.report_id) return json({ error: 'Report was not created' }, 500);
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+
+  if (payload.textMessageId) {
+    const { data: textMsg } = await serviceClient
+      .from('text_messages')
+      .select('id, sender_id, receiver_id, body, created_at')
+      .eq('id', payload.textMessageId)
+      .maybeSingle();
+
+    if (textMsg) {
+      const evidenceJson = JSON.stringify({
+        textMessageId: textMsg.id,
+        senderId: textMsg.sender_id,
+        receiverId: textMsg.receiver_id,
+        body: textMsg.body,
+        createdAt: textMsg.created_at,
+        reportedAt: new Date().toISOString(),
+      });
+      const evidencePath = `${report.report_id}/evidence.json`;
+      const { error: uploadError } = await serviceClient.storage
+        .from('moderation-evidence')
+        .upload(evidencePath, new Blob([evidenceJson], { type: 'application/json' }), {
+          contentType: 'application/json',
+          upsert: true,
+        });
+
+      if (!uploadError) {
+        await serviceClient
+          .from('content_reports')
+          .update({ evidence_path: evidencePath, status: 'open' })
+          .eq('id', report.report_id);
+      }
+    }
+  }
 
   if (report.media_path) {
     const { data: existing } = await serviceClient

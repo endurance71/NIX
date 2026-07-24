@@ -10,7 +10,7 @@ describe('realtime sync policy', () => {
   afterEach(() => vi.useRealTimers());
 
   it('odświeża jeden wspólny cache Skrzynki dla zmian NiX', () => {
-    expect(realtimeQueryKeysForArea('inbox')).toEqual([queryKeys.inboxNixesBundle]);
+    expect(realtimeQueryKeysForArea('inbox')).toEqual([queryKeys.inboxNixesBundle, queryKeys.inboxActivityBundle]);
   });
 
   it('odświeża wszystkie widoki relacji dla zmian zaproszeń', () => {

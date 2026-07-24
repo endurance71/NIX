@@ -8,16 +8,21 @@ import {
 } from './inboxQuery';
 import { queryKeys } from './queryKeys';
 
-const { mockFetchInbox, mockFetchProfiles, mockFetchSent } = vi.hoisted(() => ({
+const { mockFetchInbox, mockFetchProfiles, mockFetchSent, mockFetchRecentTextMessages } = vi.hoisted(() => ({
   mockFetchInbox: vi.fn(),
   mockFetchProfiles: vi.fn(),
   mockFetchSent: vi.fn(),
+  mockFetchRecentTextMessages: vi.fn(),
 }));
 
 vi.mock('../services/nixService', () => ({
   fetchInboxNixes: mockFetchInbox,
   fetchNixPublicProfiles: mockFetchProfiles,
   fetchSentNixes: mockFetchSent,
+}));
+
+vi.mock('../services/textMessageService', () => ({
+  fetchRecentTextMessagesForInbox: mockFetchRecentTextMessages,
 }));
 
 function bundle(): InboxBundle {
@@ -27,11 +32,15 @@ function bundle(): InboxBundle {
       { id: 'read', is_viewed: true, status: 'viewed' },
     ] as InboxBundle['inboxData'],
     sentData: [],
+    textMessagesData: [],
   };
 }
 
 describe('inbox query cache', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchRecentTextMessages.mockResolvedValue([]);
+  });
 
   it('pobiera profile rozmówców jednym wspólnym wywołaniem', async () => {
     mockFetchInbox.mockResolvedValue([
@@ -40,6 +49,7 @@ describe('inbox query cache', () => {
     mockFetchSent.mockResolvedValue([
       { id: 'outgoing', receiver_id: 'receiver-1', receiver: null },
     ]);
+    mockFetchRecentTextMessages.mockResolvedValue([]);
     mockFetchProfiles.mockResolvedValue(
       new Map([
         ['sender-1', { id: 'sender-1', username: 'sender', display_name: 'Nadawca Nazwa' }],
@@ -58,6 +68,7 @@ describe('inbox query cache', () => {
     expect(result.sentData[0].receiver?.username).toBe('receiver');
     expect(result.sentData[0].receiver?.display_name).toBe('Odbiorca Nazwa');
   });
+
   it('wylicza badge bez osobnego zapytania', () => {
     expect(countUnreadInboxNixes(bundle())).toBe(1);
     expect(countUnreadInboxNixes(undefined)).toBe(0);

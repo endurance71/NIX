@@ -118,7 +118,13 @@ async function processPushNotificationResponse({
   const data = parsePushNotificationData(response.notification.request.content.data);
   if (!data) return;
   handledResponses.current.add(identifier);
-  if (data.type === 'friend_accepted') {
+  if (data.type === 'new_text_message') {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.textMessagesWithPeer(data.actorId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.inboxActivityBundle }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
+    ]);
+  } else if (data.type === 'friend_accepted') {
     await queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
   } else {
     await Promise.all([
@@ -127,7 +133,7 @@ async function processPushNotificationResponse({
     ]);
   }
   trackEvent('push_notification_opened', { type: data.type });
-  router.push(routeForPushNotification(data));
+  router.push(routeForPushNotification(data) as any);
   await Notifications.clearLastNotificationResponseAsync();
 }
 

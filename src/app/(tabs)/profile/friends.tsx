@@ -218,6 +218,12 @@ export default function FriendsScreen() {
                     fallbackInitial: friend.username,
                   }}
                   disabled={disabled}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/chat/[peerId]',
+                      params: { peerId: friend.id },
+                    })
+                  }
                   switchValue={vm.resolveFriendCapturePolicy(friend.id) === 'allow'}
                   onSwitchValueChange={(allowed) => void vm.handleToggleFriendCapture(friend.id, allowed)}
                   testID={`friend-${friend.id}`}

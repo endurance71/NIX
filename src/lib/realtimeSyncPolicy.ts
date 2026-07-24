@@ -1,6 +1,6 @@
 import { queryKeys } from './queryKeys';
 
-export type SyncArea = 'inbox' | 'friends';
+export type SyncArea = 'inbox' | 'friends' | 'textChat';
 
 type RealtimeChannelTeardown = {
   teardown: () => void;
@@ -42,12 +42,13 @@ export function createSyncAreaDebouncer(
 }
 
 export function realtimeQueryKeysForArea(area: SyncArea) {
-  return area === 'inbox'
-    ? [queryKeys.inboxNixesBundle]
-    : [
-        queryKeys.incomingFriendRequests,
-        queryKeys.outgoingFriendRequests,
-        queryKeys.acceptedFriends,
-        queryKeys.currentUserProfile,
-      ];
+  if (area === 'inbox' || area === 'textChat') {
+    return [queryKeys.inboxNixesBundle, queryKeys.inboxActivityBundle];
+  }
+  return [
+    queryKeys.incomingFriendRequests,
+    queryKeys.outgoingFriendRequests,
+    queryKeys.acceptedFriends,
+    queryKeys.currentUserProfile,
+  ];
 }

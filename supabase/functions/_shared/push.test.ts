@@ -1,18 +1,35 @@
 import { describe, expect, it, vi } from 'vitest';
-import { pushCopy, retryAt } from './push';
+import { formatPushActorLabel, pushCopy, retryAt } from './push';
 
 describe('push Edge Function helpers', () => {
+  it('formats actor label from display name with username fallback', () => {
+    expect(formatPushActorLabel('Damian Motyliński', 'damian')).toBe('Damian Motyliński');
+    expect(formatPushActorLabel('  Ada  ', 'ada')).toBe('Ada');
+    expect(formatPushActorLabel(null, 'ania')).toBe('@ania');
+    expect(formatPushActorLabel('', '@john')).toBe('@john');
+    expect(formatPushActorLabel('   ', 'ania')).toBe('@ania');
+    expect(formatPushActorLabel(null, null)).toBe('@nix_user');
+  });
+
   it('localizes all transactional event types without exposing media data', () => {
-    expect(pushCopy('new_nix', 'ania', 'pl')).toEqual({
+    expect(pushCopy('new_nix', formatPushActorLabel(null, 'ania'), 'pl')).toEqual({
       title: 'NiX',
       body: '@ania wysyła Ci nowy NiX',
     });
-    expect(pushCopy('friend_request', '@john', 'en')).toEqual({
+    expect(pushCopy('friend_request', formatPushActorLabel(null, '@john'), 'en')).toEqual({
       title: 'New friend request',
       body: '@john wants to add you as a friend',
     });
-    expect(pushCopy('friend_accepted', 'ania', 'pl').body).toBe(
+    expect(pushCopy('friend_accepted', formatPushActorLabel(null, 'ania'), 'pl').body).toBe(
       'Ty i @ania jesteście teraz znajomymi'
+    );
+  });
+
+  it('uses display name in localized copy when provided', () => {
+    const label = formatPushActorLabel('Damian Motyliński', 'damian');
+    expect(pushCopy('new_nix', label, 'pl').body).toBe('Damian Motyliński wysyła Ci nowy NiX');
+    expect(pushCopy('friend_request', label, 'en').body).toBe(
+      'Damian Motyliński wants to add you as a friend'
     );
   });
 

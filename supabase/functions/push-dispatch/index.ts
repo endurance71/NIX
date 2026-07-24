@@ -4,6 +4,7 @@ import {
   EXPO_PUSH_SEND_URL,
   expoHeaders,
   pushCopy,
+  formatPushActorLabel,
   retryAt,
   type PushDevice,
   type PushJob,
@@ -68,7 +69,7 @@ Deno.serve(async (req) => {
         { data: deviceRows, error: devicesError },
         { data: completedDeliveries, error: deliveriesError },
       ] = await Promise.all([
-        client.from('profiles').select('username').eq('id', job.actor_id).maybeSingle(),
+        client.from('profiles').select('username, display_name').eq('id', job.actor_id).maybeSingle(),
         client.from('push_devices').select('id, expo_push_token, locale')
           .eq('user_id', job.recipient_id).eq('enabled', true),
         client.from('push_notification_deliveries').select('device_id,status')
@@ -96,7 +97,7 @@ Deno.serve(async (req) => {
       if (unreadError) throw unreadError;
       const badge = unreadCount ?? 0;
 
-      const username = actor?.username ?? 'nix_user';
+      const actorLabel = formatPushActorLabel(actor?.display_name, actor?.username);
       let retryableFailure: string | null = null;
 
       for (let offset = 0; offset < devices.length; offset += 100) {
@@ -105,7 +106,7 @@ Deno.serve(async (req) => {
           to: device.expo_push_token,
           sound: 'default',
           badge,
-          ...pushCopy(job.event_type, username, device.locale),
+          ...pushCopy(job.event_type, actorLabel, device.locale),
           data: { version: 1, type: job.event_type, entityId: job.entity_id, actorId: job.actor_id },
         }));
         const response = await fetch(EXPO_PUSH_SEND_URL, {

@@ -32,9 +32,13 @@ export function AppRealtimeSync({ userId }: { userId: string }) {
       areas.forEach((area) => {
         realtimeQueryKeysForArea(area).forEach((key) => keys.set(JSON.stringify(key), key));
       });
-      await Promise.all(
-        [...keys.values()].map((queryKey) => queryClient.invalidateQueries({ queryKey }))
+      const promises: Promise<unknown>[] = [...keys.values()].map((queryKey) =>
+        queryClient.invalidateQueries({ queryKey })
       );
+      if (areas.has('textChat') || areas.has('inbox')) {
+        promises.push(queryClient.invalidateQueries({ queryKey: ['textMessagesWithPeer'] }));
+      }
+      await Promise.all(promises);
     };
 
     const refreshScheduler = createSyncAreaDebouncer(
@@ -45,6 +49,7 @@ export function AppRealtimeSync({ userId }: { userId: string }) {
     const syncForeground = () => {
       refreshScheduler.schedule('inbox');
       refreshScheduler.schedule('friends');
+      refreshScheduler.schedule('textChat');
       void flushCleanupQueue().catch((error) => {
         console.warn('Nie udało się zsynchronizować kolejki cleanup', error);
       });
@@ -67,6 +72,7 @@ export function AppRealtimeSync({ userId }: { userId: string }) {
     };
 
     const onInboxChange = () => refreshScheduler.schedule('inbox');
+    const onTextChatChange = () => refreshScheduler.schedule('textChat');
     const onFriendshipChange = () => refreshScheduler.schedule('friends');
     const channel = supabase
       .channel(`app-sync-${userId}`)
@@ -89,6 +95,26 @@ export function AppRealtimeSync({ userId }: { userId: string }) {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'nixes', filter: `sender_id=eq.${userId}` },
         onInboxChange
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'text_messages', filter: `receiver_id=eq.${userId}` },
+        onTextChatChange
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'text_messages', filter: `receiver_id=eq.${userId}` },
+        onTextChatChange
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'text_messages', filter: `sender_id=eq.${userId}` },
+        onTextChatChange
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'text_messages', filter: `sender_id=eq.${userId}` },
+        onTextChatChange
       )
       .on(
         'postgres_changes',

@@ -6,7 +6,7 @@
 ## Usługa i konto
 
 NiX jest usługą MT Hub Damian Motyliński umożliwiającą wymianę
-efemerycznych wiadomości multimedialnych między zaakceptowanymi znajomymi. Aby
+efemerycznych wiadomości multimedialnych oraz tekstowych między zaakceptowanymi znajomymi. Aby
 korzystać z usługi, musisz utworzyć konto, podać prawdziwe dane wymagane przez
 formularz, mieć ukończone 16 lat i potwierdzić spełnienie tego progu. Odpowiadasz
 za ochronę dostępu do konta.

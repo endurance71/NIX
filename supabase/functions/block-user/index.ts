@@ -52,5 +52,12 @@ Deno.serve(async (req) => {
     if (deleteError) return json({ error: 'Block was saved, but conversation cleanup failed' }, 500);
   }
 
+  await serviceClient
+    .from('text_messages')
+    .delete()
+    .or(
+      `and(sender_id.eq.${userData.user.id},receiver_id.eq.${payload.blockedUserId}),and(sender_id.eq.${payload.blockedUserId},receiver_id.eq.${userData.user.id})`
+    );
+
   return json({ ok: true });
 });

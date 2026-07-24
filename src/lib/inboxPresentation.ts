@@ -7,6 +7,7 @@ export type InboxRowStatus = 'new' | 'sent' | 'opened' | 'cleaned' | 'cleanupFai
 export type InboxRowModel = {
   id: string;
   peerId: string;
+  kind: 'nix' | 'text';
   username: string;
   display_name?: string | null;
   direction: 'received' | 'sent';
@@ -16,6 +17,7 @@ export type InboxRowModel = {
   timestampLabel: string;
   avatarStoragePath: string | null;
   avatarEmoji: string | null;
+  subtitlePreview?: string | null;
   openParams: {
     id: string;
     path: string;
@@ -43,6 +45,29 @@ export function buildInboxRowModel(
   item: InboxThreadItem,
   { unknownUsername, locale, yesterdayLabel, now }: InboxRowModelOptions
 ): InboxRowModel {
+  if (item.kind === 'text') {
+    const { textMessage, peerProfile } = item;
+    const username = peerProfile?.username || unknownUsername;
+    const displayName = peerProfile?.display_name || null;
+
+    return {
+      id: item.id,
+      peerId: textMessage.peer_id,
+      kind: 'text',
+      username,
+      display_name: displayName,
+      direction: item.direction,
+      unread: false,
+      status: item.direction === 'received' ? 'opened' : 'sent',
+      createdAt: textMessage.created_at,
+      timestampLabel: formatInboxTimestamp(textMessage.created_at, locale, { now, yesterdayLabel }),
+      avatarStoragePath: peerProfile?.avatar_storage_path ?? null,
+      avatarEmoji: peerProfile?.avatar_emoji ?? null,
+      subtitlePreview: textMessage.body,
+      openParams: null,
+    };
+  }
+
   if (item.direction === 'received') {
     const { nix } = item;
     const unread = nix.is_viewed !== true;
@@ -52,6 +77,7 @@ export function buildInboxRowModel(
     return {
       id: item.id,
       peerId: nix.sender_id,
+      kind: 'nix',
       username,
       display_name: displayName,
       direction: 'received',
@@ -61,6 +87,7 @@ export function buildInboxRowModel(
       timestampLabel: formatInboxTimestamp(nix.created_at, locale, { now, yesterdayLabel }),
       avatarStoragePath: nix.sender?.avatar_storage_path ?? null,
       avatarEmoji: nix.sender?.avatar_emoji ?? null,
+      subtitlePreview: null,
       openParams: unread
         ? {
             id: nix.id,
@@ -77,6 +104,7 @@ export function buildInboxRowModel(
   return {
     id: item.id,
     peerId: nix.receiver_id,
+    kind: 'nix',
     username,
     display_name: displayName,
     direction: 'sent',
@@ -86,6 +114,7 @@ export function buildInboxRowModel(
     timestampLabel: formatInboxTimestamp(nix.created_at, locale, { now, yesterdayLabel }),
     avatarStoragePath: nix.receiver?.avatar_storage_path ?? null,
     avatarEmoji: nix.receiver?.avatar_emoji ?? null,
+    subtitlePreview: null,
     openParams: null,
   };
 }

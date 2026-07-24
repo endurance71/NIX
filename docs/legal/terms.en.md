@@ -6,7 +6,7 @@
 ## Service and account
 
 NiX is a service operated by MT Hub Damian Motyliński for exchanging
-ephemeral multimedia messages between accepted friends. You must be at least 16,
+ephemeral visual media and text messages between accepted friends. You must be at least 16,
 confirm that you meet this threshold, create an account with accurate required
 information, and keep access to it secure.
 

@@ -2,6 +2,7 @@ export const PUSH_NOTIFICATION_TYPES = [
   'new_nix',
   'friend_request',
   'friend_accepted',
+  'new_text_message',
 ] as const;
 
 export type PushNotificationType = (typeof PUSH_NOTIFICATION_TYPES)[number];
@@ -31,8 +32,19 @@ export function parsePushNotificationData(
   };
 }
 
+export type PushRouteTarget =
+  | '/(tabs)/inbox'
+  | '/(tabs)/profile/friends'
+  | { pathname: '/chat/[peerId]'; params: { peerId: string } };
+
 export function routeForPushNotification(
   data: PushNotificationData
-): '/(tabs)/inbox' | '/(tabs)/profile/friends' {
-  return data.type === 'friend_accepted' ? '/(tabs)/profile/friends' : '/(tabs)/inbox';
+): PushRouteTarget {
+  if (data.type === 'new_text_message') {
+    return { pathname: '/chat/[peerId]', params: { peerId: data.actorId } };
+  }
+  if (data.type === 'friend_accepted') {
+    return '/(tabs)/profile/friends';
+  }
+  return '/(tabs)/inbox';
 }
