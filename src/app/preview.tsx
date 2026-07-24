@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { View, StyleSheet, Pressable, Text, type StyleProp, type ViewStyle } from 'react-native';
+import { View, StyleSheet, Pressable, Text, ActivityIndicator, type StyleProp, type ViewStyle } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Image } from 'expo-image';
 import { useEventListener } from 'expo';
@@ -23,6 +23,7 @@ import { NativePreviewSendButton } from '../components/ui/native-preview-send-bu
 import PreviewDurationMenu from '../components/ui/preview-duration-menu';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { useVideoDraft, type VideoSegmentDraft } from '../context/videoDraft';
+import { usePhotoDraft } from '../context/photoDraft';
 import { configureForPlayback } from '../lib/audioSession';
 import { trackEvent } from '../lib/telemetry';
 import { tap } from '../lib/haptics';
@@ -56,6 +57,15 @@ function paramFirst(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
+function decodeParamUri(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function discardVideoPreview(clearDraft: () => void) {
   clearDraft();
   router.back();
@@ -66,15 +76,16 @@ function openSendToVideo() {
   router.push({ pathname: '/send-to', params: { mode: 'video' } });
 }
 
-function discardPhotoPreview() {
+function discardPhotoPreview(clearDraft: () => void) {
+  clearDraft();
   router.back();
 }
 
-function openSendToPhoto(uri: string, viewDurationSec: number) {
+function openSendToPhoto(viewDurationSec: number) {
   tap('light');
   router.push({
     pathname: '/send-to',
-    params: { uri, mode: 'image', viewDurationSec: String(viewDurationSec) },
+    params: { mode: 'image', viewDurationSec: String(viewDurationSec) },
   });
 }
 
@@ -495,6 +506,7 @@ function PreviewVideoContent({
             onPress={() => discardVideoPreview(clearDraft)}
             backgroundColor={colors.cameraControlBackground}
             tintColor={colors.cameraControlTint}
+            chromeVariant="solid"
           />
         </View>
 
@@ -505,6 +517,7 @@ function PreviewVideoContent({
             onPress={openSendToVideo}
             backgroundColor={colors.cameraControlBackground}
             tintColor={colors.cameraControlTint}
+            chromeVariant="solid"
           />
         </View>
       </View>
@@ -518,20 +531,25 @@ export default function PreviewScreen() {
   const styles = createStyles(colors);
   const raw = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string; durationMs?: string }>();
   const mode = paramFirst(raw.mode);
-  const uri = paramFirst(raw.uri);
+  const paramUri = decodeParamUri(paramFirst(raw.uri));
   const rawDurationMs = paramFirst(raw.durationMs);
 
   const [viewDurationSec, setViewDurationSec] = useState<NixViewDurationSec>(DEFAULT_NIX_VIEW_DURATION_SEC);
+  const [imageLoadError, setImageLoadError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
 
   const { segments, setSegments, clearSegments } = useVideoDraft();
-  const routeVideoSegment = mode === 'video' && uri ? { uri, durationMs: Math.max(0, Number(rawDurationMs) || 0) } : null;
+  const { uri: draftPhotoUri, clearUri: clearPhotoUri } = usePhotoDraft();
+  const photoUri = draftPhotoUri ?? paramUri;
+  const routeVideoSegment =
+    mode === 'video' && paramUri ? { uri: paramUri, durationMs: Math.max(0, Number(rawDurationMs) || 0) } : null;
   const routeVideoSegments = routeVideoSegment ? [routeVideoSegment] : null;
   const previewVideoSegments = segments?.length ? segments : routeVideoSegments;
 
   useEffect(() => {
-    if (mode !== 'video' || segments?.length || !uri) return;
-    setSegments([{ uri, durationMs: Math.max(0, Number(rawDurationMs) || 0) }]);
-  }, [mode, uri, rawDurationMs, segments?.length, setSegments]);
+    if (mode !== 'video' || segments?.length || !paramUri) return;
+    setSegments([{ uri: paramUri, durationMs: Math.max(0, Number(rawDurationMs) || 0) }]);
+  }, [mode, paramUri, rawDurationMs, segments?.length, setSegments]);
 
   useEffect(() => {
     let cancelled = false;
@@ -548,6 +566,13 @@ export default function PreviewScreen() {
       console.warn('Could not clear screen capture protection before preview', error);
     });
   }, []);
+
+  const [prevPhotoUri, setPrevPhotoUri] = useState(photoUri);
+  if (photoUri !== prevPhotoUri) {
+    setPrevPhotoUri(photoUri);
+    setImageLoadError(false);
+    setImageLoading(Boolean(photoUri));
+  }
 
   if (mode === 'video') {
     if (!previewVideoSegments?.length) {
@@ -568,7 +593,7 @@ export default function PreviewScreen() {
     return <PreviewVideoContent segments={previewVideoSegments} clearDraft={clearSegments} />;
   }
 
-  if (!uri) {
+  if (!photoUri) {
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>Nie przechwycono zdjęcia</Text>
@@ -579,25 +604,60 @@ export default function PreviewScreen() {
     );
   }
 
+  if (imageLoadError) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>Nie udało się wczytać zdjęcia</Text>
+        <Pressable
+          style={styles.backButton}
+          onPress={() => {
+            clearPhotoUri();
+            router.back();
+          }}>
+          <Text style={styles.backButtonText}>Wróć</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar style={statusBarStyle} hidden />
 
-      <Image source={{ uri }} style={styles.image} contentFit="cover" cachePolicy="none" />
+      <Image
+        source={{ uri: photoUri }}
+        style={styles.image}
+        contentFit="cover"
+        cachePolicy="none"
+        onLoad={() => setImageLoading(false)}
+        onError={() => {
+          console.warn('[PreviewPhoto] expo-image failed to load', { uri: photoUri });
+          setImageLoading(false);
+          setImageLoadError(true);
+        }}
+      />
+
+      {imageLoading ? (
+        <View style={styles.imageLoadingOverlay} pointerEvents="none">
+          <ActivityIndicator color={colors.cameraControlTint} size="large" />
+        </View>
+      ) : null}
 
       <View style={[styles.overlay, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16, paddingHorizontal: 24 }]}>
         <View style={[styles.topControls, styles.photoPreviewTopControls]}>
           <NativeChromeIconButton
             name="close"
             accessibilityLabel="Odrzuć zdjęcie"
-            onPress={discardPhotoPreview}
+            onPress={() => discardPhotoPreview(clearPhotoUri)}
             backgroundColor={colors.cameraControlBackground}
             tintColor={colors.cameraControlTint}
+            chromeVariant="solid"
           />
           <PreviewDurationMenu
             selectedDurationSec={viewDurationSec}
             onSelect={setViewDurationSec}
             colors={colors}
+            chromeVariant="solid"
           />
         </View>
 
@@ -605,9 +665,10 @@ export default function PreviewScreen() {
           <NativePreviewSendButton
             label="Wyślij do"
             accessibilityLabel="Wybierz odbiorców zdjęcia"
-            onPress={() => openSendToPhoto(uri, viewDurationSec)}
+            onPress={() => openSendToPhoto(viewDurationSec)}
             backgroundColor={colors.cameraControlBackground}
             tintColor={colors.cameraControlTint}
+            chromeVariant="solid"
           />
         </View>
       </View>
@@ -645,6 +706,12 @@ const createStyles = (colors: ThemeColors) => {
       flex: 1,
       width: '100%',
       height: '100%',
+    },
+    imageLoadingOverlay: {
+      ...StyleSheet.absoluteFill,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 2,
     },
     videoPoster: {
       ...StyleSheet.absoluteFill,

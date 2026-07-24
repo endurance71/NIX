@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { listAcceptedFriends, type FriendProfile } from '../services/friendService';
@@ -8,6 +8,7 @@ import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../serv
 import { toDomainError } from '../services/errors';
 import { useMediaUpload } from '../hooks/useMediaUpload';
 import { useVideoDraft } from '../context/videoDraft';
+import { usePhotoDraft } from '../context/photoDraft';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
@@ -26,6 +27,15 @@ const SEND_CONCURRENCY = 2;
 function paramFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
+}
+
+function decodeParamUri(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 type FriendRecipientRowProps = {
@@ -67,7 +77,7 @@ function FriendRecipientRow({
         />
       </View>
       <Text numberOfLines={1} style={[styles.username, { color: colors.label }]}>
-        {item.username ?? 'Nieznany'}
+        {item.display_name ? item.display_name : item.username ? `@${item.username}` : 'Nieznany'}
       </Text>
       {selected ? <AppIcon name="checkCircle" size={24} color={tintColor} /> : null}
     </Pressable>
@@ -80,10 +90,12 @@ export default function SendToSheet() {
   const { colors } = useAppTheme();
   const stylesForTheme = createStyles(colors, topContentInset, bottomContentInset);
   const rawParams = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string }>();
-  const uri = paramFirst(rawParams.uri);
+  const paramUri = decodeParamUri(paramFirst(rawParams.uri));
   const mode = paramFirst(rawParams.mode);
   const viewDurationSec = normalizeNixViewDurationSec(paramFirst(rawParams.viewDurationSec));
-  const isVideo = mode === 'video' && !uri;
+  const { uri: draftPhotoUri, clearUri: clearPhotoUri } = usePhotoDraft();
+  const uri = draftPhotoUri ?? paramUri;
+  const isVideo = mode === 'video';
   const { segments, clearSegments } = useVideoDraft();
   const { uploadNix, uploadVideoSegments } = useMediaUpload();
   const { offerAfterSuccessfulSend } = usePushNotifications();
@@ -92,6 +104,13 @@ export default function SendToSheet() {
     queryFn: () => listAcceptedFriends({ limit: 50 }),
     staleTime: 1000 * 60 * 2,
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
+    }, [queryClient])
+  );
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [isSending, setIsSending] = useState(false);
   const sendLockRef = useRef(false);
@@ -157,6 +176,7 @@ export default function SendToSheet() {
     await processBatchFromIndex(0);
 
     if (isVideo) clearSegments();
+    else clearPhotoUri();
     void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
 
     if (successCount > 0) {
@@ -207,6 +227,8 @@ export default function SendToSheet() {
           <FlashList
             data={profiles}
             extraData={{ avatarUrls, selectedIds }}
+            // @ts-expect-error - estimatedItemSize type issue
+            estimatedItemSize={64}
             getItemType={() => 'friend-recipient'}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}

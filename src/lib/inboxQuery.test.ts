@@ -42,8 +42,8 @@ describe('inbox query cache', () => {
     ]);
     mockFetchProfiles.mockResolvedValue(
       new Map([
-        ['sender-1', { id: 'sender-1', username: 'sender' }],
-        ['receiver-1', { id: 'receiver-1', username: 'receiver' }],
+        ['sender-1', { id: 'sender-1', username: 'sender', display_name: 'Nadawca Nazwa' }],
+        ['receiver-1', { id: 'receiver-1', username: 'receiver', display_name: 'Odbiorca Nazwa' }],
       ])
     );
 
@@ -54,7 +54,9 @@ describe('inbox query cache', () => {
     expect(mockFetchProfiles).toHaveBeenCalledTimes(1);
     expect(mockFetchProfiles).toHaveBeenCalledWith(['sender-1', 'receiver-1']);
     expect(result.inboxData[0].sender?.username).toBe('sender');
+    expect(result.inboxData[0].sender?.display_name).toBe('Nadawca Nazwa');
     expect(result.sentData[0].receiver?.username).toBe('receiver');
+    expect(result.sentData[0].receiver?.display_name).toBe('Odbiorca Nazwa');
   });
   it('wylicza badge bez osobnego zapytania', () => {
     expect(countUnreadInboxNixes(bundle())).toBe(1);

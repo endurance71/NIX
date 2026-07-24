@@ -22,6 +22,7 @@ import { useScreenInsets, type ScreenInsetsResult } from './useScreenInsets';
 import { useAppTheme } from './useAppTheme';
 import { VIDEO_HOLD_THRESHOLD_MS, VIDEO_TOTAL_MAX_DURATION_MS } from '../lib/videoRecordingLimits';
 import { useVideoDraft } from '../context/videoDraft';
+import { usePhotoDraft } from '../context/photoDraft';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { scheduleCameraSwitchWatchdog } from '../lib/cameraSwitchWatchdog';
 import { configureForRecording } from '../lib/audioSession';
@@ -78,6 +79,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   const isNativeSimulator = !Constants.isDevice;
   const { colors, statusBarStyle } = useAppTheme();
   const { setSegments } = useVideoDraft();
+  const { setUri: setPhotoUri } = usePhotoDraft();
   const insets = useScreenInsets('cameraTab');
   const styles = createCameraStyles(colors);
   const [permission, requestPermission] = useCameraPermissions();
@@ -650,10 +652,10 @@ export function useCameraScreen(): CameraScreenViewModel {
                   });
                   if (!result.canceled) {
                     const selected = result.assets[0];
-                    router.push({
-                      pathname: '/preview',
-                      params: { uri: selected.uri },
-                    });
+                    if (selected?.uri) {
+                      setPhotoUri(selected.uri);
+                      router.push({ pathname: '/preview' });
+                    }
                   }
                 } catch (err) {
                   console.error('Symulator iOS: wybór zdjęcia z biblioteki nie powiódł się', err);
@@ -677,24 +679,35 @@ export function useCameraScreen(): CameraScreenViewModel {
               await new Promise((resolve) => setTimeout(resolve, STILL_FLASH_ARM_DELAY_MS));
               logVideoTorchEvent('still-flash-arm-delay-end');
             }
-            logVideoTorchEvent('before-takePictureAsync');
+            logVideoTorchEvent('before-takePictureAsync', {}, { facing });
             const photo = await camera.takePictureAsync({
               quality: 0.8,
               base64: false,
-              skipProcessing: false,
+              // Mirror selfie stills to match preview; also avoids bad crop on mirrored EXIF buffers.
+              mirror: facing === 'front',
             });
-            logVideoTorchEvent('after-takePictureAsync', {}, { hasPhoto: Boolean(photo) });
+            logVideoTorchEvent('after-takePictureAsync', {}, {
+              hasPhoto: Boolean(photo),
+              width: photo?.width,
+              height: photo?.height,
+              facing,
+            });
 
-            if (photo) {
+            if (photo?.uri) {
               trackDuration('photo_capture_ms', captureStartedAt, {
                 status: 'success',
                 width: photo.width,
                 height: photo.height,
               });
-              router.push({
-                pathname: '/preview',
-                params: { uri: photo.uri },
+              // Navigate immediately — bake/compress happens at send in mediaService.
+              setPhotoUri(photo.uri);
+              trackDuration('photo_preview_nav_ms', captureStartedAt, {
+                status: 'success',
+                facing,
+                width: photo.width,
+                height: photo.height,
               });
+              router.push({ pathname: '/preview' });
             }
           } catch (err) {
             console.error('Nie udało się zrobić zdjęcia', err);
@@ -822,10 +835,8 @@ export function useCameraScreen(): CameraScreenViewModel {
         setSegments([{ uri: asset.uri, durationMs }]);
         router.push({ pathname: '/preview', params: { mode: 'video' } });
       } else {
-        router.push({
-          pathname: '/preview',
-          params: { uri: asset.uri },
-        });
+        setPhotoUri(asset.uri);
+        router.push({ pathname: '/preview' });
       }
     } catch (err) {
       console.error('Wybór z galerii nie powiódł się', err);

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Alert, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { Stack, router } from 'expo-router';
+import { useAppTheme } from '../../hooks/useAppTheme';
 import { useProfileScreen } from '../../hooks/useProfileScreen';
 import { registerTabScrollToTop } from '../../lib/tabBarScrollActions';
 import {
@@ -13,6 +14,7 @@ import { SettingsListScreen } from '../ui/settings-list-screen';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
+  const { colors } = useAppTheme();
   const appVersion = Constants.expoConfig?.version ?? vm.t('common.unknown');
   const socialSummary =
     vm.pendingInviteCount > 0
@@ -32,18 +34,74 @@ export default function ProfileScreenSurface() {
   return (
     <>
       <SettingsListScreen loading={vm.profilePending} onRefresh={vm.handleListRefresh}>
+        {/* Top Section: Identity & QR Code */}
         <NativeSettingsSection>
           <NativeSettingsRow
-            title={`@${vm.profileUsername ?? vm.t('profile.missingUsername')}`}
+            title={vm.profileRow?.display_name || vm.t('profile.setDisplayName', 'Ustaw nazwę wyświetlaną')}
+            supportingText={`@${vm.profileUsername ?? vm.t('profile.missingUsername')}`}
             avatar={{
               url: vm.avatarSignedUrl,
               storagePath: vm.profileRow?.avatar_storage_path ?? null,
               emoji: vm.profileRow?.avatar_emoji ?? null,
               fallbackInitial: vm.initialLetter,
-              size: 56,
+              size: 60,
             }}
+            onPress={vm.handleEditDisplayName}
             testID="profile-identity"
           />
+        </NativeSettingsSection>
+
+        {/* Social / Friends */}
+        <NativeSettingsSection title={vm.t('profile.social', 'Społeczność')}>
+          <NativeSettingsRow
+            title={vm.t('profile.friendsTitle')}
+            supportingText={socialSummary}
+            icon="profile"
+            showsChevron
+            onPress={() => router.push('/(tabs)/profile/friends')}
+            testID="profile-friends"
+          />
+        </NativeSettingsSection>
+
+        {/* Privacy & Account Config */}
+        <NativeSettingsSection title={vm.t('profile.privacySectionTitle', 'Prywatność i bezpieczeństwo')}>
+          {vm.canChangePassword ? (
+            <NativeSettingsRow
+              title={vm.t('profile.changePassword')}
+              icon="key"
+              showsChevron
+              onPress={() => router.push('/(tabs)/profile/change-password')}
+              testID="profile-change-password"
+            />
+          ) : null}
+          <NativeSettingsRow
+            title={vm.t('profile.privateAccount', 'Konto prywatne')}
+            icon="lock"
+            switchValue={vm.profileRow?.is_private ?? false}
+            onSwitchValueChange={(val) => void vm.handleTogglePrivacy(val)}
+            testID="profile-private-account"
+          />
+          <NativeSettingsRow
+            title={vm.t('profile.safetyCenter')}
+            icon="shield"
+            showsChevron
+            onPress={() => router.push('/(tabs)/profile/safety')}
+            testID="profile-safety"
+          />
+          {Platform.OS === 'ios' ? (
+            <NativeSettingsRow
+              title={vm.t('profile.notifications', 'Powiadomienia')}
+              icon="notification"
+              switchValue={vm.pushNotificationsEnabled}
+              onSwitchValueChange={(enabled) => void vm.handlePushToggle(enabled)}
+              disabled={vm.pushNotificationsBusy}
+              testID="profile-push-notifications"
+            />
+          ) : null}
+        </NativeSettingsSection>
+
+        {/* Avatar Config */}
+        <NativeSettingsSection title={vm.t('profile.avatarSectionTitle', 'Awatar')}>
           <NativeSettingsRow
             title={vm.avatarBusy ? vm.t('profile.changeAvatarLoading') : vm.t('profile.changeAvatar')}
             icon="photoLibrary"
@@ -76,59 +134,23 @@ export default function ProfileScreenSurface() {
           ) : null}
         </NativeSettingsSection>
 
-        <NativeSettingsSection title={vm.t('profile.social')}>
+        {/* Support & Legal */}
+        <NativeSettingsSection title={vm.t('profile.supportSectionTitle', 'Pomoc i regulaminy')}>
           <NativeSettingsRow
-            title={vm.t('profile.friendsTitle')}
-            supportingText={socialSummary}
-            icon="profile"
-            showsChevron
-            onPress={() => router.push('/(tabs)/profile/friends')}
-            testID="profile-friends"
+            title={vm.t('profile.rateApp', 'Oceń aplikację')}
+            icon="star"
+            onPress={() => void vm.handleRateApp()}
+            testID="profile-rate-app"
           />
           <NativeSettingsRow
-            title={vm.t('profile.myQrCode')}
-            icon="qrcode"
-            showsChevron
-            onPress={() => router.push('/(tabs)/profile/my-code')}
-            testID="profile-my-code"
+            title={vm.t('profile.contactSupport', 'Napisz do nas')}
+            icon="email"
+            onPress={vm.handleSupport}
+            testID="profile-support"
           />
-        </NativeSettingsSection>
-
-        {Platform.OS === 'ios' ? (
-          <NativeSettingsSection title={vm.t('push.sectionTitle')}>
-            <NativeSettingsRow
-              title={vm.t('push.rowTitle')}
-              supportingText={vm.pushSupportingText}
-              icon="notification"
-              switchValue={vm.pushNotificationsEnabled}
-              onSwitchValueChange={(enabled) => void vm.handlePushToggle(enabled)}
-              disabled={vm.pushNotificationsBusy}
-              testID="profile-push-notifications"
-            />
-          </NativeSettingsSection>
-        ) : null}
-
-        <NativeSettingsSection title={vm.t('profile.account')}>
-          <NativeSettingsRow
-            title={vm.t('profile.safetyCenter')}
-            supportingText={vm.t('profile.safetyCenterSummary')}
-            icon="shield"
-            showsChevron
-            onPress={() => router.push('/(tabs)/profile/safety')}
-            testID="profile-safety"
-          />
-          {vm.canChangePassword ? (
-            <NativeSettingsRow
-              title={vm.t('profile.changePassword')}
-              icon="lock"
-              showsChevron
-              onPress={() => router.push('/(tabs)/profile/change-password')}
-              testID="profile-change-password"
-            />
-          ) : null}
           <NativeSettingsRow
             title={vm.t('profile.privacyPolicy')}
-            icon="shield"
+            icon="document"
             showsChevron
             onPress={() => router.push('/(tabs)/profile/privacy-policy')}
             testID="profile-privacy-policy"
@@ -140,6 +162,10 @@ export default function ProfileScreenSurface() {
             onPress={() => router.push('/(tabs)/profile/terms')}
             testID="profile-terms"
           />
+        </NativeSettingsSection>
+
+        {/* Danger Zone */}
+        <NativeSettingsSection title={vm.t('profile.accountActionsSectionTitle', 'Konto')}>
           <NativeSettingsRow
             title={vm.t('profile.signOut')}
             icon="signOut"
@@ -160,7 +186,16 @@ export default function ProfileScreenSurface() {
             }
             testID="profile-sign-out"
           />
+          <NativeSettingsRow
+            title={vm.t('profile.deleteAccount', 'Usuń konto')}
+            icon="trash"
+            role="destructive"
+            showsChevron
+            onPress={() => router.push('/(tabs)/profile/delete-account')}
+            testID="profile-delete-account"
+          />
         </NativeSettingsSection>
+
         <NativeSettingsCenteredFooter lines={accountFooterLines} />
       </SettingsListScreen>
       <Stack.Screen.Title large>{vm.t('profile.title')}</Stack.Screen.Title>

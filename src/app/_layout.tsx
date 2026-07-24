@@ -16,6 +16,7 @@ import { createAppQueryClient } from '../lib/queryClient';
 import { bindReactQueryAppLifecycle } from '../lib/reactQueryNetwork';
 import { ToastProvider } from 'react-native-pretty-toast';
 import { VideoDraftProvider } from '../context/VideoDraftContext';
+import { PhotoDraftProvider } from '../context/PhotoDraftContext';
 import { initMonitoring } from '../lib/monitoring';
 import { configureMediaCache } from '../lib/mediaCache';
 import { configureForPlayback } from '../lib/audioSession';
@@ -30,7 +31,6 @@ import { PushNotificationsProvider } from '../context/PushNotificationsProvider'
 
 // Initialize monitoring at module load (runs once).
 initMonitoring();
-enableFreeze(true);
 
 function RootLayout() {
   const [queryClient] = useState(() => createAppQueryClient());
@@ -50,8 +50,10 @@ function RootLayout() {
           <QueryClientProvider client={queryClient}>
             <AppThemeProvider>
               <VideoDraftProvider>
-                <DeepLinkHandler />
-                <RootNavigator />
+                <PhotoDraftProvider>
+                  <DeepLinkHandler />
+                  <RootNavigator />
+                </PhotoDraftProvider>
               </VideoDraftProvider>
             </AppThemeProvider>
           </QueryClientProvider>
@@ -91,7 +93,10 @@ function RootNavigator() {
   const { topContentInset, bottomContentInset } = useScreenInsets('fullscreen');
 
   useEffect(() => {
-    if (!loading && !profileLoading) return;
+    if (!loading) {
+      setBootstrapTimedOut(false);
+      return;
+    }
 
     const timer = setTimeout(() => {
       setBootstrapTimedOut(true);
@@ -99,11 +104,10 @@ function RootNavigator() {
 
     return () => {
       clearTimeout(timer);
-      setBootstrapTimedOut(false);
     };
-  }, [loading, profileLoading]);
+  }, [loading]);
 
-  const appReady = !loading && !profileLoading;
+  const appReady = !loading;
   const inAuthGroup = segments[0] === '(auth)';
   const onResetPasswordScreen = segments[1] === 'reset-password';
 
@@ -117,6 +121,9 @@ function RootNavigator() {
 
     if (!session) return;
 
+    // Do not make routing decisions until profile is fetched
+    if (profilePending || ageAttestationPending) return;
+
     if (needsOnboarding && segments[1] !== 'onboarding' && !onResetPasswordScreen) {
       router.replace('/(auth)/onboarding');
       return;
@@ -125,9 +132,9 @@ function RootNavigator() {
     if (!needsOnboarding && inAuthGroup && !onResetPasswordScreen) {
       router.replace('/(tabs)');
     }
-  }, [appReady, inAuthGroup, needsOnboarding, onResetPasswordScreen, segments, session]);
+  }, [appReady, inAuthGroup, needsOnboarding, onResetPasswordScreen, segments, session, profilePending, ageAttestationPending]);
 
-  if (loading || profileLoading) {
+  if (loading) {
     return (
       <View
         style={{
@@ -135,9 +142,6 @@ function RootNavigator() {
           justifyContent: 'center',
           alignItems: 'center',
           backgroundColor: colors.background,
-          paddingHorizontal: 24,
-          paddingTop: topContentInset,
-          paddingBottom: bottomContentInset,
         }}>
         <ActivityIndicator color={colors.textPrimary} />
         {bootstrapTimedOut && (

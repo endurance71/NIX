@@ -14,6 +14,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { AppIcon } from './app-icon';
 import { typography } from '../../theme/typography';
+import type { ChromeVariant } from './native-chrome-icon-button';
 
 type NativePreviewSendButtonProps = {
   label: string;
@@ -21,6 +22,8 @@ type NativePreviewSendButtonProps = {
   onPress: () => void;
   backgroundColor: string;
   tintColor: ColorValue;
+  /** `solid` skips Liquid Glass to avoid iOS ambient dimming over fullscreen media. */
+  chromeVariant?: ChromeVariant;
 };
 
 export function NativePreviewSendButton({
@@ -29,6 +32,7 @@ export function NativePreviewSendButton({
   onPress,
   backgroundColor,
   tintColor,
+  chromeVariant = 'glass',
 }: NativePreviewSendButtonProps) {
   if (Platform.OS !== 'ios') {
     return (
@@ -58,7 +62,9 @@ export function NativePreviewSendButton({
             frame({ minWidth: 136, height: 48 }),
             padding({ leading: 18, trailing: 14 }),
             background(backgroundColor, shapes.capsule()),
-            glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'capsule' }),
+            ...(chromeVariant === 'glass'
+              ? [glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'capsule' as const })]
+              : []),
           ]}>
           <SwiftText modifiers={[foregroundStyle(tintColor as string), bold()]}>{label}</SwiftText>
           <SwiftImage systemName="chevron.right" size={16} color={tintColor} />

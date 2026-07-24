@@ -8,6 +8,7 @@ export type InboxRowModel = {
   id: string;
   peerId: string;
   username: string;
+  display_name?: string | null;
   direction: 'received' | 'sent';
   unread: boolean;
   status: InboxRowStatus;
@@ -46,11 +47,13 @@ export function buildInboxRowModel(
     const { nix } = item;
     const unread = nix.is_viewed !== true;
     const username = nix.sender?.username || unknownUsername;
+    const displayName = nix.sender?.display_name || null;
 
     return {
       id: item.id,
       peerId: nix.sender_id,
       username,
+      display_name: displayName,
       direction: 'received',
       unread,
       status: unread ? 'new' : 'opened',
@@ -70,10 +73,12 @@ export function buildInboxRowModel(
 
   const { nix } = item;
   const username = nix.receiver?.username || unknownUsername;
+  const displayName = nix.receiver?.display_name || null;
   return {
     id: item.id,
     peerId: nix.receiver_id,
     username,
+    display_name: displayName,
     direction: 'sent',
     unread: false,
     status: resolveSentInboxStatus(nix),

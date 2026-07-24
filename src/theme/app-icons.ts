@@ -7,7 +7,9 @@ export type AppIconName =
   | 'checkCircle'
   | 'clock'
   | 'close'
+  | 'edit'
   | 'email'
+  | 'star'
   | 'flash'
   | 'flashOff'
   | 'document'
@@ -36,7 +38,9 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   checkCircle: 'checkmark.circle',
   clock: 'clock',
   close: 'xmark',
+  edit: 'pencil',
   email: 'envelope',
+  star: 'star',
   flash: 'bolt',
   flashOff: 'bolt.slash',
   document: 'doc.text',

@@ -95,7 +95,7 @@ export default function FriendsScreen() {
                   disabled={loading}
                   onAction={() => void vm.handleReject(request.id)}>
                   <NativeSettingsRow
-                    title={`@${request.requester.username}`}
+                    title={request.requester.display_name || `@${request.requester.username}`}
                     supportingText={vm.t('profile.incomingInviteStatus')}
                     avatar={{
                       url: avatarPath ? vm.incomingAvatarUrls[avatarPath] ?? null : null,
@@ -141,7 +141,7 @@ export default function FriendsScreen() {
                   disabled={loading}
                   onAction={() => confirmCancelInvite(request.id, request.recipient.username)}>
                   <NativeSettingsRow
-                    title={`@${request.recipient.username}`}
+                    title={request.recipient.display_name || `@${request.recipient.username}`}
                     supportingText={loading ? vm.t('common.loading') : vm.t('profile.outgoingInviteStatus')}
                     avatar={{
                       url: avatarPath ? vm.outgoingAvatarUrls[avatarPath] ?? null : null,
@@ -172,7 +172,7 @@ export default function FriendsScreen() {
                 disabled={disabled}
                 onAction={() => confirmRemoveFriend(friend.id, friend.username)}>
                 <NativeSettingsRow
-                  title={`@${friend.username}`}
+                  title={friend.display_name || `@${friend.username}`}
                   supportingText={vm.t('profile.screenshotPermission')}
                   avatar={{
                     url: avatarPath ? vm.friendAvatarUrls[avatarPath] ?? null : null,

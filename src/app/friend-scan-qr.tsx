@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
 import { CameraView, BarcodeScanningResult, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect } from 'expo-router';
@@ -35,16 +35,14 @@ export default function FriendScanQrScreen() {
   const scanInFlightRef = useRef(false);
   const handledSuccessRef = useRef(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      setScanningLocked(false);
-      setLoading(false);
-      setSheetPresented(false);
-      setScannedData(null);
-      scanInFlightRef.current = false;
-      handledSuccessRef.current = false;
-    }, [])
-  );
+  useFocusEffect(() => {
+    setScanningLocked(false);
+    setLoading(false);
+    setSheetPresented(false);
+    setScannedData(null);
+    scanInFlightRef.current = false;
+    handledSuccessRef.current = false;
+  });
 
   const requestSheetDismiss = () => {
     setSheetPresented(false);

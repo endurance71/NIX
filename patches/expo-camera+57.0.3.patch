@@ -1,0 +1,916 @@
+diff --git a/node_modules/expo-camera/Oops.rej b/node_modules/expo-camera/Oops.rej
+new file mode 100644
+index 0000000..7f82846
+--- /dev/null
++++ b/node_modules/expo-camera/Oops.rej
+@@ -0,0 +1,125 @@
++@@ -75,17 +75,29 @@
++   var presetCamera = AVCaptureDevice.Position.back {
++     didSet {
++       sessionQueue.async {
+++        self.sessionManager.logVideoTorchIntent(reason: "presetCamera-didSet preset=\(self.presetCamera.rawValue)")
++         self.sessionManager.updateDevice()
++       }
++     }
++   }
++ 
++-  var flashMode = FlashMode.auto
+++  var flashMode = FlashMode.auto {
+++    didSet {
+++      sessionQueue.async {
+++        self.sessionManager.logVideoTorchIntent(reason: "flashMode-didSet value=\(self.flashMode.rawValue)")
+++      }
+++    }
+++  }
++ 
++   var torchEnabled = false {
++     didSet {
++       sessionQueue.async {
++-        self.sessionManager.enableTorch()
+++        self.sessionManager.logVideoTorchIntent(reason: "torchEnabled-didSet value=\(self.torchEnabled) mode=\(self.mode.rawValue)")
+++        if self.torchEnabled {
+++          self.sessionManager.enableTorchForVideoRecording(reason: "prop-video-intent")
+++          return
+++        }
+++        self.sessionManager.enableTorch(reason: "prop-disable")
++       }
++     }
++   }
++@@ -107,6 +119,7 @@
++   var mode = CameraMode.picture {
++     didSet {
++       sessionQueue.async {
+++        self.sessionManager.logVideoTorchIntent(reason: "mode-didSet value=\(self.mode.rawValue) torchEnabled=\(self.torchEnabled)")
++         self.sessionManager.setCameraMode()
++       }
++     }
++@@ -123,6 +136,7 @@
++   var active = true {
++     didSet {
++       sessionQueue.async {
+++        self.sessionManager.logVideoTorchIntent(reason: "active-didSet value=\(self.active)")
++         self.sessionManager.updateCameraIsActive()
++       }
++     }
++@@ -211,10 +225,11 @@
++       guard let self else {
++         return
++       }
+++      sessionManager.logVideoTorchIntent(reason: "app-foregrounded paused=\(isSessionPaused)")
++       if !session.isRunning && isSessionPaused {
++         isSessionPaused = false
++         session.startRunning()
++-        if torchEnabled {
+++        if torchEnabled && mode != .video {
++           sessionManager.enableTorch()
++         }
++       }
++@@ -226,6 +241,7 @@
++       guard let self else {
++         return
++       }
+++      sessionManager.logVideoTorchIntent(reason: "app-backgrounded paused=\(isSessionPaused)")
++       if session.isRunning && !isSessionPaused {
++         isSessionPaused = true
++         session.stopRunning()
++@@ -301,11 +317,45 @@
++   }
++ 
++   func record(options: CameraRecordingOptions, promise: Promise) async {
+++    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+++      sessionQueue.async { [weak self] in
+++        self?.sessionManager.logVideoTorchIntent(reason: "record-begin torchEnabled=\(self?.torchEnabled ?? false) mode=\(self?.mode.rawValue ?? "nil")")
+++        continuation.resume()
+++      }
+++    }
++     guard let videoFileOutput = sessionManager.currentVideoFileOutput else {
+++      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+++        sessionQueue.async { [weak self] in
+++          self?.sessionManager.logVideoTorchIntent(reason: "record-no-video-output")
+++          continuation.resume()
+++        }
+++      }
++       promise.reject(CameraOutputNotReadyException())
++       return
++     }
+++    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+++      sessionQueue.async { [weak self] in
+++        self?.sessionManager.logVideoTorchIntent(reason: "record-before-videoRecording-record isRecording=\(videoFileOutput.isRecording)")
+++        self?.sessionManager.enableTorchForVideoRecording(reason: "record-before-startRecording")
+++        continuation.resume()
+++      }
+++    }
++     await videoRecording.record(options: options, videoFileOutput: videoFileOutput, promise: promise)
+++    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+++      sessionQueue.async { [weak self] in
+++        self?.sessionManager.logVideoTorchIntent(reason: "record-after-videoRecording-record isRecording=\(videoFileOutput.isRecording)")
+++        continuation.resume()
+++      }
+++    }
+++  }
+++
+++  func prepareTorchForVideoRecording(reason: String) async {
+++    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+++      sessionQueue.async { [weak self] in
+++        self?.sessionManager.enableTorchForVideoRecording(reason: reason)
+++        continuation.resume()
+++      }
+++    }
++   }
++ 
++   @available(iOS 18.0, *)
++@@ -339,6 +389,9 @@
++   }
++ 
++   func stopRecording() {
+++    sessionQueue.async { [weak self] in
+++      self?.sessionManager.logVideoTorchIntent(reason: "stopRecording-called")
+++    }
++     videoRecording.stopRecording(videoFileOutput: sessionManager.currentVideoFileOutput)
++   }
++ 
+diff --git a/node_modules/expo-camera/Oops.rej.orig b/node_modules/expo-camera/Oops.rej.orig
+new file mode 100644
+index 0000000..1542f51
+--- /dev/null
++++ b/node_modules/expo-camera/Oops.rej.orig
+@@ -0,0 +1,154 @@
++@@ -9,6 +9,8 @@
++   var appContext: AppContext? { get }
++   var videoBitrate: Int? { get }
++   var videoStabilizationMode: VideoStabilizationMode { get }
+++
+++  func prepareTorchForVideoRecording(reason: String) async
++ }
++ 
++ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
++@@ -23,27 +25,49 @@
++     super.init()
++   }
++ 
+++  private func logVideoRecordingDiagnostic(_ event: String, reason: String = "nil", videoFileOutput: AVCaptureMovieFileOutput? = nil) {
+++    #if DEBUG
+++    let output = videoFileOutput
+++    let isRecording = output?.isRecording ?? false
+++    let hasPromise = videoRecordedPromise != nil
+++    let codec = videoCodecType?.rawValue ?? "nil"
+++    let message = "[ExpoCameraTorch] event=\(event) reason=\(reason) t=\(CFAbsoluteTimeGetCurrent()) movieIsRecording=\(isRecording) hasPromise=\(hasPromise) codec=\(codec) validOptions=\(isValidVideoOptions)"
+++    NSLog("%@", message)
+++    #endif
+++  }
+++
++   func record(options: CameraRecordingOptions, videoFileOutput: AVCaptureMovieFileOutput, promise: Promise) async {
++     guard !videoFileOutput.isRecording && videoRecordedPromise == nil else {
+++      logVideoRecordingDiagnostic("movie-record-skip-already-recording", videoFileOutput: videoFileOutput)
++       return
++     }
++ 
+++    logVideoRecordingDiagnostic("movie-record-begin", videoFileOutput: videoFileOutput)
++     if let connection = videoFileOutput.connection(with: .video) {
++       let orientation = await delegate?.responsiveWhenOrientationLocked == true ?
++         delegate?.physicalOrientation ?? .unknown : UIDevice.current.orientation
++       connection.videoOrientation = ExpoCameraUtils.videoOrientation(for: orientation)
+++      logVideoRecordingDiagnostic(
+++        "movie-record-connection-configured",
+++        reason: "orientation=\(connection.videoOrientation.rawValue) mirrored=\(connection.isVideoMirrored) stabilization=\(connection.preferredVideoStabilizationMode.rawValue)",
+++        videoFileOutput: videoFileOutput
+++      )
++       await setVideoOptions(options: options, for: connection, videoFileOutput: videoFileOutput, promise: promise)
++ 
++       if connection.isVideoOrientationSupported && delegate?.mirror == true {
++         connection.isVideoMirrored = delegate?.mirror ?? false
++       }
+++    } else {
+++      logVideoRecordingDiagnostic("movie-record-no-video-connection", videoFileOutput: videoFileOutput)
++     }
++ 
++     if !isValidVideoOptions {
+++      logVideoRecordingDiagnostic("movie-record-invalid-options", videoFileOutput: videoFileOutput)
++       return
++     }
++ 
++     guard let appContext = delegate?.appContext else {
+++      logVideoRecordingDiagnostic("movie-record-no-app-context", videoFileOutput: videoFileOutput)
++       promise.reject(CameraRecordingFailedException())
++       return
++     }
++@@ -52,7 +76,15 @@
++     let fileUrl = URL(fileURLWithPath: path)
++     videoRecordedPromise = promise
++ 
+++    logVideoRecordingDiagnostic("movie-startRecording-before", reason: "url=\(fileUrl.lastPathComponent)", videoFileOutput: videoFileOutput)
++     videoFileOutput.startRecording(to: fileUrl, recordingDelegate: self)
+++    logVideoRecordingDiagnostic("movie-startRecording-after-call", videoFileOutput: videoFileOutput)
+++    logVideoRecordingDiagnostic("movie-after-startRecording-sleep-begin", reason: "sleepMs=120", videoFileOutput: videoFileOutput)
+++    try? await Task.sleep(nanoseconds: 120_000_000)
+++    logVideoRecordingDiagnostic("movie-after-startRecording-sleep-end", videoFileOutput: videoFileOutput)
+++    logVideoRecordingDiagnostic("movie-prepareTorch-after-startRecording-before", videoFileOutput: videoFileOutput)
+++    await delegate?.prepareTorchForVideoRecording(reason: "after-startRecording")
+++    logVideoRecordingDiagnostic("movie-prepareTorch-after-startRecording-after", videoFileOutput: videoFileOutput)
++   }
++ 
++   @available(iOS 18.0, *)
++@@ -65,6 +97,7 @@
++   }
++ 
++   func stopRecording(videoFileOutput: AVCaptureMovieFileOutput?) {
+++    logVideoRecordingDiagnostic("movie-stopRecording", videoFileOutput: videoFileOutput)
++     videoFileOutput?.stopRecording()
++   }
++ 
++@@ -75,18 +108,22 @@
++     promise: Promise
++   ) async {
++     isValidVideoOptions = true
+++    logVideoRecordingDiagnostic("movie-setVideoOptions-begin", videoFileOutput: videoFileOutput)
++ 
++     if let maxDuration = options.maxDuration {
++       videoFileOutput.maxRecordedDuration = CMTime(seconds: maxDuration, preferredTimescale: 1000)
+++      logVideoRecordingDiagnostic("movie-setVideoOptions-maxDuration", reason: "maxDuration=\(maxDuration)", videoFileOutput: videoFileOutput)
++     }
++ 
++     if let maxFileSize = options.maxFileSize {
++       videoFileOutput.maxRecordedFileSize = Int64(maxFileSize)
+++      logVideoRecordingDiagnostic("movie-setVideoOptions-maxFileSize", reason: "maxFileSize=\(maxFileSize)", videoFileOutput: videoFileOutput)
++     }
++ 
++     let avMode = (delegate?.videoStabilizationMode ?? .auto).toAVCaptureVideoStabilizationMode()
++     if connection.isVideoStabilizationSupported {
++       connection.preferredVideoStabilizationMode = avMode
+++      logVideoRecordingDiagnostic("movie-setVideoOptions-stabilization", reason: "mode=\(avMode.rawValue)", videoFileOutput: videoFileOutput)
++     }
++ 
++     if let codec = options.codec {
++@@ -98,7 +135,9 @@
++         }
++         videoFileOutput.setOutputSettings(outputSettings, for: connection)
++         self.videoCodecType = codecType
+++        logVideoRecordingDiagnostic("movie-setVideoOptions-codec", reason: "codec=\(codecType.rawValue)", videoFileOutput: videoFileOutput)
++       } else {
+++        logVideoRecordingDiagnostic("movie-setVideoOptions-codec-rejected", reason: "codec=\(String(describing: options.codec?.rawValue))", videoFileOutput: videoFileOutput)
++         promise.reject(CameraRecordingException(options.codec?.rawValue))
++         videoRecordedPromise = nil
++         isValidVideoOptions = false
++@@ -106,12 +145,29 @@
++     }
++   }
++ 
+++  func fileOutput(
+++    _ output: AVCaptureFileOutput,
+++    didStartRecordingTo fileURL: URL,
+++    from connections: [AVCaptureConnection]
+++  ) {
+++    logVideoRecordingDiagnostic(
+++      "movie-didStartRecording",
+++      reason: "url=\(fileURL.lastPathComponent) connections=\(connections.count)",
+++      videoFileOutput: output as? AVCaptureMovieFileOutput
+++    )
+++  }
+++
++   func fileOutput(
++     _ output: AVCaptureFileOutput,
++     didFinishRecordingTo outputFileURL: URL,
++     from connections: [AVCaptureConnection],
++     error: Error?
++   ) {
+++    logVideoRecordingDiagnostic(
+++      "movie-didFinishRecording",
+++      reason: "error=\(error?.localizedDescription ?? "nil") url=\(outputFileURL.lastPathComponent)",
+++      videoFileOutput: output as? AVCaptureMovieFileOutput
+++    )
++     defer {
++       videoRecordedPromise = nil
++       videoCodecType = nil
++@@ -128,6 +184,7 @@
++   }
++ 
++   func cleanup() {
+++    logVideoRecordingDiagnostic("movie-cleanup")
++     videoRecordedPromise?.reject(CameraUnmountedException())
++     videoRecordedPromise = nil
++     videoCodecType = nil
+diff --git a/node_modules/expo-camera/ios/Current/CameraPhotoCapture.swift b/node_modules/expo-camera/ios/Current/CameraPhotoCapture.swift
+index fc9a9bb..5539b6c 100644
+--- a/node_modules/expo-camera/ios/Current/CameraPhotoCapture.swift
++++ b/node_modules/expo-camera/ios/Current/CameraPhotoCapture.swift
+@@ -80,8 +80,10 @@ class CameraPhotoCapture: NSObject, AVCapturePhotoCaptureDelegate {
+         ((captureDelegate?.mirror ?? false) || options.mirror)
+       var photoSettings = AVCapturePhotoSettings()
+ 
+-      if photoOutput.availablePhotoCodecTypes.contains(AVVideoCodecType.hevc) {
+-        photoSettings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.hevc])
++      // Prefer JPEG over HEVC: HEIC stills from the front camera can bake to black
++      // after crop/normalize on some iOS versions when displayed via expo-image.
++      if photoOutput.availablePhotoCodecTypes.contains(AVVideoCodecType.jpeg) {
++        photoSettings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
+       }
+ 
+       let requestedFlashMode = captureDelegate?.flashMode.toDeviceFlashMode() ?? .auto
+@@ -89,8 +91,12 @@ class CameraPhotoCapture: NSObject, AVCapturePhotoCaptureDelegate {
+         photoSettings.flashMode = requestedFlashMode
+       }
+ 
++      // Avoid unbounded max dimensions which can yield empty buffers on front camera.
+       if #available(iOS 16.0, *) {
+-        photoSettings.maxPhotoDimensions = photoOutput.maxPhotoDimensions
++        let maxDimensions = photoOutput.maxPhotoDimensions
++        if maxDimensions.width > 0 && maxDimensions.height > 0 {
++          photoSettings.maxPhotoDimensions = maxDimensions
++        }
+       }
+ 
+       if !photoSettings.availablePreviewPhotoPixelFormatTypes.isEmpty,
+@@ -180,14 +186,17 @@ class CameraPhotoCapture: NSObject, AVCapturePhotoCaptureDelegate {
+       throw CameraSavingImageException("Failed to process image data")
+     }
+ 
+-    guard let takenCgImage = takenImage.cgImage else {
++    guard takenImage.cgImage != nil else {
+       throw CameraSavingImageException("Failed to get CGImage")
+     }
+ 
+-    let cropRect = CGRect(x: 0, y: 0, width: takenCgImage.width, height: takenCgImage.height)
+-    let croppedSize = AVMakeRect(aspectRatio: previewSize, insideRect: cropRect)
+-
+-    takenImage = ExpoCameraUtils.crop(image: takenImage, to: croppedSize)
++    // Skip crop when preview layer has not laid out yet — AVMakeRect with a zero
++    // aspect can produce empty/black stills while the live preview already looks fine.
++    if previewSize.width >= 1, previewSize.height >= 1, let takenCgImage = takenImage.cgImage {
++      let cropRect = CGRect(x: 0, y: 0, width: takenCgImage.width, height: takenCgImage.height)
++      let croppedSize = AVMakeRect(aspectRatio: previewSize, insideRect: cropRect)
++      takenImage = ExpoCameraUtils.crop(image: takenImage, to: croppedSize)
++    }
+ 
+     let width = takenImage.size.width
+     let height = takenImage.size.height
+diff --git a/node_modules/expo-camera/ios/Current/CameraSessionManager.swift b/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
+index 403e033..6f55fb2 100644
+--- a/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
++++ b/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
+@@ -25,6 +25,9 @@ protocol CameraSessionManagerDelegate: AnyObject {
+ }
+ 
+ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
++  private let videoTorchInitialLevel: Float = 0.12
++  private let videoTorchTargetLevel: Float = 0.55
++
+   weak var delegate: CameraSessionManagerDelegate?
+ 
+   let session = AVCaptureSession()
+@@ -82,6 +85,7 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     guard let delegate else {
+       return
+     }
++    logTorchDiagnostic(event: "updateDevice-begin", reason: "preset=\(delegate.presetCamera.rawValue)")
+ 
+     let lenses = delegate.presetCamera == .back
+     ? deviceDiscovery.backCameraLenses
+@@ -108,6 +112,7 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     guard let delegate else {
+       return
+     }
++    logTorchDiagnostic(event: "updateCameraIsActive", reason: "active=\(delegate.active)")
+     if delegate.active {
+       if !self.session.isRunning {
+         self.session.startRunning()
+@@ -121,8 +126,8 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     guard let delegate else {
+       return
+     }
++    logTorchDiagnostic(event: "setCameraMode-begin", reason: "mode=\(delegate.mode.rawValue)")
+     self.session.beginConfiguration()
+-    defer { self.session.commitConfiguration() }
+     if delegate.mode == .video {
+       if self.videoFileOutput == nil {
+         self.setupMovieFileCapture(withSessionConfiguration: false)
+@@ -136,6 +141,14 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+         self.configureResponsiveCapture(photoOutput)
+       }
+     }
++    self.session.commitConfiguration()
++    logTorchDiagnostic(event: "setCameraMode-commit", reason: "mode=\(delegate.mode.rawValue)")
++    if delegate.active && !self.session.isRunning {
++      logTorchDiagnostic(event: "setCameraMode-restart-session", reason: "mode=\(delegate.mode.rawValue)")
++      self.session.startRunning()
++    }
++    emitCameraReadyWhenSessionReady(reason: "setCameraMode")
++    self.enableTorchForVideoRecording(reason: "setCameraMode")
+   }
+ 
+   func updateSessionAudioIsMuted(withSessionConfiguration: Bool = true) {
+@@ -177,22 +190,89 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     }
+   }
+ 
+-  func enableTorch() {
+-    guard let delegate, let device = captureDeviceInput?.device, device.hasTorch else {
++  func enableTorch(reason: String = "prop") {
++    logTorchDiagnostic(event: "enableTorch-prop", reason: reason)
++    setTorchEnabled(delegate?.torchEnabled ?? false, reason: reason)
++  }
++
++  private func setTorchEnabled(_ enabled: Bool, reason: String, level: Float? = nil) {
++    guard delegate != nil, let device = captureDeviceInput?.device, device.hasTorch else {
++      logTorchDiagnostic(event: "setTorchEnabled-skip-no-device-or-torch", reason: "\(reason) enabled=\(enabled)", device: captureDeviceInput?.device)
+       return
+     }
+ 
++    let requestedLevel = level.map { String($0) } ?? "max"
++    logTorchDiagnostic(event: "setTorchEnabled-before-lock", reason: "\(reason) enabled=\(enabled) requestedLevel=\(requestedLevel)", device: device)
+     do {
+       try device.lockForConfiguration()
+       defer { device.unlockForConfiguration() }
+       if device.isTorchModeSupported(.on) {
+-        device.torchMode = delegate.torchEnabled ? .on : .off
++        if enabled {
++          let torchLevel = min(level ?? AVCaptureDevice.maxAvailableTorchLevel, AVCaptureDevice.maxAvailableTorchLevel)
++          logTorchDiagnostic(event: "setTorchModeOn-before", reason: "\(reason) level=\(torchLevel)", device: device)
++          try device.setTorchModeOn(level: max(torchLevel, 0.01))
++        } else {
++          logTorchDiagnostic(event: "setTorchModeOff-before", reason: reason, device: device)
++          device.torchMode = .off
++        }
++      } else {
++        logTorchDiagnostic(event: "setTorchEnabled-skip-unsupported", reason: "\(reason) enabled=\(enabled)", device: device)
+       }
++      logTorchDiagnostic(event: "setTorchEnabled-after", reason: "\(reason) enabled=\(enabled)", device: device)
+     } catch {
+       log.info("\(#function): \(error.localizedDescription)")
++      logTorchDiagnostic(event: "setTorchEnabled-failed", reason: "\(reason) error=\(error.localizedDescription)", device: device)
+     }
+   }
+ 
++  func enableTorchForVideoRecording(reason: String) {
++    logTorchDiagnostic(event: "enableTorchForVideoRecording-begin", reason: reason)
++    guard let delegate, delegate.mode == .video, delegate.torchEnabled else {
++      logTorchDiagnostic(event: "enableTorchForVideoRecording-disable-or-skip", reason: reason)
++      setTorchEnabled(false, reason: reason)
++      return
++    }
++    logTorchDiagnostic(event: "enableTorchForVideoRecording-soft-start-dispatch", reason: reason)
++    setTorchEnabled(true, reason: "\(reason)-soft-start", level: videoTorchInitialLevel)
++    logTorchDiagnostic(event: "enableTorchForVideoRecording-soft-target-scheduled", reason: reason)
++    delegate.sessionQueue.asyncAfter(deadline: .now() + 0.18) { [weak self, weak delegate] in
++      guard let self, let delegate, delegate.mode == .video, delegate.torchEnabled else {
++        self?.logTorchDiagnostic(event: "enableTorchForVideoRecording-soft-target-skip", reason: reason)
++        return
++      }
++      self.logTorchDiagnostic(event: "enableTorchForVideoRecording-soft-target-fire", reason: reason)
++      self.setTorchEnabled(true, reason: "\(reason)-soft-target", level: self.videoTorchTargetLevel)
++    }
++  }
++
++  func logVideoTorchIntent(reason: String) {
++    logTorchDiagnostic(event: "videoTorchIntent", reason: reason, device: captureDeviceInput?.device)
++  }
++
++  private func logTorchDiagnostic(event: String, reason: String = "nil", device: AVCaptureDevice? = nil) {
++    #if DEBUG
++    let activeDevice = device ?? captureDeviceInput?.device
++    let deviceName = activeDevice?.localizedName ?? "nil"
++    let deviceType = activeDevice?.deviceType.rawValue ?? "nil"
++    let hasTorch = activeDevice?.hasTorch ?? false
++    let torchMode = activeDevice?.torchMode.rawValue ?? -1
++    let torchLevel = activeDevice?.torchLevel ?? -1
++    let requested = delegate?.torchEnabled ?? false
++    let mode = delegate?.mode.rawValue ?? "nil"
++    let active = delegate?.active ?? false
++    let sessionRunning = session.isRunning
++    let hasVideoOutput = videoFileOutput != nil
++    let hasPhotoOutput = photoOutput != nil
++    let currentInputName = captureDeviceInput?.device.localizedName ?? "nil"
++    let message =
++      "[ExpoCameraTorch] event=\(event) reason=\(reason) t=\(CFAbsoluteTimeGetCurrent()) torchRequested=\(requested) mode=\(mode) active=\(active) sessionRunning=\(sessionRunning) hasTorch=\(hasTorch) torchMode=\(torchMode) torchLevel=\(torchLevel) device=\(deviceName) deviceType=\(deviceType) currentInput=\(currentInputName) hasVideoOutput=\(hasVideoOutput) hasPhotoOutput=\(hasPhotoOutput)"
++    NSLog("%@", message)
++    log.info(
++      "\(message)"
++    )
++    #endif
++  }
++
+   func setFocusMode() {
+     guard let device = captureDeviceInput?.device, let delegate else {
+       return
+@@ -241,23 +321,29 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+   }
+ 
+   func setupMovieFileCapture(withSessionConfiguration: Bool = true) {
++    logTorchDiagnostic(event: "setupMovieFileCapture-begin", reason: "withSessionConfiguration=\(withSessionConfiguration)")
+     let output = AVCaptureMovieFileOutput()
+     if withSessionConfiguration {
+       session.beginConfiguration()
+     }
+-    defer {
+-      if withSessionConfiguration {
+-        session.commitConfiguration()
+-      }
+-    }
+     if session.canAddOutput(output) {
+       session.addOutput(output)
+       videoFileOutput = output
++      logTorchDiagnostic(event: "setupMovieFileCapture-added", reason: "withSessionConfiguration=\(withSessionConfiguration)")
++    } else {
++      logTorchDiagnostic(event: "setupMovieFileCapture-cannot-add", reason: "withSessionConfiguration=\(withSessionConfiguration)")
++    }
++    if withSessionConfiguration {
++      session.commitConfiguration()
++      logTorchDiagnostic(event: "setupMovieFileCapture-commit", reason: "withSessionConfiguration=\(withSessionConfiguration)")
++      enableTorchForVideoRecording(reason: "setupMovieFileCapture")
+     }
+   }
+ 
+   func cleanupMovieFileCapture(withSessionConfiguration: Bool = true) {
++    logTorchDiagnostic(event: "cleanupMovieFileCapture-begin", reason: "withSessionConfiguration=\(withSessionConfiguration)")
+     guard let videoFileOutput else {
++      logTorchDiagnostic(event: "cleanupMovieFileCapture-no-output", reason: "withSessionConfiguration=\(withSessionConfiguration)")
+       return
+     }
+     if withSessionConfiguration {
+@@ -271,10 +357,12 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     if session.outputs.contains(videoFileOutput) {
+       session.removeOutput(videoFileOutput)
+       self.videoFileOutput = nil
++      logTorchDiagnostic(event: "cleanupMovieFileCapture-removed", reason: "withSessionConfiguration=\(withSessionConfiguration)")
+     }
+   }
+ 
+   func stopSession() {
++    logTorchDiagnostic(event: "stopSession-begin")
+     guard hasAvailableCameraDevice else {
+       return
+     }
+@@ -294,6 +382,7 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     if session.isRunning {
+       session.stopRunning()
+     }
++    logTorchDiagnostic(event: "stopSession-end")
+   }
+ 
+   func addErrorNotification() {
+@@ -331,6 +420,7 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     guard let delegate else {
+       return
+     }
++    logTorchDiagnostic(event: "addDevice-begin", reason: "newDevice=\(device.localizedName)", device: device)
+ 
+     if captureDeviceInput?.device.uniqueID == device.uniqueID {
+       return
+@@ -341,6 +431,10 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+       session.commitConfiguration()
+       delegate.emitAvailableLenses()
+       delegate.configurePreviewRotation()
++      logTorchDiagnostic(event: "addDevice-commit", reason: "newDevice=\(device.localizedName)", device: captureDeviceInput?.device)
++      if delegate.torchEnabled {
++        enableTorchForVideoRecording(reason: "addDevice")
++      }
+     }
+     if let captureDeviceInput {
+       session.removeInput(captureDeviceInput)
+@@ -352,8 +446,12 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+         session.addInput(deviceInput)
+         captureDeviceInput = deviceInput
+         updateZoom()
++        logTorchDiagnostic(event: "addDevice-added-input", reason: "newDevice=\(device.localizedName)", device: device)
++      } else {
++        logTorchDiagnostic(event: "addDevice-cannot-add-input", reason: "newDevice=\(device.localizedName)", device: device)
+       }
+     } catch {
++      logTorchDiagnostic(event: "addDevice-error", reason: error.localizedDescription, device: device)
+       delegate.onMountError(["message": "Camera could not be started - \(error.localizedDescription)"])
+     }
+   }
+@@ -369,17 +467,20 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+   }
+ 
+   private func configureResponsiveCapture(_ photoOutput: AVCapturePhotoOutput) {
++    // Intentionally disabled: responsive/fast capture can return black stills on
++    // the front (TrueDepth) camera on iOS 17+, while the live preview stays fine.
+     guard #available(iOS 17.0, *), photoOutput.isResponsiveCaptureSupported else {
+       return
+     }
+-    photoOutput.isResponsiveCaptureEnabled = true
++    photoOutput.isResponsiveCaptureEnabled = false
+     if photoOutput.isFastCapturePrioritizationSupported {
+-      photoOutput.isFastCapturePrioritizationEnabled = true
++      photoOutput.isFastCapturePrioritizationEnabled = false
+     }
+     photoOutput.isAutoDeferredPhotoDeliveryEnabled = false
+   }
+ 
+   private func startSession() {
++    logTorchDiagnostic(event: "startSession-begin")
+     guard hasAvailableCameraDevice else {
+       return
+     }
+@@ -412,9 +513,23 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     configureResponsiveCapture(photoOutput)
+ 
+     session.commitConfiguration()
++    logTorchDiagnostic(event: "startSession-commit")
+     addErrorNotification()
+     delegate.configurePreviewRotation()
+     delegate.barcodeScanner?.maybeStartBarcodeScanning()
+-    enableTorch()
++
++    // Do not emit onCameraReady here — session may not be running yet.
++    // Readiness is signaled from startSessionIfNeeded / setCameraMode after startRunning.
++    enableTorchForVideoRecording(reason: "startSession")
++  }
++
++  private func emitCameraReadyWhenSessionReady(reason: String) {
++    guard let delegate else { return }
++    logTorchDiagnostic(event: "emitCameraReady-schedule", reason: "\(reason) sessionRunning=\(session.isRunning)")
++    // Defer when session is not yet running so photo output / preview layout can settle.
++    let delay: TimeInterval = session.isRunning ? 0 : 0.08
++    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak delegate] in
++      delegate?.onCameraReady()
++    }
+   }
+ }
+diff --git a/node_modules/expo-camera/ios/Current/CameraVideoRecording.swift b/node_modules/expo-camera/ios/Current/CameraVideoRecording.swift
+index 4db86b1..222fdfa 100644
+--- a/node_modules/expo-camera/ios/Current/CameraVideoRecording.swift
++++ b/node_modules/expo-camera/ios/Current/CameraVideoRecording.swift
+@@ -9,6 +9,8 @@ protocol CameraVideoRecordingDelegate: AnyObject {
+   var appContext: AppContext? { get }
+   var videoBitrate: Int? { get }
+   var videoStabilizationMode: VideoStabilizationMode { get }
++
++  func prepareTorchForVideoRecording(reason: String) async
+ }
+ 
+ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+@@ -23,27 +25,49 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+     super.init()
+   }
+ 
++  private func logVideoRecordingDiagnostic(_ event: String, reason: String = "nil", videoFileOutput: AVCaptureMovieFileOutput? = nil) {
++    #if DEBUG
++    let output = videoFileOutput
++    let isRecording = output?.isRecording ?? false
++    let hasPromise = videoRecordedPromise != nil
++    let codec = videoCodecType?.rawValue ?? "nil"
++    let message = "[ExpoCameraTorch] event=\(event) reason=\(reason) t=\(CFAbsoluteTimeGetCurrent()) movieIsRecording=\(isRecording) hasPromise=\(hasPromise) codec=\(codec) validOptions=\(isValidVideoOptions)"
++    NSLog("%@", message)
++    #endif
++  }
++
+   func record(options: CameraRecordingOptions, videoFileOutput: AVCaptureMovieFileOutput, promise: Promise) async {
+     guard !videoFileOutput.isRecording && videoRecordedPromise == nil else {
++      logVideoRecordingDiagnostic("movie-record-skip-already-recording", videoFileOutput: videoFileOutput)
+       return
+     }
+ 
++    logVideoRecordingDiagnostic("movie-record-begin", videoFileOutput: videoFileOutput)
+     if let connection = videoFileOutput.connection(with: .video) {
+       let orientation = await delegate?.responsiveWhenOrientationLocked == true ?
+         delegate?.physicalOrientation ?? .unknown : UIDevice.current.orientation
+       connection.videoOrientation = ExpoCameraUtils.videoOrientation(for: orientation)
++      logVideoRecordingDiagnostic(
++        "movie-record-connection-configured",
++        reason: "orientation=\(connection.videoOrientation.rawValue) mirrored=\(connection.isVideoMirrored) stabilization=\(connection.preferredVideoStabilizationMode.rawValue)",
++        videoFileOutput: videoFileOutput
++      )
+       await setVideoOptions(options: options, for: connection, videoFileOutput: videoFileOutput, promise: promise)
+ 
+       if connection.isVideoOrientationSupported && delegate?.mirror == true {
+         connection.isVideoMirrored = delegate?.mirror ?? false
+       }
++    } else {
++      logVideoRecordingDiagnostic("movie-record-no-video-connection", videoFileOutput: videoFileOutput)
+     }
+ 
+     if !isValidVideoOptions {
++      logVideoRecordingDiagnostic("movie-record-invalid-options", videoFileOutput: videoFileOutput)
+       return
+     }
+ 
+     guard let appContext = delegate?.appContext else {
++      logVideoRecordingDiagnostic("movie-record-no-app-context", videoFileOutput: videoFileOutput)
+       promise.reject(CameraRecordingFailedException())
+       return
+     }
+@@ -52,7 +76,15 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+     let fileUrl = URL(fileURLWithPath: path)
+     videoRecordedPromise = promise
+ 
++    logVideoRecordingDiagnostic("movie-startRecording-before", reason: "url=\(fileUrl.lastPathComponent)", videoFileOutput: videoFileOutput)
+     videoFileOutput.startRecording(to: fileUrl, recordingDelegate: self)
++    logVideoRecordingDiagnostic("movie-startRecording-after-call", videoFileOutput: videoFileOutput)
++    logVideoRecordingDiagnostic("movie-after-startRecording-sleep-begin", reason: "sleepMs=120", videoFileOutput: videoFileOutput)
++    try? await Task.sleep(nanoseconds: 120_000_000)
++    logVideoRecordingDiagnostic("movie-after-startRecording-sleep-end", videoFileOutput: videoFileOutput)
++    logVideoRecordingDiagnostic("movie-prepareTorch-after-startRecording-before", videoFileOutput: videoFileOutput)
++    await delegate?.prepareTorchForVideoRecording(reason: "after-startRecording")
++    logVideoRecordingDiagnostic("movie-prepareTorch-after-startRecording-after", videoFileOutput: videoFileOutput)
+   }
+ 
+   @available(iOS 18.0, *)
+@@ -65,6 +97,7 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+   }
+ 
+   func stopRecording(videoFileOutput: AVCaptureMovieFileOutput?) {
++    logVideoRecordingDiagnostic("movie-stopRecording", videoFileOutput: videoFileOutput)
+     videoFileOutput?.stopRecording()
+   }
+ 
+@@ -75,18 +108,22 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+     promise: Promise
+   ) async {
+     isValidVideoOptions = true
++    logVideoRecordingDiagnostic("movie-setVideoOptions-begin", videoFileOutput: videoFileOutput)
+ 
+     if let maxDuration = options.maxDuration {
+       videoFileOutput.maxRecordedDuration = CMTime(seconds: maxDuration, preferredTimescale: 1000)
++      logVideoRecordingDiagnostic("movie-setVideoOptions-maxDuration", reason: "maxDuration=\(maxDuration)", videoFileOutput: videoFileOutput)
+     }
+ 
+     if let maxFileSize = options.maxFileSize {
+       videoFileOutput.maxRecordedFileSize = Int64(maxFileSize)
++      logVideoRecordingDiagnostic("movie-setVideoOptions-maxFileSize", reason: "maxFileSize=\(maxFileSize)", videoFileOutput: videoFileOutput)
+     }
+ 
+     let avMode = (delegate?.videoStabilizationMode ?? .auto).toAVCaptureVideoStabilizationMode()
+     if connection.isVideoStabilizationSupported {
+       connection.preferredVideoStabilizationMode = avMode
++      logVideoRecordingDiagnostic("movie-setVideoOptions-stabilization", reason: "mode=\(avMode.rawValue)", videoFileOutput: videoFileOutput)
+     }
+ 
+     if let codec = options.codec {
+@@ -98,7 +135,9 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+         }
+         videoFileOutput.setOutputSettings(outputSettings, for: connection)
+         self.videoCodecType = codecType
++        logVideoRecordingDiagnostic("movie-setVideoOptions-codec", reason: "codec=\(codecType.rawValue)", videoFileOutput: videoFileOutput)
+       } else {
++        logVideoRecordingDiagnostic("movie-setVideoOptions-codec-rejected", reason: "codec=\(String(describing: options.codec?.rawValue))", videoFileOutput: videoFileOutput)
+         promise.reject(CameraRecordingException(options.codec?.rawValue))
+         videoRecordedPromise = nil
+         isValidVideoOptions = false
+@@ -106,12 +145,29 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+     }
+   }
+ 
++  func fileOutput(
++    _ output: AVCaptureFileOutput,
++    didStartRecordingTo fileURL: URL,
++    from connections: [AVCaptureConnection]
++  ) {
++    logVideoRecordingDiagnostic(
++      "movie-didStartRecording",
++      reason: "url=\(fileURL.lastPathComponent) connections=\(connections.count)",
++      videoFileOutput: output as? AVCaptureMovieFileOutput
++    )
++  }
++
+   func fileOutput(
+     _ output: AVCaptureFileOutput,
+     didFinishRecordingTo outputFileURL: URL,
+     from connections: [AVCaptureConnection],
+     error: Error?
+   ) {
++    logVideoRecordingDiagnostic(
++      "movie-didFinishRecording",
++      reason: "error=\(error?.localizedDescription ?? "nil") url=\(outputFileURL.lastPathComponent)",
++      videoFileOutput: output as? AVCaptureMovieFileOutput
++    )
+     defer {
+       videoRecordedPromise = nil
+       videoCodecType = nil
+@@ -128,6 +184,7 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+   }
+ 
+   func cleanup() {
++    logVideoRecordingDiagnostic("movie-cleanup")
+     videoRecordedPromise?.reject(CameraUnmountedException())
+     videoRecordedPromise = nil
+     videoCodecType = nil
+diff --git a/node_modules/expo-camera/ios/Current/CameraView.swift b/node_modules/expo-camera/ios/Current/CameraView.swift
+index 7bf1b37..9475a7b 100644
+--- a/node_modules/expo-camera/ios/Current/CameraView.swift
++++ b/node_modules/expo-camera/ios/Current/CameraView.swift
+@@ -75,17 +75,29 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
+   var presetCamera = AVCaptureDevice.Position.back {
+     didSet {
+       sessionQueue.async {
++        self.sessionManager.logVideoTorchIntent(reason: "presetCamera-didSet preset=\(self.presetCamera.rawValue)")
+         self.sessionManager.updateDevice()
+       }
+     }
+   }
+ 
+-  var flashMode = FlashMode.auto
++  var flashMode = FlashMode.auto {
++    didSet {
++      sessionQueue.async {
++        self.sessionManager.logVideoTorchIntent(reason: "flashMode-didSet value=\(self.flashMode.rawValue)")
++      }
++    }
++  }
+ 
+   var torchEnabled = false {
+     didSet {
+       sessionQueue.async {
+-        self.sessionManager.enableTorch()
++        self.sessionManager.logVideoTorchIntent(reason: "torchEnabled-didSet value=\(self.torchEnabled) mode=\(self.mode.rawValue)")
++        if self.torchEnabled {
++          self.sessionManager.enableTorchForVideoRecording(reason: "prop-video-intent")
++          return
++        }
++        self.sessionManager.enableTorch(reason: "prop-disable")
+       }
+     }
+   }
+@@ -107,6 +119,7 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
+   var mode = CameraMode.picture {
+     didSet {
+       sessionQueue.async {
++        self.sessionManager.logVideoTorchIntent(reason: "mode-didSet value=\(self.mode.rawValue) torchEnabled=\(self.torchEnabled)")
+         self.sessionManager.setCameraMode()
+       }
+     }
+@@ -123,6 +136,7 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
+   var active = true {
+     didSet {
+       sessionQueue.async {
++        self.sessionManager.logVideoTorchIntent(reason: "active-didSet value=\(self.active)")
+         self.sessionManager.updateCameraIsActive()
+       }
+     }
+@@ -211,10 +225,11 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
+       guard let self else {
+         return
+       }
++      sessionManager.logVideoTorchIntent(reason: "app-foregrounded paused=\(isSessionPaused)")
+       if !session.isRunning && isSessionPaused {
+         isSessionPaused = false
+         session.startRunning()
+-        if torchEnabled {
++        if torchEnabled && mode != .video {
+           sessionManager.enableTorch()
+         }
+       }
+@@ -226,6 +241,7 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
+       guard let self else {
+         return
+       }
++      sessionManager.logVideoTorchIntent(reason: "app-backgrounded paused=\(isSessionPaused)")
+       if session.isRunning && !isSessionPaused {
+         isSessionPaused = true
+         session.stopRunning()
+@@ -301,11 +317,45 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
+   }
+ 
+   func record(options: CameraRecordingOptions, promise: Promise) async {
++    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
++      sessionQueue.async { [weak self] in
++        self?.sessionManager.logVideoTorchIntent(reason: "record-begin torchEnabled=\(self?.torchEnabled ?? false) mode=\(self?.mode.rawValue ?? "nil")")
++        continuation.resume()
++      }
++    }
+     guard let videoFileOutput = sessionManager.currentVideoFileOutput else {
++      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
++        sessionQueue.async { [weak self] in
++          self?.sessionManager.logVideoTorchIntent(reason: "record-no-video-output")
++          continuation.resume()
++        }
++      }
+       promise.reject(CameraOutputNotReadyException())
+       return
+     }
++    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
++      sessionQueue.async { [weak self] in
++        self?.sessionManager.logVideoTorchIntent(reason: "record-before-videoRecording-record isRecording=\(videoFileOutput.isRecording)")
++        self?.sessionManager.enableTorchForVideoRecording(reason: "record-before-startRecording")
++        continuation.resume()
++      }
++    }
+     await videoRecording.record(options: options, videoFileOutput: videoFileOutput, promise: promise)
++    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
++      sessionQueue.async { [weak self] in
++        self?.sessionManager.logVideoTorchIntent(reason: "record-after-videoRecording-record isRecording=\(videoFileOutput.isRecording)")
++        continuation.resume()
++      }
++    }
++  }
++
++  func prepareTorchForVideoRecording(reason: String) async {
++    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
++      sessionQueue.async { [weak self] in
++        self?.sessionManager.enableTorchForVideoRecording(reason: reason)
++        continuation.resume()
++      }
++    }
+   }
+ 
+   @available(iOS 18.0, *)
+@@ -339,6 +389,9 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
+   }
+ 
+   func stopRecording() {
++    sessionQueue.async { [weak self] in
++      self?.sessionManager.logVideoTorchIntent(reason: "stopRecording-called")
++    }
+     videoRecording.stopRecording(videoFileOutput: sessionManager.currentVideoFileOutput)
+   }
+ 

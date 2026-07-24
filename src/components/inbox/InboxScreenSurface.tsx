@@ -104,12 +104,14 @@ function MessageRowContent({
   row,
   avatarUrl,
   busy,
+  isFirst,
   onOpen,
   t,
 }: {
   row: InboxRowModel;
   avatarUrl: string | null;
   busy: boolean;
+  isFirst: boolean;
   onOpen: () => void;
   t: Translate;
 }) {
@@ -117,27 +119,29 @@ function MessageRowContent({
   const label = statusLabel(row.status, t);
   const canOpen = Boolean(row.openParams) && !busy;
 
+  const baseModifiers = [
+    frame({ maxWidth: Infinity, minHeight: 52, alignment: 'leading' }),
+    listRowInsets({ top: 12, leading: 16, bottom: 12, trailing: 16 }),
+    listRowBackground(colors.systemBackground),
+    contentShape(shapes.rectangle()),
+    accessibilityLabel(`@${row.username}, ${label}, ${row.timestampLabel}`),
+  ];
+
+  if (isFirst) {
+    baseModifiers.push(listRowSeparator('hidden', 'top'));
+  }
+
+  if (canOpen) {
+    baseModifiers.push(accessibilityHint(t('inbox.openHint')));
+    baseModifiers.push(onTapGesture(onOpen));
+  }
+
   return (
     <HStack
       alignment="top"
       spacing={12}
-      modifiers={[
-        frame({ maxWidth: Infinity, minHeight: 52, alignment: 'leading' }),
-        listRowInsets({ top: 12, leading: 8, bottom: 12, trailing: 16 }),
-        listRowSeparator('hidden', 'top'),
-        listRowBackground(colors.systemBackground),
-        contentShape(shapes.rectangle()),
-        accessibilityLabel(`@${row.username}, ${label}, ${row.timestampLabel}`),
-        ...(canOpen ? [accessibilityHint(t('inbox.openHint')), onTapGesture(onOpen)] : []),
-      ]}>
+      modifiers={baseModifiers}>
       <HStack alignment="center" spacing={8}>
-        <Circle
-          modifiers={[
-            frame({ width: 8, height: 8 }),
-            foregroundStyle(row.unread ? colors.systemBlue : '#00000000'),
-            accessibilityHidden(),
-          ]}
-        />
         {avatarView({
           size: MESSAGE_AVATAR_SIZE,
           url: avatarUrl,
@@ -161,7 +165,7 @@ function MessageRowContent({
             foregroundStyle({ type: 'hierarchical', style: 'primary' }),
             lineLimit(1),
           ]}>
-          @{row.username}
+          {row.display_name || `@${row.username}`}
         </Text>
         <Text
           modifiers={[
@@ -180,16 +184,25 @@ function MessageRowContent({
       {busy ? (
         <ProgressView modifiers={[accessibilityLabel(t('common.loading'))]} />
       ) : (
-        <Text
-          modifiers={[
-            font({ textStyle: 'subheadline' }),
-            foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
-            lineLimit(1),
-            padding({ top: 2 }),
-            layoutPriority(2),
-          ]}>
-          {row.timestampLabel}
-        </Text>
+        <VStack alignment="trailing" spacing={4} modifiers={[padding({ top: 2 }), layoutPriority(2)]}>
+          <Text
+            modifiers={[
+              font({ textStyle: 'subheadline' }),
+              foregroundStyle(row.unread ? colors.systemBlue : { type: 'hierarchical', style: 'secondary' }),
+              lineLimit(1),
+            ]}>
+            {row.timestampLabel}
+          </Text>
+          {row.unread && (
+            <Circle
+              modifiers={[
+                frame({ width: 10, height: 10 }),
+                foregroundStyle(colors.systemBlue),
+                accessibilityHidden(),
+              ]}
+            />
+          )}
+        </VStack>
       )}
     </HStack>
   );
@@ -199,6 +212,7 @@ function MessageRow({
   row,
   avatarUrl,
   busy,
+  isFirst,
   onOpen,
   onDelete,
   t,
@@ -206,12 +220,13 @@ function MessageRow({
   row: InboxRowModel;
   avatarUrl: string | null;
   busy: boolean;
+  isFirst: boolean;
   onOpen: () => void;
   onDelete: () => void;
   t: Translate;
 }) {
   const content = (
-    <MessageRowContent row={row} avatarUrl={avatarUrl} busy={busy} onOpen={onOpen} t={t} />
+    <MessageRowContent row={row} avatarUrl={avatarUrl} busy={busy} isFirst={isFirst} onOpen={onOpen} t={t} />
   );
 
   if (busy) return content;
@@ -230,6 +245,7 @@ function InviteRow({
   request,
   avatarUrl,
   busy,
+  isFirst,
   onAccept,
   onReject,
   t,
@@ -237,25 +253,32 @@ function InviteRow({
   request: IncomingFriendRequest;
   avatarUrl: string | null;
   busy: boolean;
+  isFirst: boolean;
   onAccept: () => void;
   onReject: () => void;
   t: Translate;
 }) {
   const { colors } = useAppTheme();
   const avatarPath = request.requester.avatar_storage_path ?? null;
+  
+  const baseModifiers = [
+    frame({ maxWidth: Infinity, minHeight: 44, alignment: 'leading' }),
+    listRowInsets({ top: 10, leading: 16, bottom: 10, trailing: 16 }),
+    listRowBackground(colors.systemBackground),
+    accessibilityLabel(
+      `@${request.requester.username}, ${t('inbox.inviteDescription')}`
+    ),
+  ];
+
+  if (isFirst) {
+    baseModifiers.push(listRowSeparator('hidden', 'top'));
+  }
+
   const content = (
     <HStack
       alignment="center"
       spacing={12}
-      modifiers={[
-        frame({ maxWidth: Infinity, minHeight: 44, alignment: 'leading' }),
-        listRowInsets({ top: 10, leading: 16, bottom: 10, trailing: 16 }),
-        listRowSeparator('hidden', 'top'),
-        listRowBackground(colors.systemBackground),
-        accessibilityLabel(
-          `@${request.requester.username}, ${t('inbox.inviteDescription')}`
-        ),
-      ]}>
+      modifiers={baseModifiers}>
       {avatarView({
         size: INVITE_AVATAR_SIZE,
         url: avatarUrl,
@@ -273,7 +296,7 @@ function InviteRow({
             foregroundStyle({ type: 'hierarchical', style: 'primary' }),
             lineLimit(1),
           ]}>
-          @{request.requester.username}
+          {request.requester.display_name || `@${request.requester.username}`}
         </Text>
         <Text
           modifiers={[
@@ -413,7 +436,7 @@ function InboxList({ vm, onRequestDelete }: InboxScreenSurfaceProps) {
     refreshable(vm.handleRefresh),
   ];
 
-  const renderMessageRow = (row: InboxRowModel) => {
+  const renderMessageRow = (row: InboxRowModel, index: number) => {
     const avatarUrl = row.avatarStoragePath
       ? vm.avatarUrls[row.avatarStoragePath] ?? null
       : null;
@@ -423,6 +446,7 @@ function InboxList({ vm, onRequestDelete }: InboxScreenSurfaceProps) {
         row={row}
         avatarUrl={avatarUrl}
         busy={vm.deletingPeerIds.has(row.peerId)}
+        isFirst={index === 0}
         onOpen={() => vm.handleOpen(row)}
         onDelete={() => onRequestDelete(row)}
         t={vm.t}
@@ -440,7 +464,7 @@ function InboxList({ vm, onRequestDelete }: InboxScreenSurfaceProps) {
       <List modifiers={listModifiers}>
         {vm.requests.length > 0 ? (
           <Section title={vm.t('inbox.invites')}>
-            {vm.requests.map((request) => {
+            {vm.requests.map((request, index) => {
               const avatarPath = request.requester.avatar_storage_path ?? null;
               return (
                 <InviteRow
@@ -448,6 +472,7 @@ function InboxList({ vm, onRequestDelete }: InboxScreenSurfaceProps) {
                   request={request}
                   avatarUrl={avatarPath ? vm.avatarUrls[avatarPath] ?? null : null}
                   busy={vm.inviteActionIds.has(request.id)}
+                  isFirst={index === 0}
                   onAccept={() => void vm.handleAccept(request.id)}
                   onReject={() => void vm.handleReject(request.id)}
                   t={vm.t}

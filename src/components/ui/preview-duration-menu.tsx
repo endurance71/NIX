@@ -23,13 +23,22 @@ import {
   type NixViewDurationSec,
 } from '../../lib/nixViewDuration';
 
+import type { ChromeVariant } from './native-chrome-icon-button';
+
 type PreviewDurationMenuProps = {
   selectedDurationSec: NixViewDurationSec;
   onSelect: (sec: NixViewDurationSec) => void;
   colors: ThemeColors;
+  /** `solid` skips Liquid Glass to avoid iOS ambient dimming over fullscreen media. */
+  chromeVariant?: ChromeVariant;
 };
 
-export default function PreviewDurationMenu({ selectedDurationSec, onSelect, colors }: PreviewDurationMenuProps) {
+export default function PreviewDurationMenu({
+  selectedDurationSec,
+  onSelect,
+  colors,
+  chromeVariant = 'glass',
+}: PreviewDurationMenuProps) {
   const choose = (sec: NixViewDurationSec) => {
     selection();
     onSelect(sec);
@@ -77,7 +86,9 @@ export default function PreviewDurationMenu({ selectedDurationSec, onSelect, col
               frame({ minWidth: 76, height: 48 }),
               padding({ leading: 14, trailing: 14 }),
               background(colors.cameraControlBackground, shapes.capsule()),
-              glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'capsule' }),
+              ...(chromeVariant === 'glass'
+                ? [glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'capsule' as const })]
+                : []),
               swiftAccessibilityLabel(`Czas wyświetlania: ${formatNixViewDurationLabel(selectedDurationSec)}`),
             ]}>
             <SwiftImage systemName="timer" size={20} color={colors.cameraControlTint} />

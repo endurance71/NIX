@@ -3,7 +3,8 @@
 -- before webhook/cron invocations succeed; seed it operationally, not in-repo.
 
 CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
-CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
+-- pg_cron is managed by Supabase, attempting to create it may fail with dependent privileges
+-- CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
 
 GRANT USAGE ON SCHEMA cron TO postgres;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cron TO postgres;

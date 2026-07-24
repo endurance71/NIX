@@ -176,6 +176,7 @@ describe('invite token flow', () => {
       profile: {
         id: 'friend-1',
         username: 'nix_friend',
+        display_name: null,
         avatar_storage_path: 'friend-1/avatar.jpg',
         avatar_emoji: null,
       },
@@ -333,6 +334,7 @@ describe('outgoing requests', () => {
         recipient: {
           id: 'user-2',
           username: 'friend_user',
+          display_name: null,
           avatar_storage_path: null,
           avatar_emoji: null,
         },

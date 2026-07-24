@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { Alert, Platform } from 'react-native';
+import * as StoreReview from 'expo-store-review';
+import * as Linking from 'expo-linking';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -13,7 +16,7 @@ import {
   clearProfileAvatar,
   createSignedAvatarUrls,
 } from '../services/avatarService';
-import { getCurrentUserProfile } from '../services/profileService';
+import { getCurrentUserProfile, updateCurrentUserProfile } from '../services/profileService';
 import { useAppTheme } from './useAppTheme';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
 import { notifyError, notifySuccess } from '../lib/appNotify';
@@ -138,6 +141,61 @@ export function useProfileScreen() {
     router.replace('/(auth)/login');
   };
 
+  const handleEditDisplayName = () => {
+    if (Platform.OS === 'ios') {
+      Alert.prompt(
+        t('profile.editDisplayName', 'Nazwa wyświetlana'),
+        t('profile.editDisplayNameMessage', 'Wpisz nazwę, która będzie widoczna dla Twoich znajomych. Login (@nazwa) pozostaje bez zmian.'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.save', 'Zapisz'),
+            onPress: async (text?: string) => {
+              try {
+                await updateCurrentUserProfile({ display_name: text?.trim() || null });
+                await invalidateProfileQueries();
+                notifySuccess(t('profile.displayNameUpdated', 'Nazwa zaktualizowana'));
+              } catch {
+                notifyError(t('profile.displayNameUpdateFailed', 'Błąd zapisu'));
+              }
+            },
+          },
+        ],
+        'plain-text',
+        profileRow?.display_name ?? ''
+      );
+    } else {
+      Alert.alert(t('common.info'), t('profile.editDisplayNameAndroidMessage', 'Edycja nazwy z poziomu profilu na systemie Android wkrótce będzie dostępna.'));
+    }
+  };
+
+  const handleTogglePrivacy = async (isPrivate: boolean) => {
+    try {
+      await updateCurrentUserProfile({ is_private: isPrivate });
+      await invalidateProfileQueries();
+    } catch {
+      notifyError(t('profile.privacyUpdateFailed', 'Nie udało się zmienić prywatności'));
+    }
+  };
+
+  const handleRateApp = async () => {
+    try {
+      if (await StoreReview.hasAction()) {
+        await StoreReview.requestReview();
+      } else {
+        notifyError(t('profile.rateAppUnavailable', 'Ocenianie niedostępne'));
+      }
+    } catch {
+      notifyError(t('profile.rateAppUnavailable', 'Ocenianie niedostępne'));
+    }
+  };
+
+  const handleSupport = () => {
+    Linking.openURL('mailto:support@mthub.pl').catch(() => {
+      notifyError(t('profile.supportUnavailable', 'Nie można otworzyć klienta poczty'));
+    });
+  };
+
   const hasAvatar = Boolean(profileRow?.avatar_storage_path || profileRow?.avatar_emoji);
   const initialLetter = (profileUsername ?? user?.email ?? '?').replace(/^@/, '').charAt(0).toUpperCase();
   const canChangePassword = userHasEmailPasswordIdentity(user);
@@ -171,5 +229,9 @@ export function useProfileScreen() {
     pushNotificationsBusy: pushNotifications.busy || pushNotifications.state === 'loading',
     pushSupportingText,
     handlePushToggle,
+    handleEditDisplayName,
+    handleTogglePrivacy,
+    handleRateApp,
+    handleSupport,
   };
 }

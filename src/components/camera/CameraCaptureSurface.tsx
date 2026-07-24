@@ -131,6 +131,7 @@ export function CameraCaptureSurface({ vm }: Props) {
           ref={cameraRef}
           style={styles.camera}
           facing={facing}
+          mirror={facing === 'front'}
           mode={cameraViewMode}
           mute={recordAudioMuted}
           flash={cameraLightProps.flash}

@@ -464,13 +464,13 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_public_profile_by_username(search_username TEXT)
-RETURNS TABLE(id UUID, username TEXT, avatar_storage_path TEXT, avatar_emoji TEXT)
+RETURNS TABLE(id UUID, username TEXT, display_name TEXT, avatar_storage_path TEXT, avatar_emoji TEXT)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT p.id, p.username, p.avatar_storage_path, p.avatar_emoji
+  SELECT p.id, p.username, p.display_name, p.avatar_storage_path, p.avatar_emoji
   FROM public.profiles p
   WHERE p.username IS NOT NULL
     AND lower(p.username) = lower(search_username)
@@ -478,13 +478,13 @@ AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_public_profiles_by_ids(profile_ids UUID[])
-RETURNS TABLE(id UUID, username TEXT, avatar_storage_path TEXT, avatar_emoji TEXT)
+RETURNS TABLE(id UUID, username TEXT, display_name TEXT, avatar_storage_path TEXT, avatar_emoji TEXT)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT p.id, p.username, p.avatar_storage_path, p.avatar_emoji
+  SELECT p.id, p.username, p.display_name, p.avatar_storage_path, p.avatar_emoji
   FROM public.profiles p
   WHERE p.id = ANY(profile_ids)
     AND p.username IS NOT NULL
@@ -522,7 +522,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.preview_friend_invite(invite_token TEXT)
-RETURNS TABLE(status TEXT, profile_id UUID, username TEXT, avatar_storage_path TEXT, avatar_emoji TEXT)
+RETURNS TABLE(status TEXT, profile_id UUID, username TEXT, display_name TEXT, avatar_storage_path TEXT, avatar_emoji TEXT)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
@@ -538,7 +538,7 @@ BEGIN
   END IF;
 
   IF invite_token IS NULL OR char_length(invite_token) < 16 THEN
-    RETURN QUERY SELECT 'invalid_or_expired'::TEXT, NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT;
+    RETURN QUERY SELECT 'invalid_or_expired'::TEXT, NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT, NULL::TEXT;
     RETURN;
   END IF;
 
@@ -553,12 +553,12 @@ BEGIN
   LIMIT 1;
 
   IF inviter_id IS NULL THEN
-    RETURN QUERY SELECT 'invalid_or_expired'::TEXT, NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT;
+    RETURN QUERY SELECT 'invalid_or_expired'::TEXT, NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT, NULL::TEXT;
     RETURN;
   END IF;
 
   IF inviter_id = requester_id THEN
-    RETURN QUERY SELECT 'own_invite'::TEXT, NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT;
+    RETURN QUERY SELECT 'own_invite'::TEXT, NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT, NULL::TEXT;
     RETURN;
   END IF;
 
@@ -569,7 +569,7 @@ BEGIN
     AND fi.expires_at > NOW();
 
   RETURN QUERY
-  SELECT 'ok'::TEXT, p.id, p.username, p.avatar_storage_path, p.avatar_emoji
+  SELECT 'ok'::TEXT, p.id, p.username, p.display_name, p.avatar_storage_path, p.avatar_emoji
   FROM public.profiles p
   WHERE p.id = inviter_id
     AND p.username IS NOT NULL

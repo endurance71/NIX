@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { VStack } from '@expo/ui/swift-ui';
-import { isUsernameTaken, getCurrentUserProfile, saveUsernameForCurrentUser } from '../../services/profileService';
+import { isUsernameTaken, getCurrentUserProfile, saveUsernameForCurrentUser, updateCurrentUserProfile } from '../../services/profileService';
 import {
   AuthErrorText,
   AuthFieldGroup,
@@ -27,6 +27,7 @@ export default function OnboardingScreen() {
   const { signOut } = useAuth();
   const queryClient = useQueryClient();
   const { username, onUsernameChange, getUsername } = useTrackedUsername();
+  const [displayName, setDisplayName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [signOutLoading, setSignOutLoading] = useState(false);
@@ -47,6 +48,7 @@ export default function OnboardingScreen() {
 
   const handleSetUsername = async () => {
     const cleaned = normalizeUsername(getUsername());
+    const cleanedDisplayName = displayName.trim();
     if (!ageAttested && !isValidBirthDate(birthDate)) {
       setError(t('auth.birthDateInvalid'));
       return;
@@ -55,9 +57,15 @@ export default function OnboardingScreen() {
       setError(t('auth.minimumAgeRequired'));
       return;
     }
-    if (!currentProfile?.username && cleaned.length < 3) {
-      setError(t('auth.onboardingUsernameMin'));
-      return;
+    if (!currentProfile?.username) {
+      if (cleanedDisplayName.length === 0) {
+        setError(t('auth.displayNameRequired', 'Wpisz nazwę wyświetlaną.'));
+        return;
+      }
+      if (cleaned.length < 3) {
+        setError(t('auth.onboardingUsernameMin'));
+        return;
+      }
     }
 
     setLoading(true);
@@ -77,14 +85,15 @@ export default function OnboardingScreen() {
             return;
           }
           await saveUsernameForCurrentUser(cleaned);
+          await updateCurrentUserProfile({ display_name: cleanedDisplayName });
         }
 
         await queryClient.refetchQueries({ queryKey: queryKeys.currentUserProfile });
         router.replace('/(tabs)');
       },
       () => setLoading(false)
-    ).catch((err: unknown) => {
-      notifyDomainError(err, t('auth.onboardingSaveFailed'));
+    ).catch((err: any) => {
+      setError(`Błąd: ${err?.message || JSON.stringify(err)}`);
     });
   };
 
@@ -123,27 +132,54 @@ export default function OnboardingScreen() {
         </AuthFieldGroup>
       ) : null}
       {!currentProfile?.username ? (
-      <AuthFieldGroup
-        footer={
-          <VStack alignment="leading" spacing={6}>
-            <AuthTertiaryText>{t('auth.onboardingHint')}</AuthTertiaryText>
-          </VStack>
-        }>
-        <AuthTextField
-          nativeValue={username}
-          placeholder={t('auth.onboardingPlaceholder')}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="go"
-          onSubmitEditing={() => void handleSetUsername()}
-          onChangeText={(text) => {
-            onUsernameChange(text);
-            clearError();
-          }}
-          editable={!busy}
-          testID="onboarding-username"
-        />
-      </AuthFieldGroup>
+        <>
+          <AuthFieldGroup
+            footer={
+              <VStack alignment="leading" spacing={6}>
+                <AuthTertiaryText>
+                  {t('auth.displayNameHint', 'Widoczna dla Twoich znajomych. Możesz ją później zmienić w profilu.')}
+                </AuthTertiaryText>
+              </VStack>
+            }>
+            <AuthTextField
+              nativeValue={displayName}
+              placeholder={t('auth.displayNamePlaceholder', 'Nazwa wyświetlana')}
+              autoCapitalize="words"
+              autoCorrect={false}
+              returnKeyType="next"
+              onChangeText={(text) => {
+                setDisplayName(text);
+                clearError();
+              }}
+              editable={!busy}
+              testID="onboarding-display-name"
+            />
+          </AuthFieldGroup>
+
+          <AuthFieldGroup
+            footer={
+              <VStack alignment="leading" spacing={6}>
+                <AuthTertiaryText>
+                  {t('auth.onboardingHint', 'Unikalny login (@nazwa). Służy do szukania Cię przez znajomych i nie można go zmienić.')}
+                </AuthTertiaryText>
+              </VStack>
+            }>
+            <AuthTextField
+              nativeValue={username}
+              placeholder={t('auth.onboardingPlaceholder', 'Login (@nazwa)')}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="go"
+              onSubmitEditing={() => void handleSetUsername()}
+              onChangeText={(text) => {
+                onUsernameChange(text);
+                clearError();
+              }}
+              editable={!busy}
+              testID="onboarding-username"
+            />
+          </AuthFieldGroup>
+        </>
       ) : null}
 
       {error ? <AuthErrorText>{error}</AuthErrorText> : null}

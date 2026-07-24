@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   deleteConversationWithPeer,
   createSignedNixUrl,
+  fetchInboxNixes,
   fetchSentNixes,
   flushCleanupQueue,
   insertNix,
@@ -395,12 +396,54 @@ describe('nixService cleanup flow', () => {
         status: 'cleaned',
         viewed_at: '2026-01-01T10:01:00.000Z',
         cleaned_at: '2026-01-01T10:02:00.000Z',
-        receiver: { username: 'nix_friend', avatar_emoji: '🦊', avatar_storage_path: null },
+        receiver: { username: 'nix_friend', display_name: null, avatar_emoji: '🦊', avatar_storage_path: null },
       },
     ]);
     expect(mockNixesSelectEq).toHaveBeenCalledWith('sender_id', 'sender-1');
     expect(mockRpc).toHaveBeenCalledWith('get_public_profiles_by_ids', {
       profile_ids: ['friend-1'],
+    });
+  });
+
+  it('fetchInboxNixes populates sender display_name from public profiles', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'receiver-1' });
+    mockNixesSelectEq.mockReturnValue({ order: mockNixesSelectOrder });
+    mockNixesSelectOrder.mockReturnValue({ limit: mockNixesSelectLimit });
+    mockNixesSelectLimit.mockResolvedValue({
+      error: null,
+      data: [
+        {
+          id: 'nix-1',
+          sender_id: 'sender-1',
+          media_path: 'path/1.jpg',
+          media_type: 'image',
+          created_at: '2026-01-01T10:00:00.000Z',
+          is_viewed: false,
+          status: 'sent',
+          view_duration_sec: 5,
+        },
+      ],
+    });
+    mockRpc.mockResolvedValue({
+      error: null,
+      data: [
+        {
+          id: 'sender-1',
+          username: 'emulator',
+          display_name: 'emulator_nazwa',
+          avatar_emoji: '🦊',
+          avatar_storage_path: null,
+        },
+      ],
+    });
+
+    const result = await fetchInboxNixes();
+
+    expect(result[0].sender).toEqual({
+      username: 'emulator',
+      display_name: 'emulator_nazwa',
+      avatar_emoji: '🦊',
+      avatar_storage_path: null,
     });
   });
 });

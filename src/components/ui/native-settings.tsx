@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { Button, FieldGroup, ListItem, RNHostView, Switch, Text } from '@expo/ui';
-import { Button as SwiftUIButton, HStack, Image, SwipeActions, VStack } from '@expo/ui/swift-ui';
+import { Button as SwiftUIButton, HStack, SwipeActions, VStack } from '@expo/ui/swift-ui';
+import { SymbolView } from 'expo-symbols';
 import {
   font,
   foregroundStyle,
@@ -85,7 +86,7 @@ export function NativeSettingsRow({
     </RNHostView>
   ) : icon ? (
     <HStack alignment="center" modifiers={[frame({ width: 26, alignment: 'center' })]}>
-      <Image systemName={resolveAppIconName(icon) as SFSymbol} size={19} color={iconColor ?? foregroundColor} />
+      <SymbolView name={resolveAppIconName(icon) as SFSymbol} size={19} tintColor={iconColor ?? foregroundColor} fallback={<View style={{ width: 19, height: 19 }} />} />
     </HStack>
   ) : (
     leading
@@ -99,7 +100,7 @@ export function NativeSettingsRow({
         testID={testID ? `${testID}-switch` : undefined}
       />
     ) : showsChevron ? (
-      <Image systemName="chevron.right" size={13} color={colors.tertiaryLabel} />
+      <SymbolView name="chevron.right" size={13} tintColor={colors.tertiaryLabel} fallback={<View style={{ width: 13, height: 13 }} />} />
     ) : (
       trailing
     );

@@ -5,6 +5,8 @@ import type { User } from '@supabase/supabase-js';
 export type CurrentUserProfileRow = {
   id: string;
   username: string | null;
+  display_name: string | null;
+  is_private: boolean;
   avatar_storage_path: string | null;
   avatar_emoji: string | null;
 };
@@ -39,7 +41,7 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfileRow | n
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, username, avatar_storage_path, avatar_emoji')
+    .select('id, username, display_name, is_private, avatar_storage_path, avatar_emoji')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -58,6 +60,8 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfileRow | n
   return {
     id: data.id,
     username: data.username,
+    display_name: data.display_name,
+    is_private: data.is_private,
     avatar_storage_path: data.avatar_storage_path ?? null,
     avatar_emoji: avatarEmoji,
   };
@@ -113,3 +117,12 @@ export async function saveAppleIdForCurrentUser(appleUserId: string) {
   const { error } = await supabase.from('profiles').update({ apple_id: appleUserId }).eq('id', user.id);
   if (error) throw error;
 }
+
+export async function updateCurrentUserProfile(data: { display_name?: string | null; is_private?: boolean }) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Brak sesji. Zaloguj się ponownie.');
+
+  const { error } = await supabase.from('profiles').update(data).eq('id', user.id);
+  if (error) throw error;
+}
+

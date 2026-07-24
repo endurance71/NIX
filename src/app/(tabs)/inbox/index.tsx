@@ -24,8 +24,20 @@ export default function InboxScreen() {
 
   return (
     <>
+      <Stack.Screen
+        options={{
+          headerLargeTitle: true,
+          headerTitle: vm.t('inbox.title'),
+          headerSearchBarOptions: {
+            placeholder: 'Szukaj',
+            hideWhenScrolling: false,
+            onChangeText: (e) => {
+              // TODO: Implement search filter in VM if needed
+            },
+          },
+        }}
+      />
       <InboxScreenSurface vm={vm} onRequestDelete={requestDelete} />
-      <Stack.Screen.Title>{vm.t('inbox.title')}</Stack.Screen.Title>
     </>
   );
 }

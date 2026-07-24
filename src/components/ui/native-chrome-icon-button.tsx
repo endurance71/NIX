@@ -15,6 +15,8 @@ import {
 import { AppIcon } from './app-icon';
 import { resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 
+export type ChromeVariant = 'glass' | 'solid';
+
 type NativeChromeIconButtonProps = {
   name: AppIconName;
   accessibilityLabel: string;
@@ -24,6 +26,8 @@ type NativeChromeIconButtonProps = {
   iconSize?: number;
   backgroundColor: string;
   tintColor: ColorValue;
+  /** `solid` skips Liquid Glass to avoid iOS ambient dimming over fullscreen media. */
+  chromeVariant?: ChromeVariant;
 };
 
 export function NativeChromeIconButton({
@@ -35,6 +39,7 @@ export function NativeChromeIconButton({
   iconSize = 22,
   backgroundColor,
   tintColor,
+  chromeVariant = 'glass',
 }: NativeChromeIconButtonProps) {
   if (Platform.OS !== 'ios') {
     return (
@@ -67,7 +72,9 @@ export function NativeChromeIconButton({
           buttonStyle('plain'),
           frame({ width: size, height: size }),
           background(backgroundColor, shapes.circle()),
-          glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'circle' }),
+          ...(chromeVariant === 'glass'
+            ? [glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'circle' as const })]
+            : []),
           swiftAccessibilityLabel(accessibilityLabel),
           swiftDisabled(Boolean(disabled)),
           opacity(disabled ? 0.45 : 1),

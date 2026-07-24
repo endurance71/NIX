@@ -8,11 +8,15 @@ export default function InboxTabLayout() {
     <Stack
       screenOptions={{
         headerShown: true,
-        headerLargeTitle: false,
+        headerLargeTitle: true,
         headerTintColor: colors.label,
-        headerTransparent: false,
+        headerTransparent: true,
         headerShadowVisible: false,
-        headerStyle: { backgroundColor: colors.systemBackground },
+        headerLargeTitleShadowVisible: false,
+        headerStyle: { backgroundColor: 'transparent' },
+        headerLargeStyle: { backgroundColor: 'transparent' },
+        headerTitleStyle: { color: colors.label },
+        headerLargeTitleStyle: { color: colors.label },
         contentStyle: { backgroundColor: colors.systemBackground },
       }}>
       <Stack.Screen name="index" />

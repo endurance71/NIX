@@ -26,6 +26,25 @@ describe('userHasEmailPasswordIdentity', () => {
     expect(userHasEmailPasswordIdentity(user)).toBe(false);
   });
 
+  it('zwraca true gdy użytkownik ma email oraz puste identities, ale provider w app_metadata to email', () => {
+    const user = {
+      id: 'user-1',
+      email: 'test@example.com',
+      app_metadata: { provider: 'email' },
+      identities: [],
+    } as unknown as User;
+    expect(userHasEmailPasswordIdentity(user)).toBe(true);
+  });
+
+  it('zwraca true gdy użytkownik ma email i brak polecenia provider w app_metadata (domyślny e-mail)', () => {
+    const user = {
+      id: 'user-1',
+      email: 'test@example.com',
+      app_metadata: {},
+    } as unknown as User;
+    expect(userHasEmailPasswordIdentity(user)).toBe(true);
+  });
+
   it('zwraca false dla braku użytkownika', () => {
     expect(userHasEmailPasswordIdentity(null)).toBe(false);
     expect(userHasEmailPasswordIdentity(undefined)).toBe(false);

@@ -1,4 +1,1 @@
-"CFBundleDisplayName" = "NiX";
-"NSCameraUsageDescription" = "NiX uses the camera to take photos and videos that you choose to send to friends.";
-"NSMicrophoneUsageDescription" = "NiX uses the microphone to record sound in video messages that you choose to send.";
-"NSPhotoLibraryUsageDescription" = "NiX uses your photo library when you choose a profile avatar or select a photo or video to send to friends.";
+appName = "NiX";

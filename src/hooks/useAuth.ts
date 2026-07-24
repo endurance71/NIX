@@ -113,6 +113,10 @@ export function useAuth() {
     supabase.auth.getSession().then(({ data: { session: nextSession } }) => {
       if (!mounted) return;
       dispatch({ type: 'hydrated', session: nextSession });
+    }).catch((err) => {
+      console.warn('getSession error:', err);
+      if (!mounted) return;
+      dispatch({ type: 'hydrated', session: null });
     });
 
     const {

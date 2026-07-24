@@ -4,6 +4,7 @@ import { getCurrentUser } from './profileService';
 export type FriendProfile = {
   id: string;
   username: string;
+  display_name?: string | null;
   avatar_storage_path?: string | null;
   avatar_emoji?: string | null;
 };
@@ -66,6 +67,7 @@ export type PreviewFriendInviteTokenResult = {
 type PublicProfileRpcRow = {
   id: string;
   username: string | null;
+  display_name?: string | null;
   avatar_storage_path?: string | null;
   avatar_emoji?: string | null;
 };
@@ -75,6 +77,7 @@ function mapPublicProfileRow(row: PublicProfileRpcRow): FriendProfile | null {
   return {
     id: row.id,
     username: row.username,
+    display_name: row.display_name ?? null,
     avatar_storage_path: row.avatar_storage_path ?? null,
     avatar_emoji: row.avatar_emoji ?? null,
   };

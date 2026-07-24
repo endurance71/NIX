@@ -5,17 +5,24 @@
 ## Kamera (`src/app/(tabs)/index.tsx`)
 
 - **Zdjęcie:** krótki tap na migawkę.
-- **Wideo:** przytrzymanie — po progu [`VIDEO_HOLD_THRESHOLD_MS`](../src/lib/videoRecordingLimits.ts) (220 ms) start nagrania.
+- **Wideo:** przytrzymanie — po progu [`VIDEO_HOLD_THRESHOLD_MS`](../src/lib/videoRecordingLimits.ts) (**500 ms**) start nagrania; krótszy kontakt = zdjęcie.
 - **Limit czasu:** pojedynczy klip do **180 s** (`VIDEO_TOTAL_MAX_DURATION_MS`); po przytrzymaniu kamera przełącza się w tryb `video`, czeka na nowe `onCameraReady`, a dopiero potem startuje `recordAsync`.
 - **Bitrate nagrania:** ~2.5 Mbps (`VIDEO_RECORDING_BITRATE`); limit rozmiaru pliku podczas nagrywania ~90 MB (strażnik kamery) — finalny limit uploadu patrz niżej.
 - **Mikrofon:** możliwość nagrywania bez dźwięku (mute) przy użyciu `CameraView`.
-- **Telemetria:** m.in. `video_record_ms`, `camera_switch_*`.
+- **Telemetria:** m.in. `photo_capture_ms`, `photo_preview_nav_ms`, `video_record_ms`, `camera_switch_*`.
 
-Stan roboczy wideo między ekranami: [`src/context/VideoDraftContext.tsx`](../src/context/VideoDraftContext.tsx).
+Stan roboczy między ekranami:
+- Wideo: [`src/context/VideoDraftContext.tsx`](../src/context/VideoDraftContext.tsx) (`segments`).
+- Zdjęcie: [`src/context/PhotoDraftContext.tsx`](../src/context/PhotoDraftContext.tsx) (`uri`) — **nie** przez query params routera (unika uszkodzenia `file://`).
+
+Po migawce: `setPhotoUri(photo.uri)` + natychmiastowy `router.push('/preview')`. Kompresja JPEG jest dopiero przy wysyłce w `mediaService`.
 
 ## Preview (`src/app/preview.tsx`)
 
+- Tryb foto czyta URI z `PhotoDraft` (fallback: params `uri`).
+- Tryb wideo czyta segmenty z `VideoDraft`.
 - Wybór **czasu wyświetlania** u odbiorcy (`view_duration_sec`): 5 / 15 / 30 / 60 / 180 (`ALLOWED_VIEW_DURATIONS` w nixService).
+- Chrome preview: `chromeVariant="solid"` (bez Liquid Glass — unika ambient dimming na iOS 26).
 - Przygotowanie pliku i metadanych przed wysyłką — orchestracja w [`src/services/mediaService.ts`](../src/services/mediaService.ts).
 
 ## Kompresja

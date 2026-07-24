@@ -73,6 +73,8 @@ export interface Database {
         Row: {
           id: string;
           username: string | null;
+          display_name: string | null;
+          is_private: boolean;
           apple_id: string | null;
           avatar_storage_path: string | null;
           avatar_emoji: string | null;
@@ -81,6 +83,8 @@ export interface Database {
         Insert: {
           id: string;
           username?: string | null;
+          display_name?: string | null;
+          is_private?: boolean;
           apple_id?: string | null;
           avatar_storage_path?: string | null;
           avatar_emoji?: string | null;
@@ -89,6 +93,8 @@ export interface Database {
         Update: {
           id?: string;
           username?: string | null;
+          display_name?: string | null;
+          is_private?: boolean;
           apple_id?: string | null;
           avatar_storage_path?: string | null;
           avatar_emoji?: string | null;

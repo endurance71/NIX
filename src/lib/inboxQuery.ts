@@ -30,6 +30,7 @@ export async function fetchInboxNixesBundle(): Promise<InboxBundle> {
       sender: profile
         ? {
             username: profile.username,
+            display_name: profile.display_name ?? null,
             avatar_storage_path: profile.avatar_storage_path ?? null,
             avatar_emoji: profile.avatar_emoji ?? null,
           }
@@ -43,6 +44,7 @@ export async function fetchInboxNixesBundle(): Promise<InboxBundle> {
       receiver: profile
         ? {
             username: profile.username,
+            display_name: profile.display_name ?? null,
             avatar_storage_path: profile.avatar_storage_path ?? null,
             avatar_emoji: profile.avatar_emoji ?? null,
           }

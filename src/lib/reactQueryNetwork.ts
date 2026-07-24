@@ -10,11 +10,11 @@ export function bindReactQueryAppLifecycle(): () => void {
   if (lifecycleBound) return () => {};
   lifecycleBound = true;
 
-  onlineManager.setEventListener((setOnline) => {
-    return NetInfo.addEventListener((state) => {
-      setOnline(!!state.isConnected);
-    });
-  });
+  // onlineManager.setEventListener((setOnline) => {
+  //   return NetInfo.addEventListener((state) => {
+  //     setOnline(!!state.isConnected);
+  //   });
+  // });
 
   const onAppStateChange = (status: AppStateStatus) => {
     focusManager.setFocused(status === 'active');

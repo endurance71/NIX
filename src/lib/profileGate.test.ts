@@ -4,14 +4,14 @@ import { resolveNeedsOnboarding } from './profileGate';
 describe('resolveNeedsOnboarding', () => {
   it('zwraca false bez sesji', () => {
     expect(resolveNeedsOnboarding(false, null, false, false)).toBe(false);
-    expect(resolveNeedsOnboarding(false, { id: '1', username: null, avatar_storage_path: null, avatar_emoji: null }, true, false)).toBe(
+    expect(resolveNeedsOnboarding(false, { id: '1', username: null, display_name: null, is_private: false, avatar_storage_path: null, avatar_emoji: null }, true, false)).toBe(
       false
     );
   });
 
   it('zwraca true gdy sesja jest, ale brak username', () => {
     expect(
-      resolveNeedsOnboarding(true, { id: '1', username: null, avatar_storage_path: null, avatar_emoji: null }, false, true)
+      resolveNeedsOnboarding(true, { id: '1', username: null, display_name: null, is_private: false, avatar_storage_path: null, avatar_emoji: null }, false, true)
     ).toBe(true);
     expect(resolveNeedsOnboarding(true, null, false, true)).toBe(true);
   });
@@ -20,7 +20,7 @@ describe('resolveNeedsOnboarding', () => {
     expect(
       resolveNeedsOnboarding(
         true,
-        { id: '1', username: 'nix_user', avatar_storage_path: null, avatar_emoji: null },
+        { id: '1', username: 'nix_user', display_name: null, is_private: false, avatar_storage_path: null, avatar_emoji: null },
         false,
         true
       )
@@ -35,7 +35,7 @@ describe('resolveNeedsOnboarding', () => {
     expect(
       resolveNeedsOnboarding(
         true,
-        { id: '1', username: 'nix_user', avatar_storage_path: null, avatar_emoji: null },
+        { id: '1', username: 'nix_user', display_name: null, is_private: false, avatar_storage_path: null, avatar_emoji: null },
         false,
         false
       )

@@ -23,6 +23,7 @@ export type InboxNix = {
   status: 'sent' | 'viewed' | 'cleaned' | 'cleanup_failed';
   sender: {
     username: string;
+    display_name?: string | null;
     avatar_storage_path?: string | null;
     avatar_emoji?: string | null;
   } | null;
@@ -37,6 +38,7 @@ export type SentNix = {
   cleaned_at: string | null;
   receiver: {
     username: string;
+    display_name?: string | null;
     avatar_storage_path?: string | null;
     avatar_emoji?: string | null;
   } | null;
@@ -59,6 +61,7 @@ type NixPageOptions = {
 export type NixPublicProfile = {
   id: string;
   username: string;
+  display_name?: string | null;
   avatar_storage_path?: string | null;
   avatar_emoji?: string | null;
 };
@@ -459,6 +462,7 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
     sender: senderMap.get(nix.sender_id)
       ? {
           username: senderMap.get(nix.sender_id)!.username,
+          display_name: senderMap.get(nix.sender_id)!.display_name ?? null,
           avatar_storage_path: senderMap.get(nix.sender_id)!.avatar_storage_path ?? null,
           avatar_emoji: senderMap.get(nix.sender_id)!.avatar_emoji ?? null,
         }
@@ -626,6 +630,7 @@ export async function fetchSentNixes(options: NixPageOptions = {}) {
     receiver: receiverMap.get(nix.receiver_id)
       ? {
           username: receiverMap.get(nix.receiver_id)!.username,
+          display_name: receiverMap.get(nix.receiver_id)!.display_name ?? null,
           avatar_storage_path: receiverMap.get(nix.receiver_id)!.avatar_storage_path ?? null,
           avatar_emoji: receiverMap.get(nix.receiver_id)!.avatar_emoji ?? null,
         }
