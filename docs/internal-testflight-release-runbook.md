@@ -1,5 +1,8 @@
 # NiX Internal TestFlight release runbook
 
+> **Ścieżka EAS.** Ten runbook opisuje wydanie przez EAS / workflow Asc. Lokalny
+> build Xcode → Archive → TestFlight **bez EAS**: [`DEPLOY_IOS_TESTFLIGHT.md`](./DEPLOY_IOS_TESTFLIGHT.md).
+
 This runbook intentionally separates local preparation from state-changing remote
 operations. Do not cross a remote gate without a named approver and a recorded SHA.
 

@@ -40,6 +40,8 @@
 
 Projekt używa bare workflow: natywny folder iOS jest commitowany, a `app.json` nadal opisuje konfigurację prebuild (plugins, uprawnienia, scheme). EAS Build **nie synchronizuje** automatycznie pól z `app.json` do natywnego projektu, gdy `ios/` istnieje w repo.
 
+Lokalna publikacja do TestFlight (Xcode Archive, bez EAS): [`DEPLOY_IOS_TESTFLIGHT.md`](./DEPLOY_IOS_TESTFLIGHT.md).
+
 Po każdej zmianie w `app.json` dotyczącej:
 
 - `plugins`

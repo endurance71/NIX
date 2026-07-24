@@ -1,5 +1,8 @@
 # NiX — bramka wydania do zewnętrznego TestFlight
 
+> **Ścieżka EAS / workflow.** Lokalny Xcode → TestFlight bez EAS:
+> [`DEPLOY_IOS_TESTFLIGHT.md`](./DEPLOY_IOS_TESTFLIGHT.md).
+
 ## Automatyczne
 
 - [ ] `npm ci`

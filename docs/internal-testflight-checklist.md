@@ -1,5 +1,8 @@
 # NiX — Internal TestFlight checklist
 
+> **Ścieżka EAS.** Lokalny Xcode → TestFlight bez EAS:
+> [`DEPLOY_IOS_TESTFLIGHT.md`](./DEPLOY_IOS_TESTFLIGHT.md).
+
 Local validation snapshot: **15 July 2026**. Checked items below were executed
 without changing the linked Supabase project, EAS credentials or App Store Connect.
 

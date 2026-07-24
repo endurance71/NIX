@@ -37,6 +37,21 @@ if (!plist.includes(`<key>CFBundleDisplayName</key>\n\t<string>${app.name}</stri
 if (!plist.includes(`<key>CFBundleShortVersionString</key>\n\t<string>${app.version}</string>`)) {
   fail('CFBundleShortVersionString differs from app.json version');
 }
+const marketingVersionMatches = [...project.matchAll(/MARKETING_VERSION = ([^;]+);/g)].map((m) => m[1]);
+if (marketingVersionMatches.length === 0) {
+  fail('MARKETING_VERSION is missing from project.pbxproj');
+} else if (marketingVersionMatches.some((value) => value !== app.version)) {
+  fail(`MARKETING_VERSION in project.pbxproj must equal app.json version (${app.version})`);
+}
+const plistBuildMatch = plist.match(/<key>CFBundleVersion<\/key>\n\t<string>([^<]+)<\/string>/);
+const projectBuildMatches = [...project.matchAll(/CURRENT_PROJECT_VERSION = ([^;]+);/g)].map((m) => m[1]);
+if (!plistBuildMatch) {
+  fail('CFBundleVersion is missing from Info.plist');
+} else if (projectBuildMatches.length === 0) {
+  fail('CURRENT_PROJECT_VERSION is missing from project.pbxproj');
+} else if (projectBuildMatches.some((value) => value !== plistBuildMatch[1])) {
+  fail(`CFBundleVersion (${plistBuildMatch[1]}) must match CURRENT_PROJECT_VERSION in project.pbxproj`);
+}
 if (!plist.includes('<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>')) {
   fail('ITSAppUsesNonExemptEncryption must be false');
 }
