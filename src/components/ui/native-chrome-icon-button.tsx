@@ -13,7 +13,7 @@ import {
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { AppIcon } from './app-icon';
-import { resolveAppIconName, type AppIconName } from '../../theme/app-icons';
+import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 
 export type ChromeVariant = 'glass' | 'solid';
 
@@ -36,7 +36,7 @@ export function NativeChromeIconButton({
   onPress,
   disabled,
   size = 48,
-  iconSize = 22,
+  iconSize = APP_ICON_SIZE.xl,
   backgroundColor,
   tintColor,
   chromeVariant = 'glass',

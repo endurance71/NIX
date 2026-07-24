@@ -3,7 +3,6 @@ import {
   ActionSheetIOS,
   ActivityIndicator,
   Alert,
-  Keyboard,
   Platform,
   Pressable,
   StyleSheet,
@@ -21,16 +20,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import Animated, {
+  FadeIn,
   ZoomIn,
   ZoomOut,
   Easing,
   runOnJS,
+  useAnimatedKeyboard,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import type { SFSymbol } from 'sf-symbols-typescript';
 import type { ChatScreenViewModel, OptimisticTextMessage } from '../../hooks/useChatScreen';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
@@ -42,8 +42,11 @@ import {
 } from '../../services/messageReactionService';
 import type { ChatNixEvent } from '../../services/nixService';
 import type { MessageReaction, MessageReactionEmoji } from '../../types/database.types';
+import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
+import { appleUiSpring, duration, useMotionEnabled } from '../../theme/motion';
 import { STACK_NAV_BAR_HEIGHT } from '../../theme/safeArea';
 import { typography } from '../../theme/typography';
+import { PressableScale } from '../ui/pressable-scale';
 
 type ChatScreenSurfaceProps = {
   vm: ChatScreenViewModel;
@@ -88,11 +91,6 @@ const REACTION_BAR_GAP = 8;
 const REACTION_BAR_SIDE_INSET = 16;
 /** Przesunięcie dymka w dół gdy otwarty pasek (jak fokus w iMessage). */
 const BUBBLE_FOCUS_SHIFT = 20;
-/**
- * Spring jak SwiftUI `.spring(response: 0.38, dampingFraction: 0.72)` —
- * lekki bounce, płynne dociąganie (HIG / iMessage).
- */
-const APPLE_UI_SPRING = { damping: 17, stiffness: 210, mass: 0.85 } as const;
 
 function estimateReactionBarWidth(showReport: boolean, showTrash: boolean): number {
   const extra = (showReport ? 1 : 0) + (showTrash ? 1 : 0);
@@ -142,7 +140,21 @@ function ReactionBadges({
   peerReactionBg: string;
   onPressBadge: () => void;
 }) {
+  const motionEnabled = useMotionEnabled();
   if (reactions.length === 0) return null;
+
+  const badgeEntering = motionEnabled
+    ? ZoomIn.springify()
+        .damping(appleUiSpring.damping)
+        .stiffness(appleUiSpring.stiffness)
+        .mass(appleUiSpring.mass)
+    : undefined;
+  const badgeExiting = motionEnabled
+    ? ZoomOut.springify()
+        .damping(appleUiSpring.damping)
+        .stiffness(appleUiSpring.stiffness)
+        .mass(appleUiSpring.mass)
+    : undefined;
 
   return (
     <View
@@ -156,14 +168,8 @@ function ReactionBadges({
         return (
           <Animated.View
             key={reaction.id}
-            entering={ZoomIn.springify()
-              .damping(APPLE_UI_SPRING.damping)
-              .stiffness(APPLE_UI_SPRING.stiffness)
-              .mass(APPLE_UI_SPRING.mass)}
-            exiting={ZoomOut.springify()
-              .damping(APPLE_UI_SPRING.damping)
-              .stiffness(APPLE_UI_SPRING.stiffness)
-              .mass(APPLE_UI_SPRING.mass)}>
+            entering={badgeEntering}
+            exiting={badgeExiting}>
             <Pressable
               onPress={() => {
                 selection();
@@ -239,8 +245,8 @@ function ReactionPickerBar({
           hitSlop={4}
           style={styles.reactionBarEmojiHit}>
           <SymbolView
-            name={'trash' as SFSymbol}
-            size={22}
+            name={resolveAppIconName('trash')}
+            size={APP_ICON_SIZE.xl}
             tintColor={colors.destructive}
             weight="medium"
           />
@@ -257,8 +263,8 @@ function ReactionPickerBar({
           hitSlop={4}
           style={styles.reactionBarEmojiHit}>
           <SymbolView
-            name={'exclamationmark.bubble' as SFSymbol}
-            size={22}
+            name={resolveAppIconName('report')}
+            size={APP_ICON_SIZE.xl}
             tintColor={colors.destructive}
             weight="medium"
           />
@@ -364,9 +370,11 @@ function MessageBubble({
   const peerReactionBg = colors.chatBubbleIncoming;
   const hasReactions = reactions.length > 0;
   const focusShift = useSharedValue(0);
+  const motionEnabled = useMotionEnabled();
+  const isOptimistic = message.id.startsWith('temp-') || Boolean(message.isSending);
 
   useEffect(() => {
-    focusShift.value = withSpring(isFocused ? BUBBLE_FOCUS_SHIFT : 0, APPLE_UI_SPRING);
+    focusShift.value = withSpring(isFocused ? BUBBLE_FOCUS_SHIFT : 0, appleUiSpring);
   }, [isFocused, focusShift]);
 
   const focusStyle = useAnimatedStyle(() => ({
@@ -387,6 +395,9 @@ function MessageBubble({
   return (
     <View style={[styles.row, hasReactions ? styles.rowWithReactions : null]}>
       <Animated.View
+        entering={
+          motionEnabled && isOptimistic ? FadeIn.duration(duration.fast) : undefined
+        }
         style={[
           styles.bubbleAnchor,
           isOwn ? styles.bubbleOwn : styles.bubbleIncoming,
@@ -479,7 +490,7 @@ function ReactionPickerOverlay({
   useEffect(() => {
     if (open) {
       closing.value = 0;
-      progress.value = withSpring(1, APPLE_UI_SPRING);
+      progress.value = withSpring(1, appleUiSpring);
       return;
     }
     closing.value = 1;
@@ -608,38 +619,39 @@ function DateSeparator({ label }: { label: string }) {
 
 /**
  * Overlay nad FlashList — `GlassView` (expo-glass-effect) sampluje bąbelki pod spodem.
- * Pozycja względem klawiatury: `bottom: keyboardHeight` (bez KeyboardAvoidingView —
- * KAV + absolute composer zostawia szary pas między barem a klawiaturą).
+ * Pozycja względem klawiatury: `useAnimatedKeyboard` (UI thread; bez KAV —
+ * KAV + absolute composer zostawia szary pas). Bez opacity na GlassView.
  */
 function ChatComposer({ vm }: ChatComposerProps) {
   const { colors } = useAppTheme();
   const { bottomContentInset } = useScreenInsets('stackHeader');
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const canSend = Boolean(vm.inputBody.trim()) && !vm.sending;
   const useGlass = canUseLiquidGlass();
+  const keyboard = useAnimatedKeyboard();
+  const restingPad = Math.max(bottomContentInset, 10);
 
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const showSub = Keyboard.addListener(showEvent, (event) => {
-      setKeyboardHeight(event.endCoordinates.height);
-    });
-    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
-    return () => {
-      showSub.remove();
-      hideSub.remove();
+  const composerStyle = useAnimatedStyle(() => {
+    const kb = keyboard.height.value;
+    return {
+      bottom: kb,
+      paddingBottom: kb > 0.5 ? 8 : restingPad,
     };
-  }, []);
+  });
 
-  const keyboardOpen = keyboardHeight > 0;
-  const composerBottomPad = keyboardOpen ? 8 : Math.max(bottomContentInset, 10);
+  const edgeFadeStyle = useAnimatedStyle(() => {
+    const kb = keyboard.height.value;
+    const pad = kb > 0.5 ? 8 : restingPad;
+    return {
+      height: COMPOSER_CONTENT_HEIGHT + pad + COMPOSER_EDGE_FADE_EXTRA,
+    };
+  });
+
   const fallbackFill = { backgroundColor: colors.secondarySystemFill };
   /**
    * Jak scroll-edge pod headerem: tylko miękki fade do systemBackground.
    * BlurView tu zbierał kolor bąbelków (fioletowy „glow”) — nie jak u góry.
    */
   const bg = colors.systemBackground.length >= 7 ? colors.systemBackground.slice(0, 7) : colors.systemBackground;
-  const edgeFadeHeight = COMPOSER_CONTENT_HEIGHT + composerBottomPad + COMPOSER_EDGE_FADE_EXTRA;
 
   const inputField = (
     <TextInput
@@ -655,22 +667,36 @@ function ChatComposer({ vm }: ChatComposerProps) {
     />
   );
 
-  return (
-    <View
-      pointerEvents="box-none"
-      style={[
-        styles.composerShell,
-        {
-          bottom: keyboardHeight,
-          paddingBottom: composerBottomPad,
-        },
-      ]}>
-      <LinearGradient
-        pointerEvents="none"
-        colors={[`${bg}00`, `${bg}D9`, `${bg}FF`]}
-        locations={[0, 0.4, 1]}
-        style={[styles.composerEdgeFade, { height: edgeFadeHeight }]}
+  const sendControl = useGlass ? (
+    <GlassView style={styles.sendGlass} glassEffectStyle="regular" isInteractive>
+      <SymbolView
+        name={resolveAppIconName('send')}
+        size={APP_ICON_SIZE.md}
+        tintColor={colors.accent}
+        weight="semibold"
+        style={{ opacity: canSend ? 1 : 0.4 }}
       />
+    </GlassView>
+  ) : (
+    <View style={[styles.sendGlass, fallbackFill, { opacity: canSend ? 1 : 0.4 }]}>
+      <SymbolView
+        name={resolveAppIconName('send')}
+        size={APP_ICON_SIZE.md}
+        tintColor={colors.accent}
+        weight="semibold"
+      />
+    </View>
+  );
+
+  return (
+    <Animated.View pointerEvents="box-none" style={[styles.composerShell, composerStyle]}>
+      <Animated.View pointerEvents="none" style={[styles.composerEdgeFade, edgeFadeStyle]}>
+        <LinearGradient
+          colors={[`${bg}00`, `${bg}D9`, `${bg}FF`]}
+          locations={[0, 0.4, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
 
       <View style={styles.composerRow}>
         {useGlass ? (
@@ -681,33 +707,14 @@ function ChatComposer({ vm }: ChatComposerProps) {
           <View style={[styles.inputGlass, fallbackFill]}>{inputField}</View>
         )}
 
-        <Pressable
+        <PressableScale
           onPress={() => void vm.handleSend()}
           disabled={!canSend}
           accessibilityRole="button"
           accessibilityLabel={vm.t('chat.send')}
           accessibilityState={{ disabled: !canSend }}>
-          {useGlass ? (
-            <GlassView style={styles.sendGlass} glassEffectStyle="regular" isInteractive>
-              <SymbolView
-                name={'arrow.up' as SFSymbol}
-                size={18}
-                tintColor={colors.accent}
-                weight="semibold"
-                style={{ opacity: canSend ? 1 : 0.4 }}
-              />
-            </GlassView>
-          ) : (
-            <View style={[styles.sendGlass, fallbackFill, { opacity: canSend ? 1 : 0.4 }]}>
-              <SymbolView
-                name={'arrow.up' as SFSymbol}
-                size={18}
-                tintColor={colors.accent}
-                weight="semibold"
-              />
-            </View>
-          )}
-        </Pressable>
+          {sendControl}
+        </PressableScale>
       </View>
 
       <View style={styles.footerRow}>
@@ -718,7 +725,7 @@ function ChatComposer({ vm }: ChatComposerProps) {
           {`${vm.inputBody.length}/2000`}
         </Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

@@ -41,6 +41,12 @@ Use two physical iPhones (or one device with two accounts across installs). Do n
 - Confirm the Inbox tab badge shows the unread NiX count and clears after the message is viewed.
 - Confirm the app icon badge matches the unread NiX count; it updates after viewing a NiX (or returning to the app) and clears on sign-out / disabling push. Friend request or accept must not inflate the icon badge beyond unread NiXes.
 
+## Performance / ProMotion (optional on iPhone Pro)
+
+- With JS debugger closed, scroll chat and inbox: UI should feel smooth (up to 120 Hz on ProMotion devices).
+- Open/close Tapback reaction picker and press the camera shutter — motion should stay on the UI thread without hitching.
+- Confirm `CADisableMinimumFrameDurationOnPhone` remains in the signed IPA Info.plist after any `prebuild`.
+
 ## Diagnostics
 
 - Sentry must produce no breadcrumbs, envelopes, source-map upload or dSYM upload,

@@ -27,6 +27,7 @@ import {
   ActionSheetSurface,
 } from '../ui/action-sheet-surface';
 import { queryKeys } from '../../lib/queryKeys';
+import { APP_ICON_SIZE } from '../../theme/app-icons';
 import { APP_FONT_FAMILY } from '../../theme/typography';
 
 type FriendInviteConfirmState = {
@@ -311,11 +312,11 @@ export function FriendInviteConfirmContent({
       {statusLine ? (
         <View style={styles.statusBlock}>
           {relationStatus === 'already_friends' ? (
-            <AppIcon name="checkCircle" size={22} color={colors.success} />
+            <AppIcon name="checkCircle" size={APP_ICON_SIZE.xl} color={colors.success} />
           ) : relationStatus === 'outgoing_pending' ? (
-            <AppIcon name="clock" size={20} color={colors.textMuted} />
+            <AppIcon name="clock" size={APP_ICON_SIZE.lg} color={colors.textMuted} />
           ) : (
-            <AppIcon name="personAdd" size={20} color={colors.accent} />
+            <AppIcon name="personAdd" size={APP_ICON_SIZE.lg} color={colors.accent} />
           )}
           <Text
             style={[

@@ -5,9 +5,9 @@ export type AppIconName =
   | 'cameraRotate'
   | 'chevronRight'
   | 'checkCircle'
+  | 'checkmark'
   | 'clock'
   | 'close'
-  | 'edit'
   | 'email'
   | 'star'
   | 'flash'
@@ -22,27 +22,44 @@ export type AppIconName =
   | 'profile'
   | 'photoLibrary'
   | 'send'
-  | 'sendCircle'
   | 'compose'
   | 'more'
   | 'timer'
   | 'trash'
   | 'qrcode'
-  | 'personMinus'
   | 'signOut'
   | 'shield'
   | 'key'
   | 'circle'
-  | 'paintpalette';
+  | 'circleFill'
+  | 'paintpalette'
+  | 'report'
+  | 'warning'
+  | 'block'
+  | 'folder'
+  | 'undo';
+
+/** Canonical point sizes for SF Symbols across AppIcon / SwiftImage / SymbolView. */
+export const APP_ICON_SIZE = {
+  xs: 13,
+  sm: 16,
+  md: 18,
+  settings: 19,
+  lg: 20,
+  xl: 22,
+  xxl: 24,
+} as const;
+
+export type AppIconSizeToken = keyof typeof APP_ICON_SIZE;
 
 const APP_ICONS: Record<AppIconName, SFSymbol> = {
   camera: 'camera',
   cameraRotate: 'camera.rotate',
   chevronRight: 'chevron.right',
   checkCircle: 'checkmark.circle',
+  checkmark: 'checkmark',
   clock: 'clock',
   close: 'xmark',
-  edit: 'pencil',
   email: 'envelope',
   star: 'star',
   flash: 'bolt',
@@ -56,19 +73,23 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   personAdd: 'person.badge.plus',
   profile: 'person.crop.circle',
   photoLibrary: 'photo.on.rectangle.angled',
-  send: 'paperplane',
-  sendCircle: 'arrow.up.circle.fill',
+  send: 'arrow.up.circle.fill',
   compose: 'square.and.pencil',
   more: 'ellipsis',
   timer: 'timer',
   trash: 'trash',
   qrcode: 'qrcode.viewfinder',
-  personMinus: 'person.badge.minus',
   signOut: 'rectangle.portrait.and.arrow.right',
   shield: 'shield',
   key: 'key',
   circle: 'circle',
+  circleFill: 'circle.fill',
   paintpalette: 'paintpalette',
+  report: 'exclamationmark.bubble',
+  warning: 'exclamationmark.triangle',
+  block: 'hand.raised',
+  folder: 'folder',
+  undo: 'arrow.uturn.backward',
 };
 
 export function resolveAppIconName(name: AppIconName): SFSymbol {

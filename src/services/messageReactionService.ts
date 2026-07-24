@@ -15,15 +15,6 @@ export const MESSAGE_REACTION_GLYPHS: Record<MessageReactionEmoji, string> = {
   question: '❓',
 };
 
-export const MESSAGE_REACTION_SF_SYMBOLS: Record<MessageReactionEmoji, string> = {
-  heart: 'heart.fill',
-  thumbsup: 'hand.thumbsup.fill',
-  thumbsdown: 'hand.thumbsdown.fill',
-  hahaha: 'face.smiling',
-  exclamation: 'exclamationmark.2',
-  question: 'questionmark',
-};
-
 function isMessageReactionEmoji(value: string): value is MessageReactionEmoji {
   return (MESSAGE_REACTION_EMOJIS as readonly string[]).includes(value);
 }

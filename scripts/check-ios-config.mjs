@@ -70,6 +70,12 @@ for (const generatedPath of ['ios/Pods/', 'ios/build/', 'ios/.xcode.env.local'])
 if (project.includes('HERMES_CLI_PATH') || xcodeEnv.includes('HERMES_CLI_PATH')) {
   fail('HERMES_CLI_PATH must be resolved on the build worker, not persisted in native configuration');
 }
+if (!plist.includes('<key>CADisableMinimumFrameDurationOnPhone</key>\n\t<true/>')) {
+  fail('CADisableMinimumFrameDurationOnPhone must be true in Info.plist for ProMotion (120 Hz)');
+}
+if (app.ios.infoPlist.CADisableMinimumFrameDurationOnPhone !== true) {
+  fail('app.json must declare ios.infoPlist.CADisableMinimumFrameDurationOnPhone: true');
+}
 if (!assertSentryDisabled()) failed = true;
 if (failed) process.exit(1);
 console.log('iOS app.json, Info.plist and PL/EN purpose strings are synchronized.');

@@ -1,4 +1,4 @@
-import { Platform, Pressable, StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { Button, Host, Image as SwiftImage } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel as swiftAccessibilityLabel,
@@ -10,8 +10,9 @@ import { useTranslation } from 'react-i18next';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { tap } from '../../lib/haptics';
-import { resolveAppIconName } from '../../theme/app-icons';
+import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
 import { AppIcon } from '../ui/app-icon';
+import { PressableScale } from '../ui/pressable-scale';
 
 function openComposeChat() {
   tap('light');
@@ -35,7 +36,7 @@ export function HeaderComposeButton() {
           ]}>
           <SwiftImage
             systemName={resolveAppIconName('compose') as SFSymbol}
-            size={22}
+            size={APP_ICON_SIZE.xl}
             color={colors.accent}
           />
         </Button>
@@ -44,14 +45,14 @@ export function HeaderComposeButton() {
   }
 
   return (
-    <Pressable
+    <PressableScale
       onPress={openComposeChat}
       accessibilityLabel={label}
       accessibilityRole="button"
       hitSlop={10}
-      style={({ pressed }) => [styles.androidPressable, pressed && styles.pressed]}>
-      <AppIcon name="compose" size={24} color={colors.accent} />
-    </Pressable>
+      style={styles.androidPressable}>
+      <AppIcon name="compose" size={APP_ICON_SIZE.xl} color={colors.accent} />
+    </PressableScale>
   );
 }
 
@@ -65,8 +66,5 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  pressed: {
-    opacity: 0.6,
   },
 });

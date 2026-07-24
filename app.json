@@ -26,7 +26,8 @@
         "NSMicrophoneUsageDescription": "NiX uses the microphone to record sound in video messages that you choose to send.",
         "NSPhotoLibraryUsageDescription": "NiX uses your photo library when you choose a profile avatar or select a photo or video to send to friends.",
         "ITSAppUsesNonExemptEncryption": false,
-        "UIViewControllerBasedStatusBarAppearance": false
+        "UIViewControllerBasedStatusBarAppearance": false,
+        "CADisableMinimumFrameDurationOnPhone": true
       }
     },
     "scheme": "nix",

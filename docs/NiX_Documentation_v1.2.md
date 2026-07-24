@@ -106,22 +106,31 @@ Komponenty bazują na universal `@expo/ui` (import z root pakietu) oraz SwiftUI.
 
 #### 2.2.1 Ikony (SF Symbols)
 
-W projekcie ikony są obsługiwane natywnie za pomocą **SF Symbols** poprzez komponent `AppIcon` z `@expo/ui/swift-ui`:
+W projekcie ikony są **wyłącznie SF Symbols**. Kanoniczny rejestr: `src/theme/app-icons.ts` (`AppIconName` → nazwa SF + tokeny `APP_ICON_SIZE`).
 
 ```tsx
-// src/theme/app-icons.ts — mapowanie ikon na nazwy SF Symbols
+// src/theme/app-icons.ts
 const APP_ICONS = {
-  inbox: 'tray.fill',
+  inbox: 'tray',
+  send: 'arrow.up.circle.fill',
 };
 
-// src/components/ui/app-icon.tsx
-// Pod spodem używa Image z systemName z @expo/ui/swift-ui
-<AppIcon name="inbox" size={24} color={color} />
+// RN tree — AppIcon (Host + SwiftUI Image)
+<AppIcon name="inbox" size={APP_ICON_SIZE.xxl} color={color} />
+
+// Wewnątrz Host / Button / NativeTabs / Toolbar — resolveAppIconName(...)
+<SwiftImage systemName={resolveAppIconName('compose')} size={APP_ICON_SIZE.xl} />
 ```
 
-Zasady:
-1. Wszystkie ikony muszą być poprawnymi nazwami SF Symbols.
-2. Nowe ikony należy dodawać do typu `AppIconName` oraz mapy `APP_ICONS` w `app-icons.ts`.
+Zasady renderu:
+1. **RN tree** (Pressable poza Host) → `AppIcon`.
+2. **Wewnątrz SwiftUI `Host` / `Button`** → `SwiftImage` + `resolveAppIconName` (bez zagnieżdżonego Host).
+3. **Gdy potrzebny `weight` / SymbolView** → `SymbolView` + `resolveAppIconName`.
+4. **NativeTabs / Stack.Toolbar** → `sf` / `icon` z `resolveAppIconName`.
+
+Nowe ikony należy dodawać do typu `AppIconName` oraz mapy `APP_ICONS`. Nie hardcodować surowych nazw SF w call site’ach.
+
+**Wyjątek (content, nie chrome UI):** reakcje w czacie używają emoji glyphs (`MESSAGE_REACTION_GLYPHS`) — Tapback-like UX.
 
 **Nie używać** w nowym kodzie UI:
 - `@expo/vector-icons` / Ionicons.
@@ -166,9 +175,13 @@ Plan Apple Auth pozostaje jako etap przyszły (por. ostrzeżenie na górze dokum
 
 Szczegóły kroków i edge cases: [auth-flow.md](auth-flow.md).
 
-### 2.6 Animacje (144fps / ProMotion)
+### 2.6 Animacje (120 Hz / ProMotion)
 
 Reanimated 4 na UI thread; gesty przez `react-native-gesture-handler`. Zasady: `useSharedValue`, `useAnimatedStyle`, `withSpring` / `withTiming`; bez `Animated` API i bez `LayoutAnimation` na gorących ścieżkach.
+
+**ProMotion:** `CADisableMinimumFrameDurationOnPhone = true` w `ios/NiX/Info.plist` **oraz** `app.json` → `expo.ios.infoPlist` (żeby klucz przetrwał `prebuild`). Reanimated ustawia `preferredFramesPerSecond = 120` (fallback 60 na urządzeniach bez ProMotion). Tokeny motion: `src/theme/motion.ts` (`appleUiSpring`, `pressSpring`, `useMotionEnabled`).
+
+Preview kamery / odtwarzanie wideo to osobna ścieżka AV (~30 fps) — niezależna od odświeżania UI.
 
 ### 2.7 Bezpieczeństwo i RLS
 
@@ -237,8 +250,8 @@ src/
 
 | Plik | Odpowiedzialność |
 | :--- | :--- |
-| `src/theme/app-icons.ts` | Mapowanie `AppIconName` → `Icon.select` (SF + Material Symbols XML) |
-| `src/components/ui/app-icon.tsx` | Cienki wrapper nad universal `Icon` |
+| `src/theme/app-icons.ts` | Mapowanie `AppIconName` → SF Symbol + `APP_ICON_SIZE` |
+| `src/components/ui/app-icon.tsx` | `AppIcon` — SF Symbol w drzewie RN (`Host` + SwiftUI `Image`) |
 | `src/app/_layout.tsx` | Providerzy (Query, theme, toast, video draft), DeepLink, bootstrap sesji / onboarding |
 | `src/lib/deepLink.ts` | Auth URL + zaproszenia znajomych → routing |
 | `src/lib/supabase.ts` | Klient Supabase |

@@ -24,7 +24,7 @@
 
 - **UI:** universal `@expo/ui` przed RN primitives; zakaz ogólnych UI-kitów (Paper, NativeBase).
 - **Tab bar:** iOS `NativeTabs` z ikonami bez podpisów — nie JS `Tabs`.
-- **Ikony:** `AppIcon` / `Icon.select` (SF Symbols + Material Symbols XML).
+- **Ikony:** wyłącznie SF Symbols przez rejestr `app-icons.ts` (`AppIcon` / `resolveAppIconName`); bez `@expo/vector-icons` / Material Symbols.
 - **Motyw:** tokeny `useAppTheme()` — bez hardcoded kolorów.
 - **Animacje:** Reanimated 4 — bez legacy `Animated` / `LayoutAnimation` na hot path.
 

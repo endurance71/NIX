@@ -11,9 +11,11 @@ import {
   padding,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
+import type { SFSymbol } from 'sf-symbols-typescript';
 import { AppIcon } from './app-icon';
 import { selection } from '../../lib/haptics';
 import type { ThemeColors } from '../../theme/colors';
+import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
 import { typography } from '../../theme/typography';
 import {
   NIX_VIEW_DURATION_CHOICES,
@@ -66,7 +68,7 @@ export default function PreviewDurationMenu({
         hitSlop={10}
         accessibilityLabel={`Czas wyświetlania: ${formatNixViewDurationLabel(selectedDurationSec)}`}
         accessibilityRole="button">
-        <AppIcon name="timer" size={20} color={colors.cameraControlTint} />
+        <AppIcon name="timer" size={APP_ICON_SIZE.lg} color={colors.cameraControlTint} />
         <Text style={[styles.fallbackLabel, { color: colors.cameraControlTint }]}>
           {shortNixViewDurationLabel(selectedDurationSec)}
         </Text>
@@ -91,7 +93,11 @@ export default function PreviewDurationMenu({
                 : []),
               swiftAccessibilityLabel(`Czas wyświetlania: ${formatNixViewDurationLabel(selectedDurationSec)}`),
             ]}>
-            <SwiftImage systemName="timer" size={20} color={colors.cameraControlTint} />
+            <SwiftImage
+              systemName={resolveAppIconName('timer') as SFSymbol}
+              size={APP_ICON_SIZE.lg}
+              color={colors.cameraControlTint}
+            />
             <SwiftText modifiers={[foregroundStyle(colors.cameraControlTint), monospacedDigit()]}>
               {shortNixViewDurationLabel(selectedDurationSec)}
             </SwiftText>
@@ -101,7 +107,7 @@ export default function PreviewDurationMenu({
           <Button
             key={sec}
             label={formatNixViewDurationLabel(sec)}
-            systemImage={sec === selectedDurationSec ? 'checkmark' : undefined}
+            systemImage={sec === selectedDurationSec ? resolveAppIconName('checkmark') : undefined}
             onPress={() => choose(sec)}
           />
         ))}

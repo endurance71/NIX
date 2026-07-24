@@ -30,6 +30,7 @@ import { runWithFinally } from '../lib/runWithFinally';
 import { cameraUiReducer, initialCameraUiState, type CameraUiState } from '../lib/cameraUiReducer';
 import { createCameraStyles } from '../components/camera/cameraScreen.styles';
 import { setNativeVideoTorchForRecording } from '../lib/videoTorchSession';
+import { duration as motionDuration } from '../theme/motion';
 
 export const VIDEO_RECORDING_BITRATE = 2_500_000;
 const VIDEO_RECORDING_MAX_FILE_SIZE_BYTES = 90 * 1024 * 1024;
@@ -118,6 +119,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   const cameraMountStartedAtRef = useRef<number | null>(null);
   const zoomAtGestureStart = useSharedValue(0);
   const zoomShared = useSharedValue(0);
+  const lastZoomCommitMs = useSharedValue(0);
   const isSwitchingCameraRef = useRef(false);
   const switchWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const switchRecoveryUsedRef = useRef(false);
@@ -265,13 +267,25 @@ export function useCameraScreen(): CameraScreenViewModel {
   };
 
   const pinchGesture = Gesture.Pinch()
-    .runOnJS(true)
     .onBegin(() => {
       zoomAtGestureStart.set(zoomShared.get());
+      lastZoomCommitMs.set(0);
     })
     .onUpdate((event) => {
       const nextZoom = Math.max(0, Math.min(1, zoomAtGestureStart.get() + (event.scale - 1) * 0.22));
-      runOnJS(setZoomFromGesture)(nextZoom);
+      zoomShared.set(nextZoom);
+      // Commit do React state throttled (~30 Hz) — płynniejszy ProMotion niż runOnJS co klatkę.
+      const now = performance.now();
+      if (now - lastZoomCommitMs.get() >= 32) {
+        lastZoomCommitMs.set(now);
+        runOnJS(setZoomFromGesture)(nextZoom);
+      }
+    })
+    .onEnd(() => {
+      runOnJS(setZoomFromGesture)(zoomShared.get());
+    })
+    .onFinalize(() => {
+      runOnJS(setZoomFromGesture)(zoomShared.get());
     });
 
   useEffect(() => {
@@ -609,15 +623,15 @@ export function useCameraScreen(): CameraScreenViewModel {
 
     shutterScale.set(
       withSequence(
-        withTiming(0.85, { duration: 100, easing: Easing.out(Easing.ease) }),
-        withTiming(1, { duration: 100, easing: Easing.out(Easing.ease) })
+        withTiming(0.85, { duration: motionDuration.fast, easing: Easing.out(Easing.ease) }),
+        withTiming(1, { duration: motionDuration.fast, easing: Easing.out(Easing.ease) })
       )
     );
 
     flashOpacity.set(
       withSequence(
         withTiming(1, { duration: 50 }),
-        withTiming(0, { duration: 250, easing: Easing.out(Easing.ease) })
+        withTiming(0, { duration: motionDuration.slow, easing: Easing.out(Easing.ease) })
       )
     );
 

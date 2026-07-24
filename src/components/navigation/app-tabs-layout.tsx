@@ -7,6 +7,7 @@ import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../../s
 import { createNativeTabAvatarIconSource } from '../../services/nativeTabAvatarIcon';
 import { getCurrentUserProfile } from '../../services/profileService';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../../lib/queryKeys';
+import { resolveAppIconName } from '../../theme/app-icons';
 
 export default function AppTabsLayout() {
   const { colors, isDark } = useAppTheme();
@@ -45,12 +46,12 @@ export default function AppTabsLayout() {
         selected: { color: colors.accent, fontWeight: '700' },
       }}>
       <NativeTabs.Trigger name="index" contentStyle={{ backgroundColor: '#000000' }}>
-        <NativeTabs.Trigger.Icon sf="camera" />
+        <NativeTabs.Trigger.Icon sf={resolveAppIconName('camera')} />
         <NativeTabs.Trigger.Label>{t('tabs.camera')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="inbox" contentStyle={{ backgroundColor: colors.systemBackground }}>
-        <NativeTabs.Trigger.Icon sf="tray" />
+        <NativeTabs.Trigger.Icon sf={resolveAppIconName('inbox')} />
         <NativeTabs.Trigger.Label>{t('tabs.inbox')}</NativeTabs.Trigger.Label>
         {count > 0 ? <NativeTabs.Trigger.Badge>{String(count)}</NativeTabs.Trigger.Badge> : null}
       </NativeTabs.Trigger>
@@ -59,7 +60,7 @@ export default function AppTabsLayout() {
         {tabAvatarIconSource ? (
           <NativeTabs.Trigger.Icon src={tabAvatarIconSource} renderingMode="original" />
         ) : (
-          <NativeTabs.Trigger.Icon sf="person.crop.circle" />
+          <NativeTabs.Trigger.Icon sf={resolveAppIconName('profile')} />
         )}
         <NativeTabs.Trigger.Label>{t('tabs.profile')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>

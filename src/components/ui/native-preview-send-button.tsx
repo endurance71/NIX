@@ -1,4 +1,4 @@
-import { Platform, Pressable, StyleSheet, Text } from 'react-native';
+import { Platform, StyleSheet, Text } from 'react-native';
 import type { ColorValue } from 'react-native';
 import { Button, HStack, Host, Image as SwiftImage, Text as SwiftText } from '@expo/ui/swift-ui';
 import {
@@ -12,7 +12,10 @@ import {
   padding,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
+import type { SFSymbol } from 'sf-symbols-typescript';
 import { AppIcon } from './app-icon';
+import { PressableScale } from './pressable-scale';
+import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
 import { typography } from '../../theme/typography';
 import type { ChromeVariant } from './native-chrome-icon-button';
 
@@ -36,14 +39,14 @@ export function NativePreviewSendButton({
 }: NativePreviewSendButtonProps) {
   if (Platform.OS !== 'ios') {
     return (
-      <Pressable
+      <PressableScale
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
         onPress={onPress}
-        style={({ pressed }) => [styles.fallbackButton, { backgroundColor }, pressed && styles.pressed]}>
+        style={[styles.fallbackButton, { backgroundColor }]}>
         <Text style={[styles.fallbackText, { color: tintColor }]}>{label}</Text>
-        <AppIcon name="chevronRight" size={16} color={tintColor} />
-      </Pressable>
+        <AppIcon name="chevronRight" size={APP_ICON_SIZE.sm} color={tintColor} />
+      </PressableScale>
     );
   }
 
@@ -67,7 +70,11 @@ export function NativePreviewSendButton({
               : []),
           ]}>
           <SwiftText modifiers={[foregroundStyle(tintColor as string), bold()]}>{label}</SwiftText>
-          <SwiftImage systemName="chevron.right" size={16} color={tintColor} />
+          <SwiftImage
+            systemName={resolveAppIconName('chevronRight') as SFSymbol}
+            size={APP_ICON_SIZE.sm}
+            color={tintColor}
+          />
         </HStack>
       </Button>
     </Host>
@@ -87,8 +94,5 @@ const styles = StyleSheet.create({
     ...typography.callout,
     fontWeight: '700',
     letterSpacing: 0.3,
-  },
-  pressed: {
-    opacity: 0.8,
   },
 });

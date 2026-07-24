@@ -6,6 +6,7 @@ import { ChatScreenSurface } from '../../components/chat/ChatScreenSurface';
 import { AvatarCircle } from '../../components/ui/avatar-circle';
 import { AppIcon } from '../../components/ui/app-icon';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
 import { APP_FONT_FAMILY } from '../../theme/typography';
 
 /** Matches iOS liquid-glass back control diameter in the nav bar. */
@@ -140,7 +141,7 @@ export default function ChatScreen() {
                     accessibilityRole="button"
                     hitSlop={10}
                     style={styles.androidMore}>
-                    <AppIcon name="more" size={22} color={colors.accent} />
+                    <AppIcon name="more" size={APP_ICON_SIZE.xl} color={colors.accent} />
                   </Pressable>
                 ),
               }
@@ -149,8 +150,8 @@ export default function ChatScreen() {
       />
       {Platform.OS === 'ios' ? (
         <Stack.Toolbar placement="right">
-          <Stack.Toolbar.Menu icon="ellipsis" accessibilityLabel={vm.t('chat.moreA11y')}>
-            <Stack.Toolbar.Menu title={vm.t('chat.report')} icon="exclamationmark.triangle">
+          <Stack.Toolbar.Menu icon={resolveAppIconName('more')} accessibilityLabel={vm.t('chat.moreA11y')}>
+            <Stack.Toolbar.Menu title={vm.t('chat.report')} icon={resolveAppIconName('warning')}>
               {CHAT_PEER_REPORT_REASONS.map((reason) => (
                 <Stack.Toolbar.MenuAction
                   key={reason}
@@ -159,10 +160,10 @@ export default function ChatScreen() {
                 </Stack.Toolbar.MenuAction>
               ))}
             </Stack.Toolbar.Menu>
-            <Stack.Toolbar.MenuAction icon="hand.raised" destructive onPress={requestBlock}>
+            <Stack.Toolbar.MenuAction icon={resolveAppIconName('block')} destructive onPress={requestBlock}>
               {vm.t('chat.block')}
             </Stack.Toolbar.MenuAction>
-            <Stack.Toolbar.MenuAction icon="trash" destructive onPress={requestDelete}>
+            <Stack.Toolbar.MenuAction icon={resolveAppIconName('trash')} destructive onPress={requestDelete}>
               {vm.t('chat.delete')}
             </Stack.Toolbar.MenuAction>
           </Stack.Toolbar.Menu>

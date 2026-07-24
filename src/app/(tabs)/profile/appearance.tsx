@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Stack } from 'expo-router';
+import type { SFSymbol } from 'sf-symbols-typescript';
 import { useTranslation } from 'react-i18next';
 import { AccentAppearancePreview } from '../../../components/ui/accent-appearance-preview';
 import { AccentColorSwatch } from '../../../components/ui/accent-color-swatch';
@@ -11,8 +12,9 @@ import {
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
 import { useAppTheme } from '../../../hooks/useAppTheme';
 import { ACCENT_PRESETS, resolveAccentColor } from '../../../theme/accent-presets';
+import { APP_ICON_SIZE, resolveAppIconName } from '../../../theme/app-icons';
 
-const SWATCH_SIZE = 22;
+const SWATCH_SIZE = APP_ICON_SIZE.xl;
 
 export default function AppearanceScreen() {
   const { t } = useTranslation();
@@ -36,10 +38,10 @@ export default function AppearanceScreen() {
                 trailing={
                   selected ? (
                     <SymbolView
-                      name="checkmark"
-                      size={16}
+                      name={resolveAppIconName('checkmark') as SFSymbol}
+                      size={APP_ICON_SIZE.sm}
                       tintColor={colors.accent}
-                      fallback={<View style={{ width: 16, height: 16 }} />}
+                      fallback={<View style={{ width: APP_ICON_SIZE.sm, height: APP_ICON_SIZE.sm }} />}
                     />
                   ) : undefined
                 }

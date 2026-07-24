@@ -39,8 +39,9 @@ Szczegóły implementacji universal UI: [NiX_Documentation_v1.2.md §2.2](NiX_Do
 - Ikony: **SF Symbols** (`AppIcon` z zaimplementowanym SwiftUI `Image(systemName:)`; tab bar: `NativeTabs.Trigger.Icon`).
 - Nawigacja dolna: **`NativeTabs`** (`expo-router/unstable-native-tabs`) — tylko ikony (`Trigger.Label hidden`), badge na inbox.
 - Motyw: **systemowy light/dark** (`userInterfaceStyle: automatic`) — tokeny mapowane na role iOS (`label`, `systemBackground`, `destructive`…).
-- Animacje interakcji: **Reanimated 4** na UI thread (nie legacy `Animated` API).
+- Animacje interakcji: **Reanimated 4** na UI thread (nie legacy `Animated` API); tokeny w `src/theme/motion.ts`.
 - Gestykulacja: **react-native-gesture-handler** zgodnie z oczekiwaniami iOS.
+- ProMotion / 120 Hz: `CADisableMinimumFrameDurationOnPhone` w plist + `app.json`.
 - Build i test: `npm run ios` (`expo run:ios`), Xcode 15+.
 
 ### Bare workflow
@@ -116,12 +117,15 @@ Nowy element UI
 ## Checklista PR (UI / UX)
 
 - [ ] Wybrano najwyższą możliwą warstwę natywną (universal `@expo/ui` przed RN primitive).
-- [ ] Ikony przez `AppIcon` (iOS: `NativeTabs.Trigger.Icon`).
+- [ ] Ikony wyłącznie przez rejestr `app-icons.ts` (`AppIcon` / `resolveAppIconName`; iOS tab bar: `NativeTabs.Trigger.Icon`).
 - [ ] Kolory i typografia z `useAppTheme()` — bez hardcoded hexów.
 - [ ] Brak zagnieżdżonego scrolla `FieldGroup` w `ScrollView`.
 - [ ] Animacje na Reanimated 4 (bez `Animated` / `LayoutAnimation` na hot path).
+- [ ] Tokeny motion z `src/theme/motion.ts`; respektuj Reduce Motion (`useMotionEnabled`).
+- [ ] ProMotion: `CADisableMinimumFrameDurationOnPhone` w `app.json` i `Info.plist` (`scripts/check-ios-config.mjs`).
 - [ ] Manualny smoke na **iOS Simulator / Urządzenie**.
 - [ ] Light i dark mode na iOS (tam gdzie ekran ma motyw).
+- [ ] Na iPhone Pro (opcjonalnie): Core Animation FPS przy scrollu chat/inbox oraz Tapback / shutter.
 
 ---
 

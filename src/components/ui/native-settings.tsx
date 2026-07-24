@@ -15,7 +15,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { resolveAppIconName, type AppIconName } from '../../theme/app-icons';
+import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 import { AvatarCircle } from './avatar-circle';
 
 type NativeSettingsSectionProps = {
@@ -87,7 +87,12 @@ export function NativeSettingsRow({
     </RNHostView>
   ) : icon ? (
     <HStack alignment="center" modifiers={[frame({ width: 26, alignment: 'center' })]}>
-      <SymbolView name={resolveAppIconName(icon) as SFSymbol} size={19} tintColor={iconColor ?? foregroundColor} fallback={<View style={{ width: 19, height: 19 }} />} />
+      <SymbolView
+        name={resolveAppIconName(icon) as SFSymbol}
+        size={APP_ICON_SIZE.settings}
+        tintColor={iconColor ?? foregroundColor}
+        fallback={<View style={{ width: APP_ICON_SIZE.settings, height: APP_ICON_SIZE.settings }} />}
+      />
     </HStack>
   ) : (
     leading
@@ -95,7 +100,11 @@ export function NativeSettingsRow({
   // Always SwiftImage for disclosure — SymbolView inside / beside SwiftUI accessories
   // diverges in weight/tint from plain trailing chevrons.
   const chevron = showsChevron ? (
-    <SwiftImage systemName="chevron.right" size={13} color={colors.tertiaryLabel} />
+    <SwiftImage
+      systemName={resolveAppIconName('chevronRight') as SFSymbol}
+      size={APP_ICON_SIZE.xs}
+      color={colors.tertiaryLabel}
+    />
   ) : null;
 
   const resolvedTrailing =

@@ -42,6 +42,7 @@ import type { IncomingFriendRequest } from '../../services/friendService';
 import type { InboxRowModel, InboxRowStatus } from '../../lib/inboxPresentation';
 import type { InboxScreenViewModel } from '../../hooks/useInboxScreen';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 import { AppHost } from '../ui/app-host';
 import { AvatarCircle } from '../ui/avatar-circle';
 
@@ -219,8 +220,8 @@ function MessageRowContent({
             )}
           </VStack>
           <Image
-            systemName="chevron.right"
-            size={13}
+            systemName={resolveAppIconName('chevronRight')}
+            size={APP_ICON_SIZE.xs}
             color={colors.tertiaryLabel}
             modifiers={[accessibilityHidden()]}
           />
@@ -377,12 +378,12 @@ function LegacyUnavailableState({
 }: {
   title: string;
   description: string;
-  systemImage: 'tray' | 'exclamationmark.triangle';
+  systemImage: AppIconName;
 }) {
   return (
     <VStack alignment="center" spacing={8} modifiers={[padding({ horizontal: 32 })]}>
       <Image
-        systemName={systemImage}
+        systemName={resolveAppIconName(systemImage)}
         modifiers={[
           font({ textStyle: 'largeTitle' }),
           foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
@@ -425,10 +426,11 @@ function InboxUnavailableState({
   onRetry?: () => void;
 }) {
   const { colors, statusBarStyle } = useAppTheme();
-  const systemImage = kind === 'empty' ? 'tray' : 'exclamationmark.triangle';
+  const systemImage: AppIconName = kind === 'empty' ? 'inbox' : 'warning';
+  const resolvedSystemImage = resolveAppIconName(systemImage);
   const state =
     kind === 'empty' && supportsContentUnavailableView ? (
-      <ContentUnavailableView title={title} description={description} systemImage={systemImage} />
+      <ContentUnavailableView title={title} description={description} systemImage={resolvedSystemImage} />
     ) : (
       <LegacyUnavailableState title={title} description={description} systemImage={systemImage} />
     );

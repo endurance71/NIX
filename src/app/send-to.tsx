@@ -21,6 +21,7 @@ import { useScreenInsets } from '../hooks/useScreenInsets';
 import { notifyError, notifySuccess } from '../lib/appNotify';
 import { selection, tap } from '../lib/haptics';
 import { usePushNotifications } from '../context/pushNotifications';
+import { APP_ICON_SIZE } from '../theme/app-icons';
 
 const SEND_CONCURRENCY = 2;
 
@@ -79,7 +80,7 @@ function FriendRecipientRow({
       <Text numberOfLines={1} style={[styles.username, { color: colors.label }]}>
         {item.display_name ? item.display_name : item.username ? `@${item.username}` : 'Nieznany'}
       </Text>
-      {selected ? <AppIcon name="checkCircle" size={24} color={tintColor} /> : null}
+      {selected ? <AppIcon name="checkCircle" size={APP_ICON_SIZE.xxl} color={tintColor} /> : null}
     </Pressable>
   );
 }
@@ -302,7 +303,7 @@ export default function SendToSheet() {
               <Text style={stylesForTheme.sendButtonText}>
                 {selectedCount > 1 ? `Wyślij do ${selectedCount} znajomych` : 'Wyślij wiadomość'}
               </Text>
-              <AppIcon name="send" size={20} color={colors.buttonPrimaryText} />
+              <AppIcon name="send" size={APP_ICON_SIZE.lg} color={colors.buttonPrimaryText} />
             </>
           )}
         </Pressable>

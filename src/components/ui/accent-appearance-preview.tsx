@@ -15,11 +15,12 @@ import {
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 
 const PREVIEW_HEIGHT = 200;
 const CORNER_RADIUS = 26;
 
-const PREVIEW_ICONS = ['trash', 'folder', 'arrow.uturn.backward'] as const satisfies readonly SFSymbol[];
+const PREVIEW_ICONS = ['trash', 'folder', 'undo'] as const satisfies readonly AppIconName[];
 
 function withAlpha(hex: string, alphaHex: string): string {
   if (hex.length === 7 && hex.startsWith('#')) {
@@ -76,8 +77,13 @@ export function AccentAppearancePreview() {
               ? [glassEffect({ glass: { variant: 'regular', interactive: false }, shape: 'capsule' as const })]
               : []),
           ]}>
-          {PREVIEW_ICONS.map((systemName) => (
-            <SwiftImage key={systemName} systemName={systemName} size={22} color={accent} />
+          {PREVIEW_ICONS.map((name) => (
+            <SwiftImage
+              key={name}
+              systemName={resolveAppIconName(name) as SFSymbol}
+              size={APP_ICON_SIZE.xl}
+              color={accent}
+            />
           ))}
         </HStack>
       </ZStack>
