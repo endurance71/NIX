@@ -80,21 +80,24 @@ export default function RegisterScreen() {
 
     setLoading(true);
     setError(null);
-    const { error: signUpError } = await signUp(cleanedEmail, passwordValue, acceptedLegal);
-    setLoading(false);
+    try {
+      const { error: signUpError } = await signUp(cleanedEmail, passwordValue, acceptedLegal);
 
-    if (signUpError) {
-      if (signUpError.message.includes('User already registered')) {
-        setError(t('auth.accountExists'));
-      } else if (signUpError.message.includes('Password should be at least')) {
-        setError(t('auth.passwordMin'));
+      if (signUpError) {
+        if (signUpError.message.includes('User already registered')) {
+          setError(t('auth.accountExists'));
+        } else if (signUpError.message.includes('Password should be at least')) {
+          setError(t('auth.passwordMin'));
+        } else {
+          setError(signUpError.message);
+        }
       } else {
-        setError(signUpError.message);
+        router.replace({ pathname: '/(auth)/check-email', params: { email: cleanedEmail, mode: 'signup' } });
       }
-      return;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
     }
-
-    router.replace({ pathname: '/(auth)/check-email', params: { email: cleanedEmail, mode: 'signup' } });
+    setLoading(false);
   };
 
   return (

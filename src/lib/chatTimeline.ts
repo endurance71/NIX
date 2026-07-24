@@ -40,6 +40,37 @@ export function sortMessagesAscending<T extends { created_at: string }>(messages
   });
 }
 
+const TIME_ONLY_OPTIONS: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
+const DAY_WITHOUT_YEAR_OPTIONS: Intl.DateTimeFormatOptions = {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+};
+const DAY_WITH_YEAR_OPTIONS: Intl.DateTimeFormatOptions = {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+};
+
+const dateTimeFormatCache = new Map<string, Intl.DateTimeFormat>();
+
+function getCachedDateTimeFormat(
+  locale: string,
+  options: Intl.DateTimeFormatOptions
+): Intl.DateTimeFormat {
+  const cacheKey = `${locale}|${JSON.stringify(options)}`;
+  const cached = dateTimeFormatCache.get(cacheKey);
+  if (cached) return cached;
+  const formatter = new Intl.DateTimeFormat(locale, options);
+  dateTimeFormatCache.set(cacheKey, formatter);
+  return formatter;
+}
+
 export function formatChatSeparatorLabel(
   input: string | Date,
   locale: string,
@@ -54,18 +85,14 @@ export function formatChatSeparatorLabel(
     date.getDate() === now.getDate();
 
   if (sameDay) {
-    return new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(date);
+    return getCachedDateTimeFormat(locale, TIME_ONLY_OPTIONS).format(date);
   }
 
   const sameYear = date.getFullYear() === now.getFullYear();
-  return new Intl.DateTimeFormat(locale, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    ...(sameYear ? {} : { year: 'numeric' }),
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date);
+  return getCachedDateTimeFormat(
+    locale,
+    sameYear ? DAY_WITHOUT_YEAR_OPTIONS : DAY_WITH_YEAR_OPTIONS
+  ).format(date);
 }
 
 type TimelineStamp = { id: string; created_at: string };

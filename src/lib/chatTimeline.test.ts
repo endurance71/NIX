@@ -49,6 +49,14 @@ describe('formatChatSeparatorLabel', () => {
     expect(label.length).toBeGreaterThan(0);
     expect(label).not.toMatch(/2026/);
   });
+
+  it('returns stable labels across repeated calls for the same locale', () => {
+    const now = new Date('2026-07-24T15:00:00');
+    const first = formatChatSeparatorLabel('2026-07-20T12:39:00', 'pl', now);
+    const second = formatChatSeparatorLabel('2026-07-20T12:39:00', 'pl', now);
+    expect(first).toBe(second);
+    expect(first).toMatch(/2026|lip|Jul|VII/i);
+  });
 });
 
 describe('buildChatTimeline', () => {

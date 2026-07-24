@@ -13,21 +13,21 @@ import { tap } from '../../lib/haptics';
 import { resolveAppIconName } from '../../theme/app-icons';
 import { AppIcon } from '../ui/app-icon';
 
+function openComposeChat() {
+  tap('light');
+  router.push('/new-chat');
+}
+
 export function HeaderComposeButton() {
   const { colors } = useAppTheme();
   const { t } = useTranslation();
   const label = t('inbox.composeChatA11y');
 
-  const handlePress = () => {
-    tap('light');
-    router.push('/new-chat');
-  };
-
   if (Platform.OS === 'ios') {
     return (
       <Host matchContents style={styles.host}>
         <Button
-          onPress={handlePress}
+          onPress={openComposeChat}
           modifiers={[
             buttonStyle('plain'),
             frame({ width: 36, height: 36 }),
@@ -45,7 +45,7 @@ export function HeaderComposeButton() {
 
   return (
     <Pressable
-      onPress={handlePress}
+      onPress={openComposeChat}
       accessibilityLabel={label}
       accessibilityRole="button"
       hitSlop={10}

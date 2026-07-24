@@ -53,6 +53,7 @@ export default function FriendInviteScreen() {
   });
 
   useEffect(() => {
+    let cancelled = false;
     const run = async () => {
       if (!token && !profileId) {
         trackEvent('friend_invite_redeem', {
@@ -60,12 +61,15 @@ export default function FriendInviteScreen() {
           status: 'fail',
           errorCode: 'missing_payload',
         });
-        dispatch({ type: 'missing_payload' });
+        if (!cancelled) {
+          dispatch({ type: 'missing_payload' });
+        }
         return;
       }
       try {
         if (profileId) {
           const result = await sendFriendRequestByProfileQr(profileId);
+          if (cancelled) return;
           dispatch({
             type: 'done',
             message: mapResultMessage(result.result, result.profile?.username),
@@ -79,6 +83,7 @@ export default function FriendInviteScreen() {
         }
 
         const result = await redeemFriendInviteToken(token as string);
+        if (cancelled) return;
         dispatch({
           type: 'done',
           message: mapResultMessage(result.result, result.inviterProfile?.username),
@@ -89,6 +94,7 @@ export default function FriendInviteScreen() {
           result: result.result,
         });
       } catch (err: unknown) {
+        if (cancelled) return;
         const msg = err instanceof Error ? err.message : 'Nie udało się zrealizować zaproszenia.';
         dispatch({ type: 'done', message: msg });
         trackEvent('friend_invite_redeem', {
@@ -99,6 +105,9 @@ export default function FriendInviteScreen() {
       }
     };
     void run();
+    return () => {
+      cancelled = true;
+    };
   }, [token, profileId]);
 
   return (

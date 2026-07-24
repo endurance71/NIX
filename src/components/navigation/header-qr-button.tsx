@@ -11,21 +11,21 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { tap } from '../../lib/haptics';
 import { AppIcon } from '../ui/app-icon';
 
+function openMyQrCode() {
+  tap('light');
+  router.push('/(tabs)/profile/my-code');
+}
+
 export function HeaderQrButton() {
   const { colors } = useAppTheme();
   const { t } = useTranslation();
   const label = t('profile.myQrCode');
 
-  const handlePress = () => {
-    tap('light');
-    router.push('/(tabs)/profile/my-code');
-  };
-
   if (Platform.OS === 'ios') {
     return (
       <Host matchContents style={styles.host}>
         <Button
-          onPress={handlePress}
+          onPress={openMyQrCode}
           modifiers={[
             buttonStyle('plain'),
             frame({ width: 36, height: 36 }),
@@ -39,7 +39,7 @@ export function HeaderQrButton() {
 
   return (
     <Pressable
-      onPress={handlePress}
+      onPress={openMyQrCode}
       accessibilityLabel={label}
       accessibilityRole="button"
       hitSlop={10}

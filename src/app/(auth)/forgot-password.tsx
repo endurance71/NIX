@@ -32,15 +32,18 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     setError(null);
-    const { error: resetError } = await requestPasswordReset(cleanedEmail);
-    setLoading(false);
+    try {
+      const { error: resetError } = await requestPasswordReset(cleanedEmail);
 
-    if (resetError) {
-      setError(resetError.message);
-      return;
+      if (resetError) {
+        setError(resetError.message);
+      } else {
+        router.replace({ pathname: '/(auth)/check-email', params: { email: cleanedEmail, mode: 'recovery' } });
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
     }
-
-    router.replace({ pathname: '/(auth)/check-email', params: { email: cleanedEmail, mode: 'recovery' } });
+    setLoading(false);
   };
 
   return (

@@ -169,7 +169,7 @@ function DateSeparator({ label }: { label: string }) {
  * Pozycja względem klawiatury: `bottom: keyboardHeight` (bez KeyboardAvoidingView —
  * KAV + absolute composer zostawia szary pas między barem a klawiaturą).
  */
-export function ChatComposer({ vm }: ChatComposerProps) {
+function ChatComposer({ vm }: ChatComposerProps) {
   const { colors } = useAppTheme();
   const { bottomContentInset } = useScreenInsets('stackHeader');
   const [keyboardHeight, setKeyboardHeight] = useState(0);

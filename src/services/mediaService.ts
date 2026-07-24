@@ -521,6 +521,9 @@ export async function getImageBytes(fileUri: string): Promise<Uint8Array> {
 
   try {
     const response = await fetch(fileUri);
+    if (!response.ok) {
+      throw new Error(`fetch status ${response.status}`);
+    }
     buffer = await response.arrayBuffer();
     if (buffer.byteLength > 0) {
       return new Uint8Array(buffer);

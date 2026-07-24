@@ -187,27 +187,36 @@ export default function SendToSheet() {
       await processBatchFromIndex(startIndex + SEND_CONCURRENCY);
     };
 
-    await processBatchFromIndex(0);
+    let completed = false;
+    try {
+      await processBatchFromIndex(0);
 
-    if (isVideo) clearSegments();
-    else clearPhotoUri();
-    void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
+      if (isVideo) clearSegments();
+      else clearPhotoUri();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
 
-    if (successCount > 0) {
-      notifySuccess(
-        'Wysyłka zakończona',
-        failureCount > 0 ? { message: `Błędy: ${failureCount}/${selectedCount}.` } : undefined
-      );
-    }
-    if (failureCount > 0) {
-      const firstFailureReason = failureReasons.values().next().value;
-      notifyError('Część wiadomości nie została wysłana', {
-        message: firstFailureReason ?? `Niepowodzenia: ${failureCount}/${selectedCount}.`,
+      if (successCount > 0) {
+        notifySuccess(
+          'Wysyłka zakończona',
+          failureCount > 0 ? { message: `Błędy: ${failureCount}/${selectedCount}.` } : undefined
+        );
+      }
+      if (failureCount > 0) {
+        const firstFailureReason = failureReasons.values().next().value;
+        notifyError('Część wiadomości nie została wysłana', {
+          message: firstFailureReason ?? `Niepowodzenia: ${failureCount}/${selectedCount}.`,
+        });
+      }
+      completed = true;
+    } catch (err) {
+      notifyError('Wysyłka nie powiodła się', {
+        message: toDomainError(err, 'Spróbuj ponownie za chwilę.').message,
       });
     }
-
     setIsSending(false);
     sendLockRef.current = false;
+    if (!completed) return;
+
     router.dismissAll();
     if (successCount > 0) {
       setTimeout(() => void offerAfterSuccessfulSend(), 400);

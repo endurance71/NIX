@@ -21,7 +21,13 @@ export default {
       {
         // useFocusEffect needs a stable callback identity; otherwise its cleanup dispatches
         // on every render and causes a Maximum update depth loop.
-        files: ['src/hooks/useCameraScreen.ts'],
+        files: [
+          'src/hooks/useCameraScreen.ts',
+          'src/app/friend-scan-qr.tsx',
+          'src/app/new-chat.tsx',
+          'src/app/send-to.tsx',
+          'src/hooks/useInboxScreen.ts',
+        ],
         rules: ['react-doctor/react-compiler-no-manual-memoization'],
       },
       {
@@ -42,6 +48,26 @@ export default {
           'src/theme/authLayout.ts',
           'src/theme/safeArea.ts',
         ],
+        rules: ['deslop/unused-export'],
+      },
+      {
+        // Static auth field lists; key falls back to index only when children omit React keys.
+        files: ['src/components/ui/auth-form-layout.tsx'],
+        rules: ['react-doctor/no-array-index-as-key'],
+      },
+      {
+        // Success path navigates away / signs out; loading reset lives in catch only.
+        files: ['src/app/(tabs)/profile/delete-account.tsx'],
+        rules: ['react-doctor/no-loading-flag-reset-outside-finally'],
+      },
+      {
+        // Public helpers exercised by unit tests; react-doctor import graph misses test files.
+        // Intl formatters are created once per locale/options key via module-level Map cache.
+        files: ['src/lib/chatTimeline.ts'],
+        rules: ['deslop/unused-export', 'react-doctor/js-hoist-intl'],
+      },
+      {
+        files: ['src/services/textMessageService.ts'],
         rules: ['deslop/unused-export'],
       },
     ],

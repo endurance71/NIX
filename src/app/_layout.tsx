@@ -93,10 +93,7 @@ function RootNavigator() {
   const { topContentInset, bottomContentInset } = useScreenInsets('fullscreen');
 
   useEffect(() => {
-    if (!loading) {
-      setBootstrapTimedOut(false);
-      return;
-    }
+    if (!loading) return;
 
     const timer = setTimeout(() => {
       setBootstrapTimedOut(true);
@@ -104,6 +101,7 @@ function RootNavigator() {
 
     return () => {
       clearTimeout(timer);
+      setBootstrapTimedOut(false);
     };
   }, [loading]);
 

@@ -54,6 +54,14 @@ function FriendRow({ avatarUrl, item, onPress }: FriendRowProps) {
   );
 }
 
+function openChat(peerId: string) {
+  tap('light');
+  router.dismiss();
+  setTimeout(() => {
+    router.push({ pathname: '/chat/[peerId]', params: { peerId } });
+  }, 50);
+}
+
 export default function NewChatSheet() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -93,14 +101,6 @@ export default function NewChatSheet() {
     enabled: sortedFriendAvatarPaths.length > 0,
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
-
-  const openChat = (peerId: string) => {
-    tap('light');
-    router.dismiss();
-    setTimeout(() => {
-      router.push({ pathname: '/chat/[peerId]', params: { peerId } });
-    }, 50);
-  };
 
   const renderItem = ({ item }: { item: FriendProfile }) => (
     <FriendRow

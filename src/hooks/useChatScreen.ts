@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -77,25 +77,21 @@ export function useChatScreen(peerId: string) {
   const messages: OptimisticTextMessage[] = messagesQuery.data ?? [];
   const nixes: ChatNixEvent[] = nixesQuery.data ?? [];
 
-  const reportReasons = useMemo(
-    () =>
-      CHAT_REPORT_REASON_IDS.map((id) => ({
-        id,
-        label: t(`chat.reportReasons.${id}`),
-      })),
-    [t]
-  );
+  const reportReasons = CHAT_REPORT_REASON_IDS.map((id) => ({
+    id,
+    label: t(`chat.reportReasons.${id}`),
+  }));
 
-  const invalidateChat = useCallback(async () => {
+  const invalidateChat = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.textMessagesWithPeer(peerId) }),
       queryClient.invalidateQueries({ queryKey: ['chatNixesWithPeer', peerId] }),
       queryClient.invalidateQueries({ queryKey: queryKeys.inboxActivityBundle }),
       queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
     ]);
-  }, [peerId, queryClient]);
+  };
 
-  const handleSend = useCallback(async () => {
+  const handleSend = async () => {
     const trimmed = inputBody.trim();
     if (!trimmed || sending || !peerId) return;
 
@@ -136,43 +132,36 @@ export function useChatScreen(peerId: string) {
       notifyDomainError(error, t('chat.sendFailure'));
       setInputBody(trimmed);
       setComposerKey((key) => key + 1);
-    } finally {
-      setSending(false);
     }
-  }, [inputBody, sending, peerId, currentUserId, queryClient, t, invalidateChat]);
+    setSending(false);
+  };
 
-  const handleReportMessage = useCallback(
-    async (message: TextMessage, reason: ReportReason) => {
-      try {
-        await reportContent({
-          reportedUserId: message.sender_id,
-          textMessageId: message.id,
-          reason,
-          details: 'User reported text message in chat screen.',
-        });
-        notifySuccess(t('chat.reportSuccess'));
-      } catch (error) {
-        notifyDomainError(error, t('chat.reportFailure'));
-      }
-    },
-    [t]
-  );
-
-  const handleOpenNix = useCallback(
-    (nix: ChatNixEvent) => {
-      if (nix.direction !== 'received' || nix.is_viewed || !nix.media_path) return;
-      if (nix.status === 'cleaned' || nix.status === 'cleanup_failed') return;
-      router.push({
-        pathname: '/viewer',
-        params: {
-          id: nix.id,
-          path: nix.media_path,
-          senderId: peerId,
-        },
+  const handleReportMessage = async (message: TextMessage, reason: ReportReason) => {
+    try {
+      await reportContent({
+        reportedUserId: message.sender_id,
+        textMessageId: message.id,
+        reason,
+        details: 'User reported text message in chat screen.',
       });
-    },
-    [peerId]
-  );
+      notifySuccess(t('chat.reportSuccess'));
+    } catch (error) {
+      notifyDomainError(error, t('chat.reportFailure'));
+    }
+  };
+
+  const handleOpenNix = (nix: ChatNixEvent) => {
+    if (nix.direction !== 'received' || nix.is_viewed || !nix.media_path) return;
+    if (nix.status === 'cleaned' || nix.status === 'cleanup_failed') return;
+    router.push({
+      pathname: '/viewer',
+      params: {
+        id: nix.id,
+        path: nix.media_path,
+        senderId: peerId,
+      },
+    });
+  };
 
   const peerAvatarUrl = peerAvatarPath ? peerAvatarQuery.data?.[peerAvatarPath] ?? null : null;
   const messagesLoading =

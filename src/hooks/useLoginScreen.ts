@@ -95,15 +95,20 @@ export function useLoginScreen() {
     setLoading(true);
     setError(null);
     tap('medium');
-    const { error: signInError } = await signIn(trimmedEmail, passwordValue);
-    setLoading(false);
+    try {
+      const { error: signInError } = await signIn(trimmedEmail, passwordValue);
 
-    if (signInError) {
-      setError(getAuthErrorMessage(signInError.message, t));
+      if (signInError) {
+        setError(getAuthErrorMessage(signInError.message, t));
+        notify('error');
+      } else {
+        notify('success');
+      }
+    } catch (cause) {
+      setError(getAuthErrorMessage(cause instanceof Error ? cause.message : String(cause), t));
       notify('error');
-    } else {
-      notify('success');
     }
+    setLoading(false);
   };
 
   const handleAppleSignIn = async () => {
@@ -113,24 +118,25 @@ export function useLoginScreen() {
     setAppleLoading(true);
     tap('medium');
 
-    const { data, error: appleError } = await signInWithApple();
+    try {
+      const { data, error: appleError } = await signInWithApple();
 
-    setAppleLoading(false);
-
-    if (appleError) {
-      if (isSocialAuthNotConfiguredError(appleError.message)) {
-        setError(t('auth.socialAuthNotConfiguredApple'));
-        notify('error');
-        return;
+      if (appleError) {
+        if (isSocialAuthNotConfiguredError(appleError.message)) {
+          setError(t('auth.socialAuthNotConfiguredApple'));
+          notify('error');
+        } else {
+          setError(getAppleSignInErrorMessage(appleError.message, t));
+          notify('error');
+        }
+      } else if (data?.session) {
+        notify('success');
       }
-      setError(getAppleSignInErrorMessage(appleError.message, t));
+    } catch (cause) {
+      setError(getAppleSignInErrorMessage(cause instanceof Error ? cause.message : String(cause), t));
       notify('error');
-      return;
     }
-
-    if (data?.session) {
-      notify('success');
-    }
+    setAppleLoading(false);
   };
 
   return {
