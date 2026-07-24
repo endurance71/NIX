@@ -10,6 +10,10 @@ const expected = [
   '20260715095155_add_safety_moderation_and_age_gate.sql',
   '20260715160000_add_push_notifications.sql',
   '20260715170000_remove_redundant_service_role_policies.sql',
+  '20260722193000_enable_push_dispatch_pipeline.sql',
+  '20260723193000_profile_display_name_and_privacy.sql',
+  '20260724092500_update_public_profile_rpcs_add_display_name.sql',
+  '20260724120000_add_text_messages_realtime_chat.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
@@ -82,6 +86,7 @@ for (const name of [
   'cleanup-moderation-evidence',
   'push-dispatch',
   'push-receipts',
+  'cleanup-text-messages',
 ]) {
   const escaped = name.replaceAll('-', '\\-');
   const section = new RegExp(`\\[functions\\.${escaped}\\][\\s\\S]*?verify_jwt\\s*=\\s*true`);
