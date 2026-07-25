@@ -10,6 +10,7 @@ import {
 } from '../services/friendService';
 import {
   deleteConversationWithPeer,
+  fetchChatNixesWithPeer,
 } from '../services/nixService';
 import {
   AVATAR_SIGNED_URL_STALE_TIME_MS,
@@ -24,7 +25,12 @@ import { notifyDomainError, notifyError, notifyInfo, notifySuccess } from '../li
 import { inboxNixesBundleQueryOptions } from '../lib/inboxQuery';
 import { runWithFinally } from '../lib/runWithFinally';
 import { blockUser } from '../services/safetyService';
+import { fetchTextMessagesWithPeer } from '../services/textMessageService';
+import { fetchMessageReactionsWithPeer } from '../services/messageReactionService';
+import { useAuth } from './useAuth';
 
+/** Keep in sync with useChatScreen CHAT_STALE_TIME_MS. */
+const CHAT_STALE_TIME_MS = 60_000;
 async function refreshInboxQueries(queryClient: QueryClient, failureMessage: string) {
   try {
     await Promise.all([
@@ -41,6 +47,8 @@ export function useInboxScreen() {
   const { t } = useTranslation();
   const locale = getCurrentLocale();
   const queryClient = useQueryClient();
+  const { session } = useAuth();
+  const currentUserId = session?.user?.id ?? '';
   const inviteActionIdsRef = useRef(new Set<string>());
   const busyPeerIdsRef = useRef(new Set<string>());
   const [inviteActionIds, setInviteActionIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -238,9 +246,25 @@ export function useInboxScreen() {
         },
       });
     } else {
+      const peerId = row.peerId;
+      void queryClient.prefetchQuery({
+        queryKey: queryKeys.textMessagesWithPeer(peerId),
+        queryFn: () => fetchTextMessagesWithPeer({ peerId, limit: 50 }),
+        staleTime: CHAT_STALE_TIME_MS,
+      });
+      void queryClient.prefetchQuery({
+        queryKey: queryKeys.messageReactionsWithPeer(peerId),
+        queryFn: () => fetchMessageReactionsWithPeer(peerId),
+        staleTime: CHAT_STALE_TIME_MS,
+      });
+      void queryClient.prefetchQuery({
+        queryKey: ['chatNixesWithPeer', peerId] as const,
+        queryFn: () => fetchChatNixesWithPeer(peerId, 50, currentUserId || undefined),
+        staleTime: CHAT_STALE_TIME_MS,
+      });
       router.push({
         pathname: '/chat/[peerId]',
-        params: { peerId: row.peerId },
+        params: { peerId },
       });
     }
   };

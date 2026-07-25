@@ -36,9 +36,25 @@ export function AppRealtimeSync({ userId }: { userId: string }) {
         queryClient.invalidateQueries({ queryKey })
       );
       if (areas.has('textChat') || areas.has('inbox')) {
-        promises.push(queryClient.invalidateQueries({ queryKey: ['textMessagesWithPeer'] }));
-        promises.push(queryClient.invalidateQueries({ queryKey: ['messageReactionsWithPeer'] }));
-        promises.push(queryClient.invalidateQueries({ queryKey: ['chatNixesWithPeer'] }));
+        // cancelRefetch:false — don't abort the chat screen's initial fetch on mount/foreground.
+        promises.push(
+          queryClient.invalidateQueries(
+            { queryKey: ['textMessagesWithPeer'] },
+            { cancelRefetch: false }
+          )
+        );
+        promises.push(
+          queryClient.invalidateQueries(
+            { queryKey: ['messageReactionsWithPeer'] },
+            { cancelRefetch: false }
+          )
+        );
+        promises.push(
+          queryClient.invalidateQueries(
+            { queryKey: ['chatNixesWithPeer'] },
+            { cancelRefetch: false }
+          )
+        );
       }
       await Promise.all(promises);
     };

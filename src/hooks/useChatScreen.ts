@@ -42,6 +42,10 @@ export type OptimisticTextMessage = TextMessage & {
 
 const CHAT_REPORT_REASON_IDS = ['harassment', 'spam', 'other'] as const satisfies readonly ReportReason[];
 
+/** Realtime keeps chat fresh; avoid cold refetch on every focus/re-enter. */
+const CHAT_STALE_TIME_MS = 60_000;
+const EMPTY_CHAT_NIXES: ChatNixEvent[] = [];
+
 export function useChatScreen(peerId: string) {
   const { t, i18n } = useTranslation();
   const { session } = useAuth();
@@ -74,7 +78,7 @@ export function useChatScreen(peerId: string) {
   const messagesQuery = useQuery({
     queryKey: queryKeys.textMessagesWithPeer(peerId),
     queryFn: () => fetchTextMessagesWithPeer({ peerId, limit: 50 }),
-    staleTime: 2_000,
+    staleTime: CHAT_STALE_TIME_MS,
     enabled: Boolean(peerId),
     refetchOnWindowFocus: true,
     select: (rows) => sortMessagesAscending(rows),
@@ -83,17 +87,18 @@ export function useChatScreen(peerId: string) {
   const reactionsQuery = useQuery({
     queryKey: queryKeys.messageReactionsWithPeer(peerId),
     queryFn: () => fetchMessageReactionsWithPeer(peerId),
-    staleTime: 2_000,
+    staleTime: CHAT_STALE_TIME_MS,
     enabled: Boolean(peerId),
     refetchOnWindowFocus: true,
   });
 
   const nixesQuery = useQuery({
     queryKey: ['chatNixesWithPeer', peerId] as const,
-    queryFn: () => fetchChatNixesWithPeer(peerId, 50),
-    staleTime: 2_000,
+    queryFn: () => fetchChatNixesWithPeer(peerId, 50, currentUserId || undefined),
+    staleTime: CHAT_STALE_TIME_MS,
     enabled: Boolean(peerId),
     refetchOnWindowFocus: true,
+    placeholderData: EMPTY_CHAT_NIXES,
   });
 
   const messages: OptimisticTextMessage[] = messagesQuery.data ?? [];
@@ -105,14 +110,9 @@ export function useChatScreen(peerId: string) {
     label: t(`chat.reportReasons.${id}`),
   }));
 
-  const invalidateChat = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.textMessagesWithPeer(peerId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.messageReactionsWithPeer(peerId) }),
-      queryClient.invalidateQueries({ queryKey: ['chatNixesWithPeer', peerId] }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.inboxActivityBundle }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
-    ]);
+  const refreshInboxInBackground = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.inboxActivityBundle });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
   };
 
   const handleSend = async () => {
@@ -147,12 +147,18 @@ export function useChatScreen(peerId: string) {
     await runWithFinally(
       async () => {
         try {
-          await sendTextMessage({
+          const saved = await sendTextMessage({
             receiverId: peerId,
             body: trimmed,
             clientMessageId,
           });
-          await invalidateChat();
+          queryClient.setQueryData<TextMessage[]>(queryKeys.textMessagesWithPeer(peerId), (old = []) =>
+            sortMessagesAscending([
+              ...old.filter((m) => m.client_message_id !== clientMessageId && m.id !== saved.id),
+              saved,
+            ])
+          );
+          refreshInboxInBackground();
         } catch (error) {
           queryClient.setQueryData<TextMessage[]>(queryKeys.textMessagesWithPeer(peerId), (old = []) =>
             old.filter((m) => m.client_message_id !== clientMessageId)
@@ -289,7 +295,7 @@ export function useChatScreen(peerId: string) {
 
     try {
       await upsertMessageReaction(message.id, emoji);
-      await queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: queryKeys.messageReactionsWithPeer(peerId),
       });
     } catch (error) {
@@ -320,7 +326,7 @@ export function useChatScreen(peerId: string) {
 
     try {
       await removeMessageReaction(message.id);
-      await queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: queryKeys.messageReactionsWithPeer(peerId),
       });
     } catch (error) {
@@ -352,9 +358,8 @@ export function useChatScreen(peerId: string) {
   };
 
   const peerAvatarUrl = peerAvatarPath ? peerAvatarQuery.data?.[peerAvatarPath] ?? null : null;
-  const messagesLoading =
-    (messagesQuery.isPending && messagesQuery.data === undefined) ||
-    (nixesQuery.isPending && nixesQuery.data === undefined);
+  // Full-screen loader only on cold messages — nixes stream into the timeline.
+  const messagesLoading = messagesQuery.isPending && messagesQuery.data === undefined;
 
   return {
     t,

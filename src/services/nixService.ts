@@ -640,9 +640,13 @@ export type ChatNixEvent = {
 };
 
 /** NiXy w obu kierunkach z danym peerm — do unified czatu. */
-export async function fetchChatNixesWithPeer(peerId: string, limit = 50): Promise<ChatNixEvent[]> {
-  const user = await getCurrentUser();
-  if (!user || !peerId) return [];
+export async function fetchChatNixesWithPeer(
+  peerId: string,
+  limit = 50,
+  currentUserId?: string
+): Promise<ChatNixEvent[]> {
+  const userId = currentUserId || (await getCurrentUser())?.id;
+  if (!userId || !peerId) return [];
   const pageLimit = normalizePageLimit(limit);
 
   const { data, error } = await supabase
@@ -664,7 +668,7 @@ export async function fetchChatNixesWithPeer(peerId: string, limit = 50): Promis
     `
     )
     .or(
-      `and(sender_id.eq.${user.id},receiver_id.eq.${peerId}),and(sender_id.eq.${peerId},receiver_id.eq.${user.id})`
+      `and(sender_id.eq.${userId},receiver_id.eq.${peerId}),and(sender_id.eq.${peerId},receiver_id.eq.${userId})`
     )
     .order('created_at', { ascending: false })
     .limit(pageLimit);
@@ -685,7 +689,7 @@ export async function fetchChatNixesWithPeer(peerId: string, limit = 50): Promis
     status: ChatNixEvent['status'] | null;
     view_duration_sec: number | null;
   }>).map((nix) => {
-    const direction: 'sent' | 'received' = nix.sender_id === user.id ? 'sent' : 'received';
+    const direction: 'sent' | 'received' = nix.sender_id === userId ? 'sent' : 'received';
     const isViewed = nix.is_viewed === true || nix.status === 'viewed' || nix.status === 'cleaned';
     return {
       id: nix.id,
