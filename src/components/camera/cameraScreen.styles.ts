@@ -128,7 +128,7 @@ export function createCameraStyles(colors: ThemeColors) {
     },
     lensSwitcherSlot: {
       position: 'absolute',
-      bottom: 90,
+      bottom: 92,
       left: 0,
       right: 0,
       alignItems: 'center',
