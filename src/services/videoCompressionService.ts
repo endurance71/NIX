@@ -12,7 +12,7 @@ export type CompressionProgress = Pick<MediaUploadProgress, 'phase' | 'progress'
 
 const DEFAULT_COMPRESSION_TIMEOUT_MS = 30_000;
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+export function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
@@ -36,7 +36,7 @@ const COMPRESSION_TIMEOUT_BASE_MS = 15_000;
 const COMPRESSION_TIMEOUT_PER_MB_MS = 2_000;
 const COMPRESSION_TIMEOUT_MAX_MS = 120_000;
 
-function getCompressionTimeout(fileSizeBytes: number | null | undefined): number {
+export function getCompressionTimeout(fileSizeBytes: number | null | undefined): number {
   if (typeof fileSizeBytes !== 'number' || fileSizeBytes <= 0) return DEFAULT_COMPRESSION_TIMEOUT_MS;
   const sizeMb = fileSizeBytes / (1024 * 1024);
   return Math.min(COMPRESSION_TIMEOUT_MAX_MS, COMPRESSION_TIMEOUT_BASE_MS + sizeMb * COMPRESSION_TIMEOUT_PER_MB_MS);

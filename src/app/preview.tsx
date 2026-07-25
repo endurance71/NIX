@@ -546,8 +546,8 @@ export default function PreviewScreen() {
   const [imageLoading, setImageLoading] = useState(true);
 
   const { segments, setSegments, clearSegments } = useVideoDraft();
-  const { uri: draftPhotoUri, clearUri: clearPhotoUri } = usePhotoDraft();
-  const photoUri = draftPhotoUri ?? paramUri;
+  const { draft: draftPhoto, clearDraft: clearPhotoDraft } = usePhotoDraft();
+  const photoUri = draftPhoto?.uri ?? paramUri;
   const routeVideoSegment =
     mode === 'video' && paramUri ? { uri: paramUri, durationMs: Math.max(0, Number(rawDurationMs) || 0) } : null;
   const routeVideoSegments = routeVideoSegment ? [routeVideoSegment] : null;
@@ -618,7 +618,7 @@ export default function PreviewScreen() {
         <Pressable
           style={styles.backButton}
           onPress={() => {
-            clearPhotoUri();
+            clearPhotoDraft();
             router.back();
           }}>
           <Text style={styles.backButtonText}>Wróć</Text>

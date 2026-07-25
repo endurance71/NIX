@@ -230,6 +230,8 @@ export function useMediaUpload() {
                 uploadFlowId: task.uploadFlowId,
                 signal: abortController.signal,
                 viewDurationSec: task.viewDurationSec,
+                sourceWidth: task.sourceWidth,
+                sourceHeight: task.sourceHeight,
                 onProgress: makeProgressHandler(task.id),
               });
             }
@@ -339,7 +341,7 @@ export function useMediaUpload() {
     fileUri: string,
     receiverId: string,
     viewDurationSec = 5,
-    options?: { awaitCompletion?: boolean; timeoutMs?: number }
+    options?: { awaitCompletion?: boolean; timeoutMs?: number; sourceWidth?: number; sourceHeight?: number }
   ) => {
     const jobId = createUploadJobId();
     const task: UploadQueueTask = {
@@ -349,6 +351,8 @@ export function useMediaUpload() {
       receiverId,
       fileUri,
       viewDurationSec,
+      sourceWidth: options?.sourceWidth,
+      sourceHeight: options?.sourceHeight,
       retryCount: 0,
       maxRetries: MAX_RETRIES,
       optimisticId: createOptimisticId(),

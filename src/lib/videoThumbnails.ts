@@ -12,8 +12,8 @@ const thumbnailCache = new Map<string, Promise<VideoThumbnail | null>>();
 const THUMBNAIL_CACHE_MAX_ENTRIES = 24;
 const THUMBNAIL_CACHE_EVICTION_MS = 60_000;
 
-function buildCacheKey(sourceUri: string, timeSec: number, maxWidth: number): string {
-  return `${sourceUri}:${timeSec}:${maxWidth}`;
+function buildCacheKey(sourceUri: string, timeSec: number): string {
+  return `${sourceUri}:${timeSec}`;
 }
 
 function evictOldestIfNeeded() {
@@ -37,7 +37,7 @@ export function generateVideoThumbnailAtTime(
   options?: { maxWidth?: number }
 ): Promise<VideoThumbnail | null> {
   const maxWidth = options?.maxWidth ?? 1280;
-  const cacheKey = buildCacheKey(sourceUri, timeSec, maxWidth);
+  const cacheKey = buildCacheKey(sourceUri, timeSec);
 
   const cached = thumbnailCache.get(cacheKey);
   if (cached) return cached;

@@ -1,9 +1,15 @@
 import { createContext, use } from 'react';
 
+export type PhotoDraftData = {
+  uri: string;
+  width?: number;
+  height?: number;
+};
+
 export type PhotoDraftContextValue = {
-  uri: string | null;
-  setUri: (uri: string) => void;
-  clearUri: () => void;
+  draft: PhotoDraftData | null;
+  setDraft: (draft: PhotoDraftData) => void;
+  clearDraft: () => void;
 };
 
 export const PhotoDraftContext = createContext<PhotoDraftContextValue | null>(null);

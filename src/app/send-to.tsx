@@ -92,14 +92,13 @@ export default function SendToSheet() {
   const { colors } = useAppTheme();
   const stylesForTheme = createStyles(colors, topContentInset, bottomContentInset);
   const rawParams = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string }>();
-  const paramUri = decodeParamUri(paramFirst(rawParams.uri));
+  const { draft: draftPhoto, clearDraft: clearPhotoDraft } = usePhotoDraft();
+  const photoUri = draftPhoto?.uri ?? decodeParamUri(paramFirst(rawParams.uri));
   const mode = paramFirst(rawParams.mode);
   const viewDurationSec = normalizeNixViewDurationSec(paramFirst(rawParams.viewDurationSec));
-  const { uri: draftPhotoUri, clearUri: clearPhotoUri } = usePhotoDraft();
-  const uri = draftPhotoUri ?? paramUri;
   const isVideo = mode === 'video';
   const { segments, clearSegments } = useVideoDraft();
-  const { uploadNix, uploadVideoSegments } = useMediaUpload();
+  const { uploadNix, uploadVideoSegments, uploadImageWithMetadata } = useMediaUpload();
   const { offerAfterSuccessfulSend } = usePushNotifications();
   const {
     data: profiles = [],
@@ -146,7 +145,7 @@ export default function SendToSheet() {
 
   const handleSend = async () => {
     if (selectedCount === 0 || isSending || sendLockRef.current) return;
-    if (!isVideo && !uri) return;
+    if (!isVideo && !photoUri) return;
     if (isVideo && (!segments?.length || segments.length === 0)) return;
 
     tap('medium');
@@ -168,8 +167,10 @@ export default function SendToSheet() {
                 awaitCompletion: true,
               });
             }
-            return await uploadNix(uri!, receiverId, viewDurationSec, {
+            return await uploadNix(photoUri!, receiverId, viewDurationSec, {
               awaitCompletion: true,
+              sourceWidth: draftPhoto?.width,
+              sourceHeight: draftPhoto?.height,
             });
           } catch (err) {
             const message = toDomainError(err, 'Spróbuj ponownie za chwilę.').message;
@@ -196,7 +197,7 @@ export default function SendToSheet() {
           await processBatchFromIndex(0);
 
           if (isVideo) clearSegments();
-          else clearPhotoUri();
+          else clearPhotoDraft();
           void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
 
           if (successCount > 0) {

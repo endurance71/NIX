@@ -29,6 +29,8 @@ export type UploadTask = {
   fileUri: string;
   viewDurationSec: number;
   segmentDurationMs?: number;
+  sourceWidth?: number;
+  sourceHeight?: number;
   createdAt: number;
   updatedAt: number;
   startedAt?: number;

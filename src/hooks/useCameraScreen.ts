@@ -80,7 +80,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   const isNativeSimulator = !Constants.isDevice;
   const { colors, statusBarStyle } = useAppTheme();
   const { setSegments } = useVideoDraft();
-  const { setUri: setPhotoUri } = usePhotoDraft();
+  const { setDraft: setPhotoDraft } = usePhotoDraft();
   const insets = useScreenInsets('cameraTab');
   const styles = useMemo(() => createCameraStyles(colors), [colors]);
   const [permission, requestPermission] = useCameraPermissions();
@@ -668,9 +668,9 @@ export function useCameraScreen(): CameraScreenViewModel {
                     quality: 0.8,
                   });
                   if (!result.canceled) {
-                    const selected = result.assets[0];
-                    if (selected?.uri) {
-                      setPhotoUri(selected.uri);
+                    if (result.assets && result.assets.length > 0) {
+                      const asset = result.assets[0];
+                      setPhotoDraft({ uri: asset.uri, width: asset.width, height: asset.height });
                       router.push({ pathname: '/preview' });
                     }
                   }
@@ -717,7 +717,7 @@ export function useCameraScreen(): CameraScreenViewModel {
                 height: photo.height,
               });
               // Navigate immediately — bake/compress happens at send in mediaService.
-              setPhotoUri(photo.uri);
+              setPhotoDraft({ uri: photo.uri, width: photo.width, height: photo.height });
               trackDuration('photo_preview_nav_ms', captureStartedAt, {
                 status: 'success',
                 facing,

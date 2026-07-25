@@ -1,18 +1,18 @@
 import { useState, type ReactNode } from 'react';
-import { PhotoDraftContext } from './photoDraft';
+import { PhotoDraftContext, type PhotoDraftData } from './photoDraft';
 
 export function PhotoDraftProvider({ children }: { children: ReactNode }) {
-  const [uri, setUriState] = useState<string | null>(null);
+  const [draft, setDraftState] = useState<PhotoDraftData | null>(null);
 
-  const setUri = (next: string) => {
-    setUriState(next);
+  const setDraft = (next: PhotoDraftData) => {
+    setDraftState(next);
   };
 
-  const clearUri = () => {
-    setUriState(null);
+  const clearDraft = () => {
+    setDraftState(null);
   };
 
-  const value = { uri, setUri, clearUri };
+  const value = { draft, setDraft, clearDraft };
 
   return <PhotoDraftContext.Provider value={value}>{children}</PhotoDraftContext.Provider>;
 }

@@ -9,6 +9,7 @@ import { getCurrentUser } from './profileService';
 import { DomainError } from './errors';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { uploadResumable } from './resumableUploadService';
+import { withTimeout, getCompressionTimeout } from './videoCompressionService';
 
 export function buildContentType(fileUri: string) {
   const ext = fileUri.split('?')[0].split('.').pop()?.toLowerCase() || 'jpg';
@@ -270,6 +271,26 @@ async function buildThumbnailDataUrl(
   return tryVariantAt(0);
 }
 
+export function isFastPathEligible(
+  fileUri: string,
+  originalSizeBytes: number | null | undefined,
+  playbackDurationMs: number | null | undefined
+): boolean {
+  const estimatedBitrate =
+    typeof originalSizeBytes === 'number' &&
+    typeof playbackDurationMs === 'number' &&
+    playbackDurationMs > 0
+      ? (originalSizeBytes * 8) / (playbackDurationMs / 1000)
+      : null;
+  return (
+    typeof originalSizeBytes === 'number' &&
+    originalSizeBytes > 0 &&
+    fileUri.startsWith('file://') &&
+    (originalSizeBytes <= VIDEO_FAST_PATH_MAX_BYTES ||
+      (estimatedBitrate !== null && estimatedBitrate <= TARGET_VIDEO_BITRATE * 1.4))
+  );
+}
+
 export async function prepareVideoForUpload(fileUri: string, options?: MediaUploadOptions): Promise<PreparedMedia> {
   const startedAt = nowMs();
   const originalSizeBytes = await getFileSizeBytes(fileUri);
@@ -292,26 +313,9 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
   const temporaryUris: string[] = [];
   const thumbnailTemporaryUris: string[] = [];
 
-  // OPT-7: Rozpocznij generowanie miniatury z oryginalnego pliku równolegle
-  // z kompresją — miniatura jest resizowana do 240px, więc źródło (oryginał vs.
-  // skompresowany) nie wpływa na wynik wizualny.
-  const thumbnailPromise = generateVideoThumbnailAtTime(fileUri, 0, { maxWidth: 1280 });
+  const thumbnailPromise = generateVideoThumbnailAtTime(fileUri, 0);
 
-  // Bitrate-aware fast-path: skip compression when the source bitrate is
-  // already at or below the compression target. Camera recordings are
-  // limited to 2.5 Mbps, so clips up to ~90s will typically qualify.
-  const estimatedBitrate =
-    typeof originalSizeBytes === 'number' &&
-    typeof options?.playbackDurationMs === 'number' &&
-    options.playbackDurationMs > 0
-      ? (originalSizeBytes * 8) / (options.playbackDurationMs / 1000)
-      : null;
-  const fastPathEligible =
-    typeof originalSizeBytes === 'number' &&
-    originalSizeBytes > 0 &&
-    fileUri.startsWith('file://') &&
-    (originalSizeBytes <= VIDEO_FAST_PATH_MAX_BYTES ||
-      (estimatedBitrate !== null && estimatedBitrate <= TARGET_VIDEO_BITRATE * 1.25));
+  const fastPathEligible = isFastPathEligible(fileUri, originalSizeBytes, options?.playbackDurationMs);
 
   if (fastPathEligible) {
     trackEvent('compression_skipped', {
@@ -696,7 +700,17 @@ export async function uploadVideoAndCreateNix(
   if (!user) throw new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
 
   assertNotCancelled(options?.signal);
-  const prepared = await prepareVideoForUpload(fileUri, { ...options, playbackDurationMs });
+
+  let fileSizeBytes: number | undefined;
+  if (fileUri.startsWith('file://')) {
+    const info = await FileSystem.getInfoAsync(fileUri);
+    if (info.exists) fileSizeBytes = info.size;
+  }
+
+  const prepared = await withTimeout(
+    prepareVideoForUpload(fileUri, { ...options, playbackDurationMs }),
+    getCompressionTimeout(fileSizeBytes)
+  );
   emitProgress(options, { phase: 'reading', progress: 0 });
 
   const { ext, contentType } = buildVideoContentType(prepared.uri);
