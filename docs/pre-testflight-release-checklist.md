@@ -1,7 +1,9 @@
 # NiX — bramka wydania do zewnętrznego TestFlight
 
-> **Ścieżka EAS / workflow.** Lokalny Xcode → TestFlight bez EAS:
-> [`DEPLOY_IOS_TESTFLIGHT.md`](./DEPLOY_IOS_TESTFLIGHT.md).
+> **Kanoniczna ścieżka:** cost-first (OTA JS + lokalny Xcode binary; bez domyślnego
+> `eas build`). [`DEPLOY_IOS_TESTFLIGHT.md`](./DEPLOY_IOS_TESTFLIGHT.md).
+> Poniższa checklista dotyczy bramki zewnętrznego TestFlight / review — nie zastępuje
+> macierzy decyzji w dokumencie deployu.
 
 ## Automatyczne
 

@@ -1,0 +1,28 @@
+---
+description: Deploy iOS cost-first — OTA vs lokalny Xcode; zakaz domyślnego eas build
+alwaysApply: true
+---
+
+# Deploy iOS (cost-first)
+
+Źródło prawdy: `docs/DEPLOY_IOS_TESTFLIGHT.md`. Przy sprzeczności — obowiązuje ten dokument.
+
+## Zasada
+
+- **Nie** uruchamiaj `eas build` ani `eas submit`, chyba że użytkownik **jawnie** o to poprosi.
+- Limit Free EAS Build (~15 iOS/mies.) jest rzadki — binary buduj lokalnie (Xcode Archive → TestFlight).
+- Hotfix **tylko JS/assets** → `eas update --channel production` (nie zużywa build credits).
+- Zmiany **native** / SDK / plugins / entitlements / bump `runtimeVersion` → lokalny Xcode wg docs.
+- Przy niepewności „czy native?” → Xcode, nie OTA.
+
+## Przed OTA
+
+- Ten sam `runtimeVersion` co na TestFlight (`app.json` + `Expo.plist`, obecnie `1.0.3`).
+- Kanał `production` (`updates.requestHeaders` / `EXUpdatesRequestHeaders`).
+- Binary na TF musi być zbudowany **z** tym kanałem — starsze buildy bez kanału nie złapią update’ów.
+
+## Zakazane skróty
+
+- `eas build` „na szybko” zamiast OTA lub lokalnego Archive
+- Self-host OTA jako „oszczędność” limitu Build (nie rozwiązuje problemu)
+- OTA po zmianie native bez nowego binary

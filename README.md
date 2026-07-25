@@ -34,7 +34,7 @@ NiX to aplikacja Expo (iOS + Android) z efemerycznym przepływem wiadomości wiz
 
 ## Dokumentacja
 
-- **Deploy iOS → TestFlight (lokalny Xcode, bez EAS):** [`docs/DEPLOY_IOS_TESTFLIGHT.md`](docs/DEPLOY_IOS_TESTFLIGHT.md)
+- **Deploy iOS (cost-first):** [`docs/DEPLOY_IOS_TESTFLIGHT.md`](docs/DEPLOY_IOS_TESTFLIGHT.md) — hotfix JS → `eas update`; nowy binary → lokalny Xcode Archive → TestFlight; **bez** domyślnego `eas build`
 - **Wytyczne native-first (iOS + Android):** [`docs/native-platform-guidelines.md`](docs/native-platform-guidelines.md)
 - **Design Apple (referencja HIG, nie dev):** [`docs/Design by apple/README.md`](docs/Design%20by%20apple/README.md)
 - **Główna dokumentacja produktowo-techniczna:** [`docs/NiX_Documentation_v1.2.md`](docs/NiX_Documentation_v1.2.md)
