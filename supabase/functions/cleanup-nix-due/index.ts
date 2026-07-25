@@ -43,7 +43,9 @@ Deno.serve(async (req) => {
     }
 
     // Przetwarzanie w pętli (dla S3 usunięcia)
-    const mediaPathsToDelete = queueItems.map((item) => item.media_path).filter(Boolean);
+    const mediaPathsToDelete = queueItems.flatMap((item) =>
+      item.media_path ? [item.media_path] : []
+    );
     const nixIdsToUpdate = queueItems.map((item) => item.nix_id);
 
     if (mediaPathsToDelete.length > 0) {
@@ -52,18 +54,18 @@ Deno.serve(async (req) => {
         .remove(mediaPathsToDelete);
 
       if (storageError) {
-        // Zapisz błąd
-        const queueItemsToUpdate = queueItems.filter(item => nixIdsToUpdate.includes(item.nix_id));
-        for (const item of queueItemsToUpdate) {
-          await serviceClient
-            .from('nix_cleanup_queue')
-            .update({ 
-              last_error: storageError.message, 
-              next_attempt_at: new Date(Date.now() + 5 * 60_000).toISOString(),
-              attempt_count: (item.attempt_count || 0) + 1
-            })
-            .eq('nix_id', item.nix_id);
-        }
+        await Promise.all(
+          queueItems.map((item) =>
+            serviceClient
+              .from('nix_cleanup_queue')
+              .update({
+                last_error: storageError.message,
+                next_attempt_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+                attempt_count: (item.attempt_count || 0) + 1,
+              })
+              .eq('nix_id', item.nix_id)
+          )
+        );
         throw storageError;
       }
     }
@@ -75,19 +77,20 @@ Deno.serve(async (req) => {
       .in('id', nixIdsToUpdate);
 
     if (nixUpdateError) {
-       // Ignore if missing column status in some older schema, but it should exist.
-       const queueItemsToUpdate = queueItems.filter(item => nixIdsToUpdate.includes(item.nix_id));
-       for (const item of queueItemsToUpdate) {
-         await serviceClient
-           .from('nix_cleanup_queue')
-           .update({ 
-              last_error: nixUpdateError.message, 
+      // Ignore if missing column status in some older schema, but it should exist.
+      await Promise.all(
+        queueItems.map((item) =>
+          serviceClient
+            .from('nix_cleanup_queue')
+            .update({
+              last_error: nixUpdateError.message,
               next_attempt_at: new Date(Date.now() + 5 * 60_000).toISOString(),
-              attempt_count: (item.attempt_count || 0) + 1
-           })
-           .eq('nix_id', item.nix_id);
-       }
-       throw nixUpdateError;
+              attempt_count: (item.attempt_count || 0) + 1,
+            })
+            .eq('nix_id', item.nix_id)
+        )
+      );
+      throw nixUpdateError;
     }
 
     // Usun z kolejki

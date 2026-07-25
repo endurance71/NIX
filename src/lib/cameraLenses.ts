@@ -103,16 +103,19 @@ export const FALLBACK_WIDE_2X_ZOOM = Math.log(2) / Math.log(16);
 export function lensOptionsFromNativePresets(presets: NativeBackLensPreset[]): LensOption[] {
   const allowed = new Set<LensSwitcherKind>(['ultraWide', 'wide', 'wideCrop2x', 'telephoto']);
 
-  return presets
-    .filter((preset) => allowed.has(preset.kind as LensSwitcherKind))
-    .map((preset) => ({
-      id: preset.id,
-      kind: preset.kind as LensSwitcherKind,
-      label: preset.label,
-      selectedLensValue: preset.localizedName,
-      zoom: typeof preset.zoom === 'number' && Number.isFinite(preset.zoom) ? preset.zoom : 0,
-      displayFactor: preset.displayFactor,
-    }));
+  return presets.flatMap((preset) => {
+    if (!allowed.has(preset.kind as LensSwitcherKind)) return [];
+    return [
+      {
+        id: preset.id,
+        kind: preset.kind as LensSwitcherKind,
+        label: preset.label,
+        selectedLensValue: preset.localizedName,
+        zoom: typeof preset.zoom === 'number' && Number.isFinite(preset.zoom) ? preset.zoom : 0,
+        displayFactor: preset.displayFactor,
+      },
+    ];
+  });
 }
 
 /**

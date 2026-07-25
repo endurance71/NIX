@@ -38,7 +38,7 @@ import {
 } from '../lib/cameraLenses';
 import { createCameraStyles } from '../components/camera/cameraScreen.styles';
 import { setNativeVideoTorchForRecording } from '../lib/videoTorchSession';
-import { HOLD_ZOOM_GAIN } from '../lib/cameraHoldZoom';
+import { applyHoldZoomDelta } from '../lib/cameraHoldZoom';
 import { getBackLensPresetsAsync } from '../../modules/nix-camera-torch';
 import { duration as motionDuration } from '../theme/motion';
 
@@ -187,7 +187,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     if (typeof __DEV__ === 'undefined' || !__DEV__) return;
     const snapshot = { ...cameraUiRef.current, ...overrides };
     const sessionStartedAt = videoTorchSessionStartedAtRef.current;
-    const now = Date.now();
+    const now = nowMs();
     console.info('[CameraVideoTorch]', {
       event,
       sessionId: videoTorchSessionIdRef.current,
@@ -374,11 +374,11 @@ export function useCameraScreen(): CameraScreenViewModel {
   }, [facing, cameraInstanceKey]);
 
   const waitForCameraReady = async (timeoutMs = 5000) => {
-    const deadline = Date.now() + timeoutMs;
+    const deadline = nowMs() + timeoutMs;
     logVideoTorchEvent('wait-camera-ready-begin', {}, { timeoutMs });
     // Rekurencyjny polling zamiast while+await — ten sam semantycznie, bez ostrzeżenia react-doctor.
     const poll = async (): Promise<boolean> => {
-      if (Date.now() >= deadline) {
+      if (nowMs() >= deadline) {
         logVideoTorchEvent('wait-camera-ready-timeout', {}, {
           hasCameraRef: Boolean(cameraRef.current),
           cameraReadyRef: cameraReadyRef.current,
@@ -546,7 +546,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   const runVideoCaptureSession = async () => {
     const torchRequestedForSession = flash === 'on' && facing === 'back';
     videoTorchSessionIdRef.current += 1;
-    videoTorchSessionStartedAtRef.current = Date.now();
+    videoTorchSessionStartedAtRef.current = nowMs();
     cameraReadyRef.current = false;
     cameraMountStartedAtRef.current = nowMs();
     logVideoTorchEvent('video-session-start', {}, { torchRequestedForSession });
@@ -595,7 +595,7 @@ export function useCameraScreen(): CameraScreenViewModel {
 
         const maxDurSec = Math.max(1, Math.ceil(VIDEO_TOTAL_MAX_DURATION_MS / 1000));
         attemptedRecord = true;
-        const recordStartedAt = Date.now();
+        const recordStartedAt = nowMs();
         try {
           dispatchCameraUi({ type: 'VIDEO_RECORDING_BEGIN' });
           logVideoTorchEvent('video-recording-begin', {
@@ -654,7 +654,7 @@ export function useCameraScreen(): CameraScreenViewModel {
           }
         }
 
-        const durationMs = Math.min(Date.now() - recordStartedAt, VIDEO_TOTAL_MAX_DURATION_MS);
+        const durationMs = Math.min(nowMs() - recordStartedAt, VIDEO_TOTAL_MAX_DURATION_MS);
         if (result?.uri) {
           logVideoTorchEvent('record-result-success', {}, { durationMs });
           trackDuration('video_record_ms', sessionStartedAt, {
@@ -915,13 +915,13 @@ export function useCameraScreen(): CameraScreenViewModel {
       });
       return;
     }
-    pressInTimeRef.current = Date.now();
+    pressInTimeRef.current = nowMs();
     fingerDownRef.current = true;
     logVideoTorchEvent('shutter-press-in-armed', {}, { holdThresholdMs: VIDEO_HOLD_THRESHOLD_MS });
 
     holdTimerRef.current = setTimeout(() => {
       logVideoTorchEvent('hold-threshold-fired', {}, {
-        elapsedMs: Date.now() - pressInTimeRef.current,
+        elapsedMs: nowMs() - pressInTimeRef.current,
       });
       if (!fingerDownRef.current) {
         logVideoTorchEvent('hold-threshold-skip-finger-up');
@@ -934,7 +934,7 @@ export function useCameraScreen(): CameraScreenViewModel {
 
   const onShutterPressOut = () => {
     logVideoTorchEvent('shutter-press-out', {}, {
-      elapsedMs: Date.now() - pressInTimeRef.current,
+      elapsedMs: nowMs() - pressInTimeRef.current,
       hasHoldTimer: Boolean(holdTimerRef.current),
     });
     fingerDownRef.current = false;
@@ -942,7 +942,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
-      const elapsed = Date.now() - pressInTimeRef.current;
+      const elapsed = nowMs() - pressInTimeRef.current;
       if (elapsed < VIDEO_HOLD_THRESHOLD_MS && !recordingSessionRunningRef.current) {
         logVideoTorchEvent('shutter-release-photo-path', {}, { elapsedMs: elapsed });
         void takePicture();
@@ -981,10 +981,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     .onChange((event) => {
       'worklet';
       if (!recordingZoomEnabled.get()) return;
-      const nextZoom = Math.max(
-        0,
-        Math.min(1, zoomShared.get() - event.changeY * HOLD_ZOOM_GAIN)
-      );
+      const nextZoom = applyHoldZoomDelta(zoomShared.get(), event.changeY);
       zoomShared.set(nextZoom);
       const tick = lastZoomCommitMs.get() + 1;
       lastZoomCommitMs.set(tick);

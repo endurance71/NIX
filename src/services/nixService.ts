@@ -743,22 +743,6 @@ export async function createSignedNixUrl(path: string, expiresInSec = 60) {
   return data.signedUrl;
 }
 
-async function markNixViewed(nixId: string) {
-  const basePayload = { is_viewed: true, viewed_at: new Date().toISOString() };
-  const { error } = await supabase
-    .from('nixes')
-    .update({ ...basePayload, status: 'viewed' })
-    .eq('id', nixId);
-
-  if (error && isMissingStatusColumnError(error)) {
-    const { error: fallbackError } = await supabase.from('nixes').update(basePayload).eq('id', nixId);
-    if (fallbackError) throw mapDatabaseError(fallbackError);
-    return;
-  }
-
-  if (error) throw mapDatabaseError(error);
-}
-
 async function requestNixCleanup(nixId: string, mediaPath: string) {
   const { data, error } = await supabase.functions.invoke('cleanup-nix', {
     body: { nixId, mediaPath },
@@ -852,21 +836,6 @@ export async function flushCleanupQueue(limit = 10) {
       }
     })
   );
-}
-
-export async function markNixViewedWithCleanup(nixId: string, mediaPath: string) {
-  await markNixViewed(nixId);
-  await enqueueCleanupJob(nixId, mediaPath);
-
-  try {
-    await requestNixCleanup(nixId, mediaPath);
-    await markCleanupJobDone(nixId);
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : 'Unknown cleanup error';
-    await markCleanupJobFailed(nixId, reason);
-    // Cleanup failure is non-critical — nix is already viewed and job is enqueued for retry.
-    console.warn('Cleanup zostanie ponowiony:', reason);
-  }
 }
 
 export async function markNixViewedForReplay(nixId: string) {

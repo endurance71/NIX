@@ -51,5 +51,5 @@ export function useViewerCaptureGuard(captureDenied: boolean, paramSenderId: str
         console.warn('Could not disable screen capture guard in viewer', error);
       });
     };
-  }, [captureDenied, paramSenderId]);
+  }, [captureDenied, paramSenderId, paramNixId]);
 }

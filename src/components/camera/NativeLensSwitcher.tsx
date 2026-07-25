@@ -1,4 +1,4 @@
-import { useId, useMemo } from 'react';
+import { useId } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import {
@@ -88,12 +88,10 @@ export function NativeLensSwitcher({
   const namespaceId = useId();
   const useGlass = canUseLiquidGlass();
 
-  const selection = useMemo(() => {
-    if (activeLensId && options.some((option) => option.id === activeLensId)) {
-      return activeLensId;
-    }
-    return options.find((option) => option.id === '1x')?.id ?? options[0]?.id ?? '';
-  }, [activeLensId, options]);
+  const selection =
+    activeLensId && options.some((option) => option.id === activeLensId)
+      ? activeLensId
+      : (options.find((option) => option.id === '1x')?.id ?? options[0]?.id ?? '');
 
   const selectionIndex = Math.max(
     0,

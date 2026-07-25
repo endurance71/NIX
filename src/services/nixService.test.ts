@@ -6,7 +6,7 @@ import {
   fetchSentNixes,
   flushCleanupQueue,
   insertNix,
-  markNixViewedWithCleanup,
+  markNixReplayedWithCleanup,
 } from './nixService';
 
 const {
@@ -131,9 +131,13 @@ describe('nixService cleanup flow', () => {
 
   it('wywołuje edge cleanup i usuwa job z kolejki', async () => {
     mockInvoke.mockResolvedValue({ data: { ok: true }, error: null });
+    mockRpc.mockResolvedValue({ error: null });
 
-    await markNixViewedWithCleanup('nix-1', 'nixes/receiver-1/file.jpg');
+    await markNixReplayedWithCleanup('nix-1', 'nixes/receiver-1/file.jpg');
 
+    expect(mockRpc).toHaveBeenCalledWith('mark_nix_replayed', {
+      p_nix_id: 'nix-1',
+    });
     expect(mockInvoke).toHaveBeenCalledWith('cleanup-nix', {
       body: { nixId: 'nix-1', mediaPath: 'nixes/receiver-1/file.jpg' },
     });
@@ -142,9 +146,10 @@ describe('nixService cleanup flow', () => {
 
   it('zapisuje retry gdy cleanup edge nie działa', async () => {
     mockInvoke.mockResolvedValue({ data: null, error: new Error('network') });
+    mockRpc.mockResolvedValue({ error: null });
 
     // Cleanup failure is non-critical — function resolves but enqueues retry.
-    await markNixViewedWithCleanup('nix-2', 'nixes/receiver-1/file2.jpg');
+    await markNixReplayedWithCleanup('nix-2', 'nixes/receiver-1/file2.jpg');
     expect(mockQueueUpdate).toHaveBeenCalled();
   });
 
@@ -207,16 +212,18 @@ describe('nixService cleanup flow', () => {
     expect(mockQueueUpdateEq).toHaveBeenCalledWith('nix_id', 'nix-retry');
   });
 
-  it('markNixViewedWithCleanup dodaje job do kolejki przed cleanup', async () => {
+  it('markNixReplayedWithCleanup dodaje job do kolejki przed cleanup', async () => {
     mockInvoke.mockResolvedValue({ data: { ok: true }, error: null });
+    mockRpc.mockResolvedValue({ error: null });
 
-    await markNixViewedWithCleanup('nix-3', 'nixes/receiver-1/queued2.jpg');
+    await markNixReplayedWithCleanup('nix-3', 'nixes/receiver-1/queued2.jpg');
     expect(mockQueueUpsert).toHaveBeenCalled();
   });
 
-  it('markNixViewedWithCleanup zgłasza błąd cleanup edge przy niepoprawnej odpowiedzi', async () => {
+  it('markNixReplayedWithCleanup zgłasza błąd cleanup edge przy niepoprawnej odpowiedzi', async () => {
     mockInvoke.mockResolvedValue({ data: { ok: false }, error: null });
-    await markNixViewedWithCleanup('nix-4', 'nixes/receiver-1/a.jpg');
+    mockRpc.mockResolvedValue({ error: null });
+    await markNixReplayedWithCleanup('nix-4', 'nixes/receiver-1/a.jpg');
     expect(mockQueueUpdate).toHaveBeenCalled();
   });
 
