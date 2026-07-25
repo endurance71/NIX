@@ -154,6 +154,11 @@ export function createCameraStyles(colors: ThemeColors) {
       justifyContent: 'center',
       alignItems: 'center',
     },
+    shutterHitArea: {
+      padding: 15,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
     shutterRecording: {
       borderColor: colors.destructive,
     },

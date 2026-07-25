@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView } from 'expo-camera';
 import Animated from 'react-native-reanimated';
@@ -44,14 +44,13 @@ export function CameraCaptureSurface({ vm }: Props) {
     isNativeSimulator,
     cameraRef,
     pinchGesture,
+    shutterGesture,
     onCameraReady,
     onAvailableLensesChanged,
     selectLens,
     animatedShutterStyle,
     animatedFlashStyle,
     pickFromGallery,
-    onShutterPressIn,
-    onShutterPressOut,
     toggleFacing,
     toggleFlash,
     toggleRecordingMicMuted,
@@ -243,33 +242,32 @@ export function CameraCaptureSurface({ vm }: Props) {
                   />
                 </View>
               ) : null}
-              <Pressable
-                onPressIn={onShutterPressIn}
-                onPressOut={onShutterPressOut}
-                accessibilityLabel="Dotknij dla zdjęcia; przytrzymaj, aby nagrywać wideo, puść, aby zakończyć"
-                accessibilityRole="button"
-                accessibilityState={{
-                  disabled:
-                    takingPicture ||
-                    isSwitchingCamera ||
-                    (!isNativeSimulator && !cameraReady && !videoPreparing && !recordingVideo),
-                }}
-                disabled={
-                  takingPicture ||
-                  isSwitchingCamera ||
-                  (!isNativeSimulator && !cameraReady && !videoPreparing && !recordingVideo)
-                }
-                hitSlop={15}>
+              <GestureDetector gesture={shutterGesture}>
                 <Animated.View
+                  accessible
+                  accessibilityLabel="Dotknij dla zdjęcia; przytrzymaj, aby nagrywać wideo, przesuń w pionie aby zoomować, puść aby zakończyć"
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    disabled:
+                      takingPicture ||
+                      isSwitchingCamera ||
+                      (!isNativeSimulator && !cameraReady && !videoPreparing && !recordingVideo),
+                  }}
                   style={[
-                    styles.shutterOuter,
-                    recordingVideo && styles.shutterRecording,
+                    styles.shutterHitArea,
                     takingPicture && styles.shutterDisabled,
-                    animatedShutterStyle,
                   ]}>
-                  <View style={[styles.shutterInner, recordingVideo && styles.shutterInnerRecording]} />
+                  <Animated.View
+                    style={[
+                      styles.shutterOuter,
+                      recordingVideo && styles.shutterRecording,
+                      takingPicture && styles.shutterDisabled,
+                      animatedShutterStyle,
+                    ]}>
+                    <View style={[styles.shutterInner, recordingVideo && styles.shutterInnerRecording]} />
+                  </Animated.View>
                 </Animated.View>
-              </Pressable>
+              </GestureDetector>
             </View>
 
             <View style={styles.sideButtonContainer}>

@@ -38,6 +38,7 @@ import {
 } from '../lib/cameraLenses';
 import { createCameraStyles } from '../components/camera/cameraScreen.styles';
 import { setNativeVideoTorchForRecording } from '../lib/videoTorchSession';
+import { HOLD_ZOOM_GAIN } from '../lib/cameraHoldZoom';
 import { getBackLensPresetsAsync } from '../../modules/nix-camera-torch';
 import { duration as motionDuration } from '../theme/motion';
 
@@ -78,14 +79,13 @@ export type CameraScreenViewModel = {
   isNativeSimulator: boolean;
   cameraRef: RefObject<CameraView | null>;
   pinchGesture: ReturnType<typeof Gesture.Pinch>;
+  shutterGesture: ReturnType<typeof Gesture.Pan>;
   onCameraReady: () => void;
   onAvailableLensesChanged: (event: AvailableLenses) => void;
   selectLens: (lensOptionId: string) => void;
   animatedShutterStyle: AnimatedStyle<ViewStyle>;
   animatedFlashStyle: AnimatedStyle<ViewStyle>;
   pickFromGallery: () => Promise<void>;
-  onShutterPressIn: () => void;
-  onShutterPressOut: () => void;
   toggleFacing: () => void;
   toggleFlash: () => void;
   toggleRecordingMicMuted: () => void;
@@ -138,6 +138,9 @@ export function useCameraScreen(): CameraScreenViewModel {
   const zoomAtGestureStart = useSharedValue(0);
   const zoomShared = useSharedValue(0);
   const lastZoomCommitMs = useSharedValue(0);
+  const recordingZoomEnabled = useSharedValue(false);
+  const shutterEnabled = useSharedValue(true);
+  const shutterFingerActive = useSharedValue(false);
   const isSwitchingCameraRef = useRef(false);
   const switchWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const switchRecoveryUsedRef = useRef(false);
@@ -279,6 +282,26 @@ export function useCameraScreen(): CameraScreenViewModel {
   useEffect(() => {
     zoomShared.set(zoom);
   }, [zoom, zoomShared]);
+
+  useEffect(() => {
+    recordingZoomEnabled.set(recordingVideo);
+  }, [recordingVideo, recordingZoomEnabled]);
+
+  useEffect(() => {
+    shutterEnabled.set(
+      !takingPicture &&
+        !isSwitchingCamera &&
+        (isNativeSimulator || cameraReady || videoPreparing || recordingVideo)
+    );
+  }, [
+    takingPicture,
+    isSwitchingCamera,
+    isNativeSimulator,
+    cameraReady,
+    videoPreparing,
+    recordingVideo,
+    shutterEnabled,
+  ]);
 
   const setZoomFromGesture = (nextZoom: number) => {
     dispatchCameraUi({ type: 'SET_ZOOM', zoom: nextZoom });
@@ -935,6 +958,43 @@ export function useCameraScreen(): CameraScreenViewModel {
     }
   };
 
+  // Hold-to-record + Snapchat-style vertical drag-to-zoom while REC is active.
+  // manualActivation keeps the touch alive through drag (Pressable would cancel on move).
+  const shutterGesture = Gesture.Pan()
+    .manualActivation(true)
+    .onTouchesDown((_event, state) => {
+      'worklet';
+      if (!shutterEnabled.get()) {
+        state.fail();
+        return;
+      }
+      shutterFingerActive.set(true);
+      state.activate();
+      runOnJS(onShutterPressIn)();
+    })
+    .onChange((event) => {
+      'worklet';
+      if (!recordingZoomEnabled.get()) return;
+      const nextZoom = Math.max(
+        0,
+        Math.min(1, zoomShared.get() - event.changeY * HOLD_ZOOM_GAIN)
+      );
+      zoomShared.set(nextZoom);
+      const tick = lastZoomCommitMs.get() + 1;
+      lastZoomCommitMs.set(tick);
+      if (tick % 3 === 0) {
+        runOnJS(setZoomFromGesture)(nextZoom);
+      }
+    })
+    .onFinalize(() => {
+      'worklet';
+      if (!shutterFingerActive.get()) return;
+      shutterFingerActive.set(false);
+      lastZoomCommitMs.set(0);
+      runOnJS(setZoomFromGesture)(zoomShared.get());
+      runOnJS(onShutterPressOut)();
+    });
+
   const pickFromGallery = async () => {
     if (videoPreparing || recordingVideo || takingPicture || isSwitchingCamera) return;
     if (recordingSessionRunningRef.current) return;
@@ -1095,14 +1155,13 @@ export function useCameraScreen(): CameraScreenViewModel {
     isNativeSimulator,
     cameraRef,
     pinchGesture,
+    shutterGesture,
     onCameraReady,
     onAvailableLensesChanged,
     selectLens,
     animatedShutterStyle,
     animatedFlashStyle,
     pickFromGallery,
-    onShutterPressIn,
-    onShutterPressOut,
     toggleFacing,
     toggleFlash,
     toggleRecordingMicMuted,
