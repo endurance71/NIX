@@ -14,6 +14,7 @@ export function ViewerNixVideo({
   onPlayToEnd,
   onProgress,
   paused = false,
+  loop = false,
   style,
 }: {
   uri: string;
@@ -23,10 +24,11 @@ export function ViewerNixVideo({
   onPlayToEnd: () => void;
   onProgress?: (nextProgress: number) => void;
   paused?: boolean;
+  loop?: boolean;
   style: StyleProp<ViewStyle>;
 }) {
   const player = useVideoPlayer({ uri }, (p) => {
-    p.loop = false;
+    p.loop = loop;
     p.timeUpdateEventInterval = 1 / 30;
     p.muted = false;
     p.volume = 1;
@@ -43,7 +45,7 @@ export function ViewerNixVideo({
     onErrorRef.current = onError;
   });
 
-  useEventListener(player, 'playToEnd', onPlayToEnd);
+  useEventListener(player, 'playToEnd', loop ? () => {} : onPlayToEnd);
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
     const dur = player.duration;
     if (dur > 0) {

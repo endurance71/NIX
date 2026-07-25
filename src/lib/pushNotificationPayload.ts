@@ -4,6 +4,7 @@ export const PUSH_NOTIFICATION_TYPES = [
   'friend_accepted',
   'new_text_message',
   'message_reaction',
+  'capture_attempt',
 ] as const;
 
 export type PushNotificationType = (typeof PUSH_NOTIFICATION_TYPES)[number];
@@ -41,7 +42,7 @@ export type PushRouteTarget =
 export function routeForPushNotification(
   data: PushNotificationData
 ): PushRouteTarget {
-  if (data.type === 'new_text_message' || data.type === 'message_reaction') {
+  if (data.type === 'new_text_message' || data.type === 'message_reaction' || data.type === 'capture_attempt') {
     return { pathname: '/chat/[peerId]', params: { peerId: data.actorId } };
   }
   if (data.type === 'friend_accepted') {

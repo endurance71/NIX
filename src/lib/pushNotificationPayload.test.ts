@@ -14,6 +14,7 @@ describe('push notification payload', () => {
     'friend_accepted',
     'new_text_message',
     'message_reaction',
+    'capture_attempt',
   ] as const)('accepts the supported %s payload', (type) => {
     expect(parsePushNotificationData({ ...base, type })).toEqual({ ...base, type });
   });
@@ -33,6 +34,10 @@ describe('push notification payload', () => {
       params: { peerId: '22222222-2222-2222-2222-222222222222' },
     });
     expect(routeForPushNotification({ ...base, type: 'message_reaction' })).toEqual({
+      pathname: '/chat/[peerId]',
+      params: { peerId: '22222222-2222-2222-2222-222222222222' },
+    });
+    expect(routeForPushNotification({ ...base, type: 'capture_attempt' })).toEqual({
       pathname: '/chat/[peerId]',
       params: { peerId: '22222222-2222-2222-2222-222222222222' },
     });

@@ -6,7 +6,8 @@ export type PushEventType =
   | 'friend_request'
   | 'friend_accepted'
   | 'new_text_message'
-  | 'message_reaction';
+  | 'message_reaction'
+  | 'capture_attempt';
 
 export type MessageReactionEmojiToken =
   | 'heart'
@@ -73,6 +74,7 @@ export function pushCopy(
     if (type === 'message_reaction') {
       return { title: 'Wiadomość', body: `${actor} zareagował(a): ${reactionGlyph(emoji)}` };
     }
+    if (type === 'capture_attempt') return { title: 'NiX', body: `${actor} próbował(a) zrobić zrzut lub nagrać ekran` };
     if (type === 'friend_request') return { title: 'Nowe zaproszenie', body: `${actor} chce dodać Cię do znajomych` };
     return { title: 'Nowa znajomość', body: `Ty i ${actor} jesteście teraz znajomymi` };
   }
@@ -81,6 +83,7 @@ export function pushCopy(
   if (type === 'message_reaction') {
     return { title: 'Message', body: `${actor} reacted: ${reactionGlyph(emoji)}` };
   }
+  if (type === 'capture_attempt') return { title: 'NiX', body: `${actor} tried to screenshot or record the screen` };
   if (type === 'friend_request') return { title: 'New friend request', body: `${actor} wants to add you as a friend` };
   return { title: 'New friend', body: `You and ${actor} are now friends` };
 }

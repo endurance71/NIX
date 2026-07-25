@@ -198,6 +198,9 @@ const resources = {
         nixOpened: 'Otwarto',
         nixNew: 'Nowy — dotknij, aby otworzyć',
         nixVideo: 'wideo',
+        nixReplay: 'Dotknij, aby odtworzyć',
+        nixDurationUnlimited: 'Bez limitu (∞)',
+        systemCaptureAttempt: 'Podjęto próbę zrzutu ekranu lub nagrania wideo.',
       },
       profile: {
         title: 'Profil',
@@ -423,6 +426,7 @@ const resources = {
         INVALID_MEDIA: 'Nieprawidłowe multimedia.',
         CLEANUP_FAILED: 'Nie udało się wyczyścić wiadomości.',
         CANCELLED: 'Operacja została anulowana.',
+        NOT_FOUND: 'Nie znaleziono.',
         UNKNOWN: 'Wystąpił nieoczekiwany błąd.',
       },
       sentStatus: {
@@ -618,6 +622,9 @@ const resources = {
         nixOpened: 'Opened',
         nixNew: 'New — tap to open',
         nixVideo: 'video',
+        nixReplay: 'Tap to replay',
+        nixDurationUnlimited: 'Unlimited (∞)',
+        systemCaptureAttempt: 'A screenshot or screen recording attempt was detected.',
       },
       profile: {
         title: 'Profile',
@@ -841,6 +848,7 @@ const resources = {
         INVALID_MEDIA: 'Invalid media.',
         CLEANUP_FAILED: 'Failed to clean up message.',
         CANCELLED: 'Operation was cancelled.',
+        NOT_FOUND: 'Not found.',
         UNKNOWN: 'Unexpected error occurred.',
       },
       sentStatus: {

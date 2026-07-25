@@ -16,6 +16,10 @@ export type CameraUiState = {
   cameraReady: boolean;
   cameraActive: boolean;
   zoom: number;
+  /** Native localizedName for CameraView selectedLens; null = system default. */
+  selectedLens: string | null;
+  /** Active chip id (`0.5` / `1x` / `2x` / `tele`); null = default wide. */
+  lensOptionId: string | null;
   isSwitchingCamera: boolean;
   cameraInstanceKey: number;
   /** Android: ImageCapture jest podpięty tylko w trybie picture; video wymaga osobnego use case. */
@@ -37,6 +41,8 @@ export const initialCameraUiState: CameraUiState = {
   cameraReady: false,
   cameraActive: true,
   zoom: 0,
+  selectedLens: null,
+  lensOptionId: null,
   isSwitchingCamera: false,
   cameraInstanceKey: 0,
   captureMode: 'picture',
@@ -52,6 +58,12 @@ export type CameraUiAction =
       clearSwitchingUi: boolean;
     }
   | { type: 'SET_ZOOM'; zoom: number }
+  | {
+      type: 'SET_LENS_PRESET';
+      selectedLens: string | null;
+      lensOptionId: string | null;
+      zoom: number;
+    }
   | { type: 'VIDEO_PREPARE_BEGIN'; resetCameraReady?: boolean }
   | { type: 'VIDEO_RECORDING_BEGIN' }
   | { type: 'VIDEO_SESSION_END'; resetCameraReady?: boolean }
@@ -90,6 +102,21 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
     }
     case 'SET_ZOOM':
       return state.zoom === action.zoom ? state : { ...state, zoom: action.zoom };
+    case 'SET_LENS_PRESET': {
+      if (
+        state.selectedLens === action.selectedLens &&
+        state.lensOptionId === action.lensOptionId &&
+        state.zoom === action.zoom
+      ) {
+        return state;
+      }
+      return {
+        ...state,
+        selectedLens: action.selectedLens,
+        lensOptionId: action.lensOptionId,
+        zoom: action.zoom,
+      };
+    }
     case 'VIDEO_PREPARE_BEGIN':
       return {
         ...state,
@@ -157,6 +184,8 @@ export function cameraUiReducer(state: CameraUiState, action: CameraUiAction): C
       return {
         ...state,
         zoom: 0,
+        selectedLens: null,
+        lensOptionId: null,
         isSwitchingCamera: true,
         captureError: null,
         stillFlashArmed: false,

@@ -95,6 +95,8 @@ export async function fetchTextMessagesWithPeer({
     created_at: string;
     expires_at: string;
     client_message_id: string | null;
+    metadata: any;
+    is_system: boolean;
   }) => ({
     id: row.id,
     sender_id: row.sender_id,
@@ -103,6 +105,8 @@ export async function fetchTextMessagesWithPeer({
     created_at: row.created_at,
     expires_at: row.expires_at,
     client_message_id: row.client_message_id,
+    metadata: row.metadata,
+    is_system: row.is_system,
   }));
 }
 
@@ -130,7 +134,7 @@ export async function fetchRecentTextMessagesForInbox(): Promise<RecentTextMessa
 
   const { data, error } = await supabase
     .from('text_messages')
-    .select('id, sender_id, receiver_id, body, created_at, expires_at, client_message_id')
+    .select('id, sender_id, receiver_id, body, created_at, expires_at, client_message_id, is_system, metadata')
     .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
     .gt('expires_at', now)
     .order('created_at', { ascending: false })

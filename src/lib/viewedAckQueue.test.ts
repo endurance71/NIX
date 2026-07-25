@@ -7,10 +7,11 @@ import {
   viewedAckRetryDelayMs,
 } from './viewedAckQueue';
 
-const { storage, mockGetCurrentUser, mockMarkViewed } = vi.hoisted(() => ({
+const { storage, mockGetCurrentUser, mockMarkViewedForReplay, mockMarkReplayedWithCleanup } = vi.hoisted(() => ({
   storage: new Map<string, string>(),
   mockGetCurrentUser: vi.fn(),
-  mockMarkViewed: vi.fn(),
+  mockMarkViewedForReplay: vi.fn(),
+  mockMarkReplayedWithCleanup: vi.fn(),
 }));
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
@@ -26,14 +27,18 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 vi.mock('../services/profileService', () => ({ getCurrentUser: mockGetCurrentUser }));
-vi.mock('../services/nixService', () => ({ markNixViewedWithCleanup: mockMarkViewed }));
+vi.mock('../services/nixService', () => ({
+  markNixViewedForReplay: mockMarkViewedForReplay,
+  markNixReplayedWithCleanup: mockMarkReplayedWithCleanup,
+}));
 
 describe('viewed acknowledgement queue', () => {
   beforeEach(() => {
     storage.clear();
     vi.clearAllMocks();
     mockGetCurrentUser.mockResolvedValue({ id: 'receiver-1' });
-    mockMarkViewed.mockResolvedValue(undefined);
+    mockMarkViewedForReplay.mockResolvedValue(undefined);
+    mockMarkReplayedWithCleanup.mockResolvedValue(undefined);
   });
 
   it('deduplikuje wpisy i dostarcza je tylko raz', async () => {
@@ -41,7 +46,7 @@ describe('viewed acknowledgement queue', () => {
       nixId: 'nix-1',
       mediaPath: 'nixes/receiver-1/nix-1.jpg',
       createdAt: 1,
-      attemptCount: 0,
+      ackType: 'viewed' as const, attemptCount: 0,
       nextAttemptAt: 0,
     };
     await enqueueViewedAck('receiver-1', ack);
@@ -49,22 +54,22 @@ describe('viewed acknowledgement queue', () => {
 
     await flushPendingViewedAcks('receiver-1', { force: true });
 
-    expect(mockMarkViewed).toHaveBeenCalledTimes(1);
+    expect(mockMarkViewedForReplay).toHaveBeenCalledTimes(1);
     expect(storage.size).toBe(0);
   });
 
   it('zachowuje nieudane potwierdzenie i usuwa je po ponowieniu', async () => {
-    mockMarkViewed.mockRejectedValueOnce(new Error('offline'));
+    mockMarkViewedForReplay.mockRejectedValueOnce(new Error('offline'));
 
     await expect(
-      acknowledgeViewedNix({ id: 'nix-2', media_path: 'nixes/receiver-1/nix-2.jpg' })
+      acknowledgeViewedNix({ id: 'nix-2', media_path: 'nixes/receiver-1/nix-2.jpg' }, 'viewed')
     ).resolves.toBe(false);
     expect(storage.size).toBe(1);
 
-    mockMarkViewed.mockResolvedValue(undefined);
+    mockMarkViewedForReplay.mockResolvedValue(undefined);
     await flushPendingViewedAcks('receiver-1', { force: true });
 
-    expect(mockMarkViewed).toHaveBeenCalledTimes(2);
+    expect(mockMarkViewedForReplay).toHaveBeenCalledTimes(2);
     expect(storage.size).toBe(0);
   });
 
@@ -73,21 +78,21 @@ describe('viewed acknowledgement queue', () => {
       nixId: 'one',
       mediaPath: 'one.jpg',
       createdAt: 1,
-      attemptCount: 0,
+      ackType: 'viewed' as const, attemptCount: 0,
       nextAttemptAt: 0,
     });
     await enqueueViewedAck('receiver-2', {
       nixId: 'two',
       mediaPath: 'two.jpg',
       createdAt: 1,
-      attemptCount: 0,
+      ackType: 'viewed' as const, attemptCount: 0,
       nextAttemptAt: 0,
     });
 
     await flushPendingViewedAcks('receiver-1', { force: true });
 
-    expect(mockMarkViewed).toHaveBeenCalledWith('one', 'one.jpg');
-    expect(mockMarkViewed).not.toHaveBeenCalledWith('two', 'two.jpg');
+    expect(mockMarkViewedForReplay).toHaveBeenCalledWith('one');
+    expect(mockMarkViewedForReplay).not.toHaveBeenCalledWith('two');
     expect(storage.size).toBe(1);
   });
 
@@ -95,7 +100,7 @@ describe('viewed acknowledgement queue', () => {
     let activeDeliveries = 0;
     let maxActiveDeliveries = 0;
     const deliveredIds: string[] = [];
-    mockMarkViewed.mockImplementation(async (nixId: string) => {
+    mockMarkViewedForReplay.mockImplementation(async (nixId: string) => {
       activeDeliveries += 1;
       maxActiveDeliveries = Math.max(maxActiveDeliveries, activeDeliveries);
       deliveredIds.push(nixId);
@@ -108,7 +113,7 @@ describe('viewed acknowledgement queue', () => {
         nixId,
         mediaPath: `${nixId}.jpg`,
         createdAt: 1,
-        attemptCount: 0,
+        ackType: 'viewed' as const, attemptCount: 0,
         nextAttemptAt: 0,
       });
     }
@@ -117,6 +122,22 @@ describe('viewed acknowledgement queue', () => {
 
     expect(deliveredIds).toEqual(['one', 'two', 'three']);
     expect(maxActiveDeliveries).toBe(1);
+  });
+
+  it('dostarcza ACK replayed z użyciem markNixReplayedWithCleanup', async () => {
+    await enqueueViewedAck('receiver-1', {
+      nixId: 'nix-replay',
+      mediaPath: 'nixes/receiver-1/nix-replay.jpg',
+      createdAt: 1,
+      ackType: 'replayed', attemptCount: 0,
+      nextAttemptAt: 0,
+    });
+
+    await flushPendingViewedAcks('receiver-1', { force: true });
+
+    expect(mockMarkReplayedWithCleanup).toHaveBeenCalledTimes(1);
+    expect(mockMarkReplayedWithCleanup).toHaveBeenCalledWith('nix-replay', 'nixes/receiver-1/nix-replay.jpg');
+    expect(storage.size).toBe(0);
   });
 
   it('sanityzuje dane i stosuje ograniczony backoff', () => {

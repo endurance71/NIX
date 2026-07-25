@@ -51,6 +51,7 @@ import { appleUiSpring, duration, useMotionEnabled } from '../../theme/motion';
 import { STACK_NAV_BAR_HEIGHT } from '../../theme/safeArea';
 import { typography } from '../../theme/typography';
 import { PressableScale } from '../ui/pressable-scale';
+import i18n from '../../lib/i18n';
 
 type ChatScreenSurfaceProps = {
   vm: ChatScreenViewModel;
@@ -589,6 +590,13 @@ function nixStatusLabel(nix: ChatNixEvent, t: ChatScreenViewModel['t']): string 
     return t('chat.nixSent');
   }
   if (!nix.is_viewed && nix.status === 'sent') return t('chat.nixNew');
+  
+  const isReplay = nix.is_viewed && !nix.is_replayed;
+  const canReplay = isReplay && (!nix.replay_expires_at || new Date(nix.replay_expires_at) > new Date());
+  if (canReplay) {
+    return t('chat.nixReplay');
+  }
+  
   return t('chat.nixOpened');
 }
 
@@ -609,10 +617,16 @@ function NixChip({
 }) {
   const { colors } = useAppTheme();
   const isOwn = nix.direction === 'sent';
-  const canOpen = nix.direction === 'received' && !nix.is_viewed && Boolean(nix.media_path);
-  const bubbleBg = canOpen ? colors.accent : colors.secondarySystemFill;
-  const titleColor = canOpen ? colors.onChatBubbleOwn : colors.label;
-  const statusColor = canOpen ? colors.onChatBubbleOwn : colors.secondaryLabel;
+  const isReplay = nix.is_viewed && !nix.is_replayed;
+  const canReplay = isReplay && (!nix.replay_expires_at || new Date(nix.replay_expires_at) > new Date());
+  const canOpen = nix.direction === 'received' && (!nix.is_viewed || canReplay) && Boolean(nix.media_path) && nix.status !== 'cleaned' && nix.status !== 'cleanup_failed';
+  
+  // Wyszarzona wiadomość [Odtwórz] jeśli to powtórka, ale wciąż klikalna
+  const isNew = canOpen && !canReplay;
+  const bubbleBg = isNew ? colors.accent : colors.secondarySystemFill;
+  const titleColor = isNew ? colors.onChatBubbleOwn : colors.label;
+  const statusColor = isNew ? colors.onChatBubbleOwn : colors.secondaryLabel;
+  
   const statusText =
     nix.media_type === 'video'
       ? `${nixStatusLabel(nix, t)} · ${t('chat.nixVideo')}`
@@ -648,6 +662,21 @@ function DateSeparator({ label }: { label: string }) {
   return (
     <View style={styles.separatorRow}>
       <Text style={[styles.separatorText, { color: colors.secondaryLabel }]}>{label}</Text>
+    </View>
+  );
+}
+
+function SystemMessageItem({ message }: { message: OptimisticTextMessage }) {
+  const { colors } = useAppTheme();
+  
+  const textBody = 
+    message.metadata?.type === 'capture_attempt' 
+      ? i18n.t('chat.systemCaptureAttempt') 
+      : message.body;
+      
+  return (
+    <View style={styles.separatorRow}>
+      <Text style={[styles.systemMessageText, { color: colors.secondaryLabel }]}>{textBody}</Text>
     </View>
   );
 }
@@ -948,6 +977,9 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
                   />
                 );
               }
+              if (item.message.is_system) {
+                return <SystemMessageItem message={item.message} />;
+              }
               const isOwn = item.message.sender_id === vm.currentUserId;
               const canReact = !item.message.id.startsWith('temp-') && !item.message.isSending;
               return (
@@ -1137,6 +1169,11 @@ const styles = StyleSheet.create({
   separatorText: {
     ...typography.caption,
     textAlign: 'center',
+  },
+  systemMessageText: {
+    ...typography.footnote,
+    textAlign: 'center',
+    paddingHorizontal: 32,
   },
   centered: {
     flex: 1,

@@ -6,6 +6,10 @@
 
 - **Zdjęcie:** krótki tap na migawkę.
 - **Wideo:** przytrzymanie — po progu [`VIDEO_HOLD_THRESHOLD_MS`](../src/lib/videoRecordingLimits.ts) (**500 ms**) start nagrania; krótszy kontakt = zdjęcie.
+- **Obiektywy (iOS):** nad migawką chipy w stylu Apple Camera — `0,5` / `1×` / `2` (crop wide) / tele (`3`/`5`…) z `NixCameraTorch.getBackLensPresetsAsync` (deviceType + `videoZoomFactor`); fallback: `getAvailableLensesAsync` + syntetyczny 2×. UI: Liquid Glass (`NativeLensSwitcher` / `@expo/ui` `glassEffect`) gdy API dostępne; inaczej solid capsule. Tylko tylna kamera przy ≥2 opcjach.
+  - Wymaga **native rebuild** po zmianie `modules/nix-camera-torch` (nie OTA).
+  - Jeśli glass przyciemnia preview → `chromeVariant="solid"` na `NativeLensSwitcher`.
+  - Smoke iOS: Pro/Pro Max → 4 chipy (0.5/1×/2/tele); tap 2× zostaje na wide z zoomem; tele zmienia FOV; front → brak chipów; zablokowane podczas zdjęcia/nagrania.
 - **Limit czasu:** pojedynczy klip do **180 s** (`VIDEO_TOTAL_MAX_DURATION_MS`); po przytrzymaniu kamera przełącza się w tryb `video`, czeka na nowe `onCameraReady`, a dopiero potem startuje `recordAsync`.
 - **Bitrate nagrania:** ~2.5 Mbps (`VIDEO_RECORDING_BITRATE`); limit rozmiaru pliku podczas nagrywania ~90 MB (strażnik kamery) — finalny limit uploadu patrz niżej.
 - **Mikrofon:** możliwość nagrywania bez dźwięku (mute) przy użyciu `CameraView`.

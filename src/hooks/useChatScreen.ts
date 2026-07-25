@@ -131,6 +131,8 @@ export function useChatScreen(peerId: string) {
       created_at: now.toISOString(),
       expires_at: expiresAt,
       client_message_id: clientMessageId,
+      is_system: false,
+      metadata: null,
       isSending: true,
     };
 
@@ -331,14 +333,20 @@ export function useChatScreen(peerId: string) {
   };
 
   const handleOpenNix = (nix: ChatNixEvent) => {
-    if (nix.direction !== 'received' || nix.is_viewed || !nix.media_path) return;
+    if (nix.direction !== 'received' || !nix.media_path) return;
     if (nix.status === 'cleaned' || nix.status === 'cleanup_failed') return;
+    
+    const isReplay = nix.is_viewed && !nix.is_replayed;
+    if (nix.is_viewed && !isReplay) return;
+    if (isReplay && (!nix.replay_expires_at || new Date(nix.replay_expires_at) < new Date())) return;
+
     router.push({
       pathname: '/viewer',
       params: {
         id: nix.id,
         path: nix.media_path,
         senderId: peerId,
+        isReplay: isReplay ? '1' : '0',
       },
     });
   };

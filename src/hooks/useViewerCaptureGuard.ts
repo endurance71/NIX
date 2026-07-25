@@ -6,8 +6,9 @@ import {
   disableViewerCaptureProtection,
   enableViewerCaptureProtection,
 } from '../lib/viewerCaptureProtection';
+import { reportCaptureAttempt } from '../services/captureAttemptService';
 
-export function useViewerCaptureGuard(captureDenied: boolean, paramSenderId: string | undefined) {
+export function useViewerCaptureGuard(captureDenied: boolean, paramSenderId: string | undefined, paramNixId: string | undefined) {
   useEffect(() => {
     let screenshotSubscription: { remove: () => void } | null = null;
     let isMounted = true;
@@ -34,6 +35,9 @@ export function useViewerCaptureGuard(captureDenied: boolean, paramSenderId: str
           trackEvent('viewer_capture_attempt', {
             sender_id: paramSenderId ?? null,
           });
+          if (paramNixId) {
+            void reportCaptureAttempt(paramNixId);
+          }
         });
       })
       .catch((error) => {

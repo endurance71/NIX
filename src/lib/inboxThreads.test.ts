@@ -5,7 +5,7 @@ import type { InboxNix, SentNix } from '../services/nixService';
 function inbox(partial: Partial<InboxNix> & Pick<InboxNix, 'id' | 'sender_id' | 'created_at'>): InboxNix {
   return {
     media_path: 'nix.jpg',
-    is_viewed: false,
+    is_viewed: false, is_replayed: false, replay_expires_at: null,
     media_type: 'image',
     playback_duration_ms: null,
     view_duration_sec: 5,
@@ -62,7 +62,7 @@ describe('buildInboxThreads', () => {
           id: 'read',
           sender_id: 'friend',
           created_at: '2026-05-01T09:00:00Z',
-          is_viewed: true,
+          is_viewed: true, is_replayed: false, replay_expires_at: null,
           sender: { username: 'friend', avatar_storage_path: 'a.png', avatar_emoji: null },
         }),
       ],
@@ -104,7 +104,7 @@ describe('buildInboxThreads', () => {
           id: 'old-nix',
           sender_id: 'peer-1',
           created_at: '2026-05-01T10:00:00Z',
-          is_viewed: true,
+          is_viewed: true, is_replayed: false, replay_expires_at: null,
           sender: { username: 'alice', avatar_storage_path: null, avatar_emoji: null },
         }),
       ],
@@ -117,7 +117,7 @@ describe('buildInboxThreads', () => {
           body: 'Cześć!',
           created_at: '2026-05-01T11:00:00Z',
           expires_at: '2026-05-02T11:00:00Z',
-          client_message_id: null,
+          client_message_id: null, is_system: false, metadata: null,
           peer_id: 'peer-1',
         },
       ]
@@ -143,7 +143,7 @@ describe('buildInboxThreads', () => {
           body: 'Hej',
           created_at: '2026-05-01T11:00:00Z',
           expires_at: '2026-05-02T11:00:00Z',
-          client_message_id: null,
+          client_message_id: null, is_system: false, metadata: null,
           peer_id: 'peer-1',
           peerProfile: {
             username: 'bob',

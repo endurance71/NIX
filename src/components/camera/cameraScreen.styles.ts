@@ -126,6 +126,13 @@ export function createCameraStyles(colors: ThemeColors) {
       right: 0,
       alignItems: 'center',
     },
+    lensSwitcherSlot: {
+      position: 'absolute',
+      bottom: 90,
+      left: 0,
+      right: 0,
+      alignItems: 'center',
+    },
     captureError: {
       ...typography.footnote,
       maxWidth: 220,

@@ -65,6 +65,7 @@ export function ViewerScreenSurface() {
                 onPlayToEnd={vm.finishCurrentSlide}
                 onProgress={vm.onSegmentProgress}
                 paused={vm.safetyPaused}
+                loop={vm.displayedNix.view_duration_sec === 0}
                 style={vm.styles.image}
               />
             </View>

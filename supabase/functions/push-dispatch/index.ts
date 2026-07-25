@@ -42,6 +42,12 @@ Deno.serve(async (req) => {
         .eq('id', job.entity_id).maybeSingle();
       return row?.sender_id === job.actor_id && row?.receiver_id === job.recipient_id && row?.status === 'sent';
     }
+    if (job.event_type === 'capture_attempt') {
+      const { data: row } = await client.from('nixes').select('sender_id, receiver_id')
+        .eq('id', job.entity_id).maybeSingle();
+      // actor is the receiver who tried to screenshot, recipient is the sender
+      return row?.sender_id === job.recipient_id && row?.receiver_id === job.actor_id;
+    }
     if (job.event_type === 'new_text_message') {
       const { data: row } = await client.from('text_messages').select('sender_id, receiver_id, expires_at')
         .eq('id', job.entity_id).maybeSingle();

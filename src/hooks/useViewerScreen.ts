@@ -20,6 +20,7 @@ import {
   createSignedNixUrl,
   flushCleanupQueue,
   fetchUnreadInboxQueueFromSender,
+  fetchInboxNixById,
 } from '../services/nixService';
 import { markViewerSlideViewed } from '../lib/viewerSlideActions';
 import { normalizeNixViewDurationSec } from '../lib/nixViewDuration';
@@ -103,11 +104,13 @@ export function useViewerScreen(): ViewerScreenViewModel {
     path?: string;
     senderId?: string;
     viewDurationSec?: string;
+    isReplay?: string;
   }>();
   const paramId = paramFirst(raw.id);
   const paramPath = paramFirst(raw.path);
   const paramSenderId = paramFirst(raw.senderId);
   const paramViewDurationSec = normalizeNixViewDurationSec(paramFirst(raw.viewDurationSec));
+  const paramIsReplay = paramFirst(raw.isReplay) === '1';
 
   const [queueState, setQueueState] = useState<{
     queueLoading: boolean;
@@ -185,10 +188,13 @@ export function useViewerScreen(): ViewerScreenViewModel {
     staleTime: 60_000,
   });
 
+  const currentNix = queue[slideIndex] ?? null;
+  const displayedNix = renderNix ?? currentNix;
+
   const captureDenied = shouldBlockCapture(capturePolicy);
   const shouldBlurOverlay = captureDenied && appState !== 'active';
 
-  useViewerCaptureGuard(captureDenied, paramSenderId);
+  useViewerCaptureGuard(captureDenied, paramSenderId, displayedNix?.id);
 
   const signedUrlTtlSec = (() => {
     const totalViewSec = queue.reduce((acc, s) => {
@@ -204,6 +210,23 @@ export function useViewerScreen(): ViewerScreenViewModel {
     let cancelled = false;
 
     async function initQueue() {
+      if (paramIsReplay && paramId) {
+        try {
+          // Import fetchInboxNixById required in the component file, but wait, maybe I need to check imports.
+          // Let's assume it's exported from nixService.ts and we'll import it above if not present.
+          const nix = await fetchInboxNixById(paramId);
+          if (cancelled) return;
+          const mappedQueue = [toViewerQueueItem(nix)];
+          unstable_batchedUpdates(() => {
+            setQueueState((current) => ({ ...current, queue: mappedQueue, queueLoading: false }));
+          });
+        } catch (err) {
+          console.error('Nie udało się pobrać nixa do replay', err);
+          if (!cancelled) router.back();
+        }
+        return;
+      }
+
       if (paramSenderId) {
         try {
           const nixes = await fetchUnreadInboxQueueFromSender(paramSenderId);
@@ -251,7 +274,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
     return () => {
       cancelled = true;
     };
-  }, [paramSenderId, paramId, paramPath, paramViewDurationSec]);
+  }, [paramSenderId, paramId, paramPath, paramViewDurationSec, paramIsReplay]);
 
   useEffect(() => {
     flushCleanupQueue().catch((err) => {
@@ -263,8 +286,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
     };
   }, [queryClient]);
 
-  const currentNix = queue[slideIndex] ?? null;
-  const displayedNix = renderNix ?? currentNix;
+
 
   const finishCurrentSlide = () => {
     if (closingRef.current) return;
@@ -277,7 +299,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
     segmentProgress.set(1);
 
     markInboxNixViewedInCache(queryClient, item.id);
-    void markViewerSlideViewed(item, () => {
+    void markViewerSlideViewed(item, paramIsReplay ? 'replayed' : 'viewed', () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
     });
 
@@ -417,12 +439,15 @@ export function useViewerScreen(): ViewerScreenViewModel {
     if (!nix?.media_path) return;
     if (!loading && imageUrl && imageReady && !imageLoadError) {
       const isVideo = nix.media_type === 'video';
+      const isUnlimited = nix.view_duration_sec === 0;
       segmentProgress.set(1);
-      if (isVideo) {
+      
+      if (isVideo || isUnlimited) {
         return () => {
           cancelAnimation(segmentProgress);
         };
       }
+      
       const slideMs = Math.max(1000, (nix.view_duration_sec ?? 5) * 1000);
       segmentProgress.set(
         withTiming(
@@ -432,7 +457,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
             easing: Easing.linear,
           },
           (finished) => {
-            if (finished && !isVideo) {
+            if (finished) {
               runOnJS(finishCurrentSlideEvent)();
             }
           }

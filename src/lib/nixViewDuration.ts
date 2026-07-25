@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import i18n from './i18n';
 
 const STORAGE_KEY = 'nix.nix_view_duration_sec';
 
 /** Dozwolone wartości muszą być zgodne z CHECK w bazie (docs/supabase_setup.sql). */
-export const NIX_VIEW_DURATION_CHOICES = [5, 15, 30, 60, 180] as const;
+export const NIX_VIEW_DURATION_CHOICES = [0, 5, 15, 30, 60, 180] as const;
 
 export type NixViewDurationSec = (typeof NIX_VIEW_DURATION_CHOICES)[number];
 
@@ -12,6 +13,7 @@ export const DEFAULT_NIX_VIEW_DURATION_SEC: NixViewDurationSec = 5;
 const choiceSet = new Set<number>(NIX_VIEW_DURATION_CHOICES);
 
 export function formatNixViewDurationLabel(sec: number): string {
+  if (sec === 0) return i18n.t('chat.nixDurationUnlimited');
   if (sec < 60) return `${sec} s`;
   if (sec === 60) return '1 min';
   return `${sec / 60} min`;
@@ -19,6 +21,7 @@ export function formatNixViewDurationLabel(sec: number): string {
 
 /** Krótka etykieta na przycisku kamery. */
 export function shortNixViewDurationLabel(sec: number): string {
+  if (sec === 0) return '∞';
   if (sec < 60) return `${sec}s`;
   if (sec === 60) return '1m';
   return `${sec / 60}m`;

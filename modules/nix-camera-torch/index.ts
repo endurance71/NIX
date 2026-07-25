@@ -5,9 +5,19 @@ export type NixCameraTorchStatus = {
   enabled: boolean;
 };
 
+export type NativeBackLensPreset = {
+  id: string;
+  kind: string;
+  label: string;
+  localizedName: string;
+  zoom: number;
+  displayFactor: number;
+};
+
 type NixCameraTorchNativeModule = {
   setTorchEnabledAsync(enabled: boolean): Promise<NixCameraTorchStatus>;
   getTorchStatusAsync(): Promise<NixCameraTorchStatus>;
+  getBackLensPresetsAsync(): Promise<NativeBackLensPreset[]>;
 };
 
 let NixCameraTorch: NixCameraTorchNativeModule | null = null;
@@ -31,4 +41,13 @@ export async function setTorchEnabledAsync(enabled: boolean): Promise<NixCameraT
 export async function getTorchStatusAsync(): Promise<NixCameraTorchStatus> {
   if (!NixCameraTorch) return unavailableStatus;
   return NixCameraTorch.getTorchStatusAsync();
+}
+
+export async function getBackLensPresetsAsync(): Promise<NativeBackLensPreset[] | null> {
+  if (!NixCameraTorch?.getBackLensPresetsAsync) return null;
+  try {
+    return await NixCameraTorch.getBackLensPresetsAsync();
+  } catch {
+    return null;
+  }
 }

@@ -215,6 +215,8 @@ export interface Database {
           playback_duration_ms: number | null;
           client_upload_id: string | null;
           thumbnail_b64: string | null;
+          is_replayed: boolean;
+          replay_expires_at: string | null;
         };
         Insert: {
           id?: string;
@@ -231,6 +233,8 @@ export interface Database {
           playback_duration_ms?: number | null;
           client_upload_id?: string | null;
           thumbnail_b64?: string | null;
+          is_replayed?: boolean;
+          replay_expires_at?: string | null;
         };
         Update: {
           id?: string;
@@ -247,6 +251,8 @@ export interface Database {
           playback_duration_ms?: number | null;
           client_upload_id?: string | null;
           thumbnail_b64?: string | null;
+          is_replayed?: boolean;
+          replay_expires_at?: string | null;
         };
       };
       nix_cleanup_queue: {
@@ -400,6 +406,8 @@ export interface Database {
           created_at: string;
           expires_at: string;
           client_message_id: string | null;
+          is_system: boolean;
+          metadata: Record<string, unknown> | null;
         };
         Insert: {
           id?: string;
@@ -409,6 +417,8 @@ export interface Database {
           created_at?: string;
           expires_at?: string;
           client_message_id?: string | null;
+          is_system?: boolean;
+          metadata?: Record<string, unknown> | null;
         };
         Update: {
           id?: string;
@@ -418,6 +428,8 @@ export interface Database {
           created_at?: string;
           expires_at?: string;
           client_message_id?: string | null;
+          is_system?: boolean;
+          metadata?: Record<string, unknown> | null;
         };
       };
       message_reactions: {
@@ -445,6 +457,16 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+      };
+    };
+    Functions: {
+      mark_nix_viewed_for_replay: {
+        Args: { p_nix_id: string };
+        Returns: void;
+      };
+      mark_nix_replayed: {
+        Args: { p_nix_id: string };
+        Returns: void;
       };
     };
   };

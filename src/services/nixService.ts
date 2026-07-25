@@ -18,8 +18,10 @@ export type InboxNix = {
    * wyświetlić pierwszą klatkę natychmiast, bez dodatkowego pobrania.
    */
   thumbnail_b64?: string | null;
-  /** Sekundy wyświetlania u odbiorcy (5, 15, 30, 60, 180). */
+  /** Sekundy wyświetlania u odbiorcy (0, 5, 15, 30, 60, 180). 0 to nielimitowany. */
   view_duration_sec: number;
+  is_replayed: boolean;
+  replay_expires_at: string | null;
   status: 'sent' | 'viewed' | 'cleaned' | 'cleanup_failed';
   sender: {
     username: string;
@@ -188,7 +190,7 @@ function mapDatabaseError(error: unknown): DomainError {
   return new DomainError('UNKNOWN', message);
 }
 
-const ALLOWED_VIEW_DURATIONS = new Set([5, 15, 30, 60, 180]);
+const ALLOWED_VIEW_DURATIONS = new Set([0, 5, 15, 30, 60, 180]);
 let supportsClientUploadId: boolean | null = null;
 let supportsThumbnailB64: boolean | null = null;
 
@@ -534,6 +536,8 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
       playback_duration_ms: typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
       thumbnail_b64: typeof nix.thumbnail_b64 === 'string' ? nix.thumbnail_b64 : null,
       view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
+      is_replayed: !!nix.is_replayed,
+      replay_expires_at: nix.replay_expires_at ?? null,
       status: nix.status ?? (nix.is_viewed ? 'viewed' : 'sent'),
       sender: null,
     })) as InboxNix[],
@@ -629,6 +633,8 @@ export type ChatNixEvent = {
   media_path: string | null;
   thumbnail_b64: string | null;
   is_viewed: boolean;
+  is_replayed: boolean;
+  replay_expires_at: string | null;
   status: 'sent' | 'viewed' | 'cleaned' | 'cleanup_failed';
   view_duration_sec: number;
 };
@@ -651,6 +657,8 @@ export async function fetchChatNixesWithPeer(peerId: string, limit = 50): Promis
       media_type,
       thumbnail_b64,
       is_viewed,
+      is_replayed,
+      replay_expires_at,
       status,
       view_duration_sec
     `
@@ -672,6 +680,8 @@ export async function fetchChatNixesWithPeer(peerId: string, limit = 50): Promis
     media_type: string | null;
     thumbnail_b64: string | null;
     is_viewed: boolean | null;
+    is_replayed: boolean | null;
+    replay_expires_at: string | null;
     status: ChatNixEvent['status'] | null;
     view_duration_sec: number | null;
   }>).map((nix) => {
@@ -685,6 +695,8 @@ export async function fetchChatNixesWithPeer(peerId: string, limit = 50): Promis
       media_path: nix.media_path,
       thumbnail_b64: nix.thumbnail_b64 ?? null,
       is_viewed: isViewed,
+      is_replayed: nix.is_replayed ?? false,
+      replay_expires_at: nix.replay_expires_at ?? null,
       status: nix.status ?? (isViewed ? 'viewed' : 'sent'),
       view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
     };
@@ -851,4 +863,79 @@ export async function markNixViewedWithCleanup(nixId: string, mediaPath: string)
     // Cleanup failure is non-critical — nix is already viewed and job is enqueued for retry.
     console.warn('Cleanup zostanie ponowiony:', reason);
   }
+}
+
+export async function markNixViewedForReplay(nixId: string) {
+  const { error } = await supabase.rpc('mark_nix_viewed_for_replay', {
+    p_nix_id: nixId,
+  });
+  if (error) throw mapDatabaseError(error);
+}
+
+export async function markNixReplayedWithCleanup(nixId: string, mediaPath: string) {
+  const { error } = await supabase.rpc('mark_nix_replayed', {
+    p_nix_id: nixId,
+  });
+  if (error) throw mapDatabaseError(error);
+
+  // Zaktualizuj i zawołaj cleanup natychmiast
+  await enqueueCleanupJob(nixId, mediaPath);
+  try {
+    await requestNixCleanup(nixId, mediaPath);
+    await markCleanupJobDone(nixId);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'Unknown cleanup error';
+    await markCleanupJobFailed(nixId, reason);
+    // Cleanup failure is non-critical — nix is already viewed and job is enqueued for retry.
+    console.warn('Cleanup zostanie ponowiony:', reason);
+  }
+}
+
+export async function fetchInboxNixById(nixId: string): Promise<InboxNix> {
+  const user = await getCurrentUser();
+  if (!user) throw new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
+
+  const { data, error } = await supabase
+    .from('nixes')
+    .select(
+      `
+      id,
+      media_path,
+      media_type,
+      playback_duration_ms,
+      thumbnail_b64,
+      view_duration_sec,
+      sender_id,
+      receiver_id,
+      status,
+      created_at,
+      is_viewed,
+      viewed_at,
+      is_replayed,
+      replay_expires_at,
+      cleaned_at
+    `
+    )
+    .eq('id', nixId)
+    .single();
+
+  if (error) throw mapDatabaseError(error);
+  if (!data) throw new DomainError('NOT_FOUND', 'Nix nie istnieje.');
+
+  const senderIds = [data.sender_id];
+  const senderMap = await fetchNixPublicProfiles(senderIds);
+
+  const nix = {
+    ...data,
+    sender: senderMap.get(data.sender_id)
+      ? {
+          username: senderMap.get(data.sender_id)!.username,
+          display_name: senderMap.get(data.sender_id)!.display_name ?? null,
+          avatar_storage_path: senderMap.get(data.sender_id)!.avatar_storage_path ?? null,
+          avatar_emoji: senderMap.get(data.sender_id)!.avatar_emoji ?? null,
+        }
+      : null,
+  };
+
+  return nix as InboxNix;
 }

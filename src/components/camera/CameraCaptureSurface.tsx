@@ -9,6 +9,7 @@ import { VIDEO_RECORDING_BITRATE } from '../../hooks/useCameraScreen';
 import { NativeChromeIconButton } from '../ui/native-chrome-icon-button';
 import { VIDEO_TOTAL_MAX_DURATION_MS } from '../../lib/videoRecordingLimits';
 import { getCameraLightProps } from '../../lib/cameraLightProps';
+import { NativeLensSwitcher } from './NativeLensSwitcher';
 
 type Props = {
   vm: CameraScreenViewModel;
@@ -31,6 +32,10 @@ export function CameraCaptureSurface({ vm }: Props) {
     cameraReady,
     cameraActive,
     zoom,
+    selectedLens,
+    lensOptionId,
+    lensOptions,
+    showLensSwitcher,
     isSwitchingCamera,
     cameraInstanceKey,
     captureMode,
@@ -40,6 +45,8 @@ export function CameraCaptureSurface({ vm }: Props) {
     cameraRef,
     pinchGesture,
     onCameraReady,
+    onAvailableLensesChanged,
+    selectLens,
     animatedShutterStyle,
     animatedFlashStyle,
     pickFromGallery,
@@ -63,6 +70,10 @@ export function CameraCaptureSurface({ vm }: Props) {
     : `${facing}:${captureMode}:${cameraInstanceKey}`;
   const cameraViewMode = captureMode;
   const previousCameraPropsLogKeyRef = useRef<string | null>(null);
+  const lensSwitcherDisabled =
+    takingPicture || videoPreparing || isSwitchingCamera || recordingVideo;
+  const activeLensId =
+    lensOptionId ?? lensOptions.find((option) => option.id === '1x')?.id ?? null;
 
   useEffect(() => {
     if (typeof __DEV__ === 'undefined' || !__DEV__) return;
@@ -77,6 +88,7 @@ export function CameraCaptureSurface({ vm }: Props) {
       recordingVideo,
       cameraReady,
       cameraActive,
+      selectedLens,
       propFlash: cameraLightProps.flash,
       propEnableTorch: cameraLightProps.enableTorch,
       cameraViewMode,
@@ -98,6 +110,7 @@ export function CameraCaptureSurface({ vm }: Props) {
       recordingVideo,
       cameraReady,
       cameraActive,
+      selectedLens,
       propFlash: cameraLightProps.flash,
       propEnableTorch: cameraLightProps.enableTorch,
       recordAudioMuted,
@@ -116,6 +129,7 @@ export function CameraCaptureSurface({ vm }: Props) {
     flash,
     recordAudioMuted,
     recordingVideo,
+    selectedLens,
     stillFlashArmed,
     videoPreparing,
     videoTorchRequested,
@@ -137,6 +151,8 @@ export function CameraCaptureSurface({ vm }: Props) {
           flash={cameraLightProps.flash}
           enableTorch={cameraLightProps.enableTorch}
           onCameraReady={onCameraReady}
+          onAvailableLensesChanged={onAvailableLensesChanged}
+          selectedLens={selectedLens ?? undefined}
           active={cameraActive}
           zoom={zoom}
           videoQuality="720p"
@@ -215,6 +231,16 @@ export function CameraCaptureSurface({ vm }: Props) {
               {captureError ? (
                 <View style={styles.captureStatusSlot} pointerEvents="none">
                   <Text style={styles.captureError}>{captureError}</Text>
+                </View>
+              ) : showLensSwitcher ? (
+                <View style={styles.lensSwitcherSlot}>
+                  <NativeLensSwitcher
+                    options={lensOptions}
+                    activeLensId={activeLensId}
+                    onSelect={selectLens}
+                    disabled={lensSwitcherDisabled}
+                    colors={colors}
+                  />
                 </View>
               ) : null}
               <Pressable

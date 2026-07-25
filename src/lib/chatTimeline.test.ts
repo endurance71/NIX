@@ -14,7 +14,7 @@ function msg(partial: Partial<TextMessage> & Pick<TextMessage, 'id' | 'created_a
     receiver_id: 'b',
     body: 'hi',
     expires_at: '2099-01-01T00:00:00.000Z',
-    client_message_id: null,
+    client_message_id: null, is_system: false, metadata: null,
     ...partial,
   };
 }
@@ -25,7 +25,7 @@ function nix(partial: Partial<ChatNixEvent> & Pick<ChatNixEvent, 'id' | 'created
     media_type: 'image',
     media_path: 'path.jpg',
     thumbnail_b64: null,
-    is_viewed: false,
+    is_viewed: false, is_replayed: false, replay_expires_at: null,
     status: 'sent',
     view_duration_sec: 5,
     ...partial,

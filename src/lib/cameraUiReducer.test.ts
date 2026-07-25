@@ -137,4 +137,56 @@ describe('cameraUiReducer', () => {
     expect(state.cameraReady).toBe(true);
     expect(state.captureMode).toBe('video');
   });
+
+  it('SET_LENS_PRESET sets lens chip, selectedLens, and zoom (incl. 2× crop)', () => {
+    const state = cameraUiReducer(
+      { ...initialCameraUiState, zoom: 0.1 },
+      {
+        type: 'SET_LENS_PRESET',
+        selectedLens: 'Back Camera',
+        lensOptionId: '2x',
+        zoom: 0.25,
+      }
+    );
+
+    expect(state.selectedLens).toBe('Back Camera');
+    expect(state.lensOptionId).toBe('2x');
+    expect(state.zoom).toBe(0.25);
+  });
+
+  it('SET_LENS_PRESET is a no-op when preset is unchanged', () => {
+    const prev = {
+      ...initialCameraUiState,
+      selectedLens: 'Back Camera',
+      lensOptionId: '1x',
+      zoom: 0,
+    };
+    const state = cameraUiReducer(prev, {
+      type: 'SET_LENS_PRESET',
+      selectedLens: 'Back Camera',
+      lensOptionId: '1x',
+      zoom: 0,
+    });
+
+    expect(state).toBe(prev);
+  });
+
+  it('START_CAMERA_SWITCH clears selectedLens, lensOptionId, and zoom', () => {
+    const state = cameraUiReducer(
+      {
+        ...initialCameraUiState,
+        facing: 'back',
+        zoom: 0.3,
+        selectedLens: 'Back Telephoto Camera',
+        lensOptionId: 'tele',
+      },
+      { type: 'START_CAMERA_SWITCH', nextFacing: 'front' }
+    );
+
+    expect(state.facing).toBe('front');
+    expect(state.selectedLens).toBeNull();
+    expect(state.lensOptionId).toBeNull();
+    expect(state.zoom).toBe(0);
+    expect(state.isSwitchingCamera).toBe(true);
+  });
 });

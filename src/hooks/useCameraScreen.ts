@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from 'react';
 import type { ViewStyle } from 'react-native';
-import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, useMicrophonePermissions, type AvailableLenses } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
 import { tap, notify as hapticNotify } from '../lib/haptics';
@@ -28,8 +28,17 @@ import { scheduleCameraSwitchWatchdog } from '../lib/cameraSwitchWatchdog';
 import { configureForRecording } from '../lib/audioSession';
 import { runWithFinally } from '../lib/runWithFinally';
 import { cameraUiReducer, initialCameraUiState, type CameraUiState } from '../lib/cameraUiReducer';
+import {
+  buildLensSwitcherOptions,
+  defaultLensOption,
+  findLensOptionById,
+  lensOptionsFromNativePresets,
+  shouldShowLensSwitcher,
+  type LensOption,
+} from '../lib/cameraLenses';
 import { createCameraStyles } from '../components/camera/cameraScreen.styles';
 import { setNativeVideoTorchForRecording } from '../lib/videoTorchSession';
+import { getBackLensPresetsAsync } from '../../modules/nix-camera-torch';
 import { duration as motionDuration } from '../theme/motion';
 
 export const VIDEO_RECORDING_BITRATE = 2_500_000;
@@ -57,6 +66,10 @@ export type CameraScreenViewModel = {
   cameraReady: boolean;
   cameraActive: boolean;
   zoom: number;
+  selectedLens: string | null;
+  lensOptionId: string | null;
+  lensOptions: LensOption[];
+  showLensSwitcher: boolean;
   isSwitchingCamera: boolean;
   cameraInstanceKey: number;
   captureMode: 'picture' | 'video';
@@ -66,6 +79,8 @@ export type CameraScreenViewModel = {
   cameraRef: RefObject<CameraView | null>;
   pinchGesture: ReturnType<typeof Gesture.Pinch>;
   onCameraReady: () => void;
+  onAvailableLensesChanged: (event: AvailableLenses) => void;
+  selectLens: (lensOptionId: string) => void;
   animatedShutterStyle: AnimatedStyle<ViewStyle>;
   animatedFlashStyle: AnimatedStyle<ViewStyle>;
   pickFromGallery: () => Promise<void>;
@@ -101,11 +116,14 @@ export function useCameraScreen(): CameraScreenViewModel {
     cameraReady,
     cameraActive,
     zoom,
+    selectedLens,
+    lensOptionId,
     isSwitchingCamera,
     cameraInstanceKey,
     captureMode,
   } = cameraUi;
 
+  const [lensOptions, setLensOptions] = useState<LensOption[]>([]);
   const cameraRef = useRef<CameraView>(null);
   const cameraUiRef = useRef(cameraUi);
   const cameraReadyRef = useRef(false);
@@ -351,6 +369,110 @@ export function useCameraScreen(): CameraScreenViewModel {
     return poll();
   };
 
+  const applyLensOptions = useCallback((options: LensOption[]) => {
+    if (process.env.EXPO_OS !== 'ios') {
+      setLensOptions([]);
+      return;
+    }
+
+    const facingNow = cameraUiRef.current.facing;
+    if (facingNow !== 'back') {
+      setLensOptions([]);
+      return;
+    }
+
+    setLensOptions(options);
+
+    const currentId = cameraUiRef.current.lensOptionId;
+    if (currentId != null && !options.some((option) => option.id === currentId)) {
+      const fallback = defaultLensOption(options);
+      dispatchCameraUi({
+        type: 'SET_LENS_PRESET',
+        selectedLens: fallback?.selectedLensValue ?? null,
+        lensOptionId: fallback?.id ?? null,
+        zoom: fallback?.zoom ?? 0,
+      });
+    }
+  }, []);
+
+  const refreshLensOptions = useCallback(async () => {
+    if (process.env.EXPO_OS !== 'ios') {
+      setLensOptions([]);
+      return;
+    }
+    if (cameraUiRef.current.facing !== 'back') {
+      setLensOptions([]);
+      return;
+    }
+
+    const nativePresets = await getBackLensPresetsAsync();
+    if (nativePresets && nativePresets.length > 0) {
+      applyLensOptions(lensOptionsFromNativePresets(nativePresets));
+      return;
+    }
+
+    try {
+      const lenses = (await cameraRef.current?.getAvailableLensesAsync()) ?? [];
+      applyLensOptions(buildLensSwitcherOptions(lenses));
+    } catch {
+      applyLensOptions([]);
+    }
+  }, [applyLensOptions]);
+
+  const applyAvailableLenses = useCallback(
+    (lenses: string[]) => {
+      // Prefer native deviceType presets; localizedName callback is fallback-only.
+      void getBackLensPresetsAsync().then((nativePresets) => {
+        if (nativePresets && nativePresets.length > 0) {
+          applyLensOptions(lensOptionsFromNativePresets(nativePresets));
+          return;
+        }
+        applyLensOptions(buildLensSwitcherOptions(lenses));
+      });
+    },
+    [applyLensOptions]
+  );
+
+  const onAvailableLensesChanged = useCallback(
+    (event: AvailableLenses) => {
+      applyAvailableLenses(event.lenses);
+    },
+    [applyAvailableLenses]
+  );
+
+  const selectLens = useCallback(
+    (nextLensOptionId: string) => {
+      const option = findLensOptionById(lensOptions, nextLensOptionId);
+      if (!option) return;
+
+      const ui = cameraUiRef.current;
+      if (
+        ui.takingPicture ||
+        ui.videoPreparing ||
+        ui.isSwitchingCamera ||
+        ui.recordingVideo ||
+        isSwitchingCameraRef.current
+      ) {
+        return;
+      }
+
+      if (ui.lensOptionId === option.id && Math.abs(ui.zoom - option.zoom) < 0.0001) return;
+
+      zoomAtGestureStart.set(option.zoom);
+      zoomShared.set(option.zoom);
+      dispatchCameraUi({
+        type: 'SET_LENS_PRESET',
+        selectedLens: option.selectedLensValue,
+        lensOptionId: option.id,
+        zoom: option.zoom,
+      });
+      trackEvent('camera_lens_selected', { kind: option.kind, id: option.id });
+    },
+    [lensOptions, zoomAtGestureStart, zoomShared]
+  );
+
+  const showLensSwitcher = shouldShowLensSwitcher(facing, lensOptions);
+
   const onCameraReady = () => {
     cameraReadyRef.current = true;
     const clearSwitchingUi = isSwitchingCameraRef.current;
@@ -373,6 +495,10 @@ export function useCameraScreen(): CameraScreenViewModel {
       });
       isSwitchingCameraRef.current = false;
       switchRecoveryUsedRef.current = false;
+    }
+
+    if (process.env.EXPO_OS === 'ios') {
+      void refreshLensOptions();
     }
   };
 
@@ -883,6 +1009,8 @@ export function useCameraScreen(): CameraScreenViewModel {
     fingerDownRef.current = false;
     disableNativeVideoTorch();
     zoomAtGestureStart.set(0);
+    zoomShared.set(0);
+    setLensOptions([]);
 
     isSwitchingCameraRef.current = true;
     switchRecoveryUsedRef.current = false;
@@ -955,6 +1083,10 @@ export function useCameraScreen(): CameraScreenViewModel {
     cameraReady,
     cameraActive,
     zoom,
+    selectedLens,
+    lensOptionId,
+    lensOptions,
+    showLensSwitcher,
     isSwitchingCamera,
     cameraInstanceKey,
     captureMode,
@@ -964,6 +1096,8 @@ export function useCameraScreen(): CameraScreenViewModel {
     cameraRef,
     pinchGesture,
     onCameraReady,
+    onAvailableLensesChanged,
+    selectLens,
     animatedShutterStyle,
     animatedFlashStyle,
     pickFromGallery,

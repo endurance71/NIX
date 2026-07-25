@@ -31,6 +31,14 @@ describe('push Edge Function helpers', () => {
       title: 'Message',
       body: '@ania reacted: 😂',
     });
+    expect(pushCopy('capture_attempt', formatPushActorLabel(null, 'ania'), 'pl')).toEqual({
+      title: 'NiX',
+      body: '@ania próbował(a) zrobić zrzut lub nagrać ekran',
+    });
+    expect(pushCopy('capture_attempt', formatPushActorLabel(null, 'ania'), 'en')).toEqual({
+      title: 'NiX',
+      body: '@ania tried to screenshot or record the screen',
+    });
   });
 
   it('maps reaction emoji tokens to glyphs with a safe fallback', () => {

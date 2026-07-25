@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentUser } from '../services/profileService';
-import { markNixViewedWithCleanup } from '../services/nixService';
+import { markNixViewedForReplay, markNixReplayedWithCleanup } from '../services/nixService';
 import { trackEvent } from './telemetry';
 
 const STORAGE_PREFIX = 'nix.viewed_ack_queue.v1';
@@ -9,6 +9,7 @@ const MAX_BACKOFF_MS = 15 * 60_000;
 export type PendingViewedAck = {
   nixId: string;
   mediaPath: string;
+  ackType: 'viewed' | 'replayed';
   createdAt: number;
   attemptCount: number;
   nextAttemptAt: number;
@@ -42,6 +43,7 @@ export function sanitizePendingViewedAcks(value: unknown): PendingViewedAck[] {
     byId.set(item.nixId, {
       nixId: item.nixId,
       mediaPath: item.mediaPath,
+      ackType: item.ackType === 'replayed' ? 'replayed' : 'viewed',
       createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
       attemptCount: typeof item.attemptCount === 'number' ? Math.max(0, item.attemptCount) : 0,
       nextAttemptAt: typeof item.nextAttemptAt === 'number' ? item.nextAttemptAt : 0,
@@ -107,9 +109,13 @@ function postponeViewedAck(userId: string, nixId: string, now: number) {
 
 async function deliverViewedAck(userId: string, ack: PendingViewedAck) {
   try {
-    await markNixViewedWithCleanup(ack.nixId, ack.mediaPath);
+    if (ack.ackType === 'viewed') {
+      await markNixViewedForReplay(ack.nixId);
+    } else {
+      await markNixReplayedWithCleanup(ack.nixId, ack.mediaPath);
+    }
     await removeViewedAck(userId, ack.nixId);
-    trackEvent('viewed_ack_delivered', { attempt_count: ack.attemptCount });
+    trackEvent('viewed_ack_delivered', { attempt_count: ack.attemptCount, ack_type: ack.ackType });
     return true;
   } catch (error) {
     await postponeViewedAck(userId, ack.nixId, Date.now());
@@ -133,12 +139,13 @@ function deliverViewedAcksSerially(userId: string, acknowledgements: PendingView
   );
 }
 
-export async function acknowledgeViewedNix(item: { id: string; media_path: string }) {
+export async function acknowledgeViewedNix(item: { id: string; media_path: string }, ackType: 'viewed' | 'replayed' = 'viewed') {
   const user = await getCurrentUser();
   if (!user) return false;
   const ack: PendingViewedAck = {
     nixId: item.id,
     mediaPath: item.media_path,
+    ackType,
     createdAt: Date.now(),
     attemptCount: 0,
     nextAttemptAt: 0,

@@ -8,9 +8,10 @@ NiX używa `expo-notifications`, Expo Push Service oraz dwóch Supabase Edge Fun
 | --- | --- | --- | --- |
 | `new_nix` | nowy NiX | receiver | Inbox |
 | `new_text_message` | nowa wiadomość tekstowa | receiver | czat z aktorem |
-| `message_reaction` | INSERT / zmiana emoji na wiadomości (bez DELETE; bez self-react) | autor wiadomości | czat z aktorem |
+| `message_reaction` | INSERT / zmiana emoji na wiadomości | autor wiadomości | czat z aktorem |
 | `friend_request` | zaproszenie pending | zaproszony | Inbox |
 | `friend_accepted` | akceptacja | inicjator | Znajomi |
+| `capture_attempt` | próba nagrania ekranu | nadawca nixa | czat z aktorem |
 
 `message_reaction`: `entity_id` = id reakcji; `event_key` = `message_reaction:{reactionId}:{emoji}` (zmiana emoji = nowy job). Badge ikony **nie** rośnie od reakcji (jak friend events) — nadal tylko nieprzeczytane NiXy.
 
