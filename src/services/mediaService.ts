@@ -96,6 +96,11 @@ export type MediaUploadOptions = {
   onProgress?: (progress: MediaUploadProgress) => void;
   signal?: AbortSignal;
   clientUploadId?: string;
+  /** Playback duration hint for bitrate-aware fast-path (video only). */
+  playbackDurationMs?: number;
+  /** Source image dimensions from capture — skip resize when already small enough. */
+  sourceWidth?: number;
+  sourceHeight?: number;
 };
 
 type PreparedMedia = {
@@ -133,14 +138,16 @@ async function getFileSizeBytes(uri: string): Promise<number | null> {
   }
 }
 
-async function safeDeleteTemporaryUris(uris: readonly string[]) {
-  await Promise.all(
+function safeDeleteTemporaryUris(uris: readonly string[]) {
+  // Fire-and-forget: best-effort cleanup runs in the background to avoid
+  // blocking the upload path. System cache can also evict these files.
+  void Promise.all(
     uris.map(async (uri) => {
       try {
         if (!uri.startsWith('file://')) return;
         await FileSystem.deleteAsync(uri, { idempotent: true });
       } catch {
-        // Best-effort cleanup. System cache can also evict these files.
+        // Silently ignored — system cache may also evict these.
       }
     })
   );
@@ -167,11 +174,13 @@ export async function prepareImageForUpload(fileUri: string, options?: MediaUplo
 
   try {
     const { manipulateAsync, SaveFormat } = await import('expo-image-manipulator');
-    // Resize by longest edge to avoid upscaling narrow portrait shots.
-    const resizeAction = { resize: { width: TARGET_IMAGE_LONG_EDGE } };
+    // Skip resize when source dimensions are known and already within target.
+    const longestEdge = Math.max(options?.sourceWidth ?? Infinity, options?.sourceHeight ?? Infinity);
+    const needsResize = longestEdge > TARGET_IMAGE_LONG_EDGE;
+    const actions = needsResize ? [{ resize: { width: TARGET_IMAGE_LONG_EDGE } }] : [];
     const result = await manipulateAsync(
       fileUri,
-      [resizeAction],
+      actions,
       { compress: TARGET_IMAGE_QUALITY, format: SaveFormat.JPEG, base64: false }
     );
     const sizeBytes = await getFileSizeBytes(result.uri);
@@ -281,13 +290,28 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
 
   let compressedUri = fileUri;
   const temporaryUris: string[] = [];
-  // Fast-path: lokalne nagrania o małym rozmiarze są już ograniczone bitratem
-  // 2.5 Mbps przez kamerę — rekompresja daje znikomy zysk za istotny koszt CPU.
+  const thumbnailTemporaryUris: string[] = [];
+
+  // OPT-7: Rozpocznij generowanie miniatury z oryginalnego pliku równolegle
+  // z kompresją — miniatura jest resizowana do 240px, więc źródło (oryginał vs.
+  // skompresowany) nie wpływa na wynik wizualny.
+  const thumbnailPromise = generateVideoThumbnailAtTime(fileUri, 0, { maxWidth: 1280 });
+
+  // Bitrate-aware fast-path: skip compression when the source bitrate is
+  // already at or below the compression target. Camera recordings are
+  // limited to 2.5 Mbps, so clips up to ~90s will typically qualify.
+  const estimatedBitrate =
+    typeof originalSizeBytes === 'number' &&
+    typeof options?.playbackDurationMs === 'number' &&
+    options.playbackDurationMs > 0
+      ? (originalSizeBytes * 8) / (options.playbackDurationMs / 1000)
+      : null;
   const fastPathEligible =
     typeof originalSizeBytes === 'number' &&
     originalSizeBytes > 0 &&
-    originalSizeBytes <= VIDEO_FAST_PATH_MAX_BYTES &&
-    fileUri.startsWith('file://');
+    fileUri.startsWith('file://') &&
+    (originalSizeBytes <= VIDEO_FAST_PATH_MAX_BYTES ||
+      (estimatedBitrate !== null && estimatedBitrate <= TARGET_VIDEO_BITRATE * 1.25));
 
   if (fastPathEligible) {
     trackEvent('compression_skipped', {
@@ -295,6 +319,7 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
       media_original_bytes: originalSizeBytes,
       reason: 'fast_path',
       threshold_bytes: VIDEO_FAST_PATH_MAX_BYTES,
+      estimated_bitrate: estimatedBitrate,
     });
     emitProgress(options, { phase: 'compressing', progress: 0.95 });
   } else {
@@ -351,10 +376,9 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
 
   let thumbnailUri: string | null = null;
   let thumbnailDataUrl: string | null = null;
-  const thumbnailTemporaryUris: string[] = [];
   try {
     emitProgress(options, { phase: 'thumbnail', progress: 0.2 });
-    const thumbRef = await generateVideoThumbnailAtTime(compressedUri, 0, { maxWidth: 1280 });
+    const thumbRef = await thumbnailPromise;
     if (thumbRef) {
       const previewContext = ImageManipulator.manipulate(thumbRef);
       const previewImage = await previewContext.renderAsync();
@@ -555,7 +579,6 @@ export async function uploadImageAndCreateNix(
   assertNotCancelled(options?.signal);
   const prepared = await prepareImageForUpload(fileUri, options);
   emitProgress(options, { phase: 'reading', progress: 0 });
-  const bytes = await getImageBytes(prepared.uri);
   const { contentType } = buildContentType(prepared.uri);
   const ext = 'jpg';
 
@@ -567,7 +590,12 @@ export async function uploadImageAndCreateNix(
     throw new DomainError('INVALID_MEDIA', 'Nieobsługiwany format pliku.');
   }
 
-  if (bytes.byteLength > MAX_IMAGE_FILE_SIZE_BYTES) {
+  const finalSizeBytes = prepared.sizeBytes ?? prepared.originalSizeBytes ?? null;
+  if (typeof finalSizeBytes !== 'number' || finalSizeBytes <= 0) {
+    throw new DomainError('INVALID_MEDIA', 'Plik jest pusty lub uszkodzony.');
+  }
+
+  if (finalSizeBytes > MAX_IMAGE_FILE_SIZE_BYTES) {
     throw new DomainError('INVALID_MEDIA', 'Plik jest za duży. Maksymalny rozmiar to 10 MB.');
   }
 
@@ -588,18 +616,71 @@ export async function uploadImageAndCreateNix(
     return Boolean(data?.id);
   };
 
+  emitProgress(options, {
+    phase: 'uploading',
+    progress: 0,
+    bytesSent: 0,
+    bytesTotal: finalSizeBytes,
+    attempt: 1,
+  });
+
+  const uploadStartedAt = nowMs();
   try {
-    const uploadData = await uploadWithRetry('media-vault', filePath, bytes, { contentType }, options);
+    await uploadResumable({
+      bucket: 'media-vault',
+      objectPath: filePath,
+      fileUri: prepared.uri,
+      contentType,
+      fileSizeBytes: finalSizeBytes,
+      cacheControl: '3600',
+      upsert: false,
+      signal: options?.signal,
+      onProgress: ({ bytesSent, bytesTotal, attempt }) => {
+        emitProgress(options, {
+          phase: 'uploading',
+          progress: bytesTotal > 0 ? Math.min(0.99, bytesSent / bytesTotal) : 0,
+          bytesSent,
+          bytesTotal,
+          attempt,
+        });
+      },
+    });
+
+    trackDuration('upload_ms', uploadStartedAt, {
+      bucket: 'media-vault',
+      status: 'success',
+      media_bytes: finalSizeBytes,
+      transport: 'resumable',
+    });
+
+    emitProgress(options, {
+      phase: 'uploading',
+      progress: 1,
+      bytesSent: finalSizeBytes,
+      bytesTotal: finalSizeBytes,
+      attempt: 1,
+    });
+
     emitProgress(options, { phase: 'creating_record', progress: 0.5 });
     if (!(await hasExistingNix())) {
-      await insertNix(receiverId, uploadData.path, viewDurationSec, {
+      await insertNix(receiverId, filePath, viewDurationSec, {
         clientUploadId: stableUploadId ?? filePath,
+        thumbnailDataUrl: prepared.thumbnailDataUrl,
       });
     }
     emitProgress(options, { phase: 'creating_record', progress: 1 });
+  } catch (error) {
+    trackDuration('upload_ms', uploadStartedAt, {
+      bucket: 'media-vault',
+      status: 'failure',
+      media_bytes: finalSizeBytes,
+      transport: 'resumable',
+      error_message: error instanceof Error ? error.message : 'Unknown image upload error',
+    });
+    throw error;
   } finally {
     emitProgress(options, { phase: 'cleanup', progress: 0 });
-    await safeDeleteTemporaryUris(prepared.temporaryUris);
+    safeDeleteTemporaryUris(prepared.temporaryUris);
     emitProgress(options, { phase: 'cleanup', progress: 1 });
   }
 }
@@ -615,7 +696,7 @@ export async function uploadVideoAndCreateNix(
   if (!user) throw new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
 
   assertNotCancelled(options?.signal);
-  const prepared = await prepareVideoForUpload(fileUri, options);
+  const prepared = await prepareVideoForUpload(fileUri, { ...options, playbackDurationMs });
   emitProgress(options, { phase: 'reading', progress: 0 });
 
   const { ext, contentType } = buildVideoContentType(prepared.uri);
@@ -743,7 +824,7 @@ export async function uploadVideoAndCreateNix(
     throw new DomainError('INVALID_MEDIA', mapStorageUploadError(message));
   } finally {
     emitProgress(options, { phase: 'cleanup', progress: 0 });
-    await safeDeleteTemporaryUris([
+    safeDeleteTemporaryUris([
       ...prepared.temporaryUris,
       ...(prepared.thumbnailTemporaryUris ?? []),
     ]);

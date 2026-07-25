@@ -387,29 +387,36 @@ function PreviewVideoContent({
 
   useEffect(() => {
     let cancelled = false;
-    void generateVideoThumbnailAtTime(current.uri, 0, { maxWidth: 720 })
-      .then((thumbnail) => {
-        if (!thumbnail) {
+    // Lazy poster: opóźnij generowanie miniatury o 500 ms — VideoView
+    // zazwyczaj renderuje pierwszą klatkę szybciej, eliminując potrzebę
+    // osobnego postera i oszczędzając alokację natywnego VideoPlayer.
+    const timer = setTimeout(() => {
+      if (cancelled || videoState.firstFrameClipKey === clipKey) return;
+      void generateVideoThumbnailAtTime(current.uri, 0, { maxWidth: 720 })
+        .then((thumbnail) => {
+          if (!thumbnail) {
+            trackEvent('preview_video_thumbnail_failed', {
+              segment_index: videoState.clipIndex,
+              error_message: 'generateVideoThumbnailAtTime returned null',
+            });
+            return;
+          }
+          if (!cancelled) {
+            dispatchVideoState({ type: 'posterLoaded', clipKey, poster: thumbnail });
+          }
+        })
+        .catch((error) => {
           trackEvent('preview_video_thumbnail_failed', {
             segment_index: videoState.clipIndex,
-            error_message: 'generateVideoThumbnailAtTime returned null',
+            error_message: error instanceof Error ? error.message : 'Unknown thumbnail error',
           });
-          return;
-        }
-        if (!cancelled) {
-          dispatchVideoState({ type: 'posterLoaded', clipKey, poster: thumbnail });
-        }
-      })
-      .catch((error) => {
-        trackEvent('preview_video_thumbnail_failed', {
-          segment_index: videoState.clipIndex,
-          error_message: error instanceof Error ? error.message : 'Unknown thumbnail error',
         });
-      });
+    }, 500);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [current.uri, clipKey, videoState.clipIndex]);
+  }, [current.uri, clipKey, videoState.clipIndex, videoState.firstFrameClipKey]);
 
   return (
     <View style={styles.container}>

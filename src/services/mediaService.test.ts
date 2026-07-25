@@ -65,7 +65,7 @@ describe('mediaService', () => {
 
   it('wgrywa plik i tworzy rekord nixa', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
-    mockUpload.mockResolvedValue({ error: null, data: { path: 'nixes/user-1/file.jpg' } });
+    mockUploadResumable.mockResolvedValue(undefined);
     mockInsertNix.mockResolvedValue(undefined);
 
     const blob = new Blob(['test'], { type: 'image/jpeg' });
@@ -81,10 +81,16 @@ describe('mediaService', () => {
 
     await uploadImageAndCreateNix('file:///tmp/image.jpg', 'receiver-1');
 
-    expect(mockUpload).toHaveBeenCalledTimes(1);
+    expect(mockUploadResumable).toHaveBeenCalledTimes(1);
+    expect(mockUploadResumable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bucket: 'media-vault',
+        contentType: 'image/jpeg',
+      })
+    );
     expect(mockInsertNix).toHaveBeenCalledWith(
       'receiver-1',
-      'nixes/user-1/file.jpg',
+      expect.stringContaining('nixes/user-1/'),
       5,
       expect.objectContaining({ clientUploadId: expect.any(String) })
     );
@@ -92,7 +98,7 @@ describe('mediaService', () => {
 
   it('przekazuje niestandardowy czas wyświetlania do rekordu nixa', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
-    mockUpload.mockResolvedValue({ error: null, data: { path: 'nixes/user-1/file.jpg' } });
+    mockUploadResumable.mockResolvedValue(undefined);
     mockInsertNix.mockResolvedValue(undefined);
 
     const blob = new Blob(['test'], { type: 'image/jpeg' });
@@ -110,7 +116,7 @@ describe('mediaService', () => {
 
     expect(mockInsertNix).toHaveBeenCalledWith(
       'receiver-1',
-      'nixes/user-1/file.jpg',
+      expect.stringContaining('nixes/user-1/'),
       180,
       expect.objectContaining({ clientUploadId: expect.any(String) })
     );
@@ -126,16 +132,10 @@ describe('mediaService', () => {
 
   it('rzuca błąd gdy obraz jest pusty', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        blob: async () => new Blob([], { type: 'image/jpeg' }),
-        arrayBuffer: async () => new ArrayBuffer(0),
-      })
-    );
+    mockGetInfoAsync.mockResolvedValue({ exists: true, size: 0 });
 
     await expect(uploadImageAndCreateNix('file:///tmp/image.jpg', 'receiver-1')).rejects.toThrow(
-      'Nie udało się odczytać pliku do wysyłki.'
+      'Plik jest pusty lub uszkodzony.'
     );
   });
 

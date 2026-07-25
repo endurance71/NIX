@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, type RefObject } from 'react';
 import type { ViewStyle } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -82,7 +82,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   const { setSegments } = useVideoDraft();
   const { setUri: setPhotoUri } = usePhotoDraft();
   const insets = useScreenInsets('cameraTab');
-  const styles = createCameraStyles(colors);
+  const styles = useMemo(() => createCameraStyles(colors), [colors]);
   const [permission, requestPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const [cameraUi, dispatchCameraUi] = useReducer(cameraUiReducer, initialCameraUiState);

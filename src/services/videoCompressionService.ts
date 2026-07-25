@@ -29,7 +29,18 @@ type CompressionOptions = {
   onProgress?: (progress: CompressionProgress) => void;
   signal?: AbortSignal;
   timeoutMs?: number;
+  fileSizeBytes?: number;
 };
+
+const COMPRESSION_TIMEOUT_BASE_MS = 15_000;
+const COMPRESSION_TIMEOUT_PER_MB_MS = 2_000;
+const COMPRESSION_TIMEOUT_MAX_MS = 120_000;
+
+function getCompressionTimeout(fileSizeBytes: number | null | undefined): number {
+  if (typeof fileSizeBytes !== 'number' || fileSizeBytes <= 0) return DEFAULT_COMPRESSION_TIMEOUT_MS;
+  const sizeMb = fileSizeBytes / (1024 * 1024);
+  return Math.min(COMPRESSION_TIMEOUT_MAX_MS, COMPRESSION_TIMEOUT_BASE_MS + sizeMb * COMPRESSION_TIMEOUT_PER_MB_MS);
+}
 
 function emitProgress(options: CompressionOptions | undefined, progress: CompressionProgress) {
   options?.onProgress?.(progress);
@@ -68,7 +79,7 @@ export async function compressVideoForUpload(
   };
   const result = await withTimeout(
     prepareVideoForUpload(fileUri, uploadOptions),
-    options?.timeoutMs ?? DEFAULT_COMPRESSION_TIMEOUT_MS
+    options?.timeoutMs ?? getCompressionTimeout(options?.fileSizeBytes)
   );
   trackDuration('queue_compression_ms', startedAt, { media_type: 'video', status: 'success' });
   return result;
