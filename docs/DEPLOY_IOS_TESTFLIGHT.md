@@ -648,6 +648,7 @@ Kopiuj wiersz po każdym uploadzie binary **lub** po OTA:
 
 | Data | Wersja | Build / Update | Commit | Ścieżka (A OTA / B Xcode) | Środowisko | Status | Uwagi |
 | ---- | ------ | -------------- | ------ | ------------------------ | ---------- | ------ | ----- |
+| 2026-07-25 | 1.0.3 | 2 | `29759c4` | B | production | uploaded ASC | media pipeline + OTA channel production; dSYM warnings prebuilt frameworks; Internal QA po Processing |
 | | 1.0.3 | | | B | production | | lokalny Xcode |
 | | 1.0.3 | OTA | | A | production | | eas update |
 
