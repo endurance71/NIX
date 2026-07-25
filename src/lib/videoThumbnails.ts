@@ -3,7 +3,7 @@ import type { VideoThumbnail } from 'expo-video';
 
 /**
  * In-memory cache dla wyników generowania miniatur.
- * Klucz: `${sourceUri}:${timeSec}:${maxWidth}` → Promise<VideoThumbnail | null>.
+ * Klucz: `${sourceUri}:${timeSec}` → Promise<VideoThumbnail | null>.
  * Wpisy są automatycznie evictowane po 60 s aby nie trzymać pamięci.
  */
 const thumbnailCache = new Map<string, Promise<VideoThumbnail | null>>();
@@ -27,7 +27,7 @@ function evictOldestIfNeeded() {
  * Generuje miniaturę klatki wideo przez expo-video (zastępuje deprecated expo-video-thumbnails).
  * Wymaga załadowanego źródła w odtwarzaczu — używa replaceAsync + generateThumbnailsAsync.
  *
- * Wyniki są cache'owane w pamięci per (uri, timeSec, maxWidth) i automatycznie
+ * Wyniki są cache'owane w pamięci per (uri, timeSec) i automatycznie
  * usuwane po 60 s, dzięki czemu wielokrotne wywołania dla tego samego klipu
  * (preview → upload → viewer) nie alokują nowego VideoPlayer za każdym razem.
  */
