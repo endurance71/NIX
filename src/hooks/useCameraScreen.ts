@@ -38,7 +38,7 @@ import {
 } from '../lib/cameraLenses';
 import { createCameraStyles } from '../components/camera/cameraScreen.styles';
 import { setNativeVideoTorchForRecording } from '../lib/videoTorchSession';
-import { applyHoldZoomDelta } from '../lib/cameraHoldZoom';
+import { HOLD_ZOOM_GAIN } from '../lib/cameraHoldZoom';
 import { getBackLensPresetsAsync } from '../../modules/nix-camera-torch';
 import { duration as motionDuration } from '../theme/motion';
 
@@ -309,34 +309,60 @@ export function useCameraScreen(): CameraScreenViewModel {
     shutterEnabled,
   ]);
 
-  const setZoomFromGesture = (nextZoom: number) => {
+  const setZoomFromGesture = useCallback((nextZoom: number) => {
     dispatchCameraUi({ type: 'SET_ZOOM', zoom: nextZoom });
-  };
+  }, []);
 
-  const pinchGesture = Gesture.Pinch()
-    .onBegin(() => {
-      zoomAtGestureStart.set(zoomShared.get());
-      lastZoomCommitMs.set(0);
-    })
-    .onUpdate((event) => {
-      'worklet';
-      const nextZoom = Math.max(0, Math.min(1, zoomAtGestureStart.get() + (event.scale - 1) * 0.22));
-      zoomShared.set(nextZoom);
-      // Commit do React state co ~3. klatkę (~30 Hz przy 120) — bez Date/performance w ciele hooka.
-      const tick = lastZoomCommitMs.get() + 1;
-      lastZoomCommitMs.set(tick);
-      if (tick % 3 === 0) {
-        runOnJS(setZoomFromGesture)(nextZoom);
-      }
-    })
-    .onEnd(() => {
-      lastZoomCommitMs.set(0);
-      runOnJS(setZoomFromGesture)(zoomShared.get());
-    })
-    .onFinalize(() => {
-      lastZoomCommitMs.set(0);
-      runOnJS(setZoomFromGesture)(zoomShared.get());
-    });
+  // Stable JS bridges for worklets — gesture objects must not be recreated mid-touch
+  // (SET_ZOOM / recordingVideo re-renders previously rebuilt Gesture.Pan and crashed Hermes).
+  const onShutterPressInRef = useRef<() => void>(() => {});
+  const onShutterPressOutRef = useRef<() => void>(() => {});
+  const handleShutterPressIn = useCallback(() => {
+    onShutterPressInRef.current();
+  }, []);
+  const handleShutterPressOut = useCallback(() => {
+    onShutterPressOutRef.current();
+  }, []);
+
+  const pinchGesture = useMemo(
+    () =>
+      Gesture.Pinch()
+        .onBegin(() => {
+          'worklet';
+          zoomAtGestureStart.set(zoomShared.get());
+          lastZoomCommitMs.set(0);
+        })
+        .onUpdate((event) => {
+          'worklet';
+          const nextZoom = Math.max(
+            0,
+            Math.min(1, zoomAtGestureStart.get() + (event.scale - 1) * 0.22)
+          );
+          zoomShared.set(nextZoom);
+          // Commit do React state co ~3. klatkę — bez Date/performance w ciele hooka.
+          const tick = lastZoomCommitMs.get() + 1;
+          lastZoomCommitMs.set(tick);
+          if (tick % 3 === 0) {
+            runOnJS(setZoomFromGesture)(nextZoom);
+          }
+        })
+        .onEnd(() => {
+          'worklet';
+          lastZoomCommitMs.set(0);
+          runOnJS(setZoomFromGesture)(zoomShared.get());
+        })
+        .onFinalize(() => {
+          'worklet';
+          lastZoomCommitMs.set(0);
+          runOnJS(setZoomFromGesture)(zoomShared.get());
+        }),
+    [
+      lastZoomCommitMs,
+      setZoomFromGesture,
+      zoomAtGestureStart,
+      zoomShared,
+    ]
+  );
 
   useEffect(() => {
     if (permission) return;
@@ -964,39 +990,60 @@ export function useCameraScreen(): CameraScreenViewModel {
     }
   };
 
+  onShutterPressInRef.current = onShutterPressIn;
+  onShutterPressOutRef.current = onShutterPressOut;
+
   // Hold-to-record + Snapchat-style vertical drag-to-zoom while REC is active.
   // manualActivation keeps the touch alive through drag (Pressable would cancel on move).
-  const shutterGesture = Gesture.Pan()
-    .manualActivation(true)
-    .onTouchesDown((_event, state) => {
-      'worklet';
-      if (!shutterEnabled.get()) {
-        state.fail();
-        return;
-      }
-      shutterFingerActive.set(true);
-      state.activate();
-      runOnJS(onShutterPressIn)();
-    })
-    .onChange((event) => {
-      'worklet';
-      if (!recordingZoomEnabled.get()) return;
-      const nextZoom = applyHoldZoomDelta(zoomShared.get(), event.changeY);
-      zoomShared.set(nextZoom);
-      const tick = lastZoomCommitMs.get() + 1;
-      lastZoomCommitMs.set(tick);
-      if (tick % 3 === 0) {
-        runOnJS(setZoomFromGesture)(nextZoom);
-      }
-    })
-    .onFinalize(() => {
-      'worklet';
-      if (!shutterFingerActive.get()) return;
-      shutterFingerActive.set(false);
-      lastZoomCommitMs.set(0);
-      runOnJS(setZoomFromGesture)(zoomShared.get());
-      runOnJS(onShutterPressOut)();
-    });
+  // Memoized: recreating Pan mid-hold (zoom commits / recording state) aborted Hermes in TF.
+  const shutterGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .manualActivation(true)
+        .onTouchesDown((_event, state) => {
+          'worklet';
+          if (!shutterEnabled.get()) {
+            state.fail();
+            return;
+          }
+          shutterFingerActive.set(true);
+          state.activate();
+          runOnJS(handleShutterPressIn)();
+        })
+        .onChange((event) => {
+          'worklet';
+          if (!recordingZoomEnabled.get()) return;
+          // Inline hold-zoom math — do not call applyHoldZoomDelta (cross-file non-worklet).
+          const nextZoom = Math.max(
+            0,
+            Math.min(1, zoomShared.get() - event.changeY * HOLD_ZOOM_GAIN)
+          );
+          zoomShared.set(nextZoom);
+          const tick = lastZoomCommitMs.get() + 1;
+          lastZoomCommitMs.set(tick);
+          if (tick % 3 === 0) {
+            runOnJS(setZoomFromGesture)(nextZoom);
+          }
+        })
+        .onFinalize(() => {
+          'worklet';
+          if (!shutterFingerActive.get()) return;
+          shutterFingerActive.set(false);
+          lastZoomCommitMs.set(0);
+          runOnJS(setZoomFromGesture)(zoomShared.get());
+          runOnJS(handleShutterPressOut)();
+        }),
+    [
+      handleShutterPressIn,
+      handleShutterPressOut,
+      lastZoomCommitMs,
+      recordingZoomEnabled,
+      setZoomFromGesture,
+      shutterEnabled,
+      shutterFingerActive,
+      zoomShared,
+    ]
+  );
 
   const pickFromGallery = async () => {
     if (videoPreparing || recordingVideo || takingPicture || isSwitchingCamera) return;
