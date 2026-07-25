@@ -54,6 +54,7 @@ export function CameraCaptureSurface({ vm }: Props) {
     toggleFacing,
     toggleFlash,
     toggleRecordingMicMuted,
+    lensSwitcherEpoch,
   } = vm;
   const cameraLightProps = getCameraLightProps({
     captureMode,
@@ -234,6 +235,7 @@ export function CameraCaptureSurface({ vm }: Props) {
               ) : showLensSwitcher ? (
                 <View style={styles.lensSwitcherSlot}>
                   <NativeLensSwitcher
+                    key={lensSwitcherEpoch}
                     options={lensOptions}
                     activeLensId={activeLensId}
                     onSelect={selectLens}

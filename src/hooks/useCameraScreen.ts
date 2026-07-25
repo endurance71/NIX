@@ -71,6 +71,8 @@ export type CameraScreenViewModel = {
   lensOptionId: string | null;
   lensOptions: LensOption[];
   showLensSwitcher: boolean;
+  /** Bumps on camera tab focus so NativeLensSwitcher remounts Expo UI Namespace. */
+  lensSwitcherEpoch: number;
   isSwitchingCamera: boolean;
   cameraInstanceKey: number;
   captureMode: 'picture' | 'video';
@@ -124,6 +126,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   } = cameraUi;
 
   const [lensOptions, setLensOptions] = useState<LensOption[]>([]);
+  const [lensSwitcherEpoch, setLensSwitcherEpoch] = useState(0);
   const cameraRef = useRef<CameraView>(null);
   const cameraUiRef = useRef(cameraUi);
   const cameraReadyRef = useRef(false);
@@ -219,6 +222,9 @@ export function useCameraScreen(): CameraScreenViewModel {
 
   useFocusEffect(
     useCallback(() => {
+      // Expo UI Namespace unregisters on disappear and does not re-register on appear —
+      // remount NativeLensSwitcher so glassEffectId / matchedGeometry work again after tab blur.
+      setLensSwitcherEpoch((epoch) => epoch + 1);
       dispatchCameraUi({ type: 'SET_CAMERA_ACTIVE', cameraActive: true });
       cameraMountStartedAtRef.current = nowMs();
       logVideoTorchEvent('screen-focus-active');
@@ -1147,6 +1153,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     lensOptionId,
     lensOptions,
     showLensSwitcher,
+    lensSwitcherEpoch,
     isSwitchingCamera,
     cameraInstanceKey,
     captureMode,

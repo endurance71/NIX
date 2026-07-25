@@ -7,7 +7,7 @@
 - **Zdjęcie:** krótki tap na migawkę.
 - **Wideo:** przytrzymanie — po progu [`VIDEO_HOLD_THRESHOLD_MS`](../src/lib/videoRecordingLimits.ts) (**500 ms**) start nagrania; krótszy kontakt = zdjęcie.
 - **Zoom podczas nagrywania:** bez odrywania palca od migawki — pionowy drag (w górę +, w dół −) zmienia zoom 0–1 w obrębie bieżącego obiektywu (jak Snapchat); bez auto-przełączania chipów. Pinch na preview działa niezależnie.
-- **Obiektywy (iOS):** nad migawką chipy w stylu Apple Camera — `0,5` / `1×` / `2` (crop wide) / tele (`3`/`5`…) z `NixCameraTorch.getBackLensPresetsAsync`; UI: Liquid Glass `NativeLensSwitcher` (`GlassEffectContainer` + `matchedGeometryEffect`). Tylko tylna kamera przy ≥2 opcjach.
+- **Obiektywy (iOS):** nad migawką chipy w stylu Apple Camera — `0,5` / `1×` / `2` (crop wide) / tele (`3`/`5`…) z `NixCameraTorch.getBackLensPresetsAsync`; UI: Liquid Glass `NativeLensSwitcher` (`GlassEffectContainer` + `matchedGeometryEffect`). Remount przy focus taba (Namespace Expo UI). Tylko tylna kamera przy ≥2 opcjach.
   - Wymaga **native rebuild** po zmianie `modules/nix-camera-torch` (nie OTA).
   - Smoke iOS: Pro/Pro Max → pełny zestaw chipów; sliding selection; 2× crop; tele zmienia FOV; front → brak chipów.
 - **Limit czasu:** pojedynczy klip do **180 s** (`VIDEO_TOTAL_MAX_DURATION_MS`); po przytrzymaniu kamera przełącza się w tryb `video`, czeka na nowe `onCameraReady`, a dopiero potem startuje `recordAsync`.
