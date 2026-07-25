@@ -73,6 +73,6 @@ async function generateVideoThumbnailUncached(
 /**
  * Czyści cały cache miniatur — przydatne przy zwalnianiu pamięci (np. viewer cleanup).
  */
-export function clearThumbnailCache() {
+function clearThumbnailCache() {
   thumbnailCache.clear();
 }
