@@ -852,7 +852,7 @@ export function useCameraScreen(): CameraScreenViewModel {
         setSegments([{ uri: asset.uri, durationMs }]);
         router.push({ pathname: '/preview', params: { mode: 'video' } });
       } else {
-        setPhotoUri(asset.uri);
+        setPhotoDraft({ uri: asset.uri, width: asset.width, height: asset.height });
         router.push({ pathname: '/preview' });
       }
     } catch (err) {

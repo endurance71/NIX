@@ -9,7 +9,7 @@ import { getCurrentUser } from './profileService';
 import { DomainError } from './errors';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { uploadResumable } from './resumableUploadService';
-import { withTimeout, getCompressionTimeout } from './videoCompressionService';
+import { withTimeout, getCompressionTimeout } from '../lib/compressionTimeout';
 
 export function buildContentType(fileUri: string) {
   const ext = fileUri.split('?')[0].split('.').pop()?.toLowerCase() || 'jpg';
@@ -318,6 +318,9 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
   const fastPathEligible = isFastPathEligible(fileUri, originalSizeBytes, options?.playbackDurationMs);
 
   if (fastPathEligible) {
+    const estimatedBitrate = typeof originalSizeBytes === 'number' && typeof options?.playbackDurationMs === 'number' && options.playbackDurationMs > 0
+      ? (originalSizeBytes * 8) / (options.playbackDurationMs / 1000)
+      : undefined;
     trackEvent('compression_skipped', {
       media_type: 'video',
       media_original_bytes: originalSizeBytes,
@@ -669,7 +672,7 @@ export async function uploadImageAndCreateNix(
     if (!(await hasExistingNix())) {
       await insertNix(receiverId, filePath, viewDurationSec, {
         clientUploadId: stableUploadId ?? filePath,
-        thumbnailDataUrl: prepared.thumbnailDataUrl,
+        thumbnailB64: prepared.thumbnailDataUrl,
       });
     }
     emitProgress(options, { phase: 'creating_record', progress: 1 });

@@ -23,6 +23,8 @@ type BaseUploadOptions = {
 
 type UploadImageParams = BaseUploadOptions & {
   fileUri: string;
+  sourceWidth?: number;
+  sourceHeight?: number;
 };
 
 type UploadVideoParams = BaseUploadOptions & {
@@ -44,6 +46,8 @@ export async function uploadImageWithMetadata(params: UploadImageParams): Promis
     await uploadImageAndCreateNix(params.fileUri, params.receiverId, params.viewDurationSec, {
       signal: params.signal,
       clientUploadId: params.uploadId,
+      sourceWidth: params.sourceWidth,
+      sourceHeight: params.sourceHeight,
       onProgress: (progress) => params.onProgress?.(mapMediaProgress(progress)),
     });
     trackEvent('queue_upload_success', {

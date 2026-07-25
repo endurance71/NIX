@@ -655,7 +655,7 @@ export default function PreviewScreen() {
           <NativeChromeIconButton
             name="close"
             accessibilityLabel="Odrzuć zdjęcie"
-            onPress={() => discardPhotoPreview(clearPhotoUri)}
+            onPress={() => discardPhotoPreview(clearPhotoDraft)}
             backgroundColor={colors.cameraControlBackground}
             tintColor={colors.cameraControlTint}
             chromeVariant="solid"

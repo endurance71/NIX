@@ -98,7 +98,7 @@ export default function SendToSheet() {
   const viewDurationSec = normalizeNixViewDurationSec(paramFirst(rawParams.viewDurationSec));
   const isVideo = mode === 'video';
   const { segments, clearSegments } = useVideoDraft();
-  const { uploadNix, uploadVideoSegments, uploadImageWithMetadata } = useMediaUpload();
+  const { uploadNix, uploadVideoSegments } = useMediaUpload();
   const { offerAfterSuccessfulSend } = usePushNotifications();
   const {
     data: profiles = [],

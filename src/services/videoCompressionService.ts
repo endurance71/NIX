@@ -6,24 +6,10 @@ import {
   type MediaUploadProgress,
 } from './mediaService';
 import { nowMs, trackDuration } from '../lib/telemetry';
+import { withTimeout, getCompressionTimeout, DEFAULT_COMPRESSION_TIMEOUT_MS } from '../lib/compressionTimeout';
 
 export type CompressionResult = Awaited<ReturnType<typeof prepareImageForUpload>>;
 export type CompressionProgress = Pick<MediaUploadProgress, 'phase' | 'progress'>;
-
-const DEFAULT_COMPRESSION_TIMEOUT_MS = 30_000;
-
-export function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(
-        () =>
-          reject(new DomainError('INVALID_MEDIA', 'Kompresja trwała zbyt długo. Spróbuj ponownie.')),
-        timeoutMs
-      )
-    ),
-  ]);
-}
 
 type CompressionOptions = {
   onProgress?: (progress: CompressionProgress) => void;
@@ -31,16 +17,6 @@ type CompressionOptions = {
   timeoutMs?: number;
   fileSizeBytes?: number;
 };
-
-const COMPRESSION_TIMEOUT_BASE_MS = 15_000;
-const COMPRESSION_TIMEOUT_PER_MB_MS = 2_000;
-const COMPRESSION_TIMEOUT_MAX_MS = 120_000;
-
-export function getCompressionTimeout(fileSizeBytes: number | null | undefined): number {
-  if (typeof fileSizeBytes !== 'number' || fileSizeBytes <= 0) return DEFAULT_COMPRESSION_TIMEOUT_MS;
-  const sizeMb = fileSizeBytes / (1024 * 1024);
-  return Math.min(COMPRESSION_TIMEOUT_MAX_MS, COMPRESSION_TIMEOUT_BASE_MS + sizeMb * COMPRESSION_TIMEOUT_PER_MB_MS);
-}
 
 function emitProgress(options: CompressionOptions | undefined, progress: CompressionProgress) {
   options?.onProgress?.(progress);
