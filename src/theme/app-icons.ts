@@ -21,6 +21,7 @@ export type AppIconName =
   | 'personAdd'
   | 'profile'
   | 'photoLibrary'
+  | 'saveToPhotos'
   | 'send'
   | 'compose'
   | 'more'
@@ -73,6 +74,7 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   personAdd: 'person.badge.plus',
   profile: 'person.crop.circle',
   photoLibrary: 'photo.on.rectangle.angled',
+  saveToPhotos: 'square.and.arrow.down',
   send: 'arrow.up',
   compose: 'square.and.pencil',
   more: 'ellipsis',

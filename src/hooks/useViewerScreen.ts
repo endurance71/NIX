@@ -42,6 +42,7 @@ import { useTranslation } from 'react-i18next';
 import { blockUser, reportNix, type ReportReason } from '../services/safetyService';
 import { notifyDomainError, notifySuccess } from '../lib/appNotify';
 import { runWithFinally } from '../lib/runWithFinally';
+import { saveRemoteMediaToGallery } from '../lib/saveMediaToGalleryAction';
 
 type NixQueueItem = {
   id: string;
@@ -91,6 +92,10 @@ export type ViewerScreenViewModel = {
   safetyBusy: boolean;
   safetyPaused: boolean;
   openSafetyMenu: () => void;
+  canSaveToGallery: boolean;
+  isSavingToGallery: boolean;
+  saveToGalleryA11y: string;
+  saveToGallery: () => void;
 };
 
 export function useViewerScreen(): ViewerScreenViewModel {
@@ -192,9 +197,11 @@ export function useViewerScreen(): ViewerScreenViewModel {
   const displayedNix = renderNix ?? currentNix;
 
   const captureDenied = shouldBlockCapture(capturePolicy);
+  const canSaveToGallery = !captureDenied;
   const shouldBlurOverlay = captureDenied && appState !== 'active';
 
   useViewerCaptureGuard(captureDenied, paramSenderId, displayedNix?.id);
+  const [isSavingToGallery, setIsSavingToGallery] = useState(false);
 
   const signedUrlTtlSec = (() => {
     const totalViewSec = queue.reduce((acc, s) => {
@@ -616,6 +623,23 @@ export function useViewerScreen(): ViewerScreenViewModel {
     ]);
   };
 
+  const saveToGallery = () => {
+    if (!canSaveToGallery || isSavingToGallery || !imageUrl || closing) return;
+    const mediaType = displayedNix?.media_type === 'video' ? 'video' : 'image';
+    const extHint = mediaType === 'video' ? 'mp4' : 'jpg';
+    setIsSavingToGallery(true);
+    void runWithFinally(
+      () =>
+        saveRemoteMediaToGallery({
+          source: 'viewer',
+          remoteUri: imageUrl,
+          mediaType,
+          extHint,
+        }),
+      () => setIsSavingToGallery(false)
+    );
+  };
+
   const isBootLoading = queueLoading || (!queue.length && !closing);
 
   return {
@@ -652,5 +676,9 @@ export function useViewerScreen(): ViewerScreenViewModel {
     safetyBusy,
     safetyPaused,
     openSafetyMenu,
+    canSaveToGallery,
+    isSavingToGallery,
+    saveToGalleryA11y: t('media.saveToGalleryA11y'),
+    saveToGallery,
   };
 }

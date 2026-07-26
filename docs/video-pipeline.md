@@ -26,7 +26,8 @@ Po migawce: `setPhotoUri(photo.uri)` + natychmiastowy `router.push('/preview')`.
 - Tryb foto czyta URI z `PhotoDraft` (fallback: params `uri`).
 - Tryb wideo czyta segmenty z `VideoDraft`.
 - Wybór **czasu wyświetlania** u odbiorcy (`view_duration_sec`): 5 / 15 / 30 / 60 / 180 (`ALLOWED_VIEW_DURATIONS` w nixService).
-- Chrome preview: `chromeVariant="solid"` (bez Liquid Glass — unika ambient dimming na iOS 26).
+- Chrome preview: `chromeVariant="glass"` — natywne Liquid Glass (`glassEffect` na SwiftUI `Button`).
+- **Zapisz w galerii** (lewy dół): zawsze dostępne dla nadawcy — `expo-media-library` write-only (`Asset.create`); wymaga native binary (`runtimeVersion` ≥ 1.0.4). Odbiorca zapisuje dopiero w viewerze przy `capture_policy=allow` — patrz [capture-protection.md](capture-protection.md).
 - Przygotowanie pliku i metadanych przed wysyłką — orchestracja w [`src/services/mediaService.ts`](../src/services/mediaService.ts).
 
 ## Kompresja

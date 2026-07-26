@@ -307,12 +307,9 @@ export default function SendToSheet() {
           {isSending ? (
             <ActivityIndicator color={colors.buttonPrimaryText} />
           ) : (
-            <>
-              <Text style={stylesForTheme.sendButtonText}>
-                {selectedCount > 1 ? `Wyślij do ${selectedCount} znajomych` : 'Wyślij wiadomość'}
-              </Text>
-              <AppIcon name="send" size={APP_ICON_SIZE.lg} color={colors.buttonPrimaryText} />
-            </>
+            <Text style={stylesForTheme.sendButtonText}>
+              {selectedCount > 1 ? `Wyślij do ${selectedCount} znajomych` : 'Wyślij wiadomość'}
+            </Text>
           )}
         </Pressable>
       </View>

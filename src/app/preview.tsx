@@ -15,6 +15,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
+import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -29,6 +30,8 @@ import { trackEvent } from '../lib/telemetry';
 import { tap } from '../lib/haptics';
 import { generateVideoThumbnailAtTime } from '../lib/videoThumbnails';
 import { disableViewerCaptureProtection } from '../lib/viewerCaptureProtection';
+import { saveLocalMediaToGallery } from '../lib/saveMediaToGalleryAction';
+import { runWithFinally } from '../lib/runWithFinally';
 import {
   DEFAULT_NIX_VIEW_DURATION_SEC,
   loadPreferredNixViewDuration,
@@ -326,10 +329,12 @@ function PreviewVideoContent({
   segments: VideoSegmentDraft[];
   clearDraft: () => void;
 }) {
+  const { t } = useTranslation();
   const { colors, statusBarStyle, isDark } = useAppTheme();
   const insets = useScreenInsets('mediaChrome');
   const styles = createStyles(colors);
   const [videoState, dispatchVideoState] = useReducer(previewVideoReducer, initialPreviewVideoState);
+  const [isSaving, setIsSaving] = useState(false);
   const segmentProgress = useSharedValue(1);
 
   const current = segments[videoState.clipIndex];
@@ -513,18 +518,40 @@ function PreviewVideoContent({
             onPress={() => discardVideoPreview(clearDraft)}
             backgroundColor={colors.cameraControlBackground}
             tintColor={colors.cameraControlTint}
-            chromeVariant="solid"
+            chromeVariant="glass"
           />
         </View>
 
         <View style={styles.bottomControls}>
+          <NativeChromeIconButton
+            name="saveToPhotos"
+            accessibilityLabel={t('media.saveToGalleryA11y')}
+            onPress={() => {
+              if (isSaving) return;
+              setIsSaving(true);
+              void runWithFinally(
+                () =>
+                  saveLocalMediaToGallery({
+                    source: 'preview',
+                    uris: segments.map((segment) => segment.uri),
+                    mediaType: 'video',
+                    segmentCount: segments.length,
+                  }),
+                () => setIsSaving(false)
+              );
+            }}
+            disabled={isSaving}
+            backgroundColor={colors.cameraControlBackground}
+            tintColor={colors.cameraControlTint}
+            chromeVariant="glass"
+          />
           <NativePreviewSendButton
             label="Wyślij do"
             accessibilityLabel="Wyślij nagranie"
             onPress={openSendToVideo}
             backgroundColor={colors.cameraControlBackground}
             tintColor={colors.cameraControlTint}
-            chromeVariant="solid"
+            chromeVariant="glass"
           />
         </View>
       </View>
@@ -533,6 +560,7 @@ function PreviewVideoContent({
 }
 
 export default function PreviewScreen() {
+  const { t } = useTranslation();
   const { colors, statusBarStyle } = useAppTheme();
   const insets = useScreenInsets('mediaChrome');
   const styles = createStyles(colors);
@@ -544,6 +572,7 @@ export default function PreviewScreen() {
   const [viewDurationSec, setViewDurationSec] = useState<NixViewDurationSec>(DEFAULT_NIX_VIEW_DURATION_SEC);
   const [imageLoadError, setImageLoadError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
+  const [isSavingPhoto, setIsSavingPhoto] = useState(false);
 
   const { segments, setSegments, clearSegments } = useVideoDraft();
   const { draft: draftPhoto, clearDraft: clearPhotoDraft } = usePhotoDraft();
@@ -658,24 +687,45 @@ export default function PreviewScreen() {
             onPress={() => discardPhotoPreview(clearPhotoDraft)}
             backgroundColor={colors.cameraControlBackground}
             tintColor={colors.cameraControlTint}
-            chromeVariant="solid"
+            chromeVariant="glass"
           />
           <PreviewDurationMenu
             selectedDurationSec={viewDurationSec}
             onSelect={setViewDurationSec}
             colors={colors}
-            chromeVariant="solid"
+            chromeVariant="glass"
           />
         </View>
 
         <View style={styles.bottomControls}>
+          <NativeChromeIconButton
+            name="saveToPhotos"
+            accessibilityLabel={t('media.saveToGalleryA11y')}
+            onPress={() => {
+              if (isSavingPhoto || !photoUri) return;
+              setIsSavingPhoto(true);
+              void runWithFinally(
+                () =>
+                  saveLocalMediaToGallery({
+                    source: 'preview',
+                    uris: [photoUri],
+                    mediaType: 'image',
+                  }),
+                () => setIsSavingPhoto(false)
+              );
+            }}
+            disabled={isSavingPhoto}
+            backgroundColor={colors.cameraControlBackground}
+            tintColor={colors.cameraControlTint}
+            chromeVariant="glass"
+          />
           <NativePreviewSendButton
             label="Wyślij do"
             accessibilityLabel="Wybierz odbiorców zdjęcia"
             onPress={() => openSendToPhoto(viewDurationSec)}
             backgroundColor={colors.cameraControlBackground}
             tintColor={colors.cameraControlTint}
-            chromeVariant="solid"
+            chromeVariant="glass"
           />
         </View>
       </View>
@@ -743,7 +793,7 @@ const createStyles = (colors: ThemeColors) => {
     },
     bottomControls: {
       flexDirection: 'row',
-      justifyContent: 'flex-end',
+      justifyContent: 'space-between',
       alignItems: 'center',
     },
     timerHudShell: {

@@ -25,6 +25,7 @@
         "NSCameraUsageDescription": "NiX uses the camera to take photos and videos that you choose to send to friends.",
         "NSMicrophoneUsageDescription": "NiX uses the microphone to record sound in video messages that you choose to send.",
         "NSPhotoLibraryUsageDescription": "NiX uses your photo library when you choose a profile avatar or select a photo or video to send to friends.",
+        "NSPhotoLibraryAddUsageDescription": "NiX saves photos and videos you choose to keep in your Photos library.",
         "ITSAppUsesNonExemptEncryption": false,
         "UIViewControllerBasedStatusBarAppearance": false,
         "CADisableMinimumFrameDurationOnPhone": true
@@ -64,6 +65,14 @@
         "expo-image-picker",
         {
           "photosPermission": "NiX uses your photo library when you choose a profile avatar or select a photo or video to send to friends."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "NiX uses your photo library when you choose a profile avatar or select a photo or video to send to friends.",
+          "savePhotosPermission": "NiX saves photos and videos you choose to keep in your Photos library.",
+          "isAccessMediaLocationEnabled": false
         }
       ],
       [
@@ -111,7 +120,7 @@
         "expo-channel-name": "production"
       }
     },
-    "runtimeVersion": "1.0.3",
+    "runtimeVersion": "1.0.4",
     "locales": {
       "en": "./src/locales/en/common.json",
       "pl": "./src/locales/pl/common.json"

@@ -5,8 +5,9 @@
 ## Semantyka produktowa
 
 - **Odbiorca** decyduje, czy pozwala na capture treści **od konkretnego nadawcy** (znajomego).
-- **Domyślnie:** `deny` — brak wpisu w `nix_capture_prefs` traktowany jako blokada.
-- **Allow:** jawny wiersz z `capture_policy = 'allow'` dla pary `(owner_user_id = receiver, friend_user_id = sender)`.
+- **Domyślnie:** `deny` — brak wpisu w `nix_capture_prefs` traktowany jako blokada screenshotów/nagrywania **oraz** brak przycisku zapisu do Zdjęć w viewerze.
+- **Allow:** jawny wiersz z `capture_policy = 'allow'` dla pary `(owner_user_id = receiver, friend_user_id = sender)` — SS/nagrywanie dozwolone **oraz** przycisk „Zapisz w galerii” w viewerze (pobranie signed URL → `expo-media-library`).
+- **Nadawca** może zawsze zapisać własne media na ekranie preview przed wysyłką (niezależnie od preferencji znajomego).
 
 ## Baza danych
 
@@ -19,8 +20,9 @@
 | :--- | :--- |
 | [`src/services/capturePolicyService.ts`](../src/services/capturePolicyService.ts) | CRUD preferencji, wywołanie RPC |
 | [`src/lib/capturePolicy.ts`](../src/lib/capturePolicy.ts) | `resolveCapturePolicyForFriend`, `shouldBlockCapture` |
-| `src/app/viewer.tsx` | `expo-screen-capture`: `preventScreenCaptureAsync` gdy blokada; listener prób; klucz pomocniczy `viewer-capture-guard` |
-| `src/app/(tabs)/profile/index.tsx` | Przełączniki per znajomy (React Query cache: `friendCapturePolicies`, `capturePolicyForSender`) |
+| [`src/lib/saveToMediaLibrary.ts`](../src/lib/saveToMediaLibrary.ts) / [`saveMediaToGalleryAction.ts`](../src/lib/saveMediaToGalleryAction.ts) | Zapis do Zdjęć (preview lokalnie; viewer z signed URL gdy `allow`) |
+| `src/app/viewer.tsx` / `ViewerScreenSurface` | `expo-screen-capture` gdy blokada; przycisk zapisu gdy `allow` |
+| `src/app/(tabs)/profile/friends.tsx` | Przełączniki per znajomy („Zrzut ekranu i zapis”; React Query: `friendCapturePolicies`, `capturePolicyForSender`) |
 
 ## Telemetria (przykłady)
 

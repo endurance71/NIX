@@ -61,6 +61,8 @@
 	<string>NiX uses the microphone to record sound in video messages that you choose to send.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>NiX uses your photo library when you choose a profile avatar or select a photo or video to send to friends.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>NiX saves photos and videos you choose to keep in your Photos library.</string>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>

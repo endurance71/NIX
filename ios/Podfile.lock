@@ -241,6 +241,9 @@ PODS:
     - ExpoModulesCore
   - ExpoLogBox (57.0.1):
     - React-Core
+  - ExpoMediaLibrary (57.0.3):
+    - ExpoModulesCore
+    - React-Core
   - ExpoModulesCore (57.0.7):
     - ExpoModulesJSI
     - hermes-engine
@@ -2792,6 +2795,7 @@ DEPENDENCIES:
   - ExpoLinking (from `../node_modules/expo-linking/ios`)
   - ExpoLocalization (from `../node_modules/expo-localization/ios`)
   - "ExpoLogBox (from `../node_modules/@expo/log-box`)"
+  - ExpoMediaLibrary (from `../node_modules/expo-media-library/ios/ExpoMediaLibrary.podspec`)
   - ExpoModulesCore (from `../node_modules/expo-modules-core/ExpoModulesCore.podspec`)
   - ExpoModulesJSI (from `../node_modules/expo-modules-jsi/apple`)
   - ExpoModulesWorklets (from `../node_modules/expo-modules-core/ExpoModulesWorklets.podspec`)
@@ -2982,6 +2986,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-localization/ios"
   ExpoLogBox:
     :path: "../node_modules/@expo/log-box"
+  ExpoMediaLibrary:
+    :podspec: "../node_modules/expo-media-library/ios/ExpoMediaLibrary.podspec"
   ExpoModulesCore:
     :podspec: "../node_modules/expo-modules-core/ExpoModulesCore.podspec"
   ExpoModulesJSI:
@@ -3231,6 +3237,7 @@ SPEC CHECKSUMS:
   ExpoLinking: 5a796f9284535c0349537a844dd40680229b7fcb
   ExpoLocalization: 659243b03b3a3e9589793cee2f728a899e181329
   ExpoLogBox: 8a3cfa2897e088083cd49fc1ff7fdb2de4385547
+  ExpoMediaLibrary: e0829ae4fe90dc8bcd5ec13250ba6503aebbbc94
   ExpoModulesCore: e39593124111096d3c619c0f505e2853848510d2
   ExpoModulesJSI: b20fefa4cdd9097e7e6b715466d1900b8c5d4711
   ExpoModulesWorklets: b21b8f233b5fd71ca74327217601fa4ead9ddaaf

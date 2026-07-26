@@ -96,6 +96,11 @@ export function createViewerStyles(colors: ThemeColors) {
       fontWeight: '800',
       letterSpacing: 1,
     },
+    saveButtonWrap: {
+      position: 'absolute',
+      left: 24,
+      zIndex: 15,
+    },
     loadingOverlaySolid: {
       ...StyleSheet.absoluteFill,
       alignItems: 'center',

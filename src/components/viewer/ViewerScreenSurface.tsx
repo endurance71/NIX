@@ -7,6 +7,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { useViewerScreen } from '../../hooks/useViewerScreen';
 import { ViewerNixVideo } from './ViewerNixVideo';
 import { ViewerSegmentTimerHud } from './ViewerSegmentTimerHud';
+import { NativeChromeIconButton } from '../ui/native-chrome-icon-button';
 
 const NIX_IMAGE_PLACEHOLDER = 'L00000fQfQfQfQfQfQfQfQfQfQfQ';
 
@@ -114,6 +115,19 @@ export function ViewerScreenSurface() {
           accessibilityRole="button">
           <Text style={vm.styles.safetyButtonText}>•••</Text>
         </Pressable>
+      ) : null}
+      {vm.canSaveToGallery && vm.imageUrl && !vm.imageLoadError ? (
+        <View style={[vm.styles.saveButtonWrap, { bottom: vm.insets.bottom + 16 }]}>
+          <NativeChromeIconButton
+            name="saveToPhotos"
+            accessibilityLabel={vm.saveToGalleryA11y}
+            onPress={vm.saveToGallery}
+            disabled={vm.isSavingToGallery || vm.closing || !vm.imageReady}
+            backgroundColor={vm.colors.cameraControlBackground}
+            tintColor={vm.colors.cameraControlTint}
+            chromeVariant="glass"
+          />
+        </View>
       ) : null}
       {vm.loading && !vm.imageLoadError ? (
         <View style={vm.styles.loadingOverlaySolid}>

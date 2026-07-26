@@ -15,22 +15,30 @@
    - telemetry zawiera `viewer_capture_block_enabled` i `viewer_capture_attempt`.
 
 2. **Allow per friend**  
-   B w profilu znajomych włącza „Zezwalaj na screenshoty od @A”, potem otwiera viewer:
+   B w profilu znajomych włącza „Zrzut ekranu i zapis” dla @A, potem otwiera viewer:
    - screenshot jest dozwolony,
-   - telemetry zawiera `viewer_capture_policy_allow`,
+   - widoczny przycisk zapisu (lewy dół) → zapis do Zdjęć działa,
+   - telemetry zawiera `viewer_capture_policy_allow` oraz po zapisie `viewer_save_to_gallery`,
    - brak aktywnej blokady po wejściu na viewer.
 
 3. **Powrót na deny**  
    B wyłącza przełącznik i ponownie otwiera viewer:
    - blokada capture wraca,
+   - **brak** przycisku zapisu,
    - toast pojawia się po próbie screenshotu.
 
-4. **App switcher / background blur**  
+4. **Preview nadawcy**  
+   A robi zdjęcie/film → preview:
+   - przycisk zapisu (lewy dół) zawsze widoczny,
+   - zapis do Zdjęć działa niezależnie od preferencji B,
+   - telemetry: `preview_save_to_gallery`.
+
+5. **App switcher / background blur**  
    Przy policy `deny` podczas oglądania viewer:
    - przejście do app switchera pokazuje zamaskowany podgląd,
    - po powrocie do aplikacji maska znika.
 
-5. **Brak wycieku poza viewer**  
+6. **Brak wycieku poza viewer**  
    Po wyjściu z viewer na inne ekrany:
    - screenshot działa normalnie,
    - nie ma aktywnej blokady globalnej.
