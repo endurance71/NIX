@@ -345,7 +345,7 @@ W repozytorium może być `development` (lokalne buildy). Przy uploadzie do App 
 
 | Pojęcie | Przykład | Gdzie w NiX |
 | --- | --- | --- |
-| Wersja marketingowa | `1.0.3` | **Źródło prawdy:** `app.json` → `expo.version`. Musi równać się: `package.json` `version`, `ios/NiX/Info.plist` `CFBundleShortVersionString`, `MARKETING_VERSION` w `project.pbxproj` |
+| Wersja marketingowa | `1.0.4` | **Źródło prawdy:** `app.json` → `expo.version`. Musi równać się: `package.json` `version`, `ios/NiX/Info.plist` `CFBundleShortVersionString`, `MARKETING_VERSION` w `project.pbxproj` |
 | `runtimeVersion` (OTA) | `1.0.4` | `app.json` + `Expo.plist` — bump tylko przy native (sekcja 5) |
 | Numer buildu | `1`, `2`, `3`… | **Źródło prawdy:** natywny iOS. Ustaw **jednocześnie**: `Info.plist` → `CFBundleVersion` **oraz** `project.pbxproj` → `CURRENT_PROJECT_VERSION`. Brak `ios.buildNumber` w `app.json`. **Nie** używaj EAS `autoIncrement` w tej ścieżce |
 
@@ -648,6 +648,7 @@ Kopiuj wiersz po każdym uploadzie binary **lub** po OTA:
 
 | Data | Wersja | Build / Update | Commit | Ścieżka (A OTA / B Xcode) | Środowisko | Status | Uwagi |
 | ---- | ------ | -------------- | ------ | ------------------------ | ---------- | ------ | ----- |
+| 2026-07-26 | 1.0.4 | 1 | `88bdcc9` | B | production | uploaded ASC | save to Photos (preview always; viewer when capture allow); expo-media-library; runtime 1.0.4; dSYM warnings prebuilt frameworks; Internal QA po Processing |
 | 2026-07-25 | 1.0.3 | 3 | `ba9750d` | B | production | uploaded ASC | capture attempt + Replay×1 10min + Unlimited; Supabase migracje+EF; dSYM warnings prebuilt frameworks; Internal QA po Processing |
 | 2026-07-25 | 1.0.3 | 2 | `29759c4` | B | production | uploaded ASC | media pipeline + OTA channel production; dSYM warnings prebuilt frameworks; Internal QA po Processing |
 | | 1.0.3 | | | B | production | | lokalny Xcode |
