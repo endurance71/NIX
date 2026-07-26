@@ -39,6 +39,7 @@ import type { ChatScreenViewModel, OptimisticTextMessage } from '../../hooks/use
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
 import { selection } from '../../lib/haptics';
+import { isNixFirstOpenAvailable, isNixReplayAvailable } from '../../lib/nixReplay';
 import { buildUnifiedChatTimeline, type ChatTimelineItem, type UnifiedChatTextMessage } from '../../lib/chatTimeline';
 import {
   MESSAGE_REACTION_EMOJIS,
@@ -582,21 +583,19 @@ function ReactionPickerOverlay({
   );
 }
 
-function nixStatusLabel(nix: ChatNixEvent, t: ChatScreenViewModel['t']): string {
+function nixStatusLabel(
+  nix: ChatNixEvent,
+  t: ChatScreenViewModel['t'],
+  now: Date = new Date()
+): string {
   if (nix.direction === 'sent') {
     if (nix.status === 'viewed' || nix.status === 'cleaned' || nix.is_viewed) {
       return t('chat.nixOpened');
     }
     return t('chat.nixSent');
   }
-  if (!nix.is_viewed && nix.status === 'sent') return t('chat.nixNew');
-  
-  const isReplay = nix.is_viewed && !nix.is_replayed;
-  const canReplay = isReplay && (!nix.replay_expires_at || new Date(nix.replay_expires_at) > new Date());
-  if (canReplay) {
-    return t('chat.nixReplay');
-  }
-  
+  if (isNixFirstOpenAvailable(nix)) return t('chat.nixNew');
+  if (isNixReplayAvailable(nix, now)) return t('chat.nixReplay');
   return t('chat.nixOpened');
 }
 
@@ -607,30 +606,43 @@ function nixTitle(nix: ChatNixEvent, t: ChatScreenViewModel['t']): string {
 function NixChip({
   nix,
   maxWidth,
-  onPress,
+  onOpen,
   t,
 }: {
   nix: ChatNixEvent;
   maxWidth: number;
-  onPress: () => void;
+  onOpen: () => void;
   t: ChatScreenViewModel['t'];
 }) {
   const { colors } = useAppTheme();
   const isOwn = nix.direction === 'sent';
-  const isReplay = nix.is_viewed && !nix.is_replayed;
-  const canReplay = isReplay && (!nix.replay_expires_at || new Date(nix.replay_expires_at) > new Date());
-  const canOpen = nix.direction === 'received' && (!nix.is_viewed || canReplay) && Boolean(nix.media_path) && nix.status !== 'cleaned' && nix.status !== 'cleanup_failed';
-  
-  // Wyszarzona wiadomość [Odtwórz] jeśli to powtórka, ale wciąż klikalna
-  const isNew = canOpen && !canReplay;
-  const bubbleBg = isNew ? colors.accent : colors.secondarySystemFill;
-  const titleColor = isNew ? colors.onChatBubbleOwn : colors.label;
-  const statusColor = isNew ? colors.onChatBubbleOwn : colors.secondaryLabel;
-  
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!nix.is_viewed || nix.is_replayed || !nix.replay_expires_at) return;
+    const expiresAt = Date.parse(nix.replay_expires_at);
+    if (!Number.isFinite(expiresAt)) return;
+    const delayMs = expiresAt - Date.now();
+    if (delayMs <= 0) {
+      setNowMs(Date.now());
+      return;
+    }
+    const timer = setTimeout(() => setNowMs(Date.now()), delayMs);
+    return () => clearTimeout(timer);
+  }, [nix.is_viewed, nix.is_replayed, nix.replay_expires_at]);
+
+  const now = new Date(nowMs);
+  const canFirstOpen = isNixFirstOpenAvailable(nix);
+  const canReplay = isNixReplayAvailable(nix, now);
+  const isHighlighted = canFirstOpen || canReplay;
+  const bubbleBg = isHighlighted ? colors.accent : colors.secondarySystemFill;
+  const titleColor = isHighlighted ? colors.onChatBubbleOwn : colors.label;
+  const statusColor = isHighlighted ? colors.onChatBubbleOwn : colors.secondaryLabel;
+
   const statusText =
     nix.media_type === 'video'
-      ? `${nixStatusLabel(nix, t)} · ${t('chat.nixVideo')}`
-      : nixStatusLabel(nix, t);
+      ? `${nixStatusLabel(nix, t, now)} · ${t('chat.nixVideo')}`
+      : nixStatusLabel(nix, t, now);
 
   const chip = (
     <View style={[styles.bubble, { backgroundColor: bubbleBg }]}>
@@ -639,20 +651,46 @@ function NixChip({
     </View>
   );
 
-  return (
-    <View style={styles.row}>
-      {canOpen ? (
+  const anchorStyle = [
+    styles.bubbleAnchor,
+    isOwn ? styles.bubbleOwn : styles.bubbleIncoming,
+    { maxWidth },
+  ];
+
+  if (canFirstOpen) {
+    return (
+      <View style={styles.row}>
         <Pressable
-          onPress={onPress}
+          onPress={onOpen}
           accessibilityRole="button"
-          style={[styles.bubbleAnchor, isOwn ? styles.bubbleOwn : styles.bubbleIncoming, { maxWidth }]}>
+          accessibilityLabel={statusText}
+          accessibilityHint={t('chat.nixNew')}
+          style={anchorStyle}>
           {chip}
         </Pressable>
-      ) : (
-        <View style={[styles.bubbleAnchor, isOwn ? styles.bubbleOwn : styles.bubbleIncoming, { maxWidth }]}>
+      </View>
+    );
+  }
+
+  if (canReplay) {
+    return (
+      <View style={styles.row}>
+        <Pressable
+          onLongPress={onOpen}
+          delayLongPress={350}
+          accessibilityRole="button"
+          accessibilityLabel={statusText}
+          accessibilityHint={t('chat.nixReplay')}
+          style={anchorStyle}>
           {chip}
-        </View>
-      )}
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.row}>
+      <View style={anchorStyle}>{chip}</View>
     </View>
   );
 }
@@ -970,7 +1008,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
                     nix={item.nix}
                     maxWidth={bubbleMaxWidth}
                     t={vm.t}
-                    onPress={() => {
+                    onOpen={() => {
                       requestClosePicker();
                       vm.handleOpenNix(item.nix);
                     }}

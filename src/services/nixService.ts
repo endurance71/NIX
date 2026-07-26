@@ -757,7 +757,7 @@ async function requestNixCleanup(nixId: string, mediaPath: string) {
   }
 }
 
-async function enqueueCleanupJob(nixId: string, mediaPath: string) {
+async function enqueueCleanupJob(nixId: string, mediaPath: string, nextAttemptAt: Date = new Date()) {
   const user = await getCurrentUser();
   if (!user) return;
 
@@ -765,6 +765,7 @@ async function enqueueCleanupJob(nixId: string, mediaPath: string) {
     nix_id: nixId,
     media_path: mediaPath,
     receiver_id: user.id,
+    next_attempt_at: nextAttemptAt.toISOString(),
     updated_at: new Date().toISOString(),
   });
 

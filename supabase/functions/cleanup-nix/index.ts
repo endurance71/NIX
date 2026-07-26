@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { isValidCleanupPayload, type CleanupPayload } from './cleanup-helpers.ts';
+import { canCleanupNixMedia, isValidCleanupPayload, type CleanupPayload } from './cleanup-helpers.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
 
   const { data: nix, error: nixError } = await serviceClient
     .from('nixes')
-    .select('id, receiver_id, media_path, is_viewed')
+    .select('id, receiver_id, media_path, is_viewed, is_replayed, replay_expires_at')
     .eq('id', nixId)
     .maybeSingle();
 
@@ -140,6 +140,20 @@ Deno.serve(async (req) => {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
+  }
+
+  if (!canCleanupNixMedia(nix)) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        deleted: false,
+        reason: 'replay_window_active',
+      }),
+      {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 
   if (!nix.is_viewed) {

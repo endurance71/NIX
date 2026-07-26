@@ -26,6 +26,7 @@ import { createSignedAvatarUrls } from '../services/avatarService';
 import { blockUser, reportContent, type ReportReason } from '../services/safetyService';
 import { notifyDomainError, notifySuccess } from '../lib/appNotify';
 import { selection } from '../lib/haptics';
+import { isNixFirstOpenAvailable, isNixReplayAvailable } from '../lib/nixReplay';
 import type { MessageReaction, MessageReactionEmoji, TextMessage } from '../types/database.types';
 
 function generateClientMessageId(): string {
@@ -339,12 +340,10 @@ export function useChatScreen(peerId: string) {
   };
 
   const handleOpenNix = (nix: ChatNixEvent) => {
-    if (nix.direction !== 'received' || !nix.media_path) return;
-    if (nix.status === 'cleaned' || nix.status === 'cleanup_failed') return;
-    
-    const isReplay = nix.is_viewed && !nix.is_replayed;
-    if (nix.is_viewed && !isReplay) return;
-    if (isReplay && (!nix.replay_expires_at || new Date(nix.replay_expires_at) < new Date())) return;
+    const canFirstOpen = isNixFirstOpenAvailable(nix);
+    const canReplay = isNixReplayAvailable(nix);
+    if (!canFirstOpen && !canReplay) return;
+    if (!nix.media_path) return;
 
     router.push({
       pathname: '/viewer',
@@ -352,7 +351,7 @@ export function useChatScreen(peerId: string) {
         id: nix.id,
         path: nix.media_path,
         senderId: peerId,
-        isReplay: isReplay ? '1' : '0',
+        isReplay: canReplay ? '1' : '0',
       },
     });
   };
