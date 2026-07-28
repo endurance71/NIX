@@ -275,7 +275,9 @@ function MessageRowContent({
           modifiers={[
             font({ textStyle: 'subheadline' }),
             foregroundStyle(
-              row.upload?.phase === 'failed' || row.status === 'cleanupFailed'
+              row.upload?.phase === 'failed'
+                || row.upload?.phase === 'retry_scheduled'
+                || row.status === 'cleanupFailed'
                 ? colors.destructive
                 : row.upload?.phase === 'completed'
                   ? colors.success
@@ -283,7 +285,7 @@ function MessageRowContent({
                     ? colors.systemBlue
                 : { type: 'hierarchical', style: 'secondary' }
             ),
-            lineLimit(1),
+            lineLimit(row.upload?.phase === 'retry_scheduled' ? 2 : 1),
           ]}>
           {label}
         </Text>
