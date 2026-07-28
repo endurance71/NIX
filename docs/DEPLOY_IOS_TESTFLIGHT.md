@@ -652,6 +652,7 @@ Kopiuj wiersz po każdym uploadzie binary **lub** po OTA:
 
 | Data | Wersja | Build / Update | Commit | Ścieżka (A OTA / B Xcode) | Środowisko | Status | Uwagi |
 | ---- | ------ | -------------- | ------ | ------------------------ | ---------- | ------ | ----- |
+| 2026-07-28 | 1.0.5 | OTA `15777d7e` | `bb4ee35` | A | production | published | JPEG fast-path + image retry + phase telemetry (native foreground needs build 5) |
 | 2026-07-28 | 1.0.5 | OTA `0362a8da` | `abd1a95` | A | production | published | round playbackDurationMs (float → int) for begin_media_upload_batch; edge begin-media-upload redeployed |
 | 2026-07-28 | 1.0.5 | 4 | `e11c859` | B | production | uploaded ASC | durable media upload + Live Activity / Dynamic Island; App Group uploads; runtime 1.0.5; dSYM warnings prebuilt frameworks; Internal QA po Processing |
 | 2026-07-26 | 1.0.4 | 1 | `88bdcc9` | B | production | uploaded ASC | save to Photos (preview always; viewer when capture allow); expo-media-library; runtime 1.0.4; dSYM warnings prebuilt frameworks; Internal QA po Processing |

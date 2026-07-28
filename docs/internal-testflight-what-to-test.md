@@ -1,11 +1,19 @@
-# NiX 1.0.5 (4) — What to Test (Internal)
+# NiX 1.0.5 (5) — What to Test (Internal)
 
 Audience: members of the App Store Connect group **NiX Internal QA** only.
 This build must not be submitted for external Beta App Review.
 
-Build: **1.0.5 (4)** · runtimeVersion **1.0.5** · channel **production**
+Build: **1.0.5 (5)** · runtimeVersion **1.0.5** · channel **production**
 
-## Focus for this build — durable media delivery
+## Focus for this build — photo upload speed
+
+- Send a single photo on Wi‑Fi with the app in the foreground — expect roughly
+  seconds, not minutes, end-to-end.
+- Confirm Live Activity / Dynamic Island still updates and ends after success.
+- Send a video and verify background resume after brief lock / network blip.
+- Retry after a forced failure still recovers without long 60s stalls on photos.
+
+## Durable media delivery (regression)
 
 - Send a photo and a video to one recipient, then to several recipients.
 - The send sheet closes after durable staging and opens Inbox; the camera session stops.
@@ -45,4 +53,4 @@ Build: **1.0.5 (4)** · runtimeVersion **1.0.5** · channel **production**
 - Record failures, retries, duplicates and orphan assets during the 24-hour QA window.
 - Block rollout on any P0/P1, lost job, duplicate NiX, unauthorized asset read or
   destructive shared-asset cleanup.
-- After Processing in ASC, assign build **1.0.5 (4)** to **NiX Internal QA**.
+- After Processing in ASC, assign build **1.0.5 (5)** to **NiX Internal QA**.
