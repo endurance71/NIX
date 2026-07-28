@@ -160,10 +160,12 @@ function UploadAccessory({ row, t }: { row: InboxRowModel; t: Translate }) {
             ? 'checkmark.circle.fill'
             : null;
   const color = upload.phase === 'failed'
+    || upload.phase === 'retry_scheduled'
     ? colors.destructive
     : upload.phase === 'completed'
       ? colors.success
       : colors.systemBlue;
+  const showPercent = icon === null;
 
   return (
     <HStack
@@ -186,15 +188,17 @@ function UploadAccessory({ row, t }: { row: InboxRowModel; t: Translate }) {
           ]}
         />
       )}
-      <Text
-        modifiers={[
-          font({ textStyle: 'caption', weight: 'semibold' }),
-          monospacedDigit(),
-          foregroundStyle(color),
-          lineLimit(1),
-        ]}>
-        {percent}
-      </Text>
+      {showPercent ? (
+        <Text
+          modifiers={[
+            font({ textStyle: 'caption', weight: 'semibold' }),
+            monospacedDigit(),
+            foregroundStyle(color),
+            lineLimit(1),
+          ]}>
+          {percent}
+        </Text>
+      ) : null}
       <Image
         systemName={resolveAppIconName('chevronRight')}
         size={APP_ICON_SIZE.xs}
