@@ -16,30 +16,18 @@ import type { UploadLiveActivityProps } from '../lib/uploadLiveActivityPresentat
 
 export type UploadStatusActivityProps = UploadLiveActivityProps;
 
-const ACCENT = '#0A84FF';
-const MUTED = '#A1A1AA';
-const ERROR = '#FF453A';
-const SUCCESS = '#30D158';
-
-function UploadProgress({ progress, compact = false }: { progress: number; compact?: boolean }) {
-  'widget';
-  return (
-    <ProgressView
-      value={progress}
-      modifiers={[
-        progressViewStyle(compact ? 'circular' : 'linear'),
-        tint(ACCENT),
-        ...(compact ? [frame({ width: 24, height: 24 })] : [frame({ maxWidth: Infinity })]),
-      ]}
-    />
-  );
-}
-
 const UploadStatusActivity = (
   props: UploadStatusActivityProps,
   _environment: LiveActivityEnvironment
 ) => {
   'widget';
+  // Live Activity layouts are serialized and evaluated inside the widget
+  // extension. Keep every value and view in this function — module-level
+  // constants and helper components are not available in that runtime.
+  const accent = '#0A84FF';
+  const muted = '#A1A1AA';
+  const error = '#FF453A';
+  const success = '#30D158';
   const progress = Math.max(0, Math.min(1, props.progress));
   const percent = `${Math.round(progress * 100)}%`;
   const title = props.phase === 'completed'
@@ -76,7 +64,7 @@ const UploadStatusActivity = (
           <Image
             systemName={icon}
             size={18}
-            color={props.phase === 'failed' ? ERROR : props.phase === 'completed' ? SUCCESS : ACCENT}
+            color={props.phase === 'failed' ? error : props.phase === 'completed' ? success : accent}
           />
           <Text modifiers={[font({ weight: 'semibold', size: 16 }), foregroundStyle('#FFFFFF')]}>
             {title}
@@ -88,8 +76,17 @@ const UploadStatusActivity = (
             </Text>
           ) : null}
         </HStack>
-        {props.phase !== 'failed' ? <UploadProgress progress={progress} /> : null}
-        <Text modifiers={[font({ size: 12 }), foregroundStyle(MUTED)]}>
+        {props.phase !== 'failed' ? (
+          <ProgressView
+            value={progress}
+            modifiers={[
+              progressViewStyle('linear'),
+              tint(accent),
+              frame({ maxWidth: Infinity }),
+            ]}
+          />
+        ) : null}
+        <Text modifiers={[font({ size: 12 }), foregroundStyle(muted)]}>
           {props.phase === 'failed'
             ? 'Spróbuj ponownie w Skrzynce'
             : props.remainingCount > 1
@@ -102,13 +99,20 @@ const UploadStatusActivity = (
       <Image
         systemName={icon}
         size={18}
-        color={props.phase === 'failed' ? ERROR : SUCCESS}
+        color={props.phase === 'failed' ? error : success}
       />
     ) : (
-      <UploadProgress progress={progress} compact />
+      <ProgressView
+        value={progress}
+        modifiers={[
+          progressViewStyle('circular'),
+          tint(accent),
+          frame({ width: 24, height: 24 }),
+        ]}
+      />
     ),
     compactTrailing: props.phase === 'failed' ? (
-      <Text modifiers={[font({ weight: 'semibold', size: 12 }), foregroundStyle(ERROR)]}>
+      <Text modifiers={[font({ weight: 'semibold', size: 12 }), foregroundStyle(error)]}>
         Błąd
       </Text>
     ) : (
@@ -120,17 +124,24 @@ const UploadStatusActivity = (
       <Image
         systemName={icon}
         size={18}
-        color={props.phase === 'failed' ? ERROR : SUCCESS}
+        color={props.phase === 'failed' ? error : success}
       />
     ) : (
-      <UploadProgress progress={progress} compact />
+      <ProgressView
+        value={progress}
+        modifiers={[
+          progressViewStyle('circular'),
+          tint(accent),
+          frame({ width: 24, height: 24 }),
+        ]}
+      />
     ),
     expandedLeading: (
       <HStack spacing={6} modifiers={[padding({ leading: 6 })]}>
         <Image
           systemName={icon}
           size={17}
-          color={props.phase === 'failed' ? ERROR : props.phase === 'completed' ? SUCCESS : ACCENT}
+          color={props.phase === 'failed' ? error : props.phase === 'completed' ? success : accent}
         />
         <Text modifiers={[font({ weight: 'semibold', size: 14 }), foregroundStyle('#FFFFFF')]}>NiX</Text>
       </HStack>
@@ -140,7 +151,7 @@ const UploadStatusActivity = (
         modifiers={[
           padding({ trailing: 6 }),
           font({ weight: 'semibold', size: 13 }),
-          foregroundStyle(ERROR),
+          foregroundStyle(error),
         ]}>
         Błąd
       </Text>
@@ -159,11 +170,18 @@ const UploadStatusActivity = (
       <VStack alignment="leading" spacing={8} modifiers={[padding({ horizontal: 6, bottom: 4 })]}>
         <Text modifiers={[font({ size: 13 }), foregroundStyle('#FFFFFFCC')]}>{title}</Text>
         {props.phase === 'failed' ? (
-          <Text modifiers={[font({ size: 12 }), foregroundStyle(MUTED)]}>
+          <Text modifiers={[font({ size: 12 }), foregroundStyle(muted)]}>
             Spróbuj ponownie w Skrzynce
           </Text>
         ) : (
-          <UploadProgress progress={progress} />
+          <ProgressView
+            value={progress}
+            modifiers={[
+              progressViewStyle('linear'),
+              tint(accent),
+              frame({ maxWidth: Infinity }),
+            ]}
+          />
         )}
       </VStack>
     ),

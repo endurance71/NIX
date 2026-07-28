@@ -5,6 +5,7 @@ import Network
 private let appGroupIdentifier = "group.com.damianmotylinski.nixapp.uploads"
 private let snapshotsStorageKey = "nix.background.upload.snapshots.v1"
 private let liveActivityName = "UploadStatusActivity"
+private let liveActivityURL = URL(string: "nix://inbox")
 
 private enum NativeUploadState: String, Codable {
   case queued
@@ -293,6 +294,8 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
       $0.state = .paused
       $0.updatedAt = nowMilliseconds()
     }
+    emitState(jobId: jobId)
+    updateLiveActivity()
   }
 
   public func resume(jobId: String) async {
@@ -303,6 +306,8 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
       $0.updatedAt = nowMilliseconds()
     }
     await pumpTasks()
+    emitState(jobId: jobId)
+    updateLiveActivity()
   }
 
   public func cancel(jobId: String) async {
@@ -318,6 +323,7 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
 
   public func reconcile() async -> [[String: Any?]] {
     await pumpTasks()
+    updateLiveActivity()
     return snapshotDictionaries()
   }
 
@@ -461,7 +467,10 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
   }
 
   private func pumpTasks() async {
-    guard isOnline else { return }
+    guard isOnline else {
+      updateLiveActivity()
+      return
+    }
     let tasks = await allTasks()
     let running = tasks.filter {
       guard let descriptor = descriptor(for: $0), descriptor.kind == .upload else { return false }
@@ -691,7 +700,9 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
       ![NativeUploadState.completed, .cancelled].contains($0.state)
     }
     let completed = snapshots.filter { $0.state == .completed }
-    let failed = active.filter { $0.state == .failed || $0.state == .waitingForAuth }
+    let failed = active.filter {
+      $0.state == .failed || $0.state == .waitingForAuth || $0.state == .retryScheduled
+    }
     let waiting = active.filter { $0.state == .waitingNetwork }
     let progress = active.isEmpty
       ? (completed.isEmpty ? 0 : 1)
@@ -737,14 +748,12 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
           props: propsString,
           after: Date().addingTimeInterval(30)
         )
-      } else if phase == "failed" {
-        await ExpoWidgetsLiveActivityBridge.end(
+      } else {
+        await ExpoWidgetsLiveActivityBridge.startOrUpdate(
           name: liveActivityName,
           props: propsString,
-          after: Date().addingTimeInterval(60 * 60)
+          url: liveActivityURL
         )
-      } else {
-        await ExpoWidgetsLiveActivityBridge.update(name: liveActivityName, props: propsString)
       }
     }
   }

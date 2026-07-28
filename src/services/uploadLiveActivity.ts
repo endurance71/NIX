@@ -1,6 +1,7 @@
 import { after, type LiveActivity } from 'expo-widgets';
 
 import { uploadFeatures } from '../config/uploadFeatures';
+import NativeBackgroundUploader from '../../modules/nix-background-uploader/src/NixBackgroundUploaderModule';
 import UploadStatusActivity, {
   type UploadStatusActivityProps,
 } from '../widgets/UploadStatusActivity';
@@ -28,6 +29,34 @@ function getExistingActivity() {
   return activity;
 }
 
+function logDevelopmentStatus(action: string) {
+  if (!__DEV__) return;
+  let activeCount = 0;
+  try {
+    activeCount = UploadStatusActivity.getInstances().length;
+  } catch {
+    // The warning from the caller contains the actionable native error.
+  }
+  console.info(`[UploadLiveActivity] ${action}`, { activeCount });
+}
+
+function syncNativeLiveActivity(props: UploadStatusActivityProps) {
+  if (!NativeBackgroundUploader) return;
+  void NativeBackgroundUploader.syncLiveActivity(JSON.stringify(props)).then(
+    (status) => {
+      if (__DEV__) {
+        console.info('[UploadLiveActivity] native sync', {
+          phase: props.phase,
+          ...status,
+        });
+      }
+    },
+    (error) => {
+      console.warn('Native Upload Live Activity could not be synchronized', error);
+    }
+  );
+}
+
 export function startUploadLiveActivity(props: UploadStatusActivityProps) {
   if (!available()) return;
   try {
@@ -36,13 +65,18 @@ export function startUploadLiveActivity(props: UploadStatusActivityProps) {
       void existing.update(props);
       lastUpdateAt = Date.now();
       lastProps = props;
+      logDevelopmentStatus(`updated:${props.phase}`);
+      syncNativeLiveActivity(props);
       return;
     }
     activity = UploadStatusActivity.start(props, 'nix://inbox');
     lastUpdateAt = Date.now();
     lastProps = props;
+    logDevelopmentStatus(`started:${props.phase}`);
+    syncNativeLiveActivity(props);
   } catch (error) {
     console.warn('Upload Live Activity could not be started', error);
+    syncNativeLiveActivity(props);
   }
 }
 
@@ -74,6 +108,7 @@ export function updateUploadLiveActivity(props: UploadStatusActivityProps) {
     if (elapsed >= MIN_UPDATE_INTERVAL_MS) {
       pendingProps = props;
       flushPendingUpdate();
+      syncNativeLiveActivity(props);
       return;
     }
     pendingProps = props;

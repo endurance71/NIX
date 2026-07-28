@@ -1,5 +1,9 @@
 import ExpoModulesCore
+import ExpoWidgets
 import Foundation
+
+private let uploadLiveActivityName = "UploadStatusActivity"
+private let uploadLiveActivityURL = URL(string: "nix://inbox")
 
 private struct EnqueueOptions: Record {
   @Field var jobId: String = ""
@@ -23,6 +27,14 @@ public final class NixBackgroundUploaderModule: Module {
       BackgroundUploadCoordinator.shared.eventSink = { [weak self] name, body in
         self?.sendEvent(name, body)
       }
+      #if DEBUG
+      if #available(iOS 16.2, *) {
+        print(
+          "[NixBackgroundUploader] Live Activity status:",
+          ExpoWidgetsLiveActivityBridge.status(name: uploadLiveActivityName)
+        )
+      }
+      #endif
     }
 
     OnDestroy {
@@ -88,6 +100,18 @@ public final class NixBackgroundUploaderModule: Module {
 
     AsyncFunction("reconcile") {
       await BackgroundUploadCoordinator.shared.reconcile()
+    }
+
+    AsyncFunction("syncLiveActivity") { (props: String) in
+      guard #available(iOS 16.2, *) else {
+        return ["enabled": false, "activeCount": 0] as [String: Any]
+      }
+      await ExpoWidgetsLiveActivityBridge.startOrUpdate(
+        name: uploadLiveActivityName,
+        props: props,
+        url: uploadLiveActivityURL
+      )
+      return ExpoWidgetsLiveActivityBridge.status(name: uploadLiveActivityName)
     }
   }
 }

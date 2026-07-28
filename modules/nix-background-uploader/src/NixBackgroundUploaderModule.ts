@@ -16,6 +16,7 @@ declare class NixBackgroundUploaderNativeModule extends NativeModule<NativeBackg
   cancel(jobId: string): Promise<void>;
   listTasks(): Promise<NativeUploadSnapshot[]>;
   reconcile(): Promise<NativeUploadSnapshot[]>;
+  syncLiveActivity(props: string): Promise<{ enabled: boolean; activeCount: number }>;
 }
 
 export default requireOptionalNativeModule<NixBackgroundUploaderNativeModule>('NixBackgroundUploader');

@@ -1,14 +1,53 @@
 diff --git a/node_modules/expo-widgets/ios/LiveActivity.swift b/node_modules/expo-widgets/ios/LiveActivity.swift
-index c4b5bcc..02dac82 100644
+index c4b5bcc..d3d56dd 100644
 --- a/node_modules/expo-widgets/ios/LiveActivity.swift
 +++ b/node_modules/expo-widgets/ios/LiveActivity.swift
-@@ -1,6 +1,25 @@
- import ExpoModulesCore
- import ActivityKit
--
-+
+@@ -4,3 +4,65 @@
 +@available(iOS 16.2, *)
 +public enum ExpoWidgetsLiveActivityBridge {
++  public static func status(name: String) -> [String: Any] {
++    [
++      "enabled": ActivityAuthorizationInfo().areActivitiesEnabled,
++      "activeCount": Activity<LiveActivityAttributes>.activities.filter {
++        $0.content.state.name == name
++      }.count
++    ]
++  }
++
++  public static func startOrUpdate(name: String, props: String, url: URL?) async {
++    let state = LiveActivityAttributes.ContentState(name: name, props: props)
++    let content = ActivityContent(state: state, staleDate: nil)
++    let activities = Activity<LiveActivityAttributes>.activities.filter {
++      $0.content.state.name == name
++    }
++    if !activities.isEmpty {
++      for activity in activities {
++        await activity.update(content)
++      }
++      return
++    }
++
++    guard ActivityAuthorizationInfo().areActivitiesEnabled else {
++      print("[ExpoWidgets] Live Activities are disabled for \(name)")
++      return
++    }
++
++    if let url {
++      WidgetsStorage.set(url.absoluteString, forKey: "__expo_widgets_live_activity_\(name)_url")
++    }
++
++    do {
++      _ = try Activity.request(
++        attributes: LiveActivityAttributes(),
++        content: content,
++        pushType: nil
++      )
++      print("[ExpoWidgets] Started Live Activity \(name)")
++    } catch {
++      print("[ExpoWidgets] Could not start Live Activity \(name): \(error.localizedDescription)")
++    }
++  }
++
 +  public static func update(name: String, props: String) async {
 +    let state = LiveActivityAttributes.ContentState(name: name, props: props)
 +    let content = ActivityContent(state: state, staleDate: nil)
