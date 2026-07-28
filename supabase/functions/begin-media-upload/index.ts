@@ -133,7 +133,9 @@ Deno.serve(async (req) => {
     p_content_type: payload.contentType,
     p_size_bytes: Math.round(payload.sizeBytes),
     p_file_extension: payload.fileExtension,
-    p_playback_duration_ms: payload.playbackDurationMs ?? null,
+    p_playback_duration_ms: payload.playbackDurationMs == null
+      ? null
+      : Math.round(payload.playbackDurationMs),
     p_thumbnail_b64: payload.thumbnailB64 ?? null,
     p_recipients: payload.recipients,
   });

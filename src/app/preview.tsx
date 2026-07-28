@@ -578,13 +578,15 @@ export default function PreviewScreen() {
   const { draft: draftPhoto, clearDraft: clearPhotoDraft } = usePhotoDraft();
   const photoUri = draftPhoto?.uri ?? paramUri;
   const routeVideoSegment =
-    mode === 'video' && paramUri ? { uri: paramUri, durationMs: Math.max(0, Number(rawDurationMs) || 0) } : null;
+    mode === 'video' && paramUri
+      ? { uri: paramUri, durationMs: Math.round(Math.max(0, Number(rawDurationMs) || 0)) }
+      : null;
   const routeVideoSegments = routeVideoSegment ? [routeVideoSegment] : null;
   const previewVideoSegments = segments?.length ? segments : routeVideoSegments;
 
   useEffect(() => {
     if (mode !== 'video' || segments?.length || !paramUri) return;
-    setSegments([{ uri: paramUri, durationMs: Math.max(0, Number(rawDurationMs) || 0) }]);
+    setSegments([{ uri: paramUri, durationMs: Math.round(Math.max(0, Number(rawDurationMs) || 0)) }]);
   }, [mode, paramUri, rawDurationMs, segments?.length, setSegments]);
 
   useEffect(() => {

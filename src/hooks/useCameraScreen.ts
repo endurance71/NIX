@@ -687,7 +687,7 @@ export function useCameraScreen(): CameraScreenViewModel {
           }
         }
 
-        const durationMs = Math.min(nowMs() - recordStartedAt, VIDEO_TOTAL_MAX_DURATION_MS);
+        const durationMs = Math.round(Math.min(nowMs() - recordStartedAt, VIDEO_TOTAL_MAX_DURATION_MS));
         if (result?.uri) {
           logVideoTorchEvent('record-result-success', {}, { durationMs });
           trackDuration('video_record_ms', sessionStartedAt, {
@@ -1093,7 +1093,7 @@ export function useCameraScreen(): CameraScreenViewModel {
       trackEvent('camera_gallery_pick', { type: asset.type ?? 'unknown' });
 
       if (asset.type === 'video') {
-        const durationMs = Math.min(asset.duration ?? 0, VIDEO_TOTAL_MAX_DURATION_MS);
+        const durationMs = Math.round(Math.min(asset.duration ?? 0, VIDEO_TOTAL_MAX_DURATION_MS));
         setSegments([{ uri: asset.uri, durationMs }]);
         router.push({ pathname: '/preview', params: { mode: 'video' } });
       } else {

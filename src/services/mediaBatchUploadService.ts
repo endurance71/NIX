@@ -85,7 +85,9 @@ export async function beginMediaUploadBatch(input: {
         contentType: input.contentType,
         sizeBytes: input.sizeBytes,
         fileExtension: input.fileExtension,
-        playbackDurationMs: input.playbackDurationMs ?? null,
+        playbackDurationMs: input.playbackDurationMs == null
+          ? null
+          : Math.round(input.playbackDurationMs),
         thumbnailB64: input.thumbnailB64 ?? null,
         recipients: input.recipients,
       },
