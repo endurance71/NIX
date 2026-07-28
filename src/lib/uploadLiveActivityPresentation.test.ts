@@ -41,4 +41,13 @@ describe('upload Live Activity presentation', () => {
       summary({ waitingCount: 1, phase: 'waiting_network' })
     ).phase).toBe('waiting_network');
   });
+
+  it('keeps paused uploads distinct from active progress', () => {
+    expect(buildUploadLiveActivityProps(
+      summary({ activeCount: 1, phase: 'paused' })
+    )).toMatchObject({
+      phase: 'paused',
+      remainingCount: 1,
+    });
+  });
 });

@@ -696,14 +696,20 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
 
   private func updateLiveActivity() {
     let snapshots = loadSnapshots().values
+    // An empty native store does not mean the global queue is empty: jobs
+    // started by the JS/TUS fallback are persisted in SQLite. Let JS own the
+    // Live Activity in that case instead of overwriting it with a false 0%.
+    guard !snapshots.isEmpty else { return }
     let active = snapshots.filter {
       ![NativeUploadState.completed, .cancelled].contains($0.state)
     }
     let completed = snapshots.filter { $0.state == .completed }
+    guard !active.isEmpty || !completed.isEmpty else { return }
     let failed = active.filter {
       $0.state == .failed || $0.state == .waitingForAuth || $0.state == .retryScheduled
     }
     let waiting = active.filter { $0.state == .waitingNetwork }
+    let paused = active.filter { $0.state == .paused }
     let progress = active.isEmpty
       ? (completed.isEmpty ? 0 : 1)
       : active.map(\.progress).reduce(0, +) / Double(active.count)
@@ -712,6 +718,8 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
       phase = "failed"
     } else if !waiting.isEmpty {
       phase = "waiting_network"
+    } else if !paused.isEmpty {
+      phase = "paused"
     } else if active.contains(where: { $0.state == .finalizing }) {
       phase = "finalizing"
     } else if active.isEmpty && !completed.isEmpty {

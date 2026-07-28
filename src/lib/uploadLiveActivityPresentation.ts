@@ -4,6 +4,7 @@ export type UploadLiveActivityPhase =
   | 'preparing'
   | 'uploading'
   | 'waiting_network'
+  | 'paused'
   | 'finalizing'
   | 'completed'
   | 'failed';
@@ -26,6 +27,8 @@ export function buildUploadLiveActivityProps(
     ? 'failed'
     : summary.phase === 'waiting_network'
       ? 'waiting_network'
+      : summary.phase === 'paused'
+        ? 'paused'
       : summary.phase === 'preparing'
         ? 'preparing'
         : summary.phase === 'finalizing'

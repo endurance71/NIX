@@ -1,6 +1,7 @@
 import { HStack, Image, ProgressView, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
   activityBackgroundTint,
+  contentTransition,
   font,
   foregroundStyle,
   frame,
@@ -28,111 +29,163 @@ const UploadStatusActivity = (
   const muted = '#A1A1AA';
   const error = '#FF453A';
   const success = '#30D158';
+  const warning = '#FF9F0A';
   const progress = Math.max(0, Math.min(1, props.progress));
   const percent = `${Math.round(progress * 100)}%`;
+  const isFailed = props.phase === 'failed';
+  const isCompleted = props.phase === 'completed';
+  const isOffline = props.phase === 'waiting_network';
+  const isPaused = props.phase === 'paused';
+  const isPreparing = props.phase === 'preparing';
+  const statusColor = isFailed
+    ? error
+    : isCompleted
+      ? success
+      : isOffline
+        ? warning
+        : accent;
   const title = props.phase === 'completed'
     ? 'Wysłano'
     : props.phase === 'failed'
-      ? 'Błąd wysyłania'
-      : props.phase === 'waiting_network'
-        ? 'Czeka na sieć'
-        : props.phase === 'preparing'
-          ? 'Przygotowywanie NiX'
+        ? 'Błąd wysyłania'
+        : props.phase === 'waiting_network'
+          ? 'Czeka na sieć'
+          : props.phase === 'paused'
+            ? 'Wysyłka wstrzymana'
+          : props.phase === 'preparing'
+            ? 'Przygotowywanie NiX'
           : props.phase === 'finalizing'
             ? 'Finalizowanie wysyłki'
             : 'Wysyłanie NiX';
+  const subtitle = isFailed
+    ? 'Stuknij, aby spróbować ponownie'
+    : isCompleted
+      ? 'NiX został wysłany'
+      : isOffline
+        ? 'Wznowimy po połączeniu z siecią'
+        : isPaused
+          ? 'Otwórz Skrzynkę, aby wznowić'
+        : isPreparing
+          ? 'Optymalizowanie pliku'
+          : props.phase === 'finalizing'
+            ? 'Jeszcze chwila'
+            : props.remainingCount > 1
+              ? `Pozostało: ${props.remainingCount}`
+              : 'Wysyłanie bezpiecznie w tle';
   const icon = props.phase === 'completed'
     ? 'checkmark.circle.fill'
     : props.phase === 'failed'
-      ? 'exclamationmark.triangle.fill'
-      : props.phase === 'waiting_network'
-        ? 'wifi.slash'
-        : 'arrow.up.circle.fill';
+        ? 'exclamationmark.triangle.fill'
+        : props.phase === 'waiting_network'
+          ? 'wifi.slash'
+          : props.phase === 'paused'
+            ? 'pause.circle.fill'
+          : 'arrow.up.circle.fill';
 
   return {
     banner: (
-      <VStack
-        alignment="leading"
-        spacing={10}
+      <HStack
+        spacing={12}
         modifiers={[
-          activityBackgroundTint('#101012'),
+          activityBackgroundTint('#0B0B0D'),
           widgetURL('nix://inbox'),
           padding({ all: 16 }),
-          frame({ maxWidth: Infinity, alignment: 'leading' }),
+          frame({ maxWidth: Infinity }),
         ]}>
-        <HStack spacing={8}>
+        {isFailed || isCompleted || isOffline || isPaused ? (
           <Image
             systemName={icon}
-            size={18}
-            color={props.phase === 'failed' ? error : props.phase === 'completed' ? success : accent}
+            size={28}
+            color={statusColor}
           />
-          <Text modifiers={[font({ weight: 'semibold', size: 16 }), foregroundStyle('#FFFFFF')]}>
-            {title}
-          </Text>
-          <Spacer />
-          {props.phase !== 'failed' ? (
-            <Text modifiers={[font({ weight: 'semibold', size: 14 }), monospacedDigit(), foregroundStyle('#FFFFFF')]}>
-              {percent}
-            </Text>
-          ) : null}
-        </HStack>
-        {props.phase !== 'failed' ? (
+        ) : (
           <ProgressView
-            value={progress}
+            value={isPreparing ? null : progress}
             modifiers={[
-              progressViewStyle('linear'),
-              tint(accent),
-              frame({ maxWidth: Infinity }),
+              progressViewStyle('circular'),
+              tint(statusColor),
+              frame({ width: 34, height: 34 }),
             ]}
           />
-        ) : null}
-        <Text modifiers={[font({ size: 12 }), foregroundStyle(muted)]}>
-          {props.phase === 'failed'
-            ? 'Spróbuj ponownie w Skrzynce'
-            : props.remainingCount > 1
-              ? `Pozostało: ${props.remainingCount}`
-              : 'Bezpieczna wysyłka w tle'}
-        </Text>
-      </VStack>
+        )}
+        <VStack alignment="leading" spacing={3}>
+          <Text
+            modifiers={[
+              font({ weight: 'semibold', size: 16 }),
+              foregroundStyle('#FFFFFF'),
+            ]}>
+            {title}
+          </Text>
+          <Text modifiers={[font({ size: 12 }), foregroundStyle(muted)]}>{subtitle}</Text>
+        </VStack>
+        <Spacer />
+        {!isFailed && !isOffline && !isPaused ? (
+          <Text
+            modifiers={[
+              font({ weight: 'semibold', design: 'rounded', size: 17 }),
+              monospacedDigit(),
+              contentTransition('numericText'),
+              foregroundStyle(isCompleted ? success : '#FFFFFF'),
+            ]}>
+            {percent}
+          </Text>
+        ) : (
+          <Image systemName="chevron.right" size={13} color={muted} />
+        )}
+      </HStack>
     ),
-    compactLeading: props.phase === 'completed' || props.phase === 'failed' ? (
+    compactLeading: isCompleted || isFailed || isOffline || isPaused ? (
       <Image
         systemName={icon}
         size={18}
-        color={props.phase === 'failed' ? error : success}
+        color={statusColor}
       />
     ) : (
       <ProgressView
-        value={progress}
+        value={isPreparing ? null : progress}
         modifiers={[
           progressViewStyle('circular'),
-          tint(accent),
-          frame({ width: 24, height: 24 }),
+          tint(statusColor),
+          frame({ width: 22, height: 22 }),
         ]}
       />
     ),
-    compactTrailing: props.phase === 'failed' ? (
-      <Text modifiers={[font({ weight: 'semibold', size: 12 }), foregroundStyle(error)]}>
+    compactTrailing: isFailed ? (
+      <Text modifiers={[font({ weight: 'semibold', design: 'rounded', size: 12 }), foregroundStyle(error)]}>
         Błąd
       </Text>
+    ) : isOffline ? (
+      <Text modifiers={[font({ weight: 'semibold', design: 'rounded', size: 12 }), foregroundStyle(warning)]}>
+        Sieć
+      </Text>
+    ) : isPaused ? (
+      <Text modifiers={[font({ weight: 'semibold', design: 'rounded', size: 12 }), foregroundStyle(muted)]}>
+        Pauza
+      </Text>
     ) : (
-      <Text modifiers={[font({ weight: 'semibold', size: 13 }), monospacedDigit(), foregroundStyle('#FFFFFF')]}>
+      <Text
+        modifiers={[
+          font({ weight: 'semibold', design: 'rounded', size: 13 }),
+          monospacedDigit(),
+          contentTransition('numericText'),
+          foregroundStyle(isCompleted ? success : '#FFFFFF'),
+        ]}>
         {percent}
       </Text>
     ),
-    minimal: props.phase === 'completed' || props.phase === 'failed' ? (
+    minimal: isCompleted || isFailed || isOffline || isPaused ? (
       <Image
         systemName={icon}
         size={18}
-        color={props.phase === 'failed' ? error : success}
+        color={statusColor}
       />
     ) : (
       <ProgressView
-        value={progress}
+        value={isPreparing ? null : progress}
         modifiers={[
           progressViewStyle('circular'),
-          tint(accent),
-          frame({ width: 24, height: 24 }),
+          tint(statusColor),
+          frame({ width: 22, height: 22 }),
         ]}
       />
     ),
@@ -141,48 +194,75 @@ const UploadStatusActivity = (
         <Image
           systemName={icon}
           size={17}
-          color={props.phase === 'failed' ? error : props.phase === 'completed' ? success : accent}
+          color={statusColor}
         />
-        <Text modifiers={[font({ weight: 'semibold', size: 14 }), foregroundStyle('#FFFFFF')]}>NiX</Text>
+        <Text modifiers={[font({ weight: 'semibold', size: 14 }), foregroundStyle('#FFFFFF')]}>
+          NiX
+        </Text>
       </HStack>
     ),
-    expandedTrailing: props.phase === 'failed' ? (
+    expandedTrailing: isFailed ? (
       <Text
         modifiers={[
           padding({ trailing: 6 }),
-          font({ weight: 'semibold', size: 13 }),
+          font({ weight: 'semibold', design: 'rounded', size: 13 }),
           foregroundStyle(error),
         ]}>
         Błąd
+      </Text>
+    ) : isOffline ? (
+      <Text
+        modifiers={[
+          padding({ trailing: 6 }),
+          font({ weight: 'semibold', design: 'rounded', size: 13 }),
+          foregroundStyle(warning),
+        ]}>
+        Brak sieci
+      </Text>
+    ) : isPaused ? (
+      <Text
+        modifiers={[
+          padding({ trailing: 6 }),
+          font({ weight: 'semibold', design: 'rounded', size: 13 }),
+          foregroundStyle(muted),
+        ]}>
+        Pauza
       </Text>
     ) : (
       <Text
         modifiers={[
           padding({ trailing: 6 }),
-          font({ weight: 'semibold', size: 14 }),
+          font({ weight: 'semibold', design: 'rounded', size: 14 }),
           monospacedDigit(),
-          foregroundStyle('#FFFFFF'),
+          contentTransition('numericText'),
+          foregroundStyle(isCompleted ? success : '#FFFFFF'),
         ]}>
         {percent}
       </Text>
     ),
     expandedBottom: (
-      <VStack alignment="leading" spacing={8} modifiers={[padding({ horizontal: 6, bottom: 4 })]}>
-        <Text modifiers={[font({ size: 13 }), foregroundStyle('#FFFFFFCC')]}>{title}</Text>
-        {props.phase === 'failed' ? (
-          <Text modifiers={[font({ size: 12 }), foregroundStyle(muted)]}>
-            Spróbuj ponownie w Skrzynce
-          </Text>
-        ) : (
+      <VStack
+        alignment="leading"
+        spacing={7}
+        modifiers={[padding({ horizontal: 6, bottom: 5 })]}>
+        <Text
+          modifiers={[
+            font({ weight: 'semibold', size: 15 }),
+            foregroundStyle('#FFFFFF'),
+          ]}>
+          {title}
+        </Text>
+        {!isFailed && !isCompleted && !isPaused ? (
           <ProgressView
-            value={progress}
+            value={isPreparing ? null : progress}
             modifiers={[
               progressViewStyle('linear'),
-              tint(accent),
+              tint(statusColor),
               frame({ maxWidth: Infinity }),
             ]}
           />
-        )}
+        ) : null}
+        <Text modifiers={[font({ size: 12 }), foregroundStyle(muted)]}>{subtitle}</Text>
       </VStack>
     ),
   };
