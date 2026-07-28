@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		00D3C0013BE2DBE380423A03 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034954A2E4A9473F204AFC09 /* ExpoModulesProvider.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		1A872AD039CD48B390C5C05F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 680BAAE28A0849BB94B7B10C /* Assets.xcassets */; };
 		1E41E2B8A5CBA02619BBD298 /* libPods-NiX.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 640AC2BE337C4D7CF615F8E5 /* libPods-NiX.a */; };
 		208CD5BC8EEF49D98504B7BA /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 054E1B416E744FEA9D503DA6 /* ExpoWidgetsTarget.appex */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
@@ -60,6 +61,7 @@
 		436769A320EA19FB4E136B67 /* Pods-NiX.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-NiX.release.xcconfig"; path = "Target Support Files/Pods-NiX/Pods-NiX.release.xcconfig"; sourceTree = "<group>"; };
 		48F6A212C2924FAD83CA62D5 /* InfoPlist.strings */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = pl.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		640AC2BE337C4D7CF615F8E5 /* libPods-NiX.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-NiX.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		680BAAE28A0849BB94B7B10C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = NiX/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		EBCC5D5FDD429A033CF6850A /* Pods-NiX.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-NiX.debug.xcconfig"; path = "Target Support Files/Pods-NiX/Pods-NiX.debug.xcconfig"; sourceTree = "<group>"; };
@@ -185,6 +187,7 @@
 		90D15615517A4C29A305FB18 /* ExpoWidgetsTarget */ = {
 			isa = PBXGroup;
 			children = (
+				680BAAE28A0849BB94B7B10C /* Assets.xcassets */,
 				3A7A255C81114DD28FAC6F54 /* ExpoWidgetsTarget.entitlements */,
 				F0764058DB87462D97DCE973 /* Info.plist */,
 				ED97E0B770024887BBCDCFC7 /* index.swift */,
@@ -262,6 +265,7 @@
 				36DDB61C7A2121447AF689BA /* [Expo] Configure project */,
 				6DC309518B08408C99E1AFEE /* Sources */,
 				C51565F091F146AD8F9FA49C /* Frameworks */,
+				8671E2EF266F4036BF30C707 /* Resources */,
 				75EBADA2E9D89681AF1C627F /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
@@ -313,6 +317,14 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		8671E2EF266F4036BF30C707 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1A872AD039CD48B390C5C05F /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		13B07F8E1A680F5B00A75B9A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;

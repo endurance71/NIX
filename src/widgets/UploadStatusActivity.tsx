@@ -1,6 +1,7 @@
 import { HStack, Image, ProgressView, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
   activityBackgroundTint,
+  aspectRatio,
   contentTransition,
   font,
   foregroundStyle,
@@ -8,6 +9,7 @@ import {
   monospacedDigit,
   padding,
   progressViewStyle,
+  resizable,
   tint,
   widgetURL,
 } from '@expo/ui/swift-ui/modifiers';
@@ -92,22 +94,14 @@ const UploadStatusActivity = (
           padding({ all: 16 }),
           frame({ maxWidth: Infinity }),
         ]}>
-        {isFailed || isCompleted || isOffline || isPaused ? (
-          <Image
-            systemName={icon}
-            size={28}
-            color={statusColor}
-          />
-        ) : (
-          <ProgressView
-            value={isPreparing ? null : progress}
-            modifiers={[
-              progressViewStyle('circular'),
-              tint(statusColor),
-              frame({ width: 34, height: 34 }),
-            ]}
-          />
-        )}
+        <Image
+          assetName="NixWidgetLogo"
+          modifiers={[
+            resizable(),
+            aspectRatio({ contentMode: 'fit' }),
+            frame({ width: 34, height: 34 }),
+          ]}
+        />
         <VStack alignment="leading" spacing={3}>
           <Text
             modifiers={[
@@ -192,9 +186,12 @@ const UploadStatusActivity = (
     expandedLeading: (
       <HStack spacing={6} modifiers={[padding({ leading: 6 })]}>
         <Image
-          systemName={icon}
-          size={17}
-          color={statusColor}
+          assetName="NixWidgetLogo"
+          modifiers={[
+            resizable(),
+            aspectRatio({ contentMode: 'fit' }),
+            frame({ width: 19, height: 19 }),
+          ]}
         />
         <Text modifiers={[font({ weight: 'semibold', size: 14 }), foregroundStyle('#FFFFFF')]}>
           NiX
