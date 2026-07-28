@@ -1,5 +1,6 @@
 import type { TextMessage } from '../types/database.types';
 import type { ChatNixEvent } from '../services/nixService';
+import type { DurableUploadJob } from '../types/uploadQueue';
 
 const SEPARATOR_GAP_MS = 60 * 60 * 1000;
 
@@ -24,10 +25,18 @@ export type ChatTimelineNix = {
   nix: ChatNixEvent;
 };
 
+export type ChatTimelineUpload = {
+  type: 'upload';
+  id: string;
+  created_at: string;
+  job: DurableUploadJob;
+};
+
 export type ChatTimelineItem<T extends TextMessage = TextMessage> =
   | ChatTimelineSeparator
   | ChatTimelineText<T>
-  | ChatTimelineNix;
+  | ChatTimelineNix
+  | ChatTimelineUpload;
 
 /** @deprecated Use ChatTimelineText — kept for older imports in tests. */
 export type ChatTimelineMessage<T extends TextMessage = TextMessage> = ChatTimelineText<T>;
@@ -159,11 +168,13 @@ export function buildUnifiedChatTimeline(
   messages: readonly UnifiedChatTextMessage[],
   nixes: readonly ChatNixEvent[],
   locale: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  uploadJobs: readonly DurableUploadJob[] = []
 ): ChatTimelineItem<UnifiedChatTextMessage>[] {
   type Mixed =
     | { id: string; created_at: string; kind: 'text'; message: UnifiedChatTextMessage }
-    | { id: string; created_at: string; kind: 'nix'; nix: ChatNixEvent };
+    | { id: string; created_at: string; kind: 'nix'; nix: ChatNixEvent }
+    | { id: string; created_at: string; kind: 'upload'; job: DurableUploadJob };
 
   const mixed: Mixed[] = [
     ...messages.map((message) => ({
@@ -178,21 +189,36 @@ export function buildUnifiedChatTimeline(
       kind: 'nix' as const,
       nix,
     })),
+    ...uploadJobs.map((job) => ({
+      id: `upload-${job.id}`,
+      created_at: new Date(job.createdAt).toISOString(),
+      kind: 'upload' as const,
+      job,
+    })),
   ];
 
-  return withSeparators(mixed, locale, now, (event) =>
-    event.kind === 'text'
-      ? {
+  return withSeparators(mixed, locale, now, (event) => {
+    if (event.kind === 'text') {
+      return {
           type: 'text',
           id: event.message.id,
           created_at: event.message.created_at,
           message: event.message,
-        }
-      : {
-          type: 'nix',
-          id: event.nix.id,
-          created_at: event.nix.created_at,
-          nix: event.nix,
-        }
-  );
+        };
+    }
+    if (event.kind === 'nix') {
+      return {
+        type: 'nix',
+        id: event.nix.id,
+        created_at: event.nix.created_at,
+        nix: event.nix,
+      };
+    }
+    return {
+      type: 'upload',
+      id: event.job.id,
+      created_at: new Date(event.job.createdAt).toISOString(),
+      job: event.job,
+    };
+  });
 }

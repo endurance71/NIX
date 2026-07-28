@@ -106,16 +106,22 @@ export async function finalizeMediaUploadBatch(input: {
     headers: input.headers,
     body: JSON.stringify({ batchId: input.batchId, token: input.token }),
   });
-  const payload = await response.json().catch(() => null) as FinalizeMediaUploadResponse | { error?: string; code?: string } | null;
-  if (!response.ok || !payload || !('ok' in payload)) {
-    const message = payload && 'error' in payload ? payload.error : null;
+  if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
       throw new DomainError('UNAUTHORIZED', 'Sesja użytkownika wygasła.');
     }
+    const errorPayload = await response.json().catch(() => null) as {
+      error?: string;
+      code?: string;
+    } | null;
     throw new DomainError(
       'UNKNOWN',
-      message || `Finalizacja wysyłki nie powiodła się (${response.status}).`
+      errorPayload?.error || `Finalizacja wysyłki nie powiodła się (${response.status}).`
     );
+  }
+  const payload = await response.json().catch(() => null) as FinalizeMediaUploadResponse | null;
+  if (!payload || !('ok' in payload)) {
+    throw new DomainError('UNKNOWN', 'Serwer zwrócił nieprawidłową odpowiedź finalizacji.');
   }
   return payload;
 }

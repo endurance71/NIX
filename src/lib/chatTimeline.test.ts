@@ -28,6 +28,7 @@ function nix(partial: Partial<ChatNixEvent> & Pick<ChatNixEvent, 'id' | 'created
     is_viewed: false, is_replayed: false, replay_expires_at: null,
     status: 'sent',
     view_duration_sec: 5,
+    client_upload_id: null,
     ...partial,
   };
 }
@@ -90,5 +91,22 @@ describe('buildUnifiedChatTimeline', () => {
 
     const content = timeline.filter((item) => item.type !== 'separator');
     expect(content.map((item) => item.type)).toEqual(['nix', 'text']);
+  });
+
+  it('places a local upload bubble on the same chronological timeline', () => {
+    const upload = {
+      id: 'upload-1',
+      createdAt: new Date('2026-07-24T10:03:00.000Z').getTime(),
+    } as NonNullable<Parameters<typeof buildUnifiedChatTimeline>[4]>[number];
+    const timeline = buildUnifiedChatTimeline(
+      [msg({ id: 't1', created_at: '2026-07-24T10:05:00.000Z', body: 'hi' })],
+      [nix({ id: 'n1', created_at: '2026-07-24T10:00:00.000Z' })],
+      'pl',
+      new Date('2026-07-24T18:00:00'),
+      [upload]
+    );
+
+    const content = timeline.filter((item) => item.type !== 'separator');
+    expect(content.map((item) => item.type)).toEqual(['nix', 'upload', 'text']);
   });
 });

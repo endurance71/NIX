@@ -637,6 +637,7 @@ export type ChatNixEvent = {
   replay_expires_at: string | null;
   status: 'sent' | 'viewed' | 'cleaned' | 'cleanup_failed';
   view_duration_sec: number;
+  client_upload_id: string | null;
 };
 
 /** NiXy w obu kierunkach z danym peerm — do unified czatu. */
@@ -664,7 +665,8 @@ export async function fetchChatNixesWithPeer(
       is_replayed,
       replay_expires_at,
       status,
-      view_duration_sec
+      view_duration_sec,
+      client_upload_id
     `
     )
     .or(
@@ -688,6 +690,7 @@ export async function fetchChatNixesWithPeer(
     replay_expires_at: string | null;
     status: ChatNixEvent['status'] | null;
     view_duration_sec: number | null;
+    client_upload_id: string | null;
   }[]).map((nix) => {
     const direction: 'sent' | 'received' = nix.sender_id === userId ? 'sent' : 'received';
     const isViewed = nix.is_viewed === true || nix.status === 'viewed' || nix.status === 'cleaned';
@@ -703,6 +706,7 @@ export async function fetchChatNixesWithPeer(
       replay_expires_at: nix.replay_expires_at ?? null,
       status: nix.status ?? (isViewed ? 'viewed' : 'sent'),
       view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
+      client_upload_id: nix.client_upload_id ?? null,
     };
   });
 }

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -24,10 +24,13 @@ import {
 } from '../services/nixService';
 import { createSignedAvatarUrls } from '../services/avatarService';
 import { blockUser, reportContent, type ReportReason } from '../services/safetyService';
-import { notifyDomainError, notifySuccess } from '../lib/appNotify';
+import { notifyDomainError, notifyError, notifySuccess } from '../lib/appNotify';
 import { selection } from '../lib/haptics';
 import { isNixFirstOpenAvailable, isNixReplayAvailable } from '../lib/nixReplay';
 import type { MessageReaction, MessageReactionEmoji, TextMessage } from '../types/database.types';
+import { useUploadJobs, useUploadQueue } from '../context/uploadQueue';
+import { selectChatUploadJobs } from '../lib/chatUploadPresentation';
+import type { UploadRowAction } from '../lib/inboxPresentation';
 
 function generateClientMessageId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -45,6 +48,7 @@ const CHAT_REPORT_REASON_IDS = ['harassment', 'spam', 'other'] as const satisfie
 
 /** Realtime keeps chat fresh; avoid cold refetch on every focus/re-enter. */
 const CHAT_STALE_TIME_MS = 60_000;
+const COMPLETED_UPLOAD_VISIBILITY_MS = 30_000;
 const EMPTY_CHAT_NIXES: ChatNixEvent[] = [];
 
 export function useChatScreen(peerId: string) {
@@ -52,11 +56,21 @@ export function useChatScreen(peerId: string) {
   const { session } = useAuth();
   const currentUserId = session?.user?.id ?? '';
   const queryClient = useQueryClient();
+  const {
+    pauseUpload,
+    resumeUpload,
+    retryUpload,
+    cancelUpload,
+  } = useUploadQueue();
+  const uploadJobs = useUploadJobs();
 
   const [inputBody, setInputBody] = useState('');
   const [composerKey, setComposerKey] = useState(0);
   const [sending, setSending] = useState(false);
+  const [uploadClock, setUploadClock] = useState(() => Date.now());
+  const [busyUploadIds, setBusyUploadIds] = useState<ReadonlySet<string>>(() => new Set());
   const peerActionBusyRef = useRef(false);
+  const busyUploadIdsRef = useRef(new Set<string>());
 
   const peerProfileQuery = useQuery({
     queryKey: ['peerProfile', peerId],
@@ -103,8 +117,25 @@ export function useChatScreen(peerId: string) {
   });
 
   const messages: OptimisticTextMessage[] = messagesQuery.data ?? [];
-  const nixes: ChatNixEvent[] = nixesQuery.data ?? [];
+  const nixes: ChatNixEvent[] = nixesQuery.data ?? EMPTY_CHAT_NIXES;
+  const chatUploadJobs = selectChatUploadJobs(uploadJobs, peerId, nixes, {
+    now: uploadClock,
+    completedVisibilityMs: COMPLETED_UPLOAD_VISIBILITY_MS,
+  });
   const reactionsByMessageId = groupReactionsByMessageId(reactionsQuery.data ?? []);
+
+  useEffect(() => {
+    const completionTimes = uploadJobs.flatMap((job) => {
+      const belongsToPeer = job.recipients.some((recipient) => recipient.receiverId === peerId);
+      return belongsToPeer && (job.state === 'completed' || job.state === 'partially_completed')
+        ? [(job.finishedAt ?? job.updatedAt) + COMPLETED_UPLOAD_VISIBILITY_MS]
+        : [];
+    });
+    const nextExpiry = Math.min(...completionTimes.filter((time) => time > Date.now()));
+    if (!Number.isFinite(nextExpiry)) return;
+    const timer = setTimeout(() => setUploadClock(Date.now()), Math.max(0, nextExpiry - Date.now()));
+    return () => clearTimeout(timer);
+  }, [peerId, uploadJobs]);
 
   const reportReasons = CHAT_REPORT_REASON_IDS.map((id) => ({
     id,
@@ -356,6 +387,36 @@ export function useChatScreen(peerId: string) {
     });
   };
 
+  const handleUploadAction = async (jobId: string, action: UploadRowAction) => {
+    if (busyUploadIdsRef.current.has(jobId)) return;
+    const operation = action === 'pause'
+      ? pauseUpload
+      : action === 'resume'
+        ? resumeUpload
+        : action === 'retry'
+          ? retryUpload
+          : cancelUpload;
+
+    busyUploadIdsRef.current = new Set(busyUploadIdsRef.current).add(jobId);
+    setBusyUploadIds(busyUploadIdsRef.current);
+    await runWithFinally(
+      async () => {
+        try {
+          await operation(jobId);
+        } catch (error) {
+          console.error(`Chat upload action ${action} failed`, error);
+          notifyError(t('chat.uploadActionFailure'));
+        }
+      },
+      () => {
+        const next = new Set(busyUploadIdsRef.current);
+        next.delete(jobId);
+        busyUploadIdsRef.current = next;
+        setBusyUploadIds(next);
+      }
+    );
+  };
+
   const peerAvatarUrl = peerAvatarPath ? peerAvatarQuery.data?.[peerAvatarPath] ?? null : null;
   // Full-screen loader only on cold messages — nixes stream into the timeline.
   const messagesLoading = messagesQuery.isPending && messagesQuery.data === undefined;
@@ -371,6 +432,8 @@ export function useChatScreen(peerId: string) {
     peerLoading: peerProfileQuery.isPending,
     messages,
     nixes,
+    chatUploadJobs,
+    busyUploadIds,
     reactionsByMessageId,
     messagesLoading,
     messagesError: messagesQuery.isError || nixesQuery.isError,
@@ -387,6 +450,7 @@ export function useChatScreen(peerId: string) {
     handleSetReaction,
     handleRemoveReaction,
     handleOpenNix,
+    handleUploadAction,
     refetchMessages: async () => {
       await Promise.all([
         messagesQuery.refetch(),

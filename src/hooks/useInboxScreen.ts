@@ -319,7 +319,7 @@ export function useInboxScreen() {
   const handleOpen = (row: InboxRowModel) => {
     if (busyPeerIdsRef.current.has(row.peerId)) return;
 
-    if (row.kind === 'nix' && row.unread && row.openParams) {
+    if (!row.upload && row.kind === 'nix' && row.unread && row.openParams) {
       router.push({
         pathname: '/viewer',
         params: {

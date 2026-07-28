@@ -631,7 +631,7 @@ function useUploadQueueController(): UploadQueueContextValue {
             await backgroundUploader.cancel(id).catch(() => undefined);
             await deleteStagedUploadJob(id).catch(() => undefined);
           }));
-          setJobs([]);
+          if (ownerIdRef.current === null) setJobs([]);
         })();
       }
     });
@@ -643,15 +643,21 @@ function useUploadQueueController(): UploadQueueContextValue {
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      if (!ownerId) {
-        if (!cancelled) {
-          setReady(true);
-          setJobs([]);
-        }
-        return;
-      }
-      setReady(false);
+    if (!ownerId) {
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setReady(true);
+        setJobs([]);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    queueMicrotask(() => {
+      if (!cancelled) setReady(false);
+    });
+
+    const restoreOwnerJobs = async () => {
       const expired = await purgeExpiredDurableUploadJobs();
       await Promise.all(expired.map((job) => deleteStagedUploadJob(job.id).catch(() => undefined)));
 
@@ -759,15 +765,26 @@ function useUploadQueueController(): UploadQueueContextValue {
           });
         }
       }));
-      if (!cancelled) {
-        await refresh();
+      return listDurableUploadJobs(ownerId);
+    };
+
+    void restoreOwnerJobs().then(
+      (latestJobs) => {
+        if (cancelled || ownerIdRef.current !== ownerId) return;
+        jobsRef.current = latestJobs;
+        setJobs(latestJobs);
+        setReady(true);
+      },
+      (error) => {
+        if (cancelled || ownerIdRef.current !== ownerId) return;
+        console.error('Failed to restore durable upload queue', error);
         setReady(true);
       }
-    })();
+    );
     return () => {
       cancelled = true;
     };
-  }, [ownerId, refresh]);
+  }, [ownerId]);
 
   useEffect(() => {
     const unsubscribe = subscribeToNetworkChanges((state) => {

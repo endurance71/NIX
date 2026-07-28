@@ -47,6 +47,12 @@ import {
 } from '../../services/messageReactionService';
 import type { ChatNixEvent } from '../../services/nixService';
 import type { MessageReaction, MessageReactionEmoji } from '../../types/database.types';
+import type { DurableUploadJob } from '../../types/uploadQueue';
+import type { UploadRowAction } from '../../lib/inboxPresentation';
+import {
+  chatUploadActions,
+  sharedRecipientCount,
+} from '../../lib/chatUploadPresentation';
 import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
 import { appleUiSpring, duration, useMotionEnabled } from '../../theme/motion';
 import { STACK_NAV_BAR_HEIGHT } from '../../theme/safeArea';
@@ -691,6 +697,159 @@ function NixChip({
   );
 }
 
+function uploadStatusLabel(job: DurableUploadJob, t: ChatScreenViewModel['t']): string {
+  const percent = Math.round(Math.max(0, Math.min(1, job.progress)) * 100);
+  switch (job.state) {
+    case 'staging':
+    case 'queued':
+    case 'preparing':
+    case 'requesting_target':
+      return t('chat.uploadPreparing');
+    case 'uploading':
+    case 'finalizing':
+      return t('chat.uploadActive', { percent });
+    case 'waiting_network':
+      return t('chat.uploadWaitingNetwork');
+    case 'retry_scheduled':
+      return t('chat.uploadRetryScheduled');
+    case 'waiting_for_auth':
+    case 'failed':
+      return t('chat.uploadAttention');
+    case 'paused':
+      return t('chat.uploadPaused');
+    case 'completed':
+    case 'partially_completed':
+      return t('chat.uploadCompleted');
+    case 'cancelled':
+      return t('chat.uploadCancelled');
+    case 'expired':
+      return t('chat.uploadExpired');
+  }
+}
+
+function UploadBubble({
+  job,
+  busy,
+  maxWidth,
+  onAction,
+  t,
+}: {
+  job: DurableUploadJob;
+  busy: boolean;
+  maxWidth: number;
+  onAction: (action: UploadRowAction) => void;
+  t: ChatScreenViewModel['t'];
+}) {
+  const { colors } = useAppTheme();
+  const progress = Math.max(0, Math.min(1, job.progress));
+  const progressPercent = Math.round(progress * 100);
+  const actions = chatUploadActions(job);
+  const canRetry = actions.includes('retry');
+  const failed = job.state === 'failed' || job.state === 'waiting_for_auth';
+  const completed = job.state === 'completed' || job.state === 'partially_completed';
+  const statusColor = failed
+    ? colors.destructive
+    : completed
+      ? colors.success
+      : colors.accent;
+  const title = job.mediaType === 'video'
+    ? t('chat.uploadVideoTitle')
+    : t('chat.uploadPhotoTitle');
+  const status = uploadStatusLabel(job, t);
+
+  return (
+    <View style={styles.row}>
+      <View style={[styles.bubbleAnchor, styles.bubbleOwn, { maxWidth }]}>
+        <View
+          style={[
+            styles.bubble,
+            styles.uploadBubble,
+            { backgroundColor: colors.secondarySystemFill },
+          ]}
+          accessibilityLabel={`${title}. ${status}`}>
+          <View style={styles.uploadHeader}>
+            <SymbolView
+              name={job.mediaType === 'video' ? 'film' : 'photo'}
+              size={APP_ICON_SIZE.lg}
+              tintColor={statusColor}
+              weight="semibold"
+            />
+            <View style={styles.uploadHeading}>
+              <Text style={[styles.chipTitle, { color: colors.label }]}>{title}</Text>
+              <Text style={[styles.chipStatus, { color: statusColor }]}>{status}</Text>
+            </View>
+            {busy ? (
+              <ActivityIndicator size="small" color={statusColor} />
+            ) : (
+              <Text style={[styles.uploadPercent, { color: statusColor }]}>
+                {`${progressPercent}%`}
+              </Text>
+            )}
+          </View>
+
+          <View
+            style={[styles.uploadProgressTrack, { backgroundColor: colors.systemFill }]}
+            accessibilityRole="progressbar"
+            accessibilityValue={{ min: 0, max: 100, now: progressPercent }}>
+            <View
+              style={[
+                styles.uploadProgressFill,
+                {
+                  backgroundColor: statusColor,
+                  width: `${progressPercent}%`,
+                },
+              ]}
+            />
+          </View>
+
+          {failed ? (
+            <Text style={[styles.uploadHelp, { color: colors.secondaryLabel }]}>
+              {t(canRetry ? 'chat.uploadAttentionHelp' : 'chat.uploadPermanentFailureHelp')}
+            </Text>
+          ) : null}
+
+          {actions.length > 0 ? (
+            <View style={styles.uploadActions}>
+              {actions.map((action) => {
+                const destructive = action === 'cancel';
+                const label = action === 'pause'
+                  ? t('chat.uploadPause')
+                  : action === 'resume'
+                    ? t('chat.uploadResume')
+                    : action === 'retry'
+                      ? t('chat.uploadRetry')
+                      : t('chat.uploadCancel');
+                return (
+                  <Pressable
+                    key={action}
+                    disabled={busy}
+                    onPress={() => onAction(action)}
+                    accessibilityRole="button"
+                    accessibilityLabel={label}
+                    accessibilityState={{ disabled: busy }}
+                    hitSlop={4}
+                    style={({ pressed }) => [
+                      styles.uploadAction,
+                      { opacity: busy ? 0.45 : pressed ? 0.55 : 1 },
+                    ]}>
+                    <Text
+                      style={[
+                        styles.uploadActionText,
+                        { color: destructive ? colors.destructive : colors.accent },
+                      ]}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function DateSeparator({ label }: { label: string }) {
   const { colors } = useAppTheme();
   return (
@@ -827,8 +986,15 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
   const { top, bottomContentInset } = useScreenInsets('stackHeader');
   const { width: windowWidth } = useWindowDimensions();
   const bubbleMaxWidth = Math.round(windowWidth * BUBBLE_MAX_WIDTH_RATIO);
-  const timeline = buildUnifiedChatTimeline(vm.messages, vm.nixes, vm.locale);
-  const isEmpty = vm.messages.length === 0 && vm.nixes.length === 0;
+  const timeline = buildUnifiedChatTimeline(
+    vm.messages,
+    vm.nixes,
+    vm.locale,
+    new Date(),
+    vm.chatUploadJobs
+  );
+  const isEmpty =
+    vm.messages.length === 0 && vm.nixes.length === 0 && vm.chatUploadJobs.length === 0;
   const listRef = useRef<FlashListRef<ChatTimelineItem<UnifiedChatTextMessage>>>(null);
   const rootRef = useRef<View>(null);
   const scrollOffsetRef = useRef(0);
@@ -945,6 +1111,38 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     ]);
   };
 
+  const requestUploadAction = (job: DurableUploadJob, action: UploadRowAction) => {
+    const recipientCount = sharedRecipientCount(job);
+    const isShared = recipientCount > 1;
+    const needsConfirmation = isShared || action === 'cancel';
+    if (!needsConfirmation) {
+      void vm.handleUploadAction(job.id, action);
+      return;
+    }
+
+    const actionLabel = action === 'pause'
+      ? vm.t('chat.uploadPause')
+      : action === 'resume'
+        ? vm.t('chat.uploadResume')
+        : action === 'retry'
+          ? vm.t('chat.uploadRetry')
+          : vm.t('chat.uploadCancel');
+    Alert.alert(
+      isShared ? vm.t('chat.uploadSharedActionTitle') : vm.t('chat.uploadCancelTitle'),
+      isShared
+        ? vm.t('chat.uploadSharedActionMessage', { count: recipientCount })
+        : vm.t('chat.uploadCancelMessage'),
+      [
+        { text: vm.t('common.cancel'), style: 'cancel' },
+        {
+          text: actionLabel,
+          style: action === 'cancel' ? 'destructive' : 'default',
+          onPress: () => void vm.handleUploadAction(job.id, action),
+        },
+      ]
+    );
+  };
+
   const pickerMessage = picker
     ? vm.messages.find((message) => message.id === picker.messageId) ?? null
     : null;
@@ -961,7 +1159,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
       collapsable={false}
       style={[styles.root, { backgroundColor: colors.systemBackground }]}>
       <Animated.View style={[styles.listArea, listAreaStyle]}>
-        {vm.messagesLoading ? (
+        {vm.messagesLoading && timeline.length === 0 ? (
           <View style={styles.centered}>
             <ActivityIndicator color={colors.label} />
             <Text style={[styles.muted, { color: colors.secondaryLabel }]}>
@@ -1008,6 +1206,17 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
                       requestClosePicker();
                       vm.handleOpenNix(item.nix);
                     }}
+                  />
+                );
+              }
+              if (item.type === 'upload') {
+                return (
+                  <UploadBubble
+                    job={item.job}
+                    busy={vm.busyUploadIds.has(item.job.id)}
+                    maxWidth={bubbleMaxWidth}
+                    t={vm.t}
+                    onAction={(action) => requestUploadAction(item.job, action)}
                   />
                 );
               }
@@ -1188,6 +1397,54 @@ const styles = StyleSheet.create({
     ...typography.caption,
     textAlign: 'left',
     marginTop: 2,
+  },
+  uploadBubble: {
+    minWidth: 230,
+    gap: 8,
+  },
+  uploadHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  uploadHeading: {
+    flex: 1,
+    minWidth: 0,
+  },
+  uploadPercent: {
+    ...typography.caption,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  uploadProgressTrack: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  uploadProgressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  uploadHelp: {
+    ...typography.caption,
+    lineHeight: 16,
+  },
+  uploadActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 18,
+    minHeight: 32,
+  },
+  uploadAction: {
+    minHeight: 32,
+    minWidth: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadActionText: {
+    ...typography.footnote,
+    fontWeight: '600',
   },
   sendingSpinner: {
     marginTop: 4,
