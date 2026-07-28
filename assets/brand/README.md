@@ -1,12 +1,12 @@
-# NiX launch assets
+# NiX brand assets
 
-The canonical artwork lives in `master/`. Generated PNG files must not be edited by hand.
+The canonical artwork is the official gradient NiX mark supplied in the
+`nix-icons` export. Generated PNG files must not be edited independently.
 
-- `nix-mark.svg` — primary white mark with the `#0A84FF` disappearing terminal.
-- `nix-mark-monochrome.svg` — single-color source for iOS tinted and Android themed icons.
-- `app/` — opaque app, store, and legacy launcher icons.
-- `android/` — transparent adaptive foreground and monochrome layers.
-- `splash/` — transparent native splash-screen mark.
-- `web/` — favicon exports.
+- `master/` — source copies of the official vector mark.
+- `app/` — the official opaque application icon used for all iOS appearances.
+- `splash/` — the official transparent splash-screen mark.
+- `web/` — favicon exports generated from the official icon.
 
-The artwork is intentionally geometric, flat, and free of effects so it remains legible at favicon scale. App icon files fill the entire square; platform launchers apply their own masks.
+The widget extension uses the transparent official mark from the same export.
+The app icon fills the entire square; iOS applies the final platform mask.
