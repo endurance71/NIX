@@ -80,6 +80,18 @@ export function buildUploadQueueSummary(jobs: DurableUploadJob[]): UploadQueueSu
     : completed.length > 0
       ? 1
       : 0;
+  const activePhase = [
+    'waiting_for_auth',
+    'retry_scheduled',
+    'waiting_network',
+    'paused',
+    'preparing',
+    'requesting_target',
+    'uploading',
+    'finalizing',
+    'queued',
+    'staging',
+  ].find((state) => active.some((job) => job.state === state)) as UploadJobState | undefined;
 
   return {
     activeCount: active.length,
@@ -87,7 +99,7 @@ export function buildUploadQueueSummary(jobs: DurableUploadJob[]): UploadQueueSu
     failedCount: failed.length,
     completedCount: completed.length,
     progress,
-    phase: failed[0]?.state ?? active[0]?.state ?? completed[0]?.state ?? null,
+    phase: failed[0]?.state ?? activePhase ?? completed[0]?.state ?? null,
   };
 }
 

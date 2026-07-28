@@ -79,6 +79,13 @@ describe('durable upload state policy', () => {
     });
   });
 
+  it('prioritizes a scheduled retry over concurrent upload progress', () => {
+    expect(buildUploadQueueSummary([
+      job('uploading', 0.5),
+      job('retry_scheduled', 0.25),
+    ]).phase).toBe('retry_scheduled');
+  });
+
   it('uses the documented retry ladder, jitter and six-hour tail', () => {
     expect(uploadRetryDelay(0, () => 0.5)).toBe(5_000);
     expect(uploadRetryDelay(5, () => 0.5)).toBe(3_600_000);

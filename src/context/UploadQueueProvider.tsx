@@ -36,6 +36,7 @@ import {
   mapNativeUploadState,
   uploadRetryDelay,
 } from '../lib/durableUploadPolicy';
+import { buildUploadLiveActivityProps } from '../lib/uploadLiveActivityPresentation';
 import {
   prepareImageForUpload,
   prepareVideoForUpload,
@@ -62,7 +63,6 @@ import {
 import type {
   DurableUploadJob,
   EnqueueMediaBatchInput,
-  UploadQueueSummary,
 } from '../types/uploadQueue';
 import { UploadQueueContext, type UploadQueueContextValue } from './uploadQueue';
 
@@ -92,28 +92,6 @@ function parseFinalStatus(responseBody: string | null | undefined) {
   } catch {
     return 'completed' as const;
   }
-}
-
-function liveActivityProps(summary: UploadQueueSummary) {
-  const phase = summary.failedCount > 0
-    ? 'failed' as const
-    : summary.phase === 'waiting_for_auth'
-      ? 'failed' as const
-    : summary.phase === 'waiting_network'
-      ? 'waiting_network' as const
-      : summary.phase === 'preparing'
-        ? 'preparing' as const
-        : summary.phase === 'finalizing'
-          ? 'finalizing' as const
-          : summary.activeCount === 0 && summary.completedCount > 0
-            ? 'completed' as const
-            : 'uploading' as const;
-  return {
-    phase,
-    progress: summary.progress,
-    remainingCount: summary.activeCount + summary.failedCount,
-    updatedAt: Date.now(),
-  };
 }
 
 type UploadReadyForNativeTransfer = DurableUploadJob & {
@@ -950,7 +928,11 @@ function useUploadQueueController(): UploadQueueContextValue {
     const actionableKeys: string[] = [];
     let nonAttentionActiveCount = 0;
     for (const job of jobs) {
-      if (job.state === 'failed' || job.state === 'waiting_for_auth') {
+      if (
+        job.state === 'failed'
+        || job.state === 'waiting_for_auth'
+        || job.state === 'retry_scheduled'
+      ) {
         actionableKeys.push(`${job.id}:${job.state}:${job.errorCode ?? ''}`);
       } else if (
         !['completed', 'partially_completed', 'cancelled', 'expired'].includes(job.state)
@@ -971,17 +953,16 @@ function useUploadQueueController(): UploadQueueContextValue {
     if (liveActivityMode.startsWith('attention:')) {
       const failureKey = liveActivityMode.slice('attention:'.length);
       if (liveActivityFailureKeyRef.current !== failureKey) {
-        const props = liveActivityProps(buildUploadQueueSummary(jobsRef.current));
+        const props = buildUploadLiveActivityProps(buildUploadQueueSummary(jobsRef.current));
         startUploadLiveActivity(props);
-        endUploadLiveActivity(props, 'failure');
         liveActivityFailureKeyRef.current = failureKey;
       }
-      liveActivityStartedRef.current = false;
+      liveActivityStartedRef.current = true;
     } else if (liveActivityMode.startsWith('idle:')) {
       liveActivityFailureKeyRef.current = '';
       if (liveActivityStartedRef.current && liveActivityMode === 'idle:completed') {
         endUploadLiveActivity(
-          liveActivityProps(buildUploadQueueSummary(jobsRef.current)),
+          buildUploadLiveActivityProps(buildUploadQueueSummary(jobsRef.current)),
           'success'
         );
       }
@@ -993,21 +974,26 @@ function useUploadQueueController(): UploadQueueContextValue {
       liveActivityMode === 'active'
       && !liveActivityStartedRef.current
     ) {
-      startUploadLiveActivity(liveActivityProps(buildUploadQueueSummary(jobsRef.current)));
+      startUploadLiveActivity(buildUploadLiveActivityProps(buildUploadQueueSummary(jobsRef.current)));
       liveActivityStartedRef.current = true;
     }
   }, [liveActivityMode]);
 
   useEffect(() => {
     if (liveActivityMode === 'active' && liveActivityStartedRef.current) {
-      updateUploadLiveActivity(liveActivityProps(summary));
+      updateUploadLiveActivity(buildUploadLiveActivityProps(summary));
     }
   }, [liveActivityMode, summary]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'background' && summary.activeCount > 0 && !liveActivityStartedRef.current) {
-        startUploadLiveActivity(liveActivityProps(summary));
+      if (
+        state === 'background'
+        && (summary.activeCount > 0 || summary.failedCount > 0)
+      ) {
+        // Force the latest state through before iOS suspends JS. A throttled
+        // progress update may otherwise never reach the Dynamic Island.
+        startUploadLiveActivity(buildUploadLiveActivityProps(summary));
         liveActivityStartedRef.current = true;
       }
       if (state === 'active') void backgroundUploader.reconcile().then(refresh);

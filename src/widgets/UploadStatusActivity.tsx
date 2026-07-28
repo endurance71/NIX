@@ -12,15 +12,14 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { createLiveActivity, type LiveActivityEnvironment } from 'expo-widgets';
 
-export type UploadStatusActivityProps = {
-  phase: 'preparing' | 'uploading' | 'waiting_network' | 'finalizing' | 'completed' | 'failed';
-  progress: number;
-  remainingCount: number;
-  updatedAt: number;
-};
+import type { UploadLiveActivityProps } from '../lib/uploadLiveActivityPresentation';
+
+export type UploadStatusActivityProps = UploadLiveActivityProps;
 
 const ACCENT = '#0A84FF';
 const MUTED = '#A1A1AA';
+const ERROR = '#FF453A';
+const SUCCESS = '#30D158';
 
 function UploadProgress({ progress, compact = false }: { progress: number; compact?: boolean }) {
   'widget';
@@ -46,7 +45,7 @@ const UploadStatusActivity = (
   const title = props.phase === 'completed'
     ? 'Wysłano'
     : props.phase === 'failed'
-      ? 'Wysyłka wymaga uwagi'
+      ? 'Błąd wysyłania'
       : props.phase === 'waiting_network'
         ? 'Czeka na sieć'
         : props.phase === 'preparing'
@@ -74,18 +73,28 @@ const UploadStatusActivity = (
           frame({ maxWidth: Infinity, alignment: 'leading' }),
         ]}>
         <HStack spacing={8}>
-          <Image systemName={icon} size={18} color={props.phase === 'failed' ? '#FFB020' : ACCENT} />
+          <Image
+            systemName={icon}
+            size={18}
+            color={props.phase === 'failed' ? ERROR : props.phase === 'completed' ? SUCCESS : ACCENT}
+          />
           <Text modifiers={[font({ weight: 'semibold', size: 16 }), foregroundStyle('#FFFFFF')]}>
             {title}
           </Text>
           <Spacer />
-          <Text modifiers={[font({ weight: 'semibold', size: 14 }), monospacedDigit(), foregroundStyle('#FFFFFF')]}>
-            {percent}
-          </Text>
+          {props.phase !== 'failed' ? (
+            <Text modifiers={[font({ weight: 'semibold', size: 14 }), monospacedDigit(), foregroundStyle('#FFFFFF')]}>
+              {percent}
+            </Text>
+          ) : null}
         </HStack>
-        <UploadProgress progress={progress} />
+        {props.phase !== 'failed' ? <UploadProgress progress={progress} /> : null}
         <Text modifiers={[font({ size: 12 }), foregroundStyle(MUTED)]}>
-          {props.remainingCount > 1 ? `Pozostało: ${props.remainingCount}` : 'Bezpieczna wysyłka w tle'}
+          {props.phase === 'failed'
+            ? 'Spróbuj ponownie w Skrzynce'
+            : props.remainingCount > 1
+              ? `Pozostało: ${props.remainingCount}`
+              : 'Bezpieczna wysyłka w tle'}
         </Text>
       </VStack>
     ),
@@ -93,12 +102,16 @@ const UploadStatusActivity = (
       <Image
         systemName={icon}
         size={18}
-        color={props.phase === 'failed' ? '#FF9F0A' : '#30D158'}
+        color={props.phase === 'failed' ? ERROR : SUCCESS}
       />
     ) : (
       <UploadProgress progress={progress} compact />
     ),
-    compactTrailing: (
+    compactTrailing: props.phase === 'failed' ? (
+      <Text modifiers={[font({ weight: 'semibold', size: 12 }), foregroundStyle(ERROR)]}>
+        Błąd
+      </Text>
+    ) : (
       <Text modifiers={[font({ weight: 'semibold', size: 13 }), monospacedDigit(), foregroundStyle('#FFFFFF')]}>
         {percent}
       </Text>
@@ -107,18 +120,31 @@ const UploadStatusActivity = (
       <Image
         systemName={icon}
         size={18}
-        color={props.phase === 'failed' ? '#FF9F0A' : '#30D158'}
+        color={props.phase === 'failed' ? ERROR : SUCCESS}
       />
     ) : (
       <UploadProgress progress={progress} compact />
     ),
     expandedLeading: (
       <HStack spacing={6} modifiers={[padding({ leading: 6 })]}>
-        <Image systemName={icon} size={17} color={ACCENT} />
+        <Image
+          systemName={icon}
+          size={17}
+          color={props.phase === 'failed' ? ERROR : props.phase === 'completed' ? SUCCESS : ACCENT}
+        />
         <Text modifiers={[font({ weight: 'semibold', size: 14 }), foregroundStyle('#FFFFFF')]}>NiX</Text>
       </HStack>
     ),
-    expandedTrailing: (
+    expandedTrailing: props.phase === 'failed' ? (
+      <Text
+        modifiers={[
+          padding({ trailing: 6 }),
+          font({ weight: 'semibold', size: 13 }),
+          foregroundStyle(ERROR),
+        ]}>
+        Błąd
+      </Text>
+    ) : (
       <Text
         modifiers={[
           padding({ trailing: 6 }),
@@ -132,7 +158,13 @@ const UploadStatusActivity = (
     expandedBottom: (
       <VStack alignment="leading" spacing={8} modifiers={[padding({ horizontal: 6, bottom: 4 })]}>
         <Text modifiers={[font({ size: 13 }), foregroundStyle('#FFFFFFCC')]}>{title}</Text>
-        <UploadProgress progress={progress} />
+        {props.phase === 'failed' ? (
+          <Text modifiers={[font({ size: 12 }), foregroundStyle(MUTED)]}>
+            Spróbuj ponownie w Skrzynce
+          </Text>
+        ) : (
+          <UploadProgress progress={progress} />
+        )}
       </VStack>
     ),
   };

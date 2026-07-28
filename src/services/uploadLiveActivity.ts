@@ -87,7 +87,7 @@ export function updateUploadLiveActivity(props: UploadStatusActivityProps) {
 
 export function endUploadLiveActivity(
   props: UploadStatusActivityProps,
-  mode: 'success' | 'failure' | 'immediate'
+  mode: 'success' | 'immediate'
 ) {
   if (!available()) return;
   try {
@@ -98,7 +98,7 @@ export function endUploadLiveActivity(
     if (!existing) return;
     const policy = mode === 'immediate'
       ? 'immediate' as const
-      : after(new Date(Date.now() + (mode === 'success' ? 30_000 : 60 * 60 * 1000)));
+      : after(new Date(Date.now() + 30_000));
     void existing.end(policy, props);
     activity = null;
     lastUpdateAt = 0;
