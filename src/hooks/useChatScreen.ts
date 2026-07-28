@@ -49,7 +49,20 @@ const CHAT_REPORT_REASON_IDS = ['harassment', 'spam', 'other'] as const satisfie
 /** Realtime keeps chat fresh; avoid cold refetch on every focus/re-enter. */
 const CHAT_STALE_TIME_MS = 60_000;
 const COMPLETED_UPLOAD_VISIBILITY_MS = 30_000;
+const RETRY_FEEDBACK_MIN_MS = 900;
 const EMPTY_CHAT_NIXES: ChatNixEvent[] = [];
+
+async function withMinimumDuration<T>(promise: Promise<T>, minimumMs: number): Promise<T> {
+  const startedAt = Date.now();
+  try {
+    return await promise;
+  } finally {
+    const remainingMs = minimumMs - (Date.now() - startedAt);
+    if (remainingMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, remainingMs));
+    }
+  }
+}
 
 export function useChatScreen(peerId: string) {
   const { t, i18n } = useTranslation();
@@ -68,9 +81,11 @@ export function useChatScreen(peerId: string) {
   const [composerKey, setComposerKey] = useState(0);
   const [sending, setSending] = useState(false);
   const [uploadClock, setUploadClock] = useState(() => Date.now());
-  const [busyUploadIds, setBusyUploadIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [busyUploadActions, setBusyUploadActions] = useState<
+    ReadonlyMap<string, UploadRowAction>
+  >(() => new Map());
   const peerActionBusyRef = useRef(false);
-  const busyUploadIdsRef = useRef(new Set<string>());
+  const busyUploadActionsRef = useRef(new Map<string, UploadRowAction>());
 
   const peerProfileQuery = useQuery({
     queryKey: ['peerProfile', peerId],
@@ -388,7 +403,7 @@ export function useChatScreen(peerId: string) {
   };
 
   const handleUploadAction = async (jobId: string, action: UploadRowAction) => {
-    if (busyUploadIdsRef.current.has(jobId)) return;
+    if (busyUploadActionsRef.current.has(jobId)) return;
     const operation = action === 'pause'
       ? pauseUpload
       : action === 'resume'
@@ -397,22 +412,25 @@ export function useChatScreen(peerId: string) {
           ? retryUpload
           : cancelUpload;
 
-    busyUploadIdsRef.current = new Set(busyUploadIdsRef.current).add(jobId);
-    setBusyUploadIds(busyUploadIdsRef.current);
+    busyUploadActionsRef.current = new Map(busyUploadActionsRef.current).set(jobId, action);
+    setBusyUploadActions(busyUploadActionsRef.current);
     await runWithFinally(
       async () => {
         try {
-          await operation(jobId);
+          await withMinimumDuration(
+            operation(jobId),
+            action === 'retry' ? RETRY_FEEDBACK_MIN_MS : 0
+          );
         } catch (error) {
           console.error(`Chat upload action ${action} failed`, error);
           notifyError(t('chat.uploadActionFailure'));
         }
       },
       () => {
-        const next = new Set(busyUploadIdsRef.current);
+        const next = new Map(busyUploadActionsRef.current);
         next.delete(jobId);
-        busyUploadIdsRef.current = next;
-        setBusyUploadIds(next);
+        busyUploadActionsRef.current = next;
+        setBusyUploadActions(next);
       }
     );
   };
@@ -433,7 +451,7 @@ export function useChatScreen(peerId: string) {
     messages,
     nixes,
     chatUploadJobs,
-    busyUploadIds,
+    busyUploadActions,
     reactionsByMessageId,
     messagesLoading,
     messagesError: messagesQuery.isError || nixesQuery.isError,

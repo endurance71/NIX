@@ -736,12 +736,14 @@ function isUploadFailureState(job: DurableUploadJob) {
 function UploadBubble({
   job,
   busy,
+  retrying,
   maxWidth,
   onLongPress,
   t,
 }: {
   job: DurableUploadJob;
   busy: boolean;
+  retrying: boolean;
   maxWidth: number;
   onLongPress: () => void;
   t: ChatScreenViewModel['t'];
@@ -749,7 +751,7 @@ function UploadBubble({
   const { colors } = useAppTheme();
   const actions = chatUploadActions(job);
   const canRetry = actions.includes('retry');
-  const failed = isUploadFailureState(job);
+  const failed = !retrying && isUploadFailureState(job);
   const completed = job.state === 'completed' || job.state === 'partially_completed';
   const waitingNetwork = job.state === 'waiting_network';
   const statusColor = failed
@@ -757,12 +759,11 @@ function UploadBubble({
     : completed
       ? colors.success
       : colors.secondaryLabel;
-  const title = failed
-    ? t('chat.uploadFailureTitle')
-    : job.mediaType === 'video'
+  const mediaTitle = job.mediaType === 'video'
       ? t('chat.uploadVideoTitle')
       : t('chat.uploadPhotoTitle');
-  const status = uploadStatusLabel(job, t);
+  const title = failed ? t('chat.uploadFailureTitle') : mediaTitle;
+  const status = retrying ? t('chat.uploadActive') : uploadStatusLabel(job, t);
   const iconName = canRetry
     ? 'arrow.clockwise'
     : completed
@@ -1229,7 +1230,8 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
                 return (
                   <UploadBubble
                     job={item.job}
-                    busy={vm.busyUploadIds.has(item.job.id)}
+                    busy={vm.busyUploadActions.has(item.job.id)}
+                    retrying={vm.busyUploadActions.get(item.job.id) === 'retry'}
                     maxWidth={bubbleMaxWidth}
                     t={vm.t}
                     onLongPress={() => openChatUploadActions(vm, item.job)}
