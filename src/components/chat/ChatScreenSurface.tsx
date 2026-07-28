@@ -710,10 +710,9 @@ function uploadStatusLabel(job: DurableUploadJob, t: ChatScreenViewModel['t']): 
     case 'waiting_network':
       return t('chat.uploadWaitingNetwork');
     case 'retry_scheduled':
-      return t('chat.uploadRetryScheduled');
     case 'waiting_for_auth':
     case 'failed':
-      return t('chat.uploadAttention');
+      return t('chat.uploadTryAgain');
     case 'paused':
       return t('chat.uploadPaused');
     case 'completed':
@@ -724,6 +723,14 @@ function uploadStatusLabel(job: DurableUploadJob, t: ChatScreenViewModel['t']): 
     case 'expired':
       return t('chat.uploadExpired');
   }
+}
+
+function isUploadFailureState(job: DurableUploadJob) {
+  return (
+    job.state === 'retry_scheduled'
+    || job.state === 'waiting_for_auth'
+    || job.state === 'failed'
+  );
 }
 
 function UploadBubble({
@@ -742,7 +749,7 @@ function UploadBubble({
   const { colors } = useAppTheme();
   const actions = chatUploadActions(job);
   const canRetry = actions.includes('retry');
-  const failed = job.state === 'failed' || job.state === 'waiting_for_auth';
+  const failed = isUploadFailureState(job);
   const completed = job.state === 'completed' || job.state === 'partially_completed';
   const waitingNetwork = job.state === 'waiting_network';
   const statusColor = failed
@@ -750,9 +757,11 @@ function UploadBubble({
     : completed
       ? colors.success
       : colors.secondaryLabel;
-  const title = job.mediaType === 'video'
-    ? t('chat.uploadVideoTitle')
-    : t('chat.uploadPhotoTitle');
+  const title = failed
+    ? t('chat.uploadFailureTitle')
+    : job.mediaType === 'video'
+      ? t('chat.uploadVideoTitle')
+      : t('chat.uploadPhotoTitle');
   const status = uploadStatusLabel(job, t);
   const iconName = canRetry
     ? 'arrow.clockwise'
@@ -782,8 +791,12 @@ function UploadBubble({
           ]}>
           <View style={styles.uploadContent}>
             <View style={styles.uploadHeading}>
-              <Text style={[styles.chipTitle, { color: colors.label }]}>{title}</Text>
-              <Text style={[styles.chipStatus, { color: statusColor }]}>{status}</Text>
+              <Text numberOfLines={1} style={[styles.chipTitle, { color: colors.label }]}>
+                {title}
+              </Text>
+              <Text numberOfLines={1} style={[styles.chipStatus, { color: statusColor }]}>
+                {status}
+              </Text>
             </View>
             {busy || !iconName ? (
               <ActivityIndicator size="small" color={colors.accent} />
@@ -841,14 +854,22 @@ function openChatUploadActions(vm: ChatScreenViewModel, job: DurableUploadJob) {
   const labels = actions.map((action) =>
     action === 'retry' ? vm.t('chat.uploadRetry') : vm.t('chat.uploadCancel')
   );
+  const failure = isUploadFailureState(job);
+  const title = failure
+    ? job.mediaType === 'video'
+      ? vm.t('chat.uploadVideoFailureTitle')
+      : vm.t('chat.uploadPhotoFailureTitle')
+    : job.mediaType === 'video'
+      ? vm.t('chat.uploadVideoTitle')
+      : vm.t('chat.uploadPhotoTitle');
+  const message = failure ? vm.t('chat.uploadFailureActionMessage') : undefined;
 
   if (Platform.OS === 'ios') {
     const destructiveActionIndex = actions.indexOf('cancel');
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        title: job.mediaType === 'video'
-          ? vm.t('chat.uploadVideoTitle')
-          : vm.t('chat.uploadPhotoTitle'),
+        title,
+        message,
         options: [vm.t('common.cancel'), ...labels],
         cancelButtonIndex: 0,
         destructiveButtonIndex:
@@ -864,8 +885,8 @@ function openChatUploadActions(vm: ChatScreenViewModel, job: DurableUploadJob) {
   }
 
   Alert.alert(
-    job.mediaType === 'video' ? vm.t('chat.uploadVideoTitle') : vm.t('chat.uploadPhotoTitle'),
-    undefined,
+    title,
+    message,
     [
       ...actions.map((action) => ({
         text: action === 'retry' ? vm.t('chat.uploadRetry') : vm.t('chat.uploadCancel'),
@@ -1394,7 +1415,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   uploadBubble: {
-    minWidth: 176,
+    minWidth: 214,
   },
   uploadBubblePressed: {
     opacity: 0.72,
