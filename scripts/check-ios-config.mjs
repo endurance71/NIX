@@ -27,8 +27,26 @@ for (const key of purposeKeys) {
   if (!pl.includes(`"${key}" = `)) fail(`${key} is missing in Polish localization`);
 }
 
-for (const forbiddenKey of ['UIBackgroundModes', 'NSFaceIDUsageDescription', 'NSLocalNetworkUsageDescription', 'NSBonjourServices']) {
+for (const forbiddenKey of ['NSFaceIDUsageDescription', 'NSLocalNetworkUsageDescription', 'NSBonjourServices']) {
   if (plist.includes(`<key>${forbiddenKey}</key>`)) fail(`${forbiddenKey} must not be present in the production plist`);
+}
+const backgroundModesMatch = plist.match(
+  /<key>UIBackgroundModes<\/key>\s*<array>([\s\S]*?)<\/array>/
+);
+const backgroundModes = backgroundModesMatch
+  ? [...backgroundModesMatch[1].matchAll(/<string>([^<]+)<\/string>/g)].map((match) => match[1]).sort()
+  : [];
+if (backgroundModes.join(',') !== 'fetch,processing') {
+  fail('UIBackgroundModes must contain only fetch and processing for upload recovery');
+}
+if (
+  !plist.includes('<key>BGTaskSchedulerPermittedIdentifiers</key>')
+  || !plist.includes('<string>com.expo.modules.backgroundtask.processing</string>')
+) {
+  fail('the Expo background processing task identifier is missing');
+}
+if (!plist.includes('<key>NSSupportsLiveActivities</key>\n\t<true/>')) {
+  fail('NSSupportsLiveActivities must be enabled');
 }
 
 if (!plist.includes(`<key>CFBundleDisplayName</key>\n\t<string>${app.name}</string>`)) {
@@ -71,7 +89,9 @@ if (!project.includes(`PRODUCT_BUNDLE_IDENTIFIER = ${app.ios.bundleIdentifier};`
 if (!project.includes('TARGETED_DEVICE_FAMILY = 1;')) {
   fail('native target must remain iPhone-only while supportsTablet is false');
 }
-if (app.ios.infoPlist.UIBackgroundModes) fail('UIBackgroundModes must not be declared in app.json');
+if (app.ios.infoPlist.UIBackgroundModes) {
+  fail('UIBackgroundModes must remain plugin-managed instead of being duplicated in app.json');
+}
 if (!app.plugins?.includes('expo-notifications')) fail('expo-notifications plugin is missing in app.json');
 if (!entitlements.includes('<key>aps-environment</key>')) fail('aps-environment is missing from NiX.entitlements');
 if (app.ios.usesAppleSignIn && !entitlements.includes('<key>com.apple.developer.applesignin</key>')) {

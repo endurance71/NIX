@@ -433,6 +433,18 @@ verify_jwt = true
 [functions.cleanup-nix-due]
 verify_jwt = true
 
+[functions.begin-media-upload]
+verify_jwt = true
+
+[functions.finalize-media-upload]
+verify_jwt = true
+
+[functions.cancel-media-upload]
+verify_jwt = true
+
+[functions.cleanup-media-upload-orphans]
+verify_jwt = true
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

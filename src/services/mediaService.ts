@@ -10,6 +10,7 @@ import { DomainError } from './errors';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { uploadResumable } from './resumableUploadService';
 import { withTimeout, getCompressionTimeout } from '../lib/compressionTimeout';
+import { selectVideoCompressionProfile } from '../lib/durableUploadPolicy';
 
 export function buildContentType(fileUri: string) {
   const ext = fileUri.split('?')[0].split('.').pop()?.toLowerCase() || 'jpg';
@@ -32,13 +33,7 @@ const NIX_ALLOWED_VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/
 
 const MAX_IMAGE_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const TARGET_IMAGE_LONG_EDGE = 1440;
-const TARGET_IMAGE_QUALITY = 0.78;
-const TARGET_VIDEO_BITRATE = 2_000_000;
-const TARGET_VIDEO_LONG_FORM_BITRATE = 1_500_000;
-const TARGET_VIDEO_MAX_SIZE = 1280;
-const TARGET_VIDEO_AGGRESSIVE_BITRATE = 900_000;
-const TARGET_VIDEO_AGGRESSIVE_MAX_SIZE = 960;
-const UPLOAD_RETRY_DELAYS_MS = [600, 1400, 3000];
+const TARGET_IMAGE_QUALITY = 0.75;
 /**
  * Limit pliku wideo akceptowanego przez aplikację. Po przejściu na resumable
  * (TUS) upload OOM nie jest już wąskim gardłem; zostawiamy bezpieczny bufor
@@ -47,14 +42,7 @@ const UPLOAD_RETRY_DELAYS_MS = [600, 1400, 3000];
 export const MAX_VIDEO_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 const MAX_VIDEO_FILE_SIZE_MB = Math.round(MAX_VIDEO_FILE_SIZE_BYTES / (1024 * 1024));
 const BYTES_IN_MB = 1024 * 1024;
-/**
- * Próg dla fast-path pomijającego kompresję `react-native-compressor`.
- * Nagrania z aparatu są już ograniczone bitratem 2.5 Mbps, więc kompresja
- * małych klipów daje minimalny zysk przy znaczącym koszcie CPU/baterii.
- */
-const VIDEO_FAST_PATH_MAX_BYTES = 10 * 1024 * 1024;
 const SUPABASE_MAX_OBJECT_SIZE_ERROR = 'The object exceeded the maximum allowed size';
-const SUPABASE_RESOURCE_ALREADY_EXISTS_ERROR = 'The resource already exists';
 const SUPABASE_MISSING_THUMBNAIL_COLUMN_ERROR = "Could not find the 'thumbnail_b64' column";
 
 const THUMBNAIL_TARGET_WIDTH = 240;
@@ -102,9 +90,11 @@ export type MediaUploadOptions = {
   /** Source image dimensions from capture — skip resize when already small enough. */
   sourceWidth?: number;
   sourceHeight?: number;
+  /** Force the one allowed 960px / 0.9 Mbps recovery pass after HTTP 413. */
+  forceAggressiveCompression?: boolean;
 };
 
-type PreparedMedia = {
+export type PreparedMedia = {
   uri: string;
   originalUri: string;
   originalSizeBytes: number | null;
@@ -139,7 +129,7 @@ async function getFileSizeBytes(uri: string): Promise<number | null> {
   }
 }
 
-function safeDeleteTemporaryUris(uris: readonly string[]) {
+export function releasePreparedMedia(uris: readonly string[]) {
   // Fire-and-forget: best-effort cleanup runs in the background to avoid
   // blocking the upload path. System cache can also evict these files.
   void Promise.all(
@@ -176,15 +166,35 @@ export async function prepareImageForUpload(fileUri: string, options?: MediaUplo
   try {
     const { manipulateAsync, SaveFormat } = await import('expo-image-manipulator');
     // Skip resize when source dimensions are known and already within target.
-    const longestEdge = Math.max(options?.sourceWidth ?? Infinity, options?.sourceHeight ?? Infinity);
+    const sourceWidth = options?.sourceWidth;
+    const sourceHeight = options?.sourceHeight;
+    const longestEdge = Math.max(sourceWidth ?? Infinity, sourceHeight ?? Infinity);
     const needsResize = longestEdge > TARGET_IMAGE_LONG_EDGE;
-    const actions = needsResize ? [{ resize: { width: TARGET_IMAGE_LONG_EDGE } }] : [];
+    const actions = needsResize
+      ? [{
+          resize: typeof sourceHeight === 'number'
+            && typeof sourceWidth === 'number'
+            && sourceHeight > sourceWidth
+            ? { height: TARGET_IMAGE_LONG_EDGE }
+            : { width: TARGET_IMAGE_LONG_EDGE },
+        }]
+      : [];
     const result = await manipulateAsync(
       fileUri,
       actions,
       { compress: TARGET_IMAGE_QUALITY, format: SaveFormat.JPEG, base64: false }
     );
-    const sizeBytes = await getFileSizeBytes(result.uri);
+    const compressedSizeBytes = await getFileSizeBytes(result.uri);
+    const shouldKeepOriginal =
+      result.uri !== fileUri &&
+      typeof originalSizeBytes === 'number' &&
+      typeof compressedSizeBytes === 'number' &&
+      compressedSizeBytes >= originalSizeBytes * 0.9;
+    if (shouldKeepOriginal) {
+      releasePreparedMedia([result.uri]);
+    }
+    const selectedUri = shouldKeepOriginal ? fileUri : result.uri;
+    const sizeBytes = shouldKeepOriginal ? originalSizeBytes : compressedSizeBytes;
     emitProgress(options, { phase: 'compressing', progress: 1 });
     trackDuration('compression_ms', startedAt, {
       status: 'success',
@@ -193,11 +203,11 @@ export async function prepareImageForUpload(fileUri: string, options?: MediaUplo
       media_compressed_bytes: sizeBytes,
     });
     return {
-      uri: result.uri,
+      uri: selectedUri,
       originalUri: fileUri,
       originalSizeBytes,
       sizeBytes,
-      temporaryUris: result.uri === fileUri ? [] : [result.uri],
+      temporaryUris: selectedUri === fileUri ? [] : [selectedUri],
     };
   } catch (error) {
     trackDuration('compression_ms', startedAt, {
@@ -282,13 +292,17 @@ export function isFastPathEligible(
     playbackDurationMs > 0
       ? (originalSizeBytes * 8) / (playbackDurationMs / 1000)
       : null;
-  return (
-    typeof originalSizeBytes === 'number' &&
-    originalSizeBytes > 0 &&
-    fileUri.startsWith('file://') &&
-    (originalSizeBytes <= VIDEO_FAST_PATH_MAX_BYTES ||
-      (estimatedBitrate !== null && estimatedBitrate <= TARGET_VIDEO_BITRATE * 1.4))
-  );
+  const profile = selectVideoCompressionProfile({
+    sourceBitrate: estimatedBitrate,
+    sourceSizeBytes: null,
+    hevcEnabled: false,
+    hevcSupported: false,
+  });
+  return typeof originalSizeBytes === 'number'
+    && originalSizeBytes > 0
+    && originalSizeBytes <= MAX_VIDEO_FILE_SIZE_BYTES
+    && fileUri.startsWith('file://')
+    && profile.passthrough;
 }
 
 export async function prepareVideoForUpload(fileUri: string, options?: MediaUploadOptions): Promise<PreparedMedia> {
@@ -314,8 +328,29 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
   const thumbnailTemporaryUris: string[] = [];
 
   const thumbnailPromise = generateVideoThumbnailAtTime(fileUri, 0);
+  const sourceBitrate =
+    typeof originalSizeBytes === 'number'
+    && typeof options?.playbackDurationMs === 'number'
+    && options.playbackDurationMs > 0
+      ? (originalSizeBytes * 8) / (options.playbackDurationMs / 1000)
+      : null;
+  const balancedProfile = selectVideoCompressionProfile({
+    sourceBitrate,
+    sourceSizeBytes: null,
+    hevcEnabled: false,
+    hevcSupported: false,
+  });
+  const selectedProfile = options?.forceAggressiveCompression
+    ? selectVideoCompressionProfile({
+        sourceBitrate: null,
+        sourceSizeBytes: MAX_VIDEO_FILE_SIZE_BYTES + 1,
+        hevcEnabled: false,
+        hevcSupported: false,
+      })
+    : balancedProfile;
 
-  const fastPathEligible = isFastPathEligible(fileUri, originalSizeBytes, options?.playbackDurationMs);
+  const fastPathEligible = !options?.forceAggressiveCompression
+    && isFastPathEligible(fileUri, originalSizeBytes, options?.playbackDurationMs);
 
   if (fastPathEligible) {
     const estimatedBitrate = typeof originalSizeBytes === 'number' && typeof options?.playbackDurationMs === 'number' && options.playbackDurationMs > 0
@@ -325,20 +360,19 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
       media_type: 'video',
       media_original_bytes: originalSizeBytes,
       reason: 'fast_path',
-      threshold_bytes: VIDEO_FAST_PATH_MAX_BYTES,
+      target_bitrate: balancedProfile.bitrate,
       estimated_bitrate: estimatedBitrate,
     });
     emitProgress(options, { phase: 'compressing', progress: 0.95 });
   } else {
     try {
-      const useLowerBitrate =
-        typeof originalSizeBytes === 'number' && originalSizeBytes > 30 * 1024 * 1024;
       compressedUri = await VideoCompressor.compress(
         fileUri,
         {
-          compressionMethod: 'auto',
-          bitrate: useLowerBitrate ? TARGET_VIDEO_LONG_FORM_BITRATE : TARGET_VIDEO_BITRATE,
-          maxSize: TARGET_VIDEO_MAX_SIZE,
+          compressionMethod: 'manual',
+          bitrate: selectedProfile.bitrate,
+          audioBitrate: selectedProfile.audioBitrate,
+          maxSize: selectedProfile.maxSize,
           minimumFileSizeForCompress: 1,
           progressDivider: 5,
         },
@@ -349,13 +383,24 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
       if (compressedUri !== fileUri) temporaryUris.push(compressedUri);
 
       const firstPassSize = await getFileSizeBytes(compressedUri);
-      if (typeof firstPassSize === 'number' && firstPassSize > MAX_VIDEO_FILE_SIZE_BYTES) {
+      if (
+        !options?.forceAggressiveCompression
+        && typeof firstPassSize === 'number'
+        && firstPassSize > MAX_VIDEO_FILE_SIZE_BYTES
+      ) {
+        const aggressiveProfile = selectVideoCompressionProfile({
+          sourceBitrate: null,
+          sourceSizeBytes: firstPassSize,
+          hevcEnabled: false,
+          hevcSupported: false,
+        });
         const aggressiveUri = await VideoCompressor.compress(
           compressedUri,
           {
-            compressionMethod: 'auto',
-            bitrate: TARGET_VIDEO_AGGRESSIVE_BITRATE,
-            maxSize: TARGET_VIDEO_AGGRESSIVE_MAX_SIZE,
+            compressionMethod: 'manual',
+            bitrate: aggressiveProfile.bitrate,
+            audioBitrate: aggressiveProfile.audioBitrate,
+            maxSize: aggressiveProfile.maxSize,
             minimumFileSizeForCompress: 1,
             progressDivider: 5,
           },
@@ -436,6 +481,7 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
     media_type: 'video',
     media_original_bytes: originalSizeBytes,
     media_compressed_bytes: sizeBytes,
+    compression_profile: selectedProfile.aggressive ? 'aggressive' : 'balanced',
     thumbnail_generated: Boolean(thumbnailUri),
     thumbnail_b64_embedded: Boolean(thumbnailDataUrl),
   });
@@ -450,80 +496,6 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
     thumbnailTemporaryUris,
     thumbnailDataUrl,
   };
-}
-
-async function uploadWithRetry(
-  bucket: string,
-  path: string,
-  bytes: Uint8Array,
-  options: { contentType: string; cacheControl?: string },
-  uploadOptions?: MediaUploadOptions
-) {
-  const uploadAttempt = async (attempt: number): Promise<{ path: string }> => {
-    assertNotCancelled(uploadOptions?.signal);
-    emitProgress(uploadOptions, {
-      phase: 'uploading',
-      progress: Math.min(0.95, attempt === 1 ? 0.05 : 0.1),
-      bytesTotal: bytes.byteLength,
-      attempt,
-    });
-
-    const startedAt = nowMs();
-    const { error, data } = await supabase.storage
-      .from(bucket)
-      .upload(path, bytes, {
-        contentType: options.contentType,
-        cacheControl: options.cacheControl ?? '3600',
-        upsert: false,
-      });
-
-    trackDuration('upload_ms', startedAt, {
-      bucket,
-      status: error ? 'failure' : 'success',
-      attempt,
-      media_bytes: bytes.byteLength,
-    });
-
-    if (!error) {
-      emitProgress(uploadOptions, {
-        phase: 'uploading',
-        progress: 1,
-        bytesSent: bytes.byteLength,
-        bytesTotal: bytes.byteLength,
-        attempt,
-      });
-      return data;
-    }
-
-    if (isStorageObjectAlreadyExistsError(error.message)) {
-      emitProgress(uploadOptions, {
-        phase: 'uploading',
-        progress: 1,
-        bytesSent: bytes.byteLength,
-        bytesTotal: bytes.byteLength,
-        attempt,
-      });
-      return { path };
-    }
-
-    if (attempt > UPLOAD_RETRY_DELAYS_MS.length) {
-      const message =
-        typeof error === 'object' && error && 'message' in error && typeof error.message === 'string'
-          ? error.message
-          : 'Nie udało się przesłać pliku.';
-      throw new DomainError('INVALID_MEDIA', mapStorageUploadError(message));
-    }
-
-    const retryDelayMs = isTestRuntime() ? 0 : UPLOAD_RETRY_DELAYS_MS[attempt - 1];
-    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-    return uploadAttempt(attempt + 1);
-  };
-
-  return uploadAttempt(1);
-}
-
-function isStorageObjectAlreadyExistsError(message: unknown): boolean {
-  return typeof message === 'string' && message.includes(SUPABASE_RESOURCE_ALREADY_EXISTS_ERROR);
 }
 
 async function fetchArrayBufferViaXhr(fileUri: string): Promise<ArrayBuffer> {
@@ -687,7 +659,7 @@ export async function uploadImageAndCreateNix(
     throw error;
   } finally {
     emitProgress(options, { phase: 'cleanup', progress: 0 });
-    safeDeleteTemporaryUris(prepared.temporaryUris);
+    releasePreparedMedia(prepared.temporaryUris);
     emitProgress(options, { phase: 'cleanup', progress: 1 });
   }
 }
@@ -841,7 +813,7 @@ export async function uploadVideoAndCreateNix(
     throw new DomainError('INVALID_MEDIA', mapStorageUploadError(message));
   } finally {
     emitProgress(options, { phase: 'cleanup', progress: 0 });
-    safeDeleteTemporaryUris([
+    releasePreparedMedia([
       ...prepared.temporaryUris,
       ...(prepared.thumbnailTemporaryUris ?? []),
     ]);

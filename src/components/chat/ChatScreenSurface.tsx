@@ -622,11 +622,7 @@ function NixChip({
     if (!nix.is_viewed || nix.is_replayed || !nix.replay_expires_at) return;
     const expiresAt = Date.parse(nix.replay_expires_at);
     if (!Number.isFinite(expiresAt)) return;
-    const delayMs = expiresAt - Date.now();
-    if (delayMs <= 0) {
-      setNowMs(Date.now());
-      return;
-    }
+    const delayMs = Math.max(0, expiresAt - Date.now());
     const timer = setTimeout(() => setNowMs(Date.now()), delayMs);
     return () => clearTimeout(timer);
   }, [nix.is_viewed, nix.is_replayed, nix.replay_expires_at]);

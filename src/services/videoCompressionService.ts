@@ -1,4 +1,3 @@
-import { DomainError } from './errors';
 import {
   prepareImageForUpload,
   prepareVideoForUpload,

@@ -2,19 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearUploadQueueNixeshot,
   readUploadQueueNixeshot,
-  writeUploadQueueNixeshot,
 } from '../lib/uploadQueuePersistence';
 
-const { getItemMock, setItemMock, removeItemMock } = vi.hoisted(() => ({
+const { getItemMock, removeItemMock } = vi.hoisted(() => ({
   getItemMock: vi.fn(),
-  setItemMock: vi.fn(),
   removeItemMock: vi.fn(),
 }));
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
     getItem: getItemMock,
-    setItem: setItemMock,
     removeItem: removeItemMock,
   },
 }));
@@ -22,17 +19,6 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 describe('uploadQueuePersistence', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it('zapisuje nixeshot kolejki', async () => {
-    await writeUploadQueueNixeshot({
-      version: 1,
-      tasks: [],
-      activeTaskId: null,
-      paused: false,
-      updatedAt: 123,
-    });
-    expect(setItemMock).toHaveBeenCalledTimes(1);
   });
 
   it('odczytuje poprawny nixeshot', async () => {

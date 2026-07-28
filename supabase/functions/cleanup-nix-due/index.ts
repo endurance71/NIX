@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { hasServiceRoleBearer } from '../_shared/service-auth.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,6 +20,12 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+  if (!hasServiceRoleBearer(req, serviceRoleKey)) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
@@ -29,7 +36,7 @@ Deno.serve(async (req) => {
     // Pobierz z nix_cleanup_queue
     const { data: queueItems, error: queueError } = await serviceClient
       .from('nix_cleanup_queue')
-      .select('nix_id, media_path, attempt_count')
+      .select('nix_id, receiver_id, media_path, attempt_count')
       .lte('next_attempt_at', new Date().toISOString())
       .limit(batchSize);
 
@@ -42,64 +49,70 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Przetwarzanie w pętli (dla S3 usunięcia)
-    const mediaPathsToDelete = queueItems.flatMap((item) =>
-      item.media_path ? [item.media_path] : []
-    );
-    const nixIdsToUpdate = queueItems.map((item) => item.nix_id);
-
-    if (mediaPathsToDelete.length > 0) {
-      const { error: storageError } = await serviceClient.storage
-        .from('media-vault')
-        .remove(mediaPathsToDelete);
-
-      if (storageError) {
-        await Promise.all(
-          queueItems.map((item) =>
-            serviceClient
-              .from('nix_cleanup_queue')
-              .update({
-                last_error: storageError.message,
-                next_attempt_at: new Date(Date.now() + 5 * 60_000).toISOString(),
-                attempt_count: (item.attempt_count || 0) + 1,
-              })
-              .eq('nix_id', item.nix_id)
-          )
-        );
-        throw storageError;
-      }
-    }
-
-    // Ustaw flagi cleaned
-    const { error: nixUpdateError } = await serviceClient
+    const nixIds = queueItems.map((item) => item.nix_id);
+    const { data: nixes, error: nixReadError } = await serviceClient
       .from('nixes')
-      .update({ status: 'cleaned', cleaned_at: new Date().toISOString() })
-      .in('id', nixIdsToUpdate);
+      .select('id, receiver_id, media_path, asset_id')
+      .in('id', nixIds);
+    if (nixReadError) throw nixReadError;
+    const nixesById = new Map((nixes ?? []).map((nix) => [nix.id, nix]));
 
-    if (nixUpdateError) {
-      // Ignore if missing column status in some older schema, but it should exist.
-      await Promise.all(
-        queueItems.map((item) =>
-          serviceClient
-            .from('nix_cleanup_queue')
-            .update({
-              last_error: nixUpdateError.message,
-              next_attempt_at: new Date(Date.now() + 5 * 60_000).toISOString(),
-              attempt_count: (item.attempt_count || 0) + 1,
-            })
-            .eq('nix_id', item.nix_id)
-        )
-      );
-      throw nixUpdateError;
-    }
-
-    // Usun z kolejki
-    await serviceClient
-      .from('nix_cleanup_queue')
-      .delete()
-      .in('nix_id', nixIdsToUpdate);
-
-    totalCleaned = queueItems.length;
+    const cleanupResults = await Promise.all(queueItems.map(async (item) => {
+      try {
+        const nix = nixesById.get(item.nix_id);
+        if (!nix) {
+          await serviceClient.from('nix_cleanup_queue').delete().eq('nix_id', item.nix_id);
+          return true;
+        }
+        if (nix.asset_id) {
+          const { data: archiveData, error: archiveError } = await serviceClient.rpc(
+            'archive_shared_media_nix',
+            {
+              p_nix_id: item.nix_id,
+              p_receiver_id: item.receiver_id,
+            }
+          );
+          const archive = Array.isArray(archiveData) ? archiveData[0] : archiveData;
+          if (archiveError || !archive) {
+            throw archiveError ?? new Error('SHARED_ARCHIVE_FAILED');
+          }
+          if (archive.should_delete) {
+            const { error: storageError } = await serviceClient.storage
+              .from('media-vault')
+              .remove([archive.storage_path]);
+            if (storageError) throw storageError;
+            await serviceClient
+              .from('media_assets')
+              .update({ status: 'deleted', deleted_at: new Date().toISOString() })
+              .eq('id', archive.asset_id);
+          }
+        } else {
+          const { error: storageError } = await serviceClient.storage
+            .from('media-vault')
+            .remove([item.media_path]);
+          if (storageError) throw storageError;
+          const { error: nixUpdateError } = await serviceClient
+            .from('nixes')
+            .update({ status: 'cleaned', cleaned_at: new Date().toISOString() })
+            .eq('id', item.nix_id);
+          if (nixUpdateError) throw nixUpdateError;
+        }
+        await serviceClient.from('nix_cleanup_queue').delete().eq('nix_id', item.nix_id);
+        return true;
+      } catch (itemError) {
+        const message = itemError instanceof Error ? itemError.message : 'Unknown cleanup error';
+        await serviceClient
+          .from('nix_cleanup_queue')
+          .update({
+            last_error: message,
+            next_attempt_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+            attempt_count: (item.attempt_count || 0) + 1,
+          })
+          .eq('nix_id', item.nix_id);
+        return false;
+      }
+    }));
+    totalCleaned += cleanupResults.filter(Boolean).length;
 
     return new Response(JSON.stringify({ ok: true, cleanedCount: totalCleaned }), {
       status: 200,

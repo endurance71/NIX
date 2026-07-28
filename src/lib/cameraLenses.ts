@@ -15,7 +15,7 @@ export type LensOption = {
   displayFactor: number;
 };
 
-const PHYSICAL_KIND_ORDER: Array<'ultraWide' | 'wide' | 'telephoto'> = [
+const PHYSICAL_KIND_ORDER: ('ultraWide' | 'wide' | 'telephoto')[] = [
   'ultraWide',
   'wide',
   'telephoto',

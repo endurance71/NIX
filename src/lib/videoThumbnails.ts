@@ -69,10 +69,3 @@ async function generateVideoThumbnailUncached(
     player.release();
   }
 }
-
-/**
- * Czyści cały cache miniatur — przydatne przy zwalnianiu pamięci (np. viewer cleanup).
- */
-function clearThumbnailCache() {
-  thumbnailCache.clear();
-}

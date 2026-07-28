@@ -6,6 +6,34 @@ export type InboxRowStatus = 'new' | 'sent' | 'opened' | 'cleaned' | 'cleanupFai
 
 export type InboxRowMediaType = 'image' | 'video';
 
+export type RecipientUploadPhase =
+  | 'preparing'
+  | 'uploading'
+  | 'waiting_network'
+  | 'retry_scheduled'
+  | 'paused'
+  | 'failed'
+  | 'completed';
+
+export type RecipientUploadPresentation = {
+  phase: RecipientUploadPhase;
+  progress: number;
+  jobIds: string[];
+  jobCount: number;
+  sharedRecipientCount: number;
+  createdAt: number;
+  updatedAt: number;
+  mediaType: InboxRowMediaType;
+  actions: {
+    pauseJobIds: string[];
+    resumeJobIds: string[];
+    retryJobIds: string[];
+    cancelJobIds: string[];
+  };
+};
+
+export type UploadRowAction = 'pause' | 'resume' | 'retry' | 'cancel';
+
 export type InboxRowModel = {
   id: string;
   peerId: string;
@@ -21,6 +49,7 @@ export type InboxRowModel = {
   avatarEmoji: string | null;
   /** Typ mediów NiXa; `null` dla wiadomości tekstowych i wysłanych (status zamiast typu). */
   mediaType: InboxRowMediaType | null;
+  upload: RecipientUploadPresentation | null;
   openParams: {
     id: string;
     path: string;
@@ -67,6 +96,7 @@ export function buildInboxRowModel(
       avatarStoragePath: peerProfile?.avatar_storage_path ?? null,
       avatarEmoji: peerProfile?.avatar_emoji ?? null,
       mediaType: null,
+      upload: null,
       openParams: null,
     };
   }
@@ -91,6 +121,7 @@ export function buildInboxRowModel(
       avatarStoragePath: nix.sender?.avatar_storage_path ?? null,
       avatarEmoji: nix.sender?.avatar_emoji ?? null,
       mediaType: nix.media_type === 'video' ? 'video' : 'image',
+      upload: null,
       openParams: unread
         ? {
             id: nix.id,
@@ -118,6 +149,7 @@ export function buildInboxRowModel(
     avatarStoragePath: nix.receiver?.avatar_storage_path ?? null,
     avatarEmoji: nix.receiver?.avatar_emoji ?? null,
     mediaType: null,
+    upload: null,
     openParams: null,
   };
 }

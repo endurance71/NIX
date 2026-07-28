@@ -207,30 +207,34 @@ describe('mediaService', () => {
 });
 
 describe('isFastPathEligible', () => {
-  const TARGET_VIDEO_BITRATE = 2_000_000;
-  const VIDEO_FAST_PATH_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
-
-  it('zwraca true dla plikow mniejszych niz limit MB (niezaleznie od bitrate)', () => {
-    // 5 MB = 5 * 1024 * 1024
-    expect(isFastPathEligible('file:///test.mp4', 5 * 1024 * 1024, 1000)).toBe(true);
+  it('zwraca false dla małego, ale bardzo wysokobitratowego klipu', () => {
+    expect(isFastPathEligible('file:///test.mp4', 5 * 1024 * 1024, 1000)).toBe(false);
   });
 
-  it('zwraca true dla pliku powyzej 10 MB ale z niskim bitratem (< TARGET * 1.4)', () => {
-    const size = 15 * 1024 * 1024; // 15 MB
-    const duration = 60000; // 60s
-    // 15 MB * 8 / 60s = 2 Mbps, ktory jest = TARGET_VIDEO_BITRATE
+  it('zwraca true dla pliku z bitratem poniżej docelowych 1,8 Mb/s', () => {
+    const size = 10 * 1024 * 1024;
+    const duration = 60_000;
     expect(isFastPathEligible('file:///test.mp4', size, duration)).toBe(true);
   });
 
-  it('zwraca false dla pliku powyzej 10 MB i z wysokim bitratem (> TARGET * 1.4)', () => {
+  it('zwraca false dla pliku z bitratem wyższym niż profil docelowy', () => {
     const size = 20 * 1024 * 1024; // 20 MB
     const duration = 10000; // 10s
     // 20 MB * 8 / 10s = 16 Mbps
     expect(isFastPathEligible('file:///test.mp4', size, duration)).toBe(false);
   });
 
+  it('nie omija kompresji dla pliku ponad 100 MB nawet przy niskim bitrate', () => {
+    expect(
+      isFastPathEligible(
+        'file:///test.mp4',
+        MAX_VIDEO_FILE_SIZE_BYTES + 1,
+        20 * 60_000
+      )
+    ).toBe(false);
+  });
+
   it('zwraca false, gdy uri nie jest lokalne', () => {
     expect(isFastPathEligible('http://example.com/video.mp4', 5 * 1024 * 1024, 5000)).toBe(false);
   });
 });
-

@@ -15,7 +15,6 @@ import {
 import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
 import { useAuth } from '../../hooks/useAuth';
 import { useTrackedUsername } from '../../hooks/useAuthCredentials';
-import { notifyDomainError } from '../../lib/appNotify';
 import { normalizeUsername } from '../../services/friendService';
 import { runWithFinally } from '../../lib/runWithFinally';
 import { queryKeys } from '../../lib/queryKeys';

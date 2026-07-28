@@ -2,7 +2,7 @@
   "expo": {
     "name": "NiX",
     "slug": "nix-app",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "platforms": [
       "ios"
     ],
@@ -82,7 +82,12 @@
           "supportsPictureInPicture": false
         }
       ],
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "react-native-compressor",
       "expo-image",
       [
@@ -107,7 +112,19 @@
       "@react-native-google-signin/google-signin",
       "./plugins/withIosXcodeSpacesInPathFix.js",
       "@sentry/react-native",
-      "expo-font"
+      "expo-font",
+      "expo-sqlite",
+      "expo-background-task",
+      [
+        "expo-widgets",
+        {
+          "bundleIdentifier": "com.damianmotylinski.nixapp.UploadStatusWidget",
+          "groupIdentifier": "group.com.damianmotylinski.nixapp.uploads",
+          "enablePushNotifications": false,
+          "frequentUpdates": false,
+          "widgets": []
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -120,7 +137,7 @@
         "expo-channel-name": "production"
       }
     },
-    "runtimeVersion": "1.0.4",
+    "runtimeVersion": "1.0.5",
     "locales": {
       "en": "./src/locales/en/common.json",
       "pl": "./src/locales/pl/common.json"

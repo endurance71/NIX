@@ -1,0 +1,31 @@
+diff --git a/node_modules/expo-widgets/ios/LiveActivity.swift b/node_modules/expo-widgets/ios/LiveActivity.swift
+index c4b5bcc..02dac82 100644
+--- a/node_modules/expo-widgets/ios/LiveActivity.swift
++++ b/node_modules/expo-widgets/ios/LiveActivity.swift
+@@ -1,6 +1,25 @@
+ import ExpoModulesCore
+ import ActivityKit
+-
++
++@available(iOS 16.2, *)
++public enum ExpoWidgetsLiveActivityBridge {
++  public static func update(name: String, props: String) async {
++    let state = LiveActivityAttributes.ContentState(name: name, props: props)
++    let content = ActivityContent(state: state, staleDate: nil)
++    for activity in Activity<LiveActivityAttributes>.activities where activity.content.state.name == name {
++      await activity.update(content)
++    }
++  }
++
++  public static func end(name: String, props: String, after date: Date) async {
++    let state = LiveActivityAttributes.ContentState(name: name, props: props)
++    let content = ActivityContent(state: state, staleDate: nil)
++    for activity in Activity<LiveActivityAttributes>.activities where activity.content.state.name == name {
++      await activity.end(content, dismissalPolicy: .after(date))
++    }
++  }
++}
++
+ final class LiveActivity: SharedObject {
+   let id: String
+   let name: String

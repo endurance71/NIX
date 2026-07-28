@@ -18,6 +18,13 @@ const expected = [
   '20260724150000_add_message_reactions.sql',
   '20260724160000_add_message_reaction_push.sql',
   '20260724170000_fix_enqueue_push_nested_table_guards.sql',
+  '20260725124500_capture_attempt.sql',
+  '20260725184349_replay_and_cleanup.sql',
+  '20260725184405_replay_and_cleanup_cron.sql',
+  '20260725184420_fix_replay_unlimited.sql',
+  '20260728120000_durable_shared_media_uploads.sql',
+  '20260728121000_schedule_media_upload_orphan_cleanup.sql',
+  '20260728122000_fix_capture_attempt_idempotency.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
@@ -43,6 +50,20 @@ for (const marker of [
   'supabase_realtime ADD TABLE public.nixes',
 ]) {
   if (!baseline.includes(marker)) failures.push(`baseline is missing ${marker}`);
+}
+
+const captureAttemptFix = await readFile(
+  path.join(migrationsDir, '20260728122000_fix_capture_attempt_idempotency.sql'),
+  'utf8'
+);
+for (const marker of [
+  'CREATE OR REPLACE FUNCTION public.report_capture_attempt',
+  'ON CONFLICT (sender_id, receiver_id, client_message_id)',
+  'WHERE client_message_id IS NOT NULL',
+]) {
+  if (!captureAttemptFix.includes(marker)) {
+    failures.push(`capture-attempt idempotency fix is missing ${marker}`);
+  }
 }
 
 const safety = await readFile(path.join(migrationsDir, expected[3]), 'utf8');
@@ -91,10 +112,35 @@ for (const name of [
   'push-dispatch',
   'push-receipts',
   'cleanup-text-messages',
+  'cleanup-nix-due',
+  'begin-media-upload',
+  'finalize-media-upload',
+  'cancel-media-upload',
+  'cleanup-media-upload-orphans',
 ]) {
   const escaped = name.replaceAll('-', '\\-');
   const section = new RegExp(`\\[functions\\.${escaped}\\][\\s\\S]*?verify_jwt\\s*=\\s*true`);
   if (!section.test(config)) failures.push(`config.toml must explicitly verify JWT for ${name}`);
+}
+
+const durableUploads = await readFile(
+  path.join(migrationsDir, '20260728120000_durable_shared_media_uploads.sql'),
+  'utf8'
+);
+for (const marker of [
+  'CREATE TABLE IF NOT EXISTS public.media_assets',
+  'CREATE TABLE IF NOT EXISTS public.media_upload_batches',
+  'CREATE TABLE IF NOT EXISTS public.media_upload_recipients',
+  'CREATE OR REPLACE FUNCTION public.begin_media_upload_batch',
+  'CREATE OR REPLACE FUNCTION public.finalize_media_upload_batch',
+  'CREATE OR REPLACE FUNCTION public.archive_shared_media_nix',
+  'CREATE OR REPLACE FUNCTION public.archive_blocked_shared_media',
+  "n.status IN ('sent', 'viewed', 'cleanup_failed')",
+  'ADD COLUMN IF NOT EXISTS asset_id',
+]) {
+  if (!durableUploads.includes(marker)) {
+    failures.push(`durable upload migration is missing ${marker}`);
+  }
 }
 
 const seed = await readFile(path.join(root, 'supabase', 'seed.sql'), 'utf8');

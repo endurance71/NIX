@@ -6,9 +6,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { listAcceptedFriends, type FriendProfile } from '../services/friendService';
 import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../services/avatarService';
 import { toDomainError } from '../services/errors';
-import { useMediaUpload } from '../hooks/useMediaUpload';
 import { useVideoDraft } from '../context/videoDraft';
 import { usePhotoDraft } from '../context/photoDraft';
+import { useUploadQueue } from '../context/uploadQueue';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
@@ -20,11 +20,9 @@ import { toggleSetValue } from '../lib/selection';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { notifyError, notifySuccess } from '../lib/appNotify';
 import { selection, tap } from '../lib/haptics';
-import { runWithFinally } from '../lib/runWithFinally';
 import { usePushNotifications } from '../context/pushNotifications';
 import { APP_ICON_SIZE } from '../theme/app-icons';
-
-const SEND_CONCURRENCY = 2;
+import { runWithFinally } from '../lib/runWithFinally';
 
 function paramFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
@@ -38,6 +36,10 @@ function decodeParamUri(value: string | undefined): string | undefined {
   } catch {
     return value;
   }
+}
+
+function throwRejectedResult(result: PromiseRejectedResult | undefined) {
+  if (result) throw result.reason;
 }
 
 type FriendRecipientRowProps = {
@@ -98,7 +100,7 @@ export default function SendToSheet() {
   const viewDurationSec = normalizeNixViewDurationSec(paramFirst(rawParams.viewDurationSec));
   const isVideo = mode === 'video';
   const { segments, clearSegments } = useVideoDraft();
-  const { uploadNix, uploadVideoSegments } = useMediaUpload();
+  const { enqueueMediaBatch, cancelUpload } = useUploadQueue();
   const { offerAfterSuccessfulSend } = usePushNotifications();
   const {
     data: profiles = [],
@@ -152,84 +154,60 @@ export default function SendToSheet() {
     sendLockRef.current = true;
     setIsSending(true);
 
-    let successCount = 0;
-    let failureCount = 0;
-    const failureReasons = new Set<string>();
-    // Partie po SEND_CONCURRENCY: wewnątrz partii Promise.all; kolejne partie sekwencyjnie — rekurencja zamiast for+await dla react-doctor.
-    const processBatchFromIndex = async (startIndex: number): Promise<void> => {
-      if (startIndex >= selectedIdList.length) return;
-      const batch = selectedIdList.slice(startIndex, startIndex + SEND_CONCURRENCY);
-      const results = await Promise.all(
-        batch.map(async (receiverId) => {
-          try {
-            if (isVideo) {
-              return await uploadVideoSegments(segments!, receiverId, viewDurationSec, {
-                awaitCompletion: true,
-              });
-            }
-            return await uploadNix(photoUri!, receiverId, viewDurationSec, {
-              awaitCompletion: true,
-              sourceWidth: draftPhoto?.width,
-              sourceHeight: draftPhoto?.height,
-            });
-          } catch (err) {
-            const message = toDomainError(err, 'Spróbuj ponownie za chwilę.').message;
-            return { success: false as const, error: message };
+    const recipients = selectedIdList.map((receiverId) => ({
+      receiverId,
+      viewDurationSec,
+      sequenceIndex: 0,
+    }));
+    const enqueuedJobIds: string[] = [];
+    await runWithFinally(async () => {
+      try {
+        if (isVideo) {
+          const segmentInputs = segments!.map((segment, sequenceIndex) => ({
+            fileUri: segment.uri,
+            mediaType: 'video' as const,
+            recipients: recipients.map((recipient) => ({ ...recipient, sequenceIndex })),
+            playbackDurationMs: segment.durationMs,
+          }));
+          const results = await Promise.allSettled(
+            segmentInputs.map((input) => enqueueMediaBatch(input))
+          );
+          for (const result of results) {
+            if (result.status === 'fulfilled') enqueuedJobIds.push(result.value.jobId);
           }
-        })
-      );
-
-      for (const result of results) {
-        if (result.success) successCount += 1;
-        else {
-          failureCount += 1;
-          if (result.error) failureReasons.add(result.error);
-        }
-      }
-
-      await processBatchFromIndex(startIndex + SEND_CONCURRENCY);
-    };
-
-    let completed = false;
-    await runWithFinally(
-      async () => {
-        try {
-          await processBatchFromIndex(0);
-
-          if (isVideo) clearSegments();
-          else clearPhotoDraft();
-          void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
-
-          if (successCount > 0) {
-            notifySuccess(
-              'Wysyłka zakończona',
-              failureCount > 0 ? { message: `Błędy: ${failureCount}/${selectedCount}.` } : undefined
-            );
-          }
-          if (failureCount > 0) {
-            const firstFailureReason = failureReasons.values().next().value;
-            notifyError('Część wiadomości nie została wysłana', {
-              message: firstFailureReason ?? `Niepowodzenia: ${failureCount}/${selectedCount}.`,
-            });
-          }
-          completed = true;
-        } catch (err) {
-          notifyError('Wysyłka nie powiodła się', {
-            message: toDomainError(err, 'Spróbuj ponownie za chwilę.').message,
+          const failedResult = results.find(
+            (result): result is PromiseRejectedResult => result.status === 'rejected'
+          );
+          throwRejectedResult(failedResult);
+        } else {
+          const result = await enqueueMediaBatch({
+            fileUri: photoUri!,
+            mediaType: 'image',
+            recipients,
+            sourceWidth: draftPhoto?.width,
+            sourceHeight: draftPhoto?.height,
           });
+          enqueuedJobIds.push(result.jobId);
         }
-      },
-      () => {
-        setIsSending(false);
-        sendLockRef.current = false;
-      }
-    );
-    if (!completed) return;
 
-    router.dismissAll();
-    if (successCount > 0) {
-      setTimeout(() => void offerAfterSuccessfulSend(), 400);
-    }
+        if (isVideo) clearSegments();
+        else clearPhotoDraft();
+        notifySuccess('Dodano do wysyłki', {
+          message: 'Postęp zobaczysz przy odbiorcy w Skrzynce.',
+        });
+        router.dismissAll();
+        router.replace('/(tabs)/inbox');
+        setTimeout(() => void offerAfterSuccessfulSend(), 400);
+      } catch (err) {
+        await Promise.all(enqueuedJobIds.map((jobId) => cancelUpload(jobId).catch(() => undefined)));
+        notifyError('Nie udało się zabezpieczyć wysyłki', {
+          message: toDomainError(err, 'Spróbuj ponownie za chwilę.').message,
+        });
+      }
+    }, () => {
+      setIsSending(false);
+      sendLockRef.current = false;
+    });
   };
 
   const toggleSelection = (id: string) => {
@@ -305,7 +283,10 @@ export default function SendToSheet() {
           disabled={selectedCount === 0 || isSending}
         >
           {isSending ? (
-            <ActivityIndicator color={colors.buttonPrimaryText} />
+            <View style={styles.sendingContent}>
+              <ActivityIndicator color={colors.buttonPrimaryText} />
+              <Text style={stylesForTheme.sendButtonText}>Zabezpieczanie…</Text>
+            </View>
           ) : (
             <Text style={stylesForTheme.sendButtonText}>
               {selectedCount > 1 ? `Wyślij do ${selectedCount} znajomych` : 'Wyślij wiadomość'}
@@ -352,6 +333,11 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.5,
+  },
+  sendingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 });
 

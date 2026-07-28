@@ -1,7 +1,6 @@
-import NetInfo from '@react-native-community/netinfo';
 import { AppState } from 'react-native';
 import type { AppStateStatus } from 'react-native';
-import { focusManager, onlineManager } from '@tanstack/react-query';
+import { focusManager } from '@tanstack/react-query';
 
 let lifecycleBound = false;
 
@@ -9,12 +8,6 @@ let lifecycleBound = false;
 export function bindReactQueryAppLifecycle(): () => void {
   if (lifecycleBound) return () => {};
   lifecycleBound = true;
-
-  // onlineManager.setEventListener((setOnline) => {
-  //   return NetInfo.addEventListener((state) => {
-  //     setOnline(!!state.isConnected);
-  //   });
-  // });
 
   const onAppStateChange = (status: AppStateStatus) => {
     focusManager.setFocused(status === 'active');

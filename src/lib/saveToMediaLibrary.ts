@@ -33,14 +33,12 @@ export async function ensureWritePermission(): Promise<MediaLibraryWritePermissi
 }
 
 export async function saveLocalUrisToLibrary(uris: string[]): Promise<void> {
-  const normalized = uris.map(normalizeLocalUri).filter(Boolean);
+  const normalized = uris.map(normalizeLocalUri);
   if (normalized.length === 0) {
     throw new Error('Brak plików do zapisu.');
   }
 
-  for (const uri of normalized) {
-    await Asset.create(uri);
-  }
+  await Promise.all(normalized.map((uri) => Asset.create(uri)));
 }
 
 export async function saveRemoteUriToLibrary(remoteUri: string, extHint?: string): Promise<void> {

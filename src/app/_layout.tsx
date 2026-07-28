@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { View, ActivityIndicator, Text, Pressable, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useScreenInsets } from '../hooks/useScreenInsets';
 import { getCurrentUserProfile } from '../services/profileService';
 import { supabase } from '../lib/supabase';
 import { DeepLinkHandler } from '../lib/deepLink';
@@ -21,13 +20,13 @@ import { initMonitoring } from '../lib/monitoring';
 import { configureMediaCache } from '../lib/mediaCache';
 import { configureForPlayback } from '../lib/audioSession';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { enableFreeze } from 'react-native-screens';
 import { useTranslation } from 'react-i18next';
 import { AppRealtimeSync } from '../components/sync/AppRealtimeSync';
 import { queryKeys } from '../lib/queryKeys';
 import { resolveNeedsOnboarding } from '../lib/profileGate';
 import { hasCurrentAgeAttestation } from '../services/safetyService';
 import { PushNotificationsProvider } from '../context/PushNotificationsProvider';
+import { UploadQueueProvider } from '../context/UploadQueueProvider';
 
 // Initialize monitoring at module load (runs once).
 initMonitoring();
@@ -51,8 +50,10 @@ function RootLayout() {
             <AppThemeProvider>
               <VideoDraftProvider>
                 <PhotoDraftProvider>
-                  <DeepLinkHandler />
-                  <RootNavigator />
+                  <UploadQueueProvider>
+                    <DeepLinkHandler />
+                    <RootNavigator />
+                  </UploadQueueProvider>
                 </PhotoDraftProvider>
               </VideoDraftProvider>
             </AppThemeProvider>
@@ -86,11 +87,8 @@ function RootNavigator() {
     enabled: !!session,
     retry: 2,
   });
-  const profileLoading = !!session && (profilePending || ageAttestationPending);
   const needsOnboarding = resolveNeedsOnboarding(!!session, profile, profileError, ageAttested);
   const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false);
-
-  const { topContentInset, bottomContentInset } = useScreenInsets('fullscreen');
 
   useEffect(() => {
     if (!loading) return;

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
   acceptFriendRequest,
+  listAcceptedFriends,
   listIncomingFriendRequests,
   rejectFriendRequest,
 } from '../services/friendService';
@@ -18,7 +19,15 @@ import {
 } from '../services/avatarService';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
 import { buildInboxThreads } from '../lib/inboxThreads';
-import { buildInboxRowModel, type InboxRowModel } from '../lib/inboxPresentation';
+import {
+  buildInboxRowModel,
+  type InboxRowModel,
+  type UploadRowAction,
+} from '../lib/inboxPresentation';
+import {
+  buildRecipientUploadPresentations,
+  mergeInboxRowsWithUploads,
+} from '../lib/inboxUploadPresentation';
 import { getCurrentLocale } from '../lib/i18n';
 import { registerTabScrollToTop } from '../lib/tabBarScrollActions';
 import { notifyDomainError, notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
@@ -28,9 +37,15 @@ import { blockUser } from '../services/safetyService';
 import { fetchTextMessagesWithPeer } from '../services/textMessageService';
 import { fetchMessageReactionsWithPeer } from '../services/messageReactionService';
 import { useAuth } from './useAuth';
+import {
+  useUploadJobs,
+  useUploadQueue,
+  useUploadQueueSummary,
+} from '../context/uploadQueue';
 
 /** Keep in sync with useChatScreen CHAT_STALE_TIME_MS. */
 const CHAT_STALE_TIME_MS = 60_000;
+const COMPLETED_UPLOAD_VISIBILITY_MS = 30_000;
 async function refreshInboxQueries(queryClient: QueryClient, failureMessage: string) {
   try {
     await Promise.all([
@@ -48,11 +63,20 @@ export function useInboxScreen() {
   const locale = getCurrentLocale();
   const queryClient = useQueryClient();
   const { session } = useAuth();
+  const {
+    pauseUpload,
+    resumeUpload,
+    retryUpload,
+    cancelUpload,
+  } = useUploadQueue();
+  const uploadJobs = useUploadJobs();
+  const uploadSummary = useUploadQueueSummary();
   const currentUserId = session?.user?.id ?? '';
   const inviteActionIdsRef = useRef(new Set<string>());
   const busyPeerIdsRef = useRef(new Set<string>());
   const [inviteActionIds, setInviteActionIds] = useState<ReadonlySet<string>>(() => new Set());
   const [busyPeerIds, setBusyPeerIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [uploadClock, setUploadClock] = useState(() => Date.now());
 
   const nixesQuery = useQuery(inboxNixesBundleQueryOptions());
 
@@ -66,14 +90,50 @@ export function useInboxScreen() {
   const inboxNixes = nixesQuery.data?.inboxData ?? [];
   const sentNixes = nixesQuery.data?.sentData ?? [];
   const textMessages = nixesQuery.data?.textMessagesData ?? [];
-  const requests = requestsQuery.data ?? [];
-  const rows = buildInboxThreads(inboxNixes, sentNixes, textMessages).map((item) =>
+  const baseRows = buildInboxThreads(inboxNixes, sentNixes, textMessages).map((item) =>
     buildInboxRowModel(item, {
       unknownUsername: t('common.unknown'),
       locale,
       yesterdayLabel: t('inbox.yesterday'),
     })
   );
+  const uploadPresentations = useMemo(
+    () => buildRecipientUploadPresentations(uploadJobs, {
+      now: uploadClock,
+      completedVisibilityMs: COMPLETED_UPLOAD_VISIBILITY_MS,
+    }),
+    [uploadClock, uploadJobs]
+  );
+  const acceptedFriendsQuery = useQuery({
+    queryKey: queryKeys.acceptedFriends,
+    queryFn: () => listAcceptedFriends({ limit: 100 }),
+    enabled: uploadPresentations.size > 0,
+    staleTime: 1000 * 60 * 2,
+  });
+  const requests = requestsQuery.data ?? [];
+  const rows = mergeInboxRowsWithUploads(
+    baseRows,
+    uploadPresentations,
+    acceptedFriendsQuery.data ?? [],
+    {
+      unknownUsername: t('common.unknown'),
+      locale,
+      yesterdayLabel: t('inbox.yesterday'),
+    }
+  );
+
+  useEffect(() => {
+    const completionTimes = uploadJobs.flatMap((job) =>
+      job.state === 'completed' || job.state === 'partially_completed'
+        ? [(job.finishedAt ?? job.updatedAt) + COMPLETED_UPLOAD_VISIBILITY_MS]
+        : []
+    );
+    if (completionTimes.length === 0) return;
+    const nextExpiry = Math.min(...completionTimes.filter((time) => time > Date.now()));
+    if (!Number.isFinite(nextExpiry)) return;
+    const timer = setTimeout(() => setUploadClock(Date.now()), Math.max(0, nextExpiry - Date.now()));
+    return () => clearTimeout(timer);
+  }, [uploadJobs]);
 
   const avatarPaths = Array.from(
     new Set([
@@ -90,14 +150,6 @@ export function useInboxScreen() {
     enabled: avatarPaths.length > 0,
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
-
-  const invalidateInboxQueries = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests }),
-    ]);
-  };
 
   const refreshFailureMessage = t('inbox.refreshFailure');
   const handleRefresh = () => refreshInboxQueries(queryClient, refreshFailureMessage);
@@ -233,6 +285,37 @@ export function useInboxScreen() {
     );
   };
 
+  const handleUploadAction = async (row: InboxRowModel, action: UploadRowAction) => {
+    const upload = row.upload;
+    if (!upload || !beginPeerAction(row.peerId)) return;
+    const jobIds = action === 'pause'
+      ? upload.actions.pauseJobIds
+      : action === 'resume'
+        ? upload.actions.resumeJobIds
+        : action === 'retry'
+          ? upload.actions.retryJobIds
+          : upload.actions.cancelJobIds;
+    const operation = action === 'pause'
+      ? pauseUpload
+      : action === 'resume'
+        ? resumeUpload
+        : action === 'retry'
+          ? retryUpload
+          : cancelUpload;
+
+    await runWithFinally(
+      async () => {
+        try {
+          await Promise.all(jobIds.map((jobId) => operation(jobId)));
+        } catch (error) {
+          console.error(`Upload action ${action} failed`, error);
+          notifyError(t('inbox.uploadActionFailure'));
+        }
+      },
+      () => finishPeerAction(row.peerId)
+    );
+  };
+
   const handleOpen = (row: InboxRowModel) => {
     if (busyPeerIdsRef.current.has(row.peerId)) return;
 
@@ -271,8 +354,15 @@ export function useInboxScreen() {
 
   // Full-screen loader tylko od bundla wątków — friend requests ładują się
   // niezależnie i nie powinny blokować listy wiadomości.
-  const loading = nixesQuery.isPending && nixesQuery.data === undefined;
-  const initialError = nixesQuery.isError && nixesQuery.data === undefined;
+  const hasVisibleLocalUploads = uploadSummary.activeCount > 0 || uploadSummary.failedCount > 0;
+  const loading = nixesQuery.isPending
+    && nixesQuery.data === undefined
+    && rows.length === 0
+    && !hasVisibleLocalUploads;
+  const initialError = nixesQuery.isError
+    && nixesQuery.data === undefined
+    && rows.length === 0
+    && !hasVisibleLocalUploads;
   const requestsReady = !(requestsQuery.isPending && requestsQuery.data === undefined);
   const showEmpty = requestsReady && requests.length === 0 && rows.length === 0;
 
@@ -292,6 +382,7 @@ export function useInboxScreen() {
     handleReject,
     handleDelete,
     handleBlock,
+    handleUploadAction,
     handleOpen,
   };
 }

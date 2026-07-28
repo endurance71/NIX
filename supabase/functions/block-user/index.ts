@@ -35,21 +35,56 @@ Deno.serve(async (req) => {
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
   const { data: messages, error: messageError } = await serviceClient
     .from('nixes')
-    .select('id, media_path')
+    .select('id, media_path, asset_id')
     .or(
       `and(sender_id.eq.${userData.user.id},receiver_id.eq.${payload.blockedUserId}),and(sender_id.eq.${payload.blockedUserId},receiver_id.eq.${userData.user.id})`
     );
   if (messageError) return json({ error: 'Block was saved, but conversation cleanup failed' }, 500);
 
-  const mediaPaths = (messages ?? []).flatMap((row) => row.media_path ? [row.media_path] : []);
-  if (mediaPaths.length) {
-    const { error: storageError } = await serviceClient.storage.from('media-vault').remove(mediaPaths);
+  const legacyMessages = (messages ?? []).filter((row) => !row.asset_id);
+  const legacyPaths = legacyMessages.flatMap((row) => row.media_path ? [row.media_path] : []);
+  if (legacyPaths.length) {
+    const { error: storageError } = await serviceClient.storage.from('media-vault').remove(legacyPaths);
     if (storageError) return json({ error: 'Block was saved, but media cleanup failed' }, 500);
   }
-  if (messages?.length) {
-    const ids = messages.map((row) => row.id);
+  if (legacyMessages.length) {
+    const ids = legacyMessages.map((row) => row.id);
     const { error: deleteError } = await serviceClient.from('nixes').delete().in('id', ids);
     if (deleteError) return json({ error: 'Block was saved, but conversation cleanup failed' }, 500);
+  }
+
+  const { data: sharedCleanup, error: sharedCleanupError } = await serviceClient.rpc(
+    'archive_blocked_shared_media',
+    {
+      p_user_a: userData.user.id,
+      p_user_b: payload.blockedUserId,
+    }
+  );
+  if (sharedCleanupError) {
+    return json({ error: 'Block was saved, but shared media cleanup failed' }, 500);
+  }
+  const sharedRows = Array.isArray(sharedCleanup) ? sharedCleanup : [];
+  const sharedPaths = Array.from(new Set(sharedRows.flatMap((row) =>
+    typeof row?.storage_path === 'string' ? [row.storage_path] : []
+  )));
+  if (sharedPaths.length) {
+    const { error: storageError } = await serviceClient.storage
+      .from('media-vault')
+      .remove(sharedPaths);
+    if (storageError) {
+      // Assets already have status=deleting; the hourly orphan sweeper will
+      // retry physical deletion without affecting remaining recipients.
+      return json({ error: 'Block was saved, but shared media cleanup was deferred' }, 500);
+    }
+    const assetIds = sharedRows.flatMap((row) =>
+      typeof row?.asset_id === 'string' ? [row.asset_id] : []
+    );
+    if (assetIds.length) {
+      await serviceClient
+        .from('media_assets')
+        .update({ status: 'deleted', deleted_at: new Date().toISOString() })
+        .in('id', assetIds);
+    }
   }
 
   await serviceClient

@@ -675,7 +675,7 @@ export async function fetchChatNixesWithPeer(
 
   if (error) throw mapDatabaseError(error);
 
-  return ((data ?? []) as Array<{
+  return ((data ?? []) as {
     id: string;
     sender_id: string;
     receiver_id: string;
@@ -688,7 +688,7 @@ export async function fetchChatNixesWithPeer(
     replay_expires_at: string | null;
     status: ChatNixEvent['status'] | null;
     view_duration_sec: number | null;
-  }>).map((nix) => {
+  }[]).map((nix) => {
     const direction: 'sent' | 'received' = nix.sender_id === userId ? 'sent' : 'received';
     const isViewed = nix.is_viewed === true || nix.status === 'viewed' || nix.status === 'cleaned';
     return {

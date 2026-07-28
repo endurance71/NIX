@@ -33,13 +33,19 @@ import {
   multilineTextAlignment,
   onTapGesture,
   padding,
+  progressViewStyle,
   refreshable,
   scrollContentBackground,
   shapes,
   tint,
+  monospacedDigit,
 } from '@expo/ui/swift-ui/modifiers';
 import type { IncomingFriendRequest } from '../../services/friendService';
-import type { InboxRowModel, InboxRowStatus } from '../../lib/inboxPresentation';
+import type {
+  InboxRowModel,
+  InboxRowStatus,
+  UploadRowAction,
+} from '../../lib/inboxPresentation';
 import type { InboxScreenViewModel } from '../../hooks/useInboxScreen';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
@@ -55,6 +61,7 @@ type InboxScreenSurfaceProps = {
   vm: InboxScreenViewModel;
   onRequestDelete: (row: InboxRowModel) => void;
   onRequestBlock: (row: InboxRowModel) => void;
+  onRequestUploadAction: (row: InboxRowModel, action: UploadRowAction) => void;
 };
 
 type Translate = InboxScreenViewModel['t'];
@@ -103,6 +110,26 @@ function statusLabel(status: InboxRowStatus, t: Translate) {
 }
 
 function rowSubtitle(row: InboxRowModel, t: Translate) {
+  if (row.upload) {
+    switch (row.upload.phase) {
+      case 'preparing':
+        return t('inbox.uploadPreparing');
+      case 'uploading':
+        return t('inbox.uploadActive', {
+          percent: Math.round(row.upload.progress * 100),
+        });
+      case 'waiting_network':
+        return t('inbox.uploadWaitingNetwork');
+      case 'retry_scheduled':
+        return t('inbox.uploadRetryScheduled');
+      case 'paused':
+        return t('inbox.uploadPaused');
+      case 'failed':
+        return t('inbox.uploadAttention');
+      case 'completed':
+        return t('inbox.uploadCompleted');
+    }
+  }
   // Wysłane NiXy: status dostarczenia/czyszczenia (Wysłano, Usunięto, …).
   if (row.kind === 'nix' && row.direction === 'sent') {
     return statusLabel(row.status, t);
@@ -114,6 +141,68 @@ function rowSubtitle(row: InboxRowModel, t: Translate) {
     return t('inbox.previewVideo');
   }
   return t('inbox.previewPhoto');
+}
+
+function UploadAccessory({ row, t }: { row: InboxRowModel; t: Translate }) {
+  const { colors } = useAppTheme();
+  const upload = row.upload;
+  if (!upload) return null;
+  const percent = `${Math.round(upload.progress * 100)}%`;
+  const icon = upload.phase === 'failed'
+    ? 'exclamationmark.triangle.fill'
+    : upload.phase === 'waiting_network'
+      ? 'wifi.slash'
+      : upload.phase === 'retry_scheduled'
+        ? 'arrow.clockwise'
+        : upload.phase === 'paused'
+          ? 'pause.circle.fill'
+          : upload.phase === 'completed'
+            ? 'checkmark.circle.fill'
+            : null;
+  const color = upload.phase === 'failed'
+    ? colors.destructive
+    : upload.phase === 'completed'
+      ? colors.success
+      : colors.systemBlue;
+
+  return (
+    <HStack
+      alignment="center"
+      spacing={6}
+      modifiers={[
+        layoutPriority(2),
+        accessibilityLabel(`${rowSubtitle(row, t)}, ${percent}`),
+      ]}>
+      {icon ? (
+        <Image systemName={icon} size={18} color={color} modifiers={[accessibilityHidden()]} />
+      ) : (
+        <ProgressView
+          value={upload.progress}
+          modifiers={[
+            progressViewStyle('circular'),
+            frame({ width: 20, height: 20 }),
+            tint(color),
+            accessibilityHidden(),
+          ]}
+        />
+      )}
+      <Text
+        modifiers={[
+          font({ textStyle: 'caption', weight: 'semibold' }),
+          monospacedDigit(),
+          foregroundStyle(color),
+          lineLimit(1),
+        ]}>
+        {percent}
+      </Text>
+      <Image
+        systemName={resolveAppIconName('chevronRight')}
+        size={APP_ICON_SIZE.xs}
+        color={colors.tertiaryLabel}
+        modifiers={[accessibilityHidden()]}
+      />
+    </HStack>
+  );
 }
 
 function MessageRowContent({
@@ -186,8 +275,12 @@ function MessageRowContent({
           modifiers={[
             font({ textStyle: 'subheadline' }),
             foregroundStyle(
-              row.status === 'cleanupFailed'
+              row.upload?.phase === 'failed' || row.status === 'cleanupFailed'
                 ? colors.destructive
+                : row.upload?.phase === 'completed'
+                  ? colors.success
+                  : row.upload?.phase === 'uploading' || row.upload?.phase === 'preparing'
+                    ? colors.systemBlue
                 : { type: 'hierarchical', style: 'secondary' }
             ),
             lineLimit(1),
@@ -198,6 +291,8 @@ function MessageRowContent({
 
       {busy ? (
         <ProgressView modifiers={[accessibilityLabel(t('common.loading'))]} />
+      ) : row.upload ? (
+        <UploadAccessory row={row} t={t} />
       ) : (
         <HStack alignment="center" spacing={8} modifiers={[layoutPriority(2)]}>
           <VStack alignment="trailing" spacing={4}>
@@ -239,6 +334,7 @@ function MessageRow({
   onOpen,
   onDelete,
   onBlock,
+  onUploadAction,
   t,
 }: {
   row: InboxRowModel;
@@ -248,6 +344,7 @@ function MessageRow({
   onOpen: () => void;
   onDelete: () => void;
   onBlock: () => void;
+  onUploadAction: (action: UploadRowAction) => void;
   t: Translate;
 }) {
   const { colors } = useAppTheme();
@@ -256,10 +353,43 @@ function MessageRow({
   );
 
   if (busy) return content;
+  const upload = row.upload;
+  const primaryUploadAction: UploadRowAction | null = upload?.actions.resumeJobIds.length
+    ? 'resume'
+    : upload?.actions.retryJobIds.length
+      ? 'retry'
+      : upload?.actions.pauseJobIds.length
+        ? 'pause'
+        : null;
+  const primaryUploadLabel = primaryUploadAction === 'resume'
+    ? t('inbox.uploadResume')
+    : primaryUploadAction === 'retry'
+      ? t('inbox.uploadRetry')
+      : t('inbox.uploadPause');
 
   return (
     <SwipeActions>
       {content}
+      {upload && (primaryUploadAction || upload.actions.cancelJobIds.length > 0) ? (
+        <SwipeActions.Actions edge="leading" allowsFullSwipe={false}>
+          {primaryUploadAction ? (
+            <Button
+              label={primaryUploadLabel}
+              onPress={() => onUploadAction(primaryUploadAction)}
+              modifiers={[
+                tint(primaryUploadAction === 'retry' ? colors.warning : colors.systemBlue),
+              ]}
+            />
+          ) : null}
+          {upload.actions.cancelJobIds.length > 0 ? (
+            <Button
+              label={t('inbox.uploadCancel')}
+              onPress={() => onUploadAction('cancel')}
+              modifiers={[tint(colors.destructive)]}
+            />
+          ) : null}
+        </SwipeActions.Actions>
+      ) : null}
       <SwipeActions.Actions edge="trailing" allowsFullSwipe={false}>
         {/* Bez role=destructive: SwiftUI List od razu animuje wiersz poza listę przed Alertem. */}
         <Button
@@ -464,7 +594,12 @@ function InboxUnavailableState({
   );
 }
 
-function InboxList({ vm, onRequestDelete, onRequestBlock }: InboxScreenSurfaceProps) {
+function InboxList({
+  vm,
+  onRequestDelete,
+  onRequestBlock,
+  onRequestUploadAction,
+}: InboxScreenSurfaceProps) {
   const { colors, statusBarStyle } = useAppTheme();
   const listModifiers = [
     frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
@@ -487,6 +622,7 @@ function InboxList({ vm, onRequestDelete, onRequestBlock }: InboxScreenSurfacePr
         onOpen={() => vm.handleOpen(row)}
         onDelete={() => onRequestDelete(row)}
         onBlock={() => onRequestBlock(row)}
+        onUploadAction={(action) => onRequestUploadAction(row, action)}
         t={vm.t}
       />
     );

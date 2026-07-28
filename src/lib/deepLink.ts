@@ -3,6 +3,7 @@ import { useLinkingURL } from 'expo-linking';
 import { router } from 'expo-router';
 import { supabase } from './supabase';
 import { extractFriendInvitePayload } from './friendInvite';
+import { isInboxDeepLink } from './deepLinkRoute';
 
 function parseAuthUrl(url: string) {
   try {
@@ -62,6 +63,10 @@ export function DeepLinkHandler() {
     void (async () => {
       try {
         if (cancelled) return;
+        if (isInboxDeepLink(linkingUrl)) {
+          router.replace('/(tabs)/inbox');
+          return;
+        }
         if (handleFriendInviteDeepLink(linkingUrl)) return;
         await handleAuthDeepLink(linkingUrl, () => cancelled);
       } catch {

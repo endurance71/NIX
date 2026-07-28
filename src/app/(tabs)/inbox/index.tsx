@@ -4,7 +4,7 @@ import { InboxScreenSurface } from '../../../components/inbox/InboxScreenSurface
 import { HeaderComposeButton } from '../../../components/navigation/header-compose-button';
 import { useAppTheme } from '../../../hooks/useAppTheme';
 import { useInboxScreen } from '../../../hooks/useInboxScreen';
-import type { InboxRowModel } from '../../../lib/inboxPresentation';
+import type { InboxRowModel, UploadRowAction } from '../../../lib/inboxPresentation';
 
 export default function InboxScreen() {
   const vm = useInboxScreen();
@@ -36,6 +36,44 @@ export default function InboxScreen() {
     ]);
   };
 
+  const runUploadAction = (row: InboxRowModel, action: UploadRowAction) => {
+    void vm.handleUploadAction(row, action);
+  };
+
+  const requestUploadAction = (row: InboxRowModel, action: UploadRowAction) => {
+    const upload = row.upload;
+    if (!upload) return;
+    const isShared = upload.sharedRecipientCount > 1;
+    const needsConfirmation = isShared || action === 'cancel';
+    if (!needsConfirmation) {
+      runUploadAction(row, action);
+      return;
+    }
+
+    const actionLabel = action === 'pause'
+      ? vm.t('inbox.uploadPause')
+      : action === 'resume'
+        ? vm.t('inbox.uploadResume')
+        : action === 'retry'
+          ? vm.t('inbox.uploadRetry')
+          : vm.t('inbox.uploadCancel');
+    const title = isShared
+      ? vm.t('inbox.uploadSharedActionTitle')
+      : vm.t('inbox.uploadCancelTitle');
+    const message = isShared
+      ? vm.t('inbox.uploadSharedActionMessage', { count: upload.sharedRecipientCount })
+      : vm.t('inbox.uploadCancelMessage');
+
+    Alert.alert(title, message, [
+      { text: vm.t('common.cancel'), style: 'cancel' },
+      {
+        text: actionLabel,
+        style: action === 'cancel' ? 'destructive' : 'default',
+        onPress: () => runUploadAction(row, action),
+      },
+    ]);
+  };
+
   return (
     <>
       <Stack.Screen
@@ -61,7 +99,12 @@ export default function InboxScreen() {
           },
         }}
       />
-      <InboxScreenSurface vm={vm} onRequestDelete={requestDelete} onRequestBlock={requestBlock} />
+      <InboxScreenSurface
+        vm={vm}
+        onRequestDelete={requestDelete}
+        onRequestBlock={requestBlock}
+        onRequestUploadAction={requestUploadAction}
+      />
     </>
   );
 }

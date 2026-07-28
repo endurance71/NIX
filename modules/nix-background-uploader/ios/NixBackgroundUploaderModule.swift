@@ -1,0 +1,93 @@
+import ExpoModulesCore
+import Foundation
+
+private struct EnqueueOptions: Record {
+  @Field var jobId: String = ""
+  @Field var batchId: String = ""
+  @Field var fileUri: String = ""
+  @Field var uploadUrl: String = ""
+  @Field var uploadHeaders: [String: String] = [:]
+  @Field var finalizeUrl: String = ""
+  @Field var finalizeHeaders: [String: String] = [:]
+  @Field var finalizeToken: String = ""
+  @Field var expiresAt: Double = 0
+}
+
+public final class NixBackgroundUploaderModule: Module {
+  public func definition() -> ModuleDefinition {
+    Name("NixBackgroundUploader")
+
+    Events("onUploadProgress", "onUploadState")
+
+    OnCreate {
+      BackgroundUploadCoordinator.shared.eventSink = { [weak self] name, body in
+        self?.sendEvent(name, body)
+      }
+    }
+
+    OnDestroy {
+      BackgroundUploadCoordinator.shared.eventSink = nil
+    }
+
+    AsyncFunction("stageFile") { (jobId: String, sourceUri: URL, fileName: String) in
+      try BackgroundUploadCoordinator.shared.stageFile(
+        jobId: jobId,
+        sourceUri: sourceUri,
+        fileName: fileName
+      )
+    }
+
+    AsyncFunction("deleteStagedJob") { (jobId: String) in
+      try BackgroundUploadCoordinator.shared.deleteStagedJob(jobId: jobId)
+    }
+
+    AsyncFunction("findStagedFile") { (jobId: String, role: String) in
+      try BackgroundUploadCoordinator.shared.findStagedFile(jobId: jobId, role: role)
+    }
+
+    AsyncFunction("enqueue") { (options: EnqueueOptions) in
+      guard
+        let fileUri = URL(string: options.fileUri),
+        let uploadUrl = URL(string: options.uploadUrl),
+        let finalizeUrl = URL(string: options.finalizeUrl)
+      else {
+        throw NSError(
+          domain: "NixBackgroundUploader",
+          code: 1,
+          userInfo: [NSLocalizedDescriptionKey: "Invalid upload or finalization URL."]
+        )
+      }
+      return try await BackgroundUploadCoordinator.shared.enqueue(
+        jobId: options.jobId,
+        batchId: options.batchId,
+        fileUri: fileUri,
+        uploadUrl: uploadUrl,
+        uploadHeaders: options.uploadHeaders,
+        finalizeUrl: finalizeUrl,
+        finalizeHeaders: options.finalizeHeaders,
+        finalizeToken: options.finalizeToken,
+        expiresAt: options.expiresAt
+      )
+    }
+
+    AsyncFunction("pause") { (jobId: String) in
+      await BackgroundUploadCoordinator.shared.pause(jobId: jobId)
+    }
+
+    AsyncFunction("resume") { (jobId: String) in
+      await BackgroundUploadCoordinator.shared.resume(jobId: jobId)
+    }
+
+    AsyncFunction("cancel") { (jobId: String) in
+      await BackgroundUploadCoordinator.shared.cancel(jobId: jobId)
+    }
+
+    AsyncFunction("listTasks") {
+      BackgroundUploadCoordinator.shared.snapshotDictionaries()
+    }
+
+    AsyncFunction("reconcile") {
+      await BackgroundUploadCoordinator.shared.reconcile()
+    }
+  }
+}

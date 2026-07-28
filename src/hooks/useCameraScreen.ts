@@ -41,8 +41,9 @@ import { setNativeVideoTorchForRecording } from '../lib/videoTorchSession';
 import { HOLD_ZOOM_GAIN } from '../lib/cameraHoldZoom';
 import { getBackLensPresetsAsync } from '../../modules/nix-camera-torch';
 import { duration as motionDuration } from '../theme/motion';
+import { uploadFeatures } from '../config/uploadFeatures';
 
-export const VIDEO_RECORDING_BITRATE = 2_500_000;
+export const VIDEO_RECORDING_BITRATE = 1_800_000;
 const VIDEO_RECORDING_MAX_FILE_SIZE_BYTES = 90 * 1024 * 1024;
 const STILL_FLASH_ARM_DELAY_MS = 80;
 const VIDEO_TORCH_PROP_COMMIT_DELAY_MS = 50;
@@ -92,6 +93,18 @@ export type CameraScreenViewModel = {
   toggleFlash: () => void;
   toggleRecordingMicMuted: () => void;
 };
+
+function useLatestCallback<TArgs extends unknown[]>(
+  callback: (...args: TArgs) => void
+): (...args: TArgs) => void {
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  });
+
+  return useCallback((...args: TArgs) => callbackRef.current(...args), []);
+}
 
 export function useCameraScreen(): CameraScreenViewModel {
   const isNativeSimulator = !Constants.isDevice;
@@ -311,17 +324,6 @@ export function useCameraScreen(): CameraScreenViewModel {
 
   const setZoomFromGesture = useCallback((nextZoom: number) => {
     dispatchCameraUi({ type: 'SET_ZOOM', zoom: nextZoom });
-  }, []);
-
-  // Stable JS bridges for worklets — gesture objects must not be recreated mid-touch
-  // (SET_ZOOM / recordingVideo re-renders previously rebuilt Gesture.Pan and crashed Hermes).
-  const onShutterPressInRef = useRef<() => void>(() => {});
-  const onShutterPressOutRef = useRef<() => void>(() => {});
-  const handleShutterPressIn = useCallback(() => {
-    onShutterPressInRef.current();
-  }, []);
-  const handleShutterPressOut = useCallback(() => {
-    onShutterPressOutRef.current();
   }, []);
 
   const pinchGesture = useMemo(
@@ -589,6 +591,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     await runWithFinally(
       async () => {
         let result: { uri?: string } | undefined;
+        let recordingCodec: 'avc1' | 'hvc1' = 'avc1';
         let attemptedRecord = false;
         const sessionStartedAt = nowMs();
         recordingStartedRef.current = false;
@@ -657,10 +660,14 @@ export function useCameraScreen(): CameraScreenViewModel {
             videoPreparing: false,
             recordingVideo: true,
           }, { maxDurSec });
+          const availableCodecs = uploadFeatures.hevcCapture
+            ? await CameraView.getAvailableVideoCodecsAsync().catch(() => [])
+            : [];
+          recordingCodec = availableCodecs.includes('hvc1') ? 'hvc1' : 'avc1';
           result = await cam.recordAsync({
             maxDuration: maxDurSec,
             maxFileSize: VIDEO_RECORDING_MAX_FILE_SIZE_BYTES,
-            codec: 'avc1',
+            codec: recordingCodec,
           });
           logVideoTorchEvent('after-recordAsync-resolved', {}, { hasUri: Boolean(result?.uri) });
         } catch (err) {
@@ -686,7 +693,7 @@ export function useCameraScreen(): CameraScreenViewModel {
           trackDuration('video_record_ms', sessionStartedAt, {
             status: 'success',
             duration_recorded_ms: durationMs,
-            codec: 'avc1',
+            codec: recordingCodec,
             bitrate: VIDEO_RECORDING_BITRATE,
           });
           setSegments([{ uri: result.uri, durationMs }]);
@@ -990,8 +997,10 @@ export function useCameraScreen(): CameraScreenViewModel {
     }
   };
 
-  onShutterPressInRef.current = onShutterPressIn;
-  onShutterPressOutRef.current = onShutterPressOut;
+  // Stable JS bridges for worklets — gesture objects must not be recreated mid-touch
+  // (SET_ZOOM / recordingVideo re-renders previously rebuilt Gesture.Pan and crashed Hermes).
+  const handleShutterPressIn = useLatestCallback(onShutterPressIn);
+  const handleShutterPressOut = useLatestCallback(onShutterPressOut);
 
   // Hold-to-record + Snapchat-style vertical drag-to-zoom while REC is active.
   // manualActivation keeps the touch alive through drag (Pressable would cancel on move).

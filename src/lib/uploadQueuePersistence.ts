@@ -30,10 +30,6 @@ export async function readUploadQueueNixeshot(): Promise<UploadQueueNixeshot | n
   }
 }
 
-export async function writeUploadQueueNixeshot(nixeshot: UploadQueueNixeshot): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nixeshot));
-}
-
 export async function clearUploadQueueNixeshot(): Promise<void> {
   await AsyncStorage.removeItem(STORAGE_KEY);
 }

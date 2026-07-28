@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
 
   const { data: nix, error: nixError } = await serviceClient
     .from('nixes')
-    .select('id, receiver_id, media_path, is_viewed, is_replayed, replay_expires_at')
+    .select('id, receiver_id, media_path, asset_id, is_viewed, is_replayed, replay_expires_at')
     .eq('id', nixId)
     .maybeSingle();
 
@@ -154,6 +154,70 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
+  }
+
+  // Shared assets are referenced by one nix per recipient. Archive this nix
+  // first and remove the storage object only after the last active reference.
+  if (typeof nix.asset_id === 'string' && nix.asset_id.length > 0) {
+    const { data: archiveData, error: archiveError } = await serviceClient.rpc(
+      'archive_shared_media_nix',
+      {
+        p_nix_id: nixId,
+        p_receiver_id: user.id,
+      }
+    );
+    const archive = Array.isArray(archiveData) ? archiveData[0] : archiveData;
+    if (archiveError || !archive) {
+      const message = archiveError?.message ?? 'SHARED_ARCHIVE_FAILED';
+      await auditCleanup(serviceClient, 'failed', nixId, user.id, mediaPath, message);
+      return new Response(JSON.stringify({ error: message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!archive.should_delete) {
+      await serviceClient.from('nix_cleanup_queue').delete().eq('nix_id', nixId);
+      await auditCleanup(serviceClient, 'success', nixId, user.id, mediaPath);
+      return new Response(JSON.stringify({ ok: true, deleted: false, archived: true, shared: true }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const sharedPath = typeof archive.storage_path === 'string' ? archive.storage_path : mediaPath;
+    const { error: sharedStorageError } = await serviceClient.storage
+      .from('media-vault')
+      .remove([sharedPath]);
+    if (sharedStorageError) {
+      await serviceClient
+        .from('nix_cleanup_queue')
+        .upsert({
+          nix_id: nixId,
+          receiver_id: user.id,
+          media_path: mediaPath,
+          attempt_count: 1,
+          next_attempt_at: new Date(Date.now() + 60_000).toISOString(),
+          last_error: sharedStorageError.message,
+          updated_at: new Date().toISOString(),
+        });
+      await auditCleanup(serviceClient, 'failed', nixId, user.id, mediaPath, sharedStorageError.message);
+      return new Response(JSON.stringify({ error: sharedStorageError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    await serviceClient
+      .from('media_assets')
+      .update({ status: 'deleted', deleted_at: new Date().toISOString() })
+      .eq('id', archive.asset_id);
+    await serviceClient.from('nix_cleanup_queue').delete().eq('nix_id', nixId);
+    await auditCleanup(serviceClient, 'success', nixId, user.id, mediaPath);
+    return new Response(JSON.stringify({ ok: true, deleted: true, archived: true, shared: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   if (!nix.is_viewed) {
