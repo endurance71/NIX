@@ -17,7 +17,7 @@ alwaysApply: true
 
 ## Przed OTA
 
-- Ten sam `runtimeVersion` co na TestFlight (`app.json` + `Expo.plist`, obecnie `1.0.4`).
+- Ten sam `runtimeVersion` co na TestFlight (`app.json` + `Expo.plist`, obecnie `1.0.5`).
 - Kanał `production` (`updates.requestHeaders` / `EXUpdatesRequestHeaders`).
 - Binary na TF musi być zbudowany **z** tym kanałem — starsze buildy bez kanału nie złapią update’ów.
 

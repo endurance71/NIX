@@ -25,13 +25,14 @@ następnym uruchomieniu aplikacji.
    - zmienione `cleanup-nix`, `cleanup-nix-due` i `block-user`
 3. Potwierdź, że cron `cleanup-media-upload-orphans` jest aktywny i że
    `private.push_edge_auth_headers()` zwraca nagłówek service-role.
-4. W Apple Developer/EAS włącz App Group
+4. W Apple Developer włącz App Group
    `group.com.damianmotylinski.nixapp.uploads` dla aplikacji oraz rozszerzenia
    `com.damianmotylinski.nixapp.UploadStatusWidget`.
-5. Zbuduj nowy binarny build EAS. SQLite, background URLSession, App Group,
-   widget extension i Live Activities nie mogą zostać dostarczone samą
-   aktualizacją OTA.
-6. Najpierw uruchom build w development/preview i przejdź macierz testów.
+5. Zbuduj nowy binary lokalnie (Ścieżka B: Xcode Archive → TestFlight) —
+   patrz [`DEPLOY_IOS_TESTFLIGHT.md`](./DEPLOY_IOS_TESTFLIGHT.md). SQLite,
+   background URLSession, App Group, widget extension i Live Activities nie
+   mogą zostać dostarczone samą aktualizacją OTA. Nie używaj `eas build`.
+6. Najpierw Smoke Release na fizycznym iPhonie, potem Archive → ASC.
 7. Dopiero po walidacji urządzeń włącz produkcyjny rollout. HEVC pozostaje
    wyłączony.
 
