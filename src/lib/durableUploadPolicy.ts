@@ -15,6 +15,17 @@ export const UPLOAD_RETRY_DELAYS_MS = [
   21_600_000,
 ] as const;
 
+/** Faster backoff for small image uploads (foreground path). */
+export const IMAGE_UPLOAD_RETRY_DELAYS_MS = [
+  1_000,
+  3_000,
+  10_000,
+  30_000,
+  120_000,
+  600_000,
+  3_600_000,
+] as const;
+
 const TERMINAL_STATES = new Set<UploadJobState>([
   'completed',
   'partially_completed',
@@ -105,12 +116,12 @@ export function buildUploadQueueSummary(jobs: DurableUploadJob[]): UploadQueueSu
 
 export function uploadRetryDelay(
   retryCount: number,
-  random: () => number = Math.random
+  random: () => number = Math.random,
+  mediaType: 'image' | 'video' = 'video'
 ) {
   const normalizedCount = Math.max(0, Math.floor(retryCount));
-  const base = UPLOAD_RETRY_DELAYS_MS[
-    Math.min(normalizedCount, UPLOAD_RETRY_DELAYS_MS.length - 1)
-  ];
+  const table = mediaType === 'image' ? IMAGE_UPLOAD_RETRY_DELAYS_MS : UPLOAD_RETRY_DELAYS_MS;
+  const base = table[Math.min(normalizedCount, table.length - 1)];
   return Math.round(base * (0.8 + random() * 0.4));
 }
 

@@ -71,6 +71,23 @@ const PREPARE_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const PREPARE_MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_JS_TIMER_DELAY_MS = 60_000;
 
+type UploadPhaseTimings = {
+  prepareMs: number | null;
+  beginMs: number | null;
+  nativeEnqueueMs: number | null;
+};
+
+const uploadPhaseTimings = new Map<string, UploadPhaseTimings>();
+
+function rememberPhaseTimings(jobId: string, patch: Partial<UploadPhaseTimings>) {
+  const previous = uploadPhaseTimings.get(jobId) ?? {
+    prepareMs: null,
+    beginMs: null,
+    nativeEnqueueMs: null,
+  };
+  uploadPhaseTimings.set(jobId, { ...previous, ...patch });
+}
+
 function isLocallyStopped(job: DurableUploadJob | null) {
   return !job || ['paused', 'cancelled', 'expired', 'completed', 'partially_completed'].includes(job.state);
 }
@@ -289,7 +306,7 @@ function useUploadQueueController(): UploadQueueContextValue {
     await patchDurableUploadJob(job.id, {
       state: online ? 'retry_scheduled' : 'waiting_network',
       retryCount: nextRetryCount,
-      nextAttemptAt: Date.now() + uploadRetryDelay(nextRetryCount - 1),
+      nextAttemptAt: Date.now() + uploadRetryDelay(nextRetryCount - 1, Math.random, job.mediaType),
       errorCode: 'RETRY_SCHEDULED',
       errorMessage: message,
     });
@@ -297,6 +314,9 @@ function useUploadQueueController(): UploadQueueContextValue {
 
   const processJob = useLatestCallback(async (initialJob: DurableUploadJob) => {
     let job = initialJob;
+    let prepareMs: number | null = null;
+    let beginMs: number | null = null;
+    let nativeEnqueueMs: number | null = null;
     try {
       if (!job.preparedUri) {
         await patchDurableUploadJob(job.id, {
@@ -308,6 +328,7 @@ function useUploadQueueController(): UploadQueueContextValue {
             : null,
           errorMessage: null,
         });
+        const prepareStartedAt = Date.now();
         const onProgress = (progress: { progress: number }) => {
           void patchDurableUploadJob(job.id, {
             state: 'preparing',
@@ -366,6 +387,8 @@ function useUploadQueueController(): UploadQueueContextValue {
             ...(prepared.thumbnailTemporaryUris ?? []),
           ]);
         });
+        prepareMs = Date.now() - prepareStartedAt;
+        rememberPhaseTimings(job.id, { prepareMs });
         if (!preparedWasStaged) return;
         job = (await getDurableUploadJob(job.id)) ?? job;
       }
@@ -384,6 +407,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           state: 'requesting_target',
           progress: Math.max(job.progress, 0.3),
         });
+        const beginStartedAt = Date.now();
         const target = await beginMediaUploadBatch({
           idempotencyKey: job.idempotencyKey,
           mediaType: job.mediaType,
@@ -394,6 +418,8 @@ function useUploadQueueController(): UploadQueueContextValue {
           thumbnailB64: job.thumbnailB64,
           recipients: job.recipients,
         });
+        beginMs = Date.now() - beginStartedAt;
+        rememberPhaseTimings(job.id, { beginMs });
         if (target.status === 'completed' || target.status === 'partially_completed') {
           const finalized = await finalizeMediaUploadBatch({
             url: target.finalize.url,
@@ -457,6 +483,7 @@ function useUploadQueueController(): UploadQueueContextValue {
       });
       const latestBeforeEnqueue = await getDurableUploadJob(job.id);
       if (isLocallyStopped(latestBeforeEnqueue)) return;
+      const enqueueStartedAt = Date.now();
       await backgroundUploader.enqueue({
         jobId: job.id,
         batchId: job.batchId,
@@ -467,6 +494,14 @@ function useUploadQueueController(): UploadQueueContextValue {
         finalizeHeaders: job.finalizeHeaders,
         finalizeToken: job.finalizeToken,
         expiresAt: job.expiresAt,
+        mediaType: job.mediaType,
+        sizeBytes: job.finalSizeBytes ?? job.originalSizeBytes ?? 0,
+      });
+      nativeEnqueueMs = Date.now() - enqueueStartedAt;
+      rememberPhaseTimings(job.id, {
+        prepareMs,
+        beginMs,
+        nativeEnqueueMs,
       });
       const latestAfterEnqueue = await getDurableUploadJob(job.id);
       if (latestAfterEnqueue?.state === 'paused') {
@@ -854,12 +889,27 @@ function useUploadQueueController(): UploadQueueContextValue {
         if (snapshot.state === 'completed') {
           await deleteStagedUploadJob(snapshot.jobId).catch(() => undefined);
           void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
+          const phases = uploadPhaseTimings.get(snapshot.jobId);
+          const putMs =
+            typeof snapshot.putStartedAt === 'number' && typeof snapshot.putEndedAt === 'number'
+              ? Math.max(0, snapshot.putEndedAt - snapshot.putStartedAt)
+              : null;
+          const finalizeMs =
+            typeof snapshot.finalizeStartedAt === 'number' && typeof snapshot.finalizeEndedAt === 'number'
+              ? Math.max(0, snapshot.finalizeEndedAt - snapshot.finalizeStartedAt)
+              : null;
           trackEvent('durable_upload_completed', {
             task_id: snapshot.jobId,
             media_type: current.mediaType,
             retry_count: snapshot.attempt,
             end_to_end_ms: Date.now() - current.createdAt,
+            prepare_ms: phases?.prepareMs ?? null,
+            begin_ms: phases?.beginMs ?? null,
+            native_enqueue_ms: phases?.nativeEnqueueMs ?? null,
+            put_ms: putMs,
+            finalize_ms: finalizeMs,
           });
+          uploadPhaseTimings.delete(snapshot.jobId);
         }
         await refresh();
       })();

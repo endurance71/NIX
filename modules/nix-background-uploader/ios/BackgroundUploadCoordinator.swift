@@ -33,6 +33,10 @@ private struct NativeUploadSnapshot: Codable {
   var errorMessage: String?
   var responseBody: String?
   var updatedAt: Double
+  var putStartedAt: Double?
+  var putEndedAt: Double?
+  var finalizeStartedAt: Double?
+  var finalizeEndedAt: Double?
 
   var dictionary: [String: Any?] {
     [
@@ -47,7 +51,11 @@ private struct NativeUploadSnapshot: Codable {
       "errorCode": errorCode,
       "errorMessage": errorMessage,
       "responseBody": responseBody,
-      "updatedAt": updatedAt
+      "updatedAt": updatedAt,
+      "putStartedAt": putStartedAt,
+      "putEndedAt": putEndedAt,
+      "finalizeStartedAt": finalizeStartedAt,
+      "finalizeEndedAt": finalizeEndedAt
     ]
   }
 }
@@ -69,6 +77,62 @@ private struct NativeTaskDescriptor: Codable {
   var finalizeToken: String
   var attempt: Int
   var expiresAt: Double
+  var mediaType: String
+  var sizeBytes: Int64
+
+  enum CodingKeys: String, CodingKey {
+    case kind, jobId, batchId, filePath, requestUrl, requestHeaders
+    case finalizeUrl, finalizeHeaders, finalizeToken, attempt, expiresAt
+    case mediaType, sizeBytes
+  }
+
+  init(
+    kind: NativeTaskKind,
+    jobId: String,
+    batchId: String,
+    filePath: String,
+    requestUrl: String,
+    requestHeaders: [String: String],
+    finalizeUrl: String,
+    finalizeHeaders: [String: String],
+    finalizeToken: String,
+    attempt: Int,
+    expiresAt: Double,
+    mediaType: String,
+    sizeBytes: Int64
+  ) {
+    self.kind = kind
+    self.jobId = jobId
+    self.batchId = batchId
+    self.filePath = filePath
+    self.requestUrl = requestUrl
+    self.requestHeaders = requestHeaders
+    self.finalizeUrl = finalizeUrl
+    self.finalizeHeaders = finalizeHeaders
+    self.finalizeToken = finalizeToken
+    self.attempt = attempt
+    self.expiresAt = expiresAt
+    self.mediaType = mediaType
+    self.sizeBytes = sizeBytes
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    kind = try container.decode(NativeTaskKind.self, forKey: .kind)
+    jobId = try container.decode(String.self, forKey: .jobId)
+    batchId = try container.decode(String.self, forKey: .batchId)
+    filePath = try container.decode(String.self, forKey: .filePath)
+    requestUrl = try container.decode(String.self, forKey: .requestUrl)
+    requestHeaders = try container.decode([String: String].self, forKey: .requestHeaders)
+    finalizeUrl = try container.decode(String.self, forKey: .finalizeUrl)
+    finalizeHeaders = try container.decode([String: String].self, forKey: .finalizeHeaders)
+    finalizeToken = try container.decode(String.self, forKey: .finalizeToken)
+    attempt = try container.decode(Int.self, forKey: .attempt)
+    expiresAt = try container.decode(Double.self, forKey: .expiresAt)
+    // Older in-flight tasks lack these fields — default to background path.
+    mediaType = try container.decodeIfPresent(String.self, forKey: .mediaType) ?? "video"
+    sizeBytes = try container.decodeIfPresent(Int64.self, forKey: .sizeBytes) ?? 0
+  }
 }
 
 public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate, URLSessionTaskDelegate, @unchecked Sendable {
@@ -89,6 +153,7 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
   private var lastLiveActivityProgress: Double = -1
   private var lastLiveActivityPhase = ""
 
+  /// Large video / durable transfers that must survive app kill.
   private lazy var session: URLSession = {
     let configuration = URLSessionConfiguration.background(withIdentifier: Self.sessionIdentifier)
     configuration.waitsForConnectivity = true
@@ -100,6 +165,21 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     configuration.urlCache = nil
     return URLSession(configuration: configuration, delegate: self, delegateQueue: delegateQueue)
   }()
+
+  /// Small image PUTs + finalize POSTs — avoid iOS background session deferral.
+  private lazy var foregroundSession: URLSession = {
+    let configuration = URLSessionConfiguration.default
+    configuration.waitsForConnectivity = false
+    configuration.allowsCellularAccess = true
+    configuration.timeoutIntervalForRequest = 60
+    configuration.timeoutIntervalForResource = 120
+    configuration.httpMaximumConnectionsPerHost = 4
+    configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+    configuration.urlCache = nil
+    return URLSession(configuration: configuration, delegate: self, delegateQueue: delegateQueue)
+  }()
+
+  private static let foregroundSizeThresholdBytes: Int64 = 2 * 1024 * 1024
 
   private override init() {
     delegateQueue = OperationQueue()
@@ -118,6 +198,7 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     }
     pathMonitor.start(queue: pathQueue)
     _ = session
+    _ = foregroundSession
   }
 
   public func attachBackgroundCompletion(_ completion: @escaping () -> Void) {
@@ -239,7 +320,9 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     finalizeUrl: URL,
     finalizeHeaders: [String: String],
     finalizeToken: String,
-    expiresAt: Double
+    expiresAt: Double,
+    mediaType: String,
+    sizeBytes: Int64
   ) async throws -> [String: Any] {
     guard fileUri.isFileURL, FileManager.default.fileExists(atPath: fileUri.path) else {
       throw NSError(
@@ -252,6 +335,7 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
       return ["scheduled": true, "duplicate": true]
     }
 
+    let resolvedSize = sizeBytes > 0 ? sizeBytes : fileSize(path: fileUri.path)
     let descriptor = NativeTaskDescriptor(
       kind: .upload,
       jobId: jobId,
@@ -263,7 +347,9 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
       finalizeHeaders: finalizeHeaders,
       finalizeToken: finalizeToken,
       attempt: 0,
-      expiresAt: expiresAt
+      expiresAt: expiresAt,
+      mediaType: mediaType,
+      sizeBytes: resolvedSize
     )
     let task = try makeUploadTask(descriptor: descriptor)
     task.suspend()
@@ -274,13 +360,17 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
         state: isOnline ? .queued : .waitingNetwork,
         progress: 0,
         bytesSent: 0,
-        bytesTotal: fileSize(path: fileUri.path),
+        bytesTotal: resolvedSize,
         attempt: 0,
         statusCode: nil,
         errorCode: nil,
         errorMessage: nil,
         responseBody: nil,
-        updatedAt: nowMilliseconds()
+        updatedAt: nowMilliseconds(),
+        putStartedAt: nil,
+        putEndedAt: nil,
+        finalizeStartedAt: nil,
+        finalizeEndedAt: nil
       )
     )
     await pumpTasks()
@@ -339,9 +429,30 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
   }
 
   private func allTasks() async -> [URLSessionTask] {
-    await withCheckedContinuation { continuation in
+    async let backgroundTasks: [URLSessionTask] = withCheckedContinuation { continuation in
       session.getAllTasks { continuation.resume(returning: $0) }
     }
+    async let foregroundTasks: [URLSessionTask] = withCheckedContinuation { continuation in
+      foregroundSession.getAllTasks { continuation.resume(returning: $0) }
+    }
+    return await backgroundTasks + foregroundTasks
+  }
+
+  private func prefersForeground(_ descriptor: NativeTaskDescriptor) -> Bool {
+    if descriptor.kind == .finalize { return true }
+    if descriptor.mediaType == "image" { return true }
+    return descriptor.sizeBytes > 0 && descriptor.sizeBytes <= Self.foregroundSizeThresholdBytes
+  }
+
+  private func sessionFor(_ descriptor: NativeTaskDescriptor) -> URLSession {
+    prefersForeground(descriptor) ? foregroundSession : session
+  }
+
+  private func retryDelays(for descriptor: NativeTaskDescriptor) -> [TimeInterval] {
+    if prefersForeground(descriptor) {
+      return [1, 3, 10, 30, 120, 600, 3600]
+    }
+    return [5, 15, 60, 300, 900, 3600, 21600]
   }
 
   private func makeUploadTask(descriptor: NativeTaskDescriptor) throws -> URLSessionUploadTask {
@@ -355,7 +466,10 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     var request = URLRequest(url: url)
     request.httpMethod = "PUT"
     descriptor.requestHeaders.forEach { request.setValue($1, forHTTPHeaderField: $0) }
-    let task = session.uploadTask(with: request, fromFile: URL(fileURLWithPath: descriptor.filePath))
+    let task = sessionFor(descriptor).uploadTask(
+      with: request,
+      fromFile: URL(fileURLWithPath: descriptor.filePath)
+    )
     task.taskDescription = encodeDescriptor(descriptor)
     return task
   }
@@ -382,8 +496,10 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.timeoutInterval = 60
     descriptor.finalizeHeaders.forEach { request.setValue($1, forHTTPHeaderField: $0) }
-    let task = session.uploadTask(with: request, fromFile: bodyFile)
+    // Finalize is always foreground — small JSON must not wait in background scheduling.
+    let task = foregroundSession.uploadTask(with: request, fromFile: bodyFile)
     var finalizeDescriptor = descriptor
     finalizeDescriptor.kind = .finalize
     finalizeDescriptor.filePath = bodyFile.path
@@ -406,14 +522,14 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     }
     var next = descriptor
     next.attempt += 1
-    let delays: [TimeInterval] = [5, 15, 60, 300, 900, 3600, 21600]
+    let delays = retryDelays(for: next)
     let base = delays[min(max(0, next.attempt - 1), delays.count - 1)]
     let jitter = Double.random(in: 0.8 ... 1.2)
+    let delay = base * jitter
     do {
       let task = next.kind == .upload
         ? try makeUploadTask(descriptor: next)
         : try makeFinalizeTask(descriptor: next)
-      task.earliestBeginDate = Date().addingTimeInterval(base * jitter)
       patchSnapshot(jobId: descriptor.jobId) {
         $0.state = .retryScheduled
         $0.attempt = next.attempt
@@ -422,9 +538,17 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
         $0.errorMessage = message
         $0.updatedAt = nowMilliseconds()
       }
-      // A background URLSession only honors earliestBeginDate after the task
-      // is resumed. The system then owns the delayed retry even if JS exits.
-      task.resume()
+      if prefersForeground(next) {
+        // default URLSession ignores earliestBeginDate — delay via timer then pump.
+        task.suspend()
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + delay) { [weak self] in
+          Task { await self?.pumpTasks() }
+        }
+      } else {
+        // Background session honors earliestBeginDate after resume.
+        task.earliestBeginDate = Date().addingTimeInterval(delay)
+        task.resume()
+      }
     } catch {
       fail(
         descriptor,
@@ -495,11 +619,17 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
         patchSnapshot(jobId: descriptor.jobId) {
           $0.state = .uploading
           $0.attempt = descriptor.attempt
+          if $0.putStartedAt == nil {
+            $0.putStartedAt = nowMilliseconds()
+          }
           $0.updatedAt = nowMilliseconds()
         }
       } else {
         patchSnapshot(jobId: descriptor.jobId) {
           $0.state = .finalizing
+          if $0.finalizeStartedAt == nil {
+            $0.finalizeStartedAt = nowMilliseconds()
+          }
           $0.updatedAt = nowMilliseconds()
         }
       }
@@ -591,6 +721,10 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
             $0.progress = 1
             $0.bytesSent = $0.bytesTotal
             $0.statusCode = statusCode
+            $0.putEndedAt = nowMilliseconds()
+            if $0.finalizeStartedAt == nil {
+              $0.finalizeStartedAt = nowMilliseconds()
+            }
             $0.updatedAt = nowMilliseconds()
           }
         } catch {
@@ -610,6 +744,7 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
           $0.responseBody = responseBody
           $0.errorCode = nil
           $0.errorMessage = nil
+          $0.finalizeEndedAt = nowMilliseconds()
           $0.updatedAt = nowMilliseconds()
         }
         emitState(jobId: descriptor.jobId)

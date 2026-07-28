@@ -15,6 +15,8 @@ private struct EnqueueOptions: Record {
   @Field var finalizeHeaders: [String: String] = [:]
   @Field var finalizeToken: String = ""
   @Field var expiresAt: Double = 0
+  @Field var mediaType: String = "video"
+  @Field var sizeBytes: Double = 0
 }
 
 public final class NixBackgroundUploaderModule: Module {
@@ -78,7 +80,9 @@ public final class NixBackgroundUploaderModule: Module {
         finalizeUrl: finalizeUrl,
         finalizeHeaders: options.finalizeHeaders,
         finalizeToken: options.finalizeToken,
-        expiresAt: options.expiresAt
+        expiresAt: options.expiresAt,
+        mediaType: options.mediaType,
+        sizeBytes: Int64(options.sizeBytes)
       )
     }
 

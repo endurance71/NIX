@@ -92,6 +92,8 @@ describe('durable upload state policy', () => {
     expect(uploadRetryDelay(30, () => 0.5)).toBe(21_600_000);
     expect(uploadRetryDelay(0, () => 0)).toBe(UPLOAD_RETRY_DELAYS_MS[0] * 0.8);
     expect(uploadRetryDelay(0, () => 1)).toBe(UPLOAD_RETRY_DELAYS_MS[0] * 1.2);
+    expect(uploadRetryDelay(0, () => 0.5, 'image')).toBe(1_000);
+    expect(uploadRetryDelay(2, () => 0.5, 'image')).toBe(10_000);
   });
 
   it('separates permanent validation failures from transient failures', () => {

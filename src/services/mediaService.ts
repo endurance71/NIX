@@ -34,6 +34,8 @@ const NIX_ALLOWED_VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/
 const MAX_IMAGE_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const TARGET_IMAGE_LONG_EDGE = 1440;
 const TARGET_IMAGE_QUALITY = 0.75;
+/** Skip re-encode when camera/gallery file is already within size + dimension budget. */
+const IMAGE_FAST_PATH_MAX_BYTES = 1.5 * 1024 * 1024;
 /**
  * Limit pliku wideo akceptowanego przez aplikację. Po przejściu na resumable
  * (TUS) upload OOM nie jest już wąskim gardłem; zostawiamy bezpieczny bufor
@@ -170,6 +172,32 @@ export async function prepareImageForUpload(fileUri: string, options?: MediaUplo
     const sourceHeight = options?.sourceHeight;
     const longestEdge = Math.max(sourceWidth ?? Infinity, sourceHeight ?? Infinity);
     const needsResize = longestEdge > TARGET_IMAGE_LONG_EDGE;
+    const knownWithinBudget =
+      typeof sourceWidth === 'number'
+      && typeof sourceHeight === 'number'
+      && !needsResize
+      && typeof originalSizeBytes === 'number'
+      && originalSizeBytes > 0
+      && originalSizeBytes <= IMAGE_FAST_PATH_MAX_BYTES;
+
+    if (knownWithinBudget) {
+      emitProgress(options, { phase: 'compressing', progress: 1 });
+      trackDuration('compression_ms', startedAt, {
+        status: 'success',
+        media_type: 'image',
+        media_original_bytes: originalSizeBytes,
+        media_compressed_bytes: originalSizeBytes,
+        fast_path: true,
+      });
+      return {
+        uri: fileUri,
+        originalUri: fileUri,
+        originalSizeBytes,
+        sizeBytes: originalSizeBytes,
+        temporaryUris: [],
+      };
+    }
+
     const actions = needsResize
       ? [{
           resize: typeof sourceHeight === 'number'

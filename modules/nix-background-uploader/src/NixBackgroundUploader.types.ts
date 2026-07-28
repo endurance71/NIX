@@ -23,6 +23,10 @@ export type NativeUploadSnapshot = {
   errorMessage?: string | null;
   responseBody?: string | null;
   updatedAt: number;
+  putStartedAt?: number | null;
+  putEndedAt?: number | null;
+  finalizeStartedAt?: number | null;
+  finalizeEndedAt?: number | null;
 };
 
 export type NativeEnqueueOptions = {
@@ -35,6 +39,8 @@ export type NativeEnqueueOptions = {
   finalizeHeaders: Record<string, string>;
   finalizeToken: string;
   expiresAt: number;
+  mediaType: 'image' | 'video';
+  sizeBytes: number;
 };
 
 export type NativeBackgroundUploaderEvents = {
