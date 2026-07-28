@@ -27,6 +27,7 @@
         "NSPhotoLibraryUsageDescription": "NiX uses your photo library when you choose a profile avatar or select a photo or video to send to friends.",
         "NSPhotoLibraryAddUsageDescription": "NiX saves photos and videos you choose to keep in your Photos library.",
         "ITSAppUsesNonExemptEncryption": false,
+        "UIStatusBarHidden": false,
         "UIViewControllerBasedStatusBarAppearance": false,
         "CADisableMinimumFrameDurationOnPhone": true
       }

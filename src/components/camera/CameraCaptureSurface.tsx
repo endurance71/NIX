@@ -138,7 +138,7 @@ export function CameraCaptureSurface({ vm }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar style={statusBarStyle} hidden />
+      <StatusBar style={statusBarStyle} hidden={false} />
       <GestureDetector gesture={pinchGesture}>
         <CameraView
           key={cameraViewKey}

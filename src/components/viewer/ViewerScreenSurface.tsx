@@ -24,7 +24,7 @@ export function ViewerScreenSurface() {
 
   return (
     <Animated.View style={vm.styles.container} entering={FadeIn}>
-      <StatusBar style={vm.statusBarStyle} hidden />
+      <StatusBar style={vm.statusBarStyle} hidden={false} />
 
       <ViewerSegmentTimerHud
         queue={vm.queue}

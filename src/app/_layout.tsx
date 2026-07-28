@@ -139,6 +139,7 @@ function RootNavigator() {
           alignItems: 'center',
           backgroundColor: colors.background,
         }}>
+        <StatusBar style={statusBarStyle} hidden={false} />
         <ActivityIndicator color={colors.textPrimary} />
         {bootstrapTimedOut && (
           <>
@@ -168,7 +169,7 @@ function RootNavigator() {
 
   const content = (
     <>
-      <StatusBar style={statusBarStyle} />
+      <StatusBar style={statusBarStyle} hidden={false} />
       {session ? <AppRealtimeSync userId={session.user.id} /> : null}
       <Stack
         screenOptions={{

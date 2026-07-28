@@ -425,7 +425,7 @@ function PreviewVideoContent({
 
   return (
     <View style={styles.container}>
-      <StatusBar style={statusBarStyle} hidden />
+      <StatusBar style={statusBarStyle} hidden={false} />
 
       <View style={[styles.timerHudShell, { top: insets.top + VIDEO_PREVIEW_TIMER_HUD_TOP }]}>
         <BlurView intensity={isDark ? 72 : 58} tint={isDark ? 'dark' : 'light'} style={styles.timerBlur} />
@@ -658,7 +658,7 @@ export default function PreviewScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style={statusBarStyle} hidden />
+      <StatusBar style={statusBarStyle} hidden={false} />
 
       <Image
         source={{ uri: photoUri }}
