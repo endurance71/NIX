@@ -739,6 +739,7 @@ function UploadBubble({
   retrying,
   maxWidth,
   onLongPress,
+  onRetry,
   t,
 }: {
   job: DurableUploadJob;
@@ -746,6 +747,7 @@ function UploadBubble({
   retrying: boolean;
   maxWidth: number;
   onLongPress: () => void;
+  onRetry: () => void;
   t: ChatScreenViewModel['t'];
 }) {
   const { colors } = useAppTheme();
@@ -760,8 +762,8 @@ function UploadBubble({
       ? colors.success
       : colors.secondaryLabel;
   const mediaTitle = job.mediaType === 'video'
-      ? t('chat.uploadVideoTitle')
-      : t('chat.uploadPhotoTitle');
+    ? t('chat.uploadVideoTitle')
+    : t('chat.uploadPhotoTitle');
   const title = failed ? t('chat.uploadFailureTitle') : mediaTitle;
   const status = retrying ? t('chat.uploadActive') : uploadStatusLabel(job, t);
   const iconName = canRetry
@@ -800,14 +802,35 @@ function UploadBubble({
               </Text>
             </View>
             {busy || !iconName ? (
-              <ActivityIndicator size="small" color={colors.accent} />
+              <View style={styles.uploadAccessory}>
+                <ActivityIndicator size="small" color={colors.accent} />
+              </View>
+            ) : canRetry ? (
+              <Pressable
+                onPress={onRetry}
+                accessibilityRole="button"
+                accessibilityLabel={t('chat.uploadRetry')}
+                hitSlop={4}
+                style={({ pressed }) => [
+                  styles.uploadAccessory,
+                  pressed ? styles.uploadRetryPressed : null,
+                ]}>
+                <SymbolView
+                  name={iconName}
+                  size={APP_ICON_SIZE.lg}
+                  tintColor={colors.destructive}
+                  weight="semibold"
+                />
+              </Pressable>
             ) : (
-              <SymbolView
-                name={iconName}
-                size={APP_ICON_SIZE.lg}
-                tintColor={canRetry ? colors.accent : statusColor}
-                weight="semibold"
-              />
+              <View style={styles.uploadAccessory}>
+                <SymbolView
+                  name={iconName}
+                  size={APP_ICON_SIZE.lg}
+                  tintColor={statusColor}
+                  weight="semibold"
+                />
+              </View>
             )}
           </View>
         </Pressable>
@@ -1235,6 +1258,10 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
                     maxWidth={bubbleMaxWidth}
                     t={vm.t}
                     onLongPress={() => openChatUploadActions(vm, item.job)}
+                    onRetry={() => {
+                      selection();
+                      requestChatUploadAction(vm, item.job, 'retry');
+                    }}
                   />
                 );
               }
@@ -1430,6 +1457,16 @@ const styles = StyleSheet.create({
   uploadHeading: {
     flex: 1,
     minWidth: 0,
+  },
+  uploadAccessory: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadRetryPressed: {
+    opacity: 0.5,
+    transform: [{ scale: 0.94 }],
   },
   sendingSpinner: {
     marginTop: 4,
