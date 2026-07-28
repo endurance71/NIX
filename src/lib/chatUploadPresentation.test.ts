@@ -106,13 +106,13 @@ describe('chat upload presentation', () => {
     ).toHaveLength(0);
   });
 
-  it('exposes direct recovery actions without exposing internal errors', () => {
+  it('exposes only retry and cancel actions for the context menu', () => {
     expect(chatUploadActions(job('failed', 'failed'))).toEqual(['retry', 'cancel']);
     expect(
       chatUploadActions(job('permanent', 'failed', { errorCode: 'FILE_TOO_LARGE_PERMANENT' }))
     ).toEqual(['cancel']);
-    expect(chatUploadActions(job('active', 'uploading'))).toEqual(['pause', 'cancel']);
-    expect(chatUploadActions(job('paused', 'paused'))).toEqual(['resume', 'cancel']);
+    expect(chatUploadActions(job('active', 'uploading'))).toEqual(['cancel']);
+    expect(chatUploadActions(job('paused', 'paused'))).toEqual(['retry', 'cancel']);
   });
 
   it('reports how many recipients share the same underlying upload', () => {

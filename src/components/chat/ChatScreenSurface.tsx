@@ -48,10 +48,10 @@ import {
 import type { ChatNixEvent } from '../../services/nixService';
 import type { MessageReaction, MessageReactionEmoji } from '../../types/database.types';
 import type { DurableUploadJob } from '../../types/uploadQueue';
-import type { UploadRowAction } from '../../lib/inboxPresentation';
 import {
   chatUploadActions,
   sharedRecipientCount,
+  type ChatUploadAction,
 } from '../../lib/chatUploadPresentation';
 import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
 import { appleUiSpring, duration, useMotionEnabled } from '../../theme/motion';
@@ -698,7 +698,6 @@ function NixChip({
 }
 
 function uploadStatusLabel(job: DurableUploadJob, t: ChatScreenViewModel['t']): string {
-  const percent = Math.round(Math.max(0, Math.min(1, job.progress)) * 100);
   switch (job.state) {
     case 'staging':
     case 'queued':
@@ -707,7 +706,7 @@ function uploadStatusLabel(job: DurableUploadJob, t: ChatScreenViewModel['t']): 
       return t('chat.uploadPreparing');
     case 'uploading':
     case 'finalizing':
-      return t('chat.uploadActive', { percent });
+      return t('chat.uploadActive');
     case 'waiting_network':
       return t('chat.uploadWaitingNetwork');
     case 'retry_scheduled':
@@ -731,122 +730,150 @@ function UploadBubble({
   job,
   busy,
   maxWidth,
-  onAction,
+  onLongPress,
   t,
 }: {
   job: DurableUploadJob;
   busy: boolean;
   maxWidth: number;
-  onAction: (action: UploadRowAction) => void;
+  onLongPress: () => void;
   t: ChatScreenViewModel['t'];
 }) {
   const { colors } = useAppTheme();
-  const progress = Math.max(0, Math.min(1, job.progress));
-  const progressPercent = Math.round(progress * 100);
   const actions = chatUploadActions(job);
   const canRetry = actions.includes('retry');
   const failed = job.state === 'failed' || job.state === 'waiting_for_auth';
   const completed = job.state === 'completed' || job.state === 'partially_completed';
+  const waitingNetwork = job.state === 'waiting_network';
   const statusColor = failed
     ? colors.destructive
     : completed
       ? colors.success
-      : colors.accent;
+      : colors.secondaryLabel;
   const title = job.mediaType === 'video'
     ? t('chat.uploadVideoTitle')
     : t('chat.uploadPhotoTitle');
   const status = uploadStatusLabel(job, t);
+  const iconName = canRetry
+    ? 'arrow.clockwise'
+    : completed
+      ? 'checkmark.circle.fill'
+      : waitingNetwork
+        ? 'wifi.slash'
+        : failed
+          ? 'exclamationmark.triangle.fill'
+          : null;
 
   return (
     <View style={styles.row}>
       <View style={[styles.bubbleAnchor, styles.bubbleOwn, { maxWidth }]}>
-        <View
-          style={[
+        <Pressable
+          disabled={busy || actions.length === 0}
+          delayLongPress={350}
+          onLongPress={onLongPress}
+          accessibilityRole={actions.length > 0 ? 'button' : undefined}
+          accessibilityLabel={`${title}. ${status}`}
+          accessibilityHint={actions.length > 0 ? t('chat.uploadActionsHint') : undefined}
+          style={({ pressed }) => [
             styles.bubble,
             styles.uploadBubble,
             { backgroundColor: colors.secondarySystemFill },
-          ]}
-          accessibilityLabel={`${title}. ${status}`}>
-          <View style={styles.uploadHeader}>
-            <SymbolView
-              name={job.mediaType === 'video' ? 'film' : 'photo'}
-              size={APP_ICON_SIZE.lg}
-              tintColor={statusColor}
-              weight="semibold"
-            />
+            pressed ? styles.uploadBubblePressed : null,
+          ]}>
+          <View style={styles.uploadContent}>
             <View style={styles.uploadHeading}>
               <Text style={[styles.chipTitle, { color: colors.label }]}>{title}</Text>
               <Text style={[styles.chipStatus, { color: statusColor }]}>{status}</Text>
             </View>
-            {busy ? (
-              <ActivityIndicator size="small" color={statusColor} />
+            {busy || !iconName ? (
+              <ActivityIndicator size="small" color={colors.accent} />
             ) : (
-              <Text style={[styles.uploadPercent, { color: statusColor }]}>
-                {`${progressPercent}%`}
-              </Text>
+              <SymbolView
+                name={iconName}
+                size={APP_ICON_SIZE.lg}
+                tintColor={canRetry ? colors.accent : statusColor}
+                weight="semibold"
+              />
             )}
           </View>
-
-          <View
-            style={[styles.uploadProgressTrack, { backgroundColor: colors.systemFill }]}
-            accessibilityRole="progressbar"
-            accessibilityValue={{ min: 0, max: 100, now: progressPercent }}>
-            <View
-              style={[
-                styles.uploadProgressFill,
-                {
-                  backgroundColor: statusColor,
-                  width: `${progressPercent}%`,
-                },
-              ]}
-            />
-          </View>
-
-          {failed ? (
-            <Text style={[styles.uploadHelp, { color: colors.secondaryLabel }]}>
-              {t(canRetry ? 'chat.uploadAttentionHelp' : 'chat.uploadPermanentFailureHelp')}
-            </Text>
-          ) : null}
-
-          {actions.length > 0 ? (
-            <View style={styles.uploadActions}>
-              {actions.map((action) => {
-                const destructive = action === 'cancel';
-                const label = action === 'pause'
-                  ? t('chat.uploadPause')
-                  : action === 'resume'
-                    ? t('chat.uploadResume')
-                    : action === 'retry'
-                      ? t('chat.uploadRetry')
-                      : t('chat.uploadCancel');
-                return (
-                  <Pressable
-                    key={action}
-                    disabled={busy}
-                    onPress={() => onAction(action)}
-                    accessibilityRole="button"
-                    accessibilityLabel={label}
-                    accessibilityState={{ disabled: busy }}
-                    hitSlop={4}
-                    style={({ pressed }) => [
-                      styles.uploadAction,
-                      { opacity: busy ? 0.45 : pressed ? 0.55 : 1 },
-                    ]}>
-                    <Text
-                      style={[
-                        styles.uploadActionText,
-                        { color: destructive ? colors.destructive : colors.accent },
-                      ]}>
-                      {label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
-        </View>
+        </Pressable>
       </View>
     </View>
+  );
+}
+
+function requestChatUploadAction(
+  vm: ChatScreenViewModel,
+  job: DurableUploadJob,
+  action: ChatUploadAction
+) {
+  const recipientCount = sharedRecipientCount(job);
+  const isShared = recipientCount > 1;
+  const needsConfirmation = isShared || action === 'cancel';
+  if (!needsConfirmation) {
+    void vm.handleUploadAction(job.id, action);
+    return;
+  }
+
+  const actionLabel = action === 'retry'
+    ? vm.t('chat.uploadRetry')
+    : vm.t('chat.uploadCancel');
+  Alert.alert(
+    isShared ? vm.t('chat.uploadSharedActionTitle') : vm.t('chat.uploadCancelTitle'),
+    isShared
+      ? vm.t('chat.uploadSharedActionMessage', { count: recipientCount })
+      : vm.t('chat.uploadCancelMessage'),
+    [
+      { text: vm.t('common.cancel'), style: 'cancel' },
+      {
+        text: actionLabel,
+        style: action === 'cancel' ? 'destructive' : 'default',
+        onPress: () => void vm.handleUploadAction(job.id, action),
+      },
+    ]
+  );
+}
+
+function openChatUploadActions(vm: ChatScreenViewModel, job: DurableUploadJob) {
+  const actions = chatUploadActions(job);
+  if (actions.length === 0) return;
+  selection();
+  const labels = actions.map((action) =>
+    action === 'retry' ? vm.t('chat.uploadRetry') : vm.t('chat.uploadCancel')
+  );
+
+  if (Platform.OS === 'ios') {
+    const destructiveActionIndex = actions.indexOf('cancel');
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: job.mediaType === 'video'
+          ? vm.t('chat.uploadVideoTitle')
+          : vm.t('chat.uploadPhotoTitle'),
+        options: [vm.t('common.cancel'), ...labels],
+        cancelButtonIndex: 0,
+        destructiveButtonIndex:
+          destructiveActionIndex >= 0 ? destructiveActionIndex + 1 : undefined,
+      },
+      (buttonIndex) => {
+        if (buttonIndex == null || buttonIndex === 0) return;
+        const action = actions[buttonIndex - 1];
+        if (action) requestChatUploadAction(vm, job, action);
+      }
+    );
+    return;
+  }
+
+  Alert.alert(
+    job.mediaType === 'video' ? vm.t('chat.uploadVideoTitle') : vm.t('chat.uploadPhotoTitle'),
+    undefined,
+    [
+      ...actions.map((action) => ({
+        text: action === 'retry' ? vm.t('chat.uploadRetry') : vm.t('chat.uploadCancel'),
+        style: action === 'cancel' ? 'destructive' as const : 'default' as const,
+        onPress: () => requestChatUploadAction(vm, job, action),
+      })),
+      { text: vm.t('common.cancel'), style: 'cancel' },
+    ]
   );
 }
 
@@ -1111,38 +1138,6 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     ]);
   };
 
-  const requestUploadAction = (job: DurableUploadJob, action: UploadRowAction) => {
-    const recipientCount = sharedRecipientCount(job);
-    const isShared = recipientCount > 1;
-    const needsConfirmation = isShared || action === 'cancel';
-    if (!needsConfirmation) {
-      void vm.handleUploadAction(job.id, action);
-      return;
-    }
-
-    const actionLabel = action === 'pause'
-      ? vm.t('chat.uploadPause')
-      : action === 'resume'
-        ? vm.t('chat.uploadResume')
-        : action === 'retry'
-          ? vm.t('chat.uploadRetry')
-          : vm.t('chat.uploadCancel');
-    Alert.alert(
-      isShared ? vm.t('chat.uploadSharedActionTitle') : vm.t('chat.uploadCancelTitle'),
-      isShared
-        ? vm.t('chat.uploadSharedActionMessage', { count: recipientCount })
-        : vm.t('chat.uploadCancelMessage'),
-      [
-        { text: vm.t('common.cancel'), style: 'cancel' },
-        {
-          text: actionLabel,
-          style: action === 'cancel' ? 'destructive' : 'default',
-          onPress: () => void vm.handleUploadAction(job.id, action),
-        },
-      ]
-    );
-  };
-
   const pickerMessage = picker
     ? vm.messages.find((message) => message.id === picker.messageId) ?? null
     : null;
@@ -1216,7 +1211,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
                     busy={vm.busyUploadIds.has(item.job.id)}
                     maxWidth={bubbleMaxWidth}
                     t={vm.t}
-                    onAction={(action) => requestUploadAction(item.job, action)}
+                    onLongPress={() => openChatUploadActions(vm, item.job)}
                   />
                 );
               }
@@ -1399,52 +1394,19 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   uploadBubble: {
-    minWidth: 230,
-    gap: 8,
+    minWidth: 176,
   },
-  uploadHeader: {
+  uploadBubblePressed: {
+    opacity: 0.72,
+  },
+  uploadContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
   uploadHeading: {
     flex: 1,
     minWidth: 0,
-  },
-  uploadPercent: {
-    ...typography.caption,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  uploadProgressTrack: {
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  uploadProgressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  uploadHelp: {
-    ...typography.caption,
-    lineHeight: 16,
-  },
-  uploadActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 18,
-    minHeight: 32,
-  },
-  uploadAction: {
-    minHeight: 32,
-    minWidth: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  uploadActionText: {
-    ...typography.footnote,
-    fontWeight: '600',
   },
   sendingSpinner: {
     marginTop: 4,

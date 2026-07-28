@@ -1,6 +1,7 @@
 import type { ChatNixEvent } from '../services/nixService';
 import type { DurableUploadJob, UploadJobState } from '../types/uploadQueue';
-import type { UploadRowAction } from './inboxPresentation';
+
+export type ChatUploadAction = 'retry' | 'cancel';
 
 const COMPLETED_VISIBILITY_MS = 30_000;
 
@@ -52,17 +53,18 @@ export function selectChatUploadJobs(
   return visibleJobs.sort((a, b) => a.createdAt - b.createdAt);
 }
 
-export function chatUploadActions(job: DurableUploadJob): UploadRowAction[] {
-  const actions: UploadRowAction[] = [];
-  if (job.state === 'paused') {
-    actions.push('resume');
-  } else if (
-    (job.state === 'failed' || job.state === 'waiting_for_auth' || job.state === 'retry_scheduled')
+export function chatUploadActions(job: DurableUploadJob): ChatUploadAction[] {
+  const actions: ChatUploadAction[] = [];
+  if (
+    (
+      job.state === 'failed'
+      || job.state === 'waiting_for_auth'
+      || job.state === 'retry_scheduled'
+      || job.state === 'paused'
+    )
     && job.errorCode !== 'FILE_TOO_LARGE_PERMANENT'
   ) {
     actions.push('retry');
-  } else if (PAUSABLE_STATES.has(job.state)) {
-    actions.push('pause');
   }
   if (CANCELLABLE_STATES.has(job.state)) actions.push('cancel');
   return actions;

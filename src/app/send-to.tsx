@@ -23,6 +23,7 @@ import { selection, tap } from '../lib/haptics';
 import { usePushNotifications } from '../context/pushNotifications';
 import { APP_ICON_SIZE } from '../theme/app-icons';
 import { runWithFinally } from '../lib/runWithFinally';
+import i18n from '../lib/i18n';
 
 function paramFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
@@ -192,9 +193,7 @@ export default function SendToSheet() {
 
         if (isVideo) clearSegments();
         else clearPhotoDraft();
-        notifySuccess('Dodano do wysyłki', {
-          message: 'Postęp zobaczysz przy odbiorcy w Skrzynce.',
-        });
+        notifySuccess(i18n.t('inbox.sent'));
         router.dismissAll();
         router.replace('/(tabs)/inbox');
         setTimeout(() => void offerAfterSuccessfulSend(), 400);
