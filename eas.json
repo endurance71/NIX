@@ -28,6 +28,11 @@
       "autoIncrement": true,
       "environment": "production",
       "env": {
+        "EXPO_PUBLIC_BACKGROUND_UPLOAD_ENABLED": "true",
+        "EXPO_PUBLIC_DURABLE_UPLOAD_QUEUE_ENABLED": "true",
+        "EXPO_PUBLIC_HEVC_CAPTURE_ENABLED": "false",
+        "EXPO_PUBLIC_SHARED_MEDIA_ASSETS_ENABLED": "true",
+        "EXPO_PUBLIC_UPLOAD_LIVE_ACTIVITY_ENABLED": "true",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "SENTRY_DISABLE_XCODE_DEBUG_UPLOAD": "true"
       },

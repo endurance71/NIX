@@ -1,34 +1,48 @@
-# NiX 1.0.4 (1) — What to Test (Internal)
+# NiX 1.0.5 (4) — What to Test (Internal)
 
 Audience: members of the App Store Connect group **NiX Internal QA** only.
 This build must not be submitted for external Beta App Review.
 
-Build: **1.0.4 (1)** · runtimeVersion **1.0.4** · channel **production**
+Build: **1.0.5 (4)** · runtimeVersion **1.0.5** · channel **production**
 
-## Focus for this build — Save to Photos
+## Focus for this build — durable media delivery
 
-- **Sender preview:** after capturing a photo or video, use bottom-left save → Photos grants write access; toast confirms save; media appears in Photos.
-- **Receiver viewer + deny (default):** no save button; screenshot/recording still blocked / reported as before.
-- **Receiver viewer + allow:** in Profile → Friends enable **„Zrzut ekranu i zapis” / Screenshot and save** for the sender; open NiX → save button visible → save to Photos works.
-- Toggle allow off again → save button gone; capture block returns.
-- Deny Photos permission, then open Settings from the blocked alert and re-grant.
+- Send a photo and a video to one recipient, then to several recipients.
+- The send sheet closes after durable staging and opens Inbox; the camera session stops.
+- Every recipient has a temporary Inbox row and a chat bubble with a consistent state.
+- While sending, the chat bubble shows a circular loader; on failure it shows
+  **„Błąd wysyłania · Spróbuj ponownie”** without raw backend errors or a percentage.
+- Tap retry and verify the icon animates and the copy changes to sending. Long-press
+  the bubble and verify retry/cancel actions and the shared-recipient warning.
+- One media object is uploaded once and shared by all selected recipients.
+- Lock the device, move between Wi-Fi/LTE/offline, restart the process and restart
+  the phone. The queued job must remain visible and resume safely.
+- Force quit may stop the transfer; opening NiX again must reconcile and resume it.
+- Dynamic Island / Live Activity starts immediately, uses the NiX logo, opens
+  `nix://inbox`, shows offline/failure/success states, and ends after success.
+- On an iPhone without Dynamic Island, verify the Lock Screen Live Activity.
 
-## Regression (keep light)
+## Regression
 
 - Camera: photo + video (front/rear), gallery pick, hold-drag zoom while recording.
-- Send-to sheet: select friends; **Wyślij wiadomość** has text only (no arrow icon).
-- Unlimited / timed view durations; replay ×1 within 10 min.
+- Status bar remains visible; camera privacy indicator disappears after leaving Camera.
+- Unlimited / timed view durations; replay ×1 within 10 minutes.
+- Save to Photos follows the recipient capture policy.
 - Capture attempt push + chat chip when policy is deny.
-- Light and dark appearance on iPhone.
+- Light and dark appearance on a physical iPhone.
 
-## Accounts / safety (spot-check)
+## Accounts / safety
 
-- Email or Apple Sign-In session restore.
-- Friend QR / username; block / report path if time allows.
-- Push for new NiX (physical device only).
+- Email and Apple Sign-In session restore.
+- Friend QR / username, report, block, unblock and account deletion.
+- Push for a new NiX on a physical device.
+- A non-recipient cannot read a shared asset.
+- Cleanup of one recipient does not remove media still referenced by another recipient.
 
 ## Diagnostics
 
 - Sentry must stay disabled (no envelopes / dSYM upload).
-- Known: dSYM warnings for prebuilt Expo/React frameworks on upload — same as prior Path B builds.
-- After Processing in ASC, assign build **1.0.4 (1)** to **NiX Internal QA**.
+- Record failures, retries, duplicates and orphan assets during the 24-hour QA window.
+- Block rollout on any P0/P1, lost job, duplicate NiX, unauthorized asset read or
+  destructive shared-asset cleanup.
+- After Processing in ASC, assign build **1.0.5 (4)** to **NiX Internal QA**.
