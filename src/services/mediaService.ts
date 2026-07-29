@@ -150,6 +150,36 @@ function isTestRuntime() {
   return process.env.NODE_ENV === 'test' || typeof navigator === 'undefined';
 }
 
+async function reencodeImageForUpload(
+  fileUri: string,
+  needsResize: boolean,
+  sourceWidth?: number,
+  sourceHeight?: number
+): Promise<{ uri: string }> {
+  const context = ImageManipulator.manipulate(fileUri);
+  try {
+    if (needsResize) {
+      const portrait =
+        typeof sourceHeight === 'number'
+        && typeof sourceWidth === 'number'
+        && sourceHeight > sourceWidth;
+      if (portrait) context.resize({ height: TARGET_IMAGE_LONG_EDGE });
+      else context.resize({ width: TARGET_IMAGE_LONG_EDGE });
+    }
+    const rendered = await context.renderAsync();
+    try {
+      return await rendered.saveAsync({
+        compress: TARGET_IMAGE_QUALITY,
+        format: SaveFormat.JPEG,
+      });
+    } finally {
+      rendered.release();
+    }
+  } finally {
+    context.release();
+  }
+}
+
 export async function prepareImageForUpload(fileUri: string, options?: MediaUploadOptions): Promise<PreparedMedia> {
   const startedAt = nowMs();
   const originalSizeBytes = await getFileSizeBytes(fileUri);
@@ -166,15 +196,20 @@ export async function prepareImageForUpload(fileUri: string, options?: MediaUplo
   }
 
   try {
-    const { manipulateAsync, SaveFormat } = await import('expo-image-manipulator');
     // Skip resize when source dimensions are known and already within target.
     const sourceWidth = options?.sourceWidth;
     const sourceHeight = options?.sourceHeight;
-    const longestEdge = Math.max(sourceWidth ?? Infinity, sourceHeight ?? Infinity);
-    const needsResize = longestEdge > TARGET_IMAGE_LONG_EDGE;
-    const knownWithinBudget =
+    const dimensionsKnown =
       typeof sourceWidth === 'number'
       && typeof sourceHeight === 'number'
+      && sourceWidth > 0
+      && sourceHeight > 0;
+    const longestEdge = dimensionsKnown
+      ? Math.max(sourceWidth, sourceHeight)
+      : Number.POSITIVE_INFINITY;
+    const needsResize = longestEdge > TARGET_IMAGE_LONG_EDGE;
+    const knownWithinBudget =
+      dimensionsKnown
       && !needsResize
       && typeof originalSizeBytes === 'number'
       && originalSizeBytes > 0
@@ -198,20 +233,17 @@ export async function prepareImageForUpload(fileUri: string, options?: MediaUplo
       };
     }
 
-    const actions = needsResize
-      ? [{
-          resize: typeof sourceHeight === 'number'
-            && typeof sourceWidth === 'number'
-            && sourceHeight > sourceWidth
-            ? { height: TARGET_IMAGE_LONG_EDGE }
-            : { width: TARGET_IMAGE_LONG_EDGE },
-        }]
-      : [];
-    const result = await manipulateAsync(
-      fileUri,
-      actions,
-      { compress: TARGET_IMAGE_QUALITY, format: SaveFormat.JPEG, base64: false }
+    console.warn('[upload] image reencode start', {
+      bytes: originalSizeBytes,
+      sourceWidth,
+      sourceHeight,
+      needsResize,
+    });
+    const result = await withTimeout(
+      reencodeImageForUpload(fileUri, needsResize, sourceWidth, sourceHeight),
+      getCompressionTimeout(originalSizeBytes)
     );
+    console.warn('[upload] image reencode done', { uriTail: result.uri.slice(-40) });
     const compressedSizeBytes = await getFileSizeBytes(result.uri);
     const shouldKeepOriginal =
       result.uri !== fileUri &&
@@ -242,6 +274,9 @@ export async function prepareImageForUpload(fileUri: string, options?: MediaUplo
       status: 'failure',
       media_type: 'image',
       error_message: error instanceof Error ? error.message : 'Unknown image compression error',
+    });
+    console.warn('[upload] image reencode failed; using original', {
+      message: error instanceof Error ? error.message : String(error),
     });
     return {
       uri: fileUri,
@@ -394,21 +429,29 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
     emitProgress(options, { phase: 'compressing', progress: 0.95 });
   } else {
     try {
-      compressedUri = await VideoCompressor.compress(
-        fileUri,
-        {
-          compressionMethod: 'manual',
-          bitrate: selectedProfile.bitrate,
-          audioBitrate: selectedProfile.audioBitrate,
-          maxSize: selectedProfile.maxSize,
-          minimumFileSizeForCompress: 1,
-          progressDivider: 5,
-        },
-        (progress) => {
-          emitProgress(options, { phase: 'compressing', progress: Math.max(0.02, Math.min(0.95, progress)) });
-        }
+      console.warn('[upload] video compress start', {
+        bytes: originalSizeBytes,
+        bitrate: selectedProfile.bitrate,
+      });
+      compressedUri = await withTimeout(
+        VideoCompressor.compress(
+          fileUri,
+          {
+            compressionMethod: 'manual',
+            bitrate: selectedProfile.bitrate,
+            audioBitrate: selectedProfile.audioBitrate,
+            maxSize: selectedProfile.maxSize,
+            minimumFileSizeForCompress: 1,
+            progressDivider: 5,
+          },
+          (progress) => {
+            emitProgress(options, { phase: 'compressing', progress: Math.max(0.02, Math.min(0.95, progress)) });
+          }
+        ),
+        getCompressionTimeout(originalSizeBytes)
       );
       if (compressedUri !== fileUri) temporaryUris.push(compressedUri);
+      console.warn('[upload] video compress done', { uriTail: compressedUri.slice(-40) });
 
       const firstPassSize = await getFileSizeBytes(compressedUri);
       if (
@@ -422,19 +465,22 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
           hevcEnabled: false,
           hevcSupported: false,
         });
-        const aggressiveUri = await VideoCompressor.compress(
-          compressedUri,
-          {
-            compressionMethod: 'manual',
-            bitrate: aggressiveProfile.bitrate,
-            audioBitrate: aggressiveProfile.audioBitrate,
-            maxSize: aggressiveProfile.maxSize,
-            minimumFileSizeForCompress: 1,
-            progressDivider: 5,
-          },
-          (progress) => {
-            emitProgress(options, { phase: 'compressing', progress: Math.max(0.4, Math.min(0.95, progress)) });
-          }
+        const aggressiveUri = await withTimeout(
+          VideoCompressor.compress(
+            compressedUri,
+            {
+              compressionMethod: 'manual',
+              bitrate: aggressiveProfile.bitrate,
+              audioBitrate: aggressiveProfile.audioBitrate,
+              maxSize: aggressiveProfile.maxSize,
+              minimumFileSizeForCompress: 1,
+              progressDivider: 5,
+            },
+            (progress) => {
+              emitProgress(options, { phase: 'compressing', progress: Math.max(0.4, Math.min(0.95, progress)) });
+            }
+          ),
+          getCompressionTimeout(firstPassSize)
         );
         if (aggressiveUri !== compressedUri) {
           temporaryUris.push(aggressiveUri);
@@ -450,6 +496,9 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
       trackEvent('compression_fallback', {
         media_type: 'video',
         error_message: error instanceof Error ? error.message : 'Unknown video compression error',
+      });
+      console.warn('[upload] video compress failed; using source', {
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }

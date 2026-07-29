@@ -37,12 +37,23 @@ vi.mock('react-native-compressor', () => ({
   },
 }));
 
-vi.mock('expo-image-manipulator', () => ({
-  ImageManipulator: {
-    manipulateAsync: vi.fn().mockResolvedValue({ uri: 'file:///tmp/out.jpg' }),
-  },
-  SaveFormat: { JPEG: 'jpeg' },
-}));
+vi.mock('expo-image-manipulator', () => {
+  const image = {
+    saveAsync: vi.fn().mockResolvedValue({ uri: 'file:///tmp/out.jpg' }),
+    release: vi.fn(),
+  };
+  const context = {
+    resize: vi.fn().mockReturnThis(),
+    renderAsync: vi.fn().mockResolvedValue(image),
+    release: vi.fn(),
+  };
+  return {
+    ImageManipulator: {
+      manipulate: vi.fn(() => context),
+    },
+    SaveFormat: { JPEG: 'jpeg' },
+  };
+});
 
 vi.mock('./profileService', () => ({
   getCurrentUser: mockGetCurrentUser,

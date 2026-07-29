@@ -167,19 +167,23 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
   }()
 
   /// Small image PUTs + finalize POSTs — avoid iOS background session deferral.
+  /// Ephemeral config avoids cookie/connection-pool junk from prior hung PUTs.
   private lazy var foregroundSession: URLSession = {
-    let configuration = URLSessionConfiguration.default
-    configuration.waitsForConnectivity = false
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.waitsForConnectivity = true
     configuration.allowsCellularAccess = true
-    configuration.timeoutIntervalForRequest = 60
-    configuration.timeoutIntervalForResource = 120
+    configuration.timeoutIntervalForRequest = 120
+    configuration.timeoutIntervalForResource = 600
     configuration.httpMaximumConnectionsPerHost = 4
     configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
     configuration.urlCache = nil
     return URLSession(configuration: configuration, delegate: self, delegateQueue: delegateQueue)
   }()
 
-  private static let foregroundSizeThresholdBytes: Int64 = 2 * 1024 * 1024
+  /// Prefer foreground URLSession below this size. Background sessions routinely
+  /// defer PUTs while the app stays foreground — that left ~2.6MB videos at 0 bytes.
+  /// 32MB covers typical NiX compressed clips; true large videos stay durable/background.
+  private static let foregroundSizeThresholdBytes: Int64 = 32 * 1024 * 1024
 
   private override init() {
     delegateQueue = OperationQueue()
@@ -324,19 +328,31 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     mediaType: String,
     sizeBytes: Int64
   ) async throws -> [String: Any] {
-    guard fileUri.isFileURL, FileManager.default.fileExists(atPath: fileUri.path) else {
+    guard fileUri.isFileURL else {
       throw NSError(
         domain: "NixBackgroundUploader",
         code: 3,
         userInfo: [NSLocalizedDescriptionKey: "Staged upload file does not exist."]
       )
     }
-    if await hasTask(jobId: jobId) {
-      return ["scheduled": true, "duplicate": true]
+    guard FileManager.default.fileExists(atPath: fileUri.path) else {
+      print("[NixBackgroundUploader] enqueue missing file path=\(fileUri.path)")
+      throw NSError(
+        domain: "NixBackgroundUploader",
+        code: 3,
+        userInfo: [NSLocalizedDescriptionKey: "Staged upload file does not exist."]
+      )
+    }
+    // Drop any prior attempt for this job (suspended/hung running) so we never
+    // return duplicate:true while a dead task holds the connection slot.
+    let prior = await allTasks().filter { self.descriptor(for: $0)?.jobId == jobId }
+    if !prior.isEmpty {
+      print("[NixBackgroundUploader] enqueue cancel prior count=\(prior.count) job=\(jobId)")
+      prior.forEach { $0.cancel() }
     }
 
     let resolvedSize = sizeBytes > 0 ? sizeBytes : fileSize(path: fileUri.path)
-    let descriptor = NativeTaskDescriptor(
+    let taskDescriptor = NativeTaskDescriptor(
       kind: .upload,
       jobId: jobId,
       batchId: batchId,
@@ -351,13 +367,16 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
       mediaType: mediaType,
       sizeBytes: resolvedSize
     )
-    let task = try makeUploadTask(descriptor: descriptor)
-    task.suspend()
+    let useForeground = prefersForeground(taskDescriptor)
+    let task = try makeUploadTask(descriptor: taskDescriptor)
+    print(
+      "[NixBackgroundUploader] enqueue job=\(jobId) media=\(mediaType) bytes=\(resolvedSize) foreground=\(useForeground) online=\(isOnline) host=\(uploadUrl.host ?? "?")"
+    )
     saveSnapshot(
       NativeUploadSnapshot(
         jobId: jobId,
         batchId: batchId,
-        state: isOnline ? .queued : .waitingNetwork,
+        state: .uploading,
         progress: 0,
         bytesSent: 0,
         bytesTotal: resolvedSize,
@@ -367,14 +386,38 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
         errorMessage: nil,
         responseBody: nil,
         updatedAt: nowMilliseconds(),
-        putStartedAt: nil,
+        putStartedAt: nowMilliseconds(),
         putEndedAt: nil,
         finalizeStartedAt: nil,
         finalizeEndedAt: nil
       )
     )
-    await pumpTasks()
-    return ["scheduled": true, "nativeTaskId": task.taskIdentifier]
+    if useForeground {
+      // Never park foreground PUTs on the background slot limiter / isOnline
+      // gate — that left UI stuck at 31% with a suspended task and no progress events.
+      // waitsForConnectivity on the ephemeral session handles offline briefly.
+      task.resume()
+      print(
+        "[NixBackgroundUploader] foreground PUT resumed job=\(jobId) task=\(task.taskIdentifier) state=\(String(describing: task.state))"
+      )
+      schedulePutWatchdog(jobId: jobId, taskId: task.taskIdentifier)
+    } else if !isOnline {
+      task.suspend()
+      patchSnapshot(jobId: jobId) {
+        $0.state = .waitingNetwork
+        $0.updatedAt = nowMilliseconds()
+      }
+    } else {
+      // Background session still requires resume(). The old suspend→pump path
+      // often left large-video tasks suspended with 0 bytes while foreground.
+      task.resume()
+      print(
+        "[NixBackgroundUploader] background PUT resumed job=\(jobId) task=\(task.taskIdentifier) state=\(String(describing: task.state))"
+      )
+      schedulePutWatchdog(jobId: jobId, taskId: task.taskIdentifier)
+      await pumpTasks()
+    }
+    return ["scheduled": true, "nativeTaskId": task.taskIdentifier, "foreground": useForeground]
   }
 
   public func pause(jobId: String) async {
@@ -465,13 +508,47 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     }
     var request = URLRequest(url: url)
     request.httpMethod = "PUT"
+    request.timeoutInterval = prefersForeground(descriptor) ? 120 : 60
     descriptor.requestHeaders.forEach { request.setValue($1, forHTTPHeaderField: $0) }
-    let task = sessionFor(descriptor).uploadTask(
-      with: request,
-      fromFile: URL(fileURLWithPath: descriptor.filePath)
-    )
+    let fileURL = URL(fileURLWithPath: descriptor.filePath)
+    let session = sessionFor(descriptor)
+    let task: URLSessionUploadTask
+    // In-memory PUT for foreground uploads — avoids file-coordination stalls with
+    // URLSessionUploadTask(fromFile:) under completeUntilFirstUserAuthentication.
+    // Cap at threshold so we don't map huge videos into RAM.
+    if prefersForeground(descriptor),
+      descriptor.sizeBytes > 0,
+      descriptor.sizeBytes <= Self.foregroundSizeThresholdBytes,
+      let body = try? Data(contentsOf: fileURL, options: [.mappedIfSafe])
+    {
+      print("[NixBackgroundUploader] upload body loaded bytes=\(body.count) job=\(descriptor.jobId)")
+      task = session.uploadTask(with: request, from: body)
+    } else {
+      task = session.uploadTask(with: request, fromFile: fileURL)
+    }
     task.taskDescription = encodeDescriptor(descriptor)
     return task
+  }
+
+  private func schedulePutWatchdog(jobId: String, taskId: Int) {
+    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 3) { [weak self] in
+      guard let self else { return }
+      Task {
+        let tasks = await self.allTasks()
+        guard let task = tasks.first(where: { $0.taskIdentifier == taskId }) else {
+          print("[NixBackgroundUploader] watchdog job=\(jobId) task gone (completed or cancelled)")
+          return
+        }
+        let snapshot = self.loadSnapshots()[jobId]
+        print(
+          "[NixBackgroundUploader] watchdog job=\(jobId) taskState=\(String(describing: task.state)) bytes=\(task.countOfBytesSent)/\(task.countOfBytesExpectedToSend) snap=\(snapshot?.state.rawValue ?? "nil") progress=\(snapshot?.progress ?? -1)"
+        )
+        if task.state == .suspended {
+          print("[NixBackgroundUploader] watchdog forcing resume job=\(jobId)")
+          task.resume()
+        }
+      }
+    }
   }
 
   private func makeFinalizeTask(descriptor: NativeTaskDescriptor) throws -> URLSessionUploadTask {
@@ -539,9 +616,11 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
         $0.updatedAt = nowMilliseconds()
       }
       if prefersForeground(next) {
-        // default URLSession ignores earliestBeginDate — delay via timer then pump.
+        // default/ephemeral URLSession ignores earliestBeginDate — delay then resume.
         task.suspend()
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + delay) { [weak self] in
+          print("[NixBackgroundUploader] retry timer fired job=\(next.jobId) attempt=\(next.attempt)")
+          task.resume()
           Task { await self?.pumpTasks() }
         }
       } else {
@@ -610,12 +689,18 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
       }
       .sorted { ($0.earliestBeginDate ?? .distantPast) < ($1.earliestBeginDate ?? .distantPast) }
 
+    print("[NixBackgroundUploader] pump running=\(running) available=\(available) suspendedCandidates=\(candidates.count)")
+
     for task in candidates {
       guard let descriptor = descriptor(for: task) else { continue }
       if let earliest = task.earliestBeginDate, earliest > Date() { continue }
+      // Foreground image/finalize always resume — don't starve behind background slots.
+      let foreground = prefersForeground(descriptor)
       if descriptor.kind == .upload {
-        guard available > 0 else { continue }
-        available -= 1
+        if !foreground {
+          guard available > 0 else { continue }
+          available -= 1
+        }
         patchSnapshot(jobId: descriptor.jobId) {
           $0.state = .uploading
           $0.attempt = descriptor.attempt
@@ -634,6 +719,7 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
         }
       }
       task.resume()
+      print("[NixBackgroundUploader] pump resumed job=\(descriptor.jobId) kind=\(descriptor.kind.rawValue) foreground=\(foreground)")
       emitState(jobId: descriptor.jobId)
     }
     updateLiveActivity()
@@ -690,7 +776,10 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     if currentState == .cancelled { return }
 
     if let error = error as NSError? {
-      if error.code == NSURLErrorCancelled && currentState == .paused { return }
+      if error.code == NSURLErrorCancelled {
+        // pause() suspends; cancel() already patched state; re-enqueue cancels prior.
+        return
+      }
       if isTransient(error: error) {
         scheduleRetry(descriptor, statusCode: statusCode, message: error.localizedDescription)
       } else {
@@ -715,7 +804,6 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
       if descriptor.kind == .upload {
         do {
           let finalizer = try makeFinalizeTask(descriptor: descriptor)
-          finalizer.suspend()
           patchSnapshot(jobId: descriptor.jobId) {
             $0.state = .finalizing
             $0.progress = 1
@@ -727,6 +815,9 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
             }
             $0.updatedAt = nowMilliseconds()
           }
+          // Finalize is always foreground — resume immediately, don't wait on pump.
+          finalizer.resume()
+          print("[NixBackgroundUploader] finalize resumed job=\(descriptor.jobId) task=\(finalizer.taskIdentifier)")
         } catch {
           fail(
             descriptor,
@@ -770,7 +861,6 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
         // reconciles the object without treating the conflict as success.
         do {
           let finalizer = try makeFinalizeTask(descriptor: descriptor)
-          finalizer.suspend()
           patchSnapshot(jobId: descriptor.jobId) {
             $0.state = .finalizing
             $0.progress = 1
@@ -779,6 +869,8 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
             $0.errorMessage = responseBody
             $0.updatedAt = nowMilliseconds()
           }
+          finalizer.resume()
+          print("[NixBackgroundUploader] reconcile finalize resumed job=\(descriptor.jobId)")
         } catch {
           fail(
             descriptor,

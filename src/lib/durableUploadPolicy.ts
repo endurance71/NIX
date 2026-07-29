@@ -61,6 +61,10 @@ export function isAllowedUploadTransition(from: UploadJobState, to: UploadJobSta
 
 export function mapNativeUploadState(state: string): UploadJobState {
   switch (state) {
+    case 'queued':
+      // Native "queued" = URLSession task scheduled. JS "queued" means processJob
+      // should start — never bounce an in-flight native job back to the JS picker.
+      return 'uploading';
     case 'uploading':
     case 'retry_scheduled':
     case 'waiting_network':
@@ -72,7 +76,7 @@ export function mapNativeUploadState(state: string): UploadJobState {
     case 'cancelled':
       return state;
     default:
-      return 'queued';
+      return 'uploading';
   }
 }
 
@@ -136,7 +140,23 @@ export function isPermanentUploadError(error: unknown) {
     'NOT_FRIEND',
     'CANCELLED',
     'FILE_TOO_LARGE_PERMANENT',
+    'FILE_NOT_RECOVERABLE',
   ].includes(code);
+}
+
+/** Native enqueue / staging lost the local file copy. */
+export function isMissingStagedUploadError(error: unknown) {
+  const code =
+    typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : '';
+  if (code === 'FILE_NOT_RECOVERABLE' || code === 'STAGED_FILE_MISSING') return true;
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === 'object' && error && 'message' in error && typeof error.message === 'string'
+      ? error.message
+      : '';
+  return /staged upload file does not exist/i.test(message);
 }
 
 export type VideoCompressionProfile = {

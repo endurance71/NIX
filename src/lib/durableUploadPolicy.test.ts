@@ -5,7 +5,9 @@ import {
   UPLOAD_RETRY_DELAYS_MS,
   buildUploadQueueSummary,
   isAllowedUploadTransition,
+  isMissingStagedUploadError,
   isPermanentUploadError,
+  mapNativeUploadState,
   selectVideoCompressionProfile,
   uploadRetryDelay,
 } from './durableUploadPolicy';
@@ -99,8 +101,17 @@ describe('durable upload state policy', () => {
   it('separates permanent validation failures from transient failures', () => {
     expect(isPermanentUploadError({ code: 'INVALID_RECEIVER' })).toBe(true);
     expect(isPermanentUploadError({ code: 'FILE_TOO_LARGE_PERMANENT' })).toBe(true);
+    expect(isPermanentUploadError({ code: 'FILE_NOT_RECOVERABLE' })).toBe(true);
     expect(isPermanentUploadError({ code: 'NETWORK_ERROR' })).toBe(false);
     expect(isPermanentUploadError(new Error('timeout'))).toBe(false);
+    expect(isMissingStagedUploadError(new Error('Staged upload file does not exist.'))).toBe(true);
+    expect(isMissingStagedUploadError({ code: 'STAGED_FILE_MISSING' })).toBe(true);
+  });
+
+  it('maps native queued to uploading so JS does not re-pick the job', () => {
+    expect(mapNativeUploadState('queued')).toBe('uploading');
+    expect(mapNativeUploadState('uploading')).toBe('uploading');
+    expect(mapNativeUploadState('finalizing')).toBe('finalizing');
   });
 });
 

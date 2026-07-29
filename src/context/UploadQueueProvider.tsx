@@ -32,6 +32,7 @@ import {
   UPLOAD_RETENTION_MS,
   buildUploadQueueSummary,
   isAllowedUploadTransition,
+  isMissingStagedUploadError,
   isPermanentUploadError,
   mapNativeUploadState,
   uploadRetryDelay,
@@ -318,6 +319,27 @@ function useUploadQueueController(): UploadQueueContextValue {
     let beginMs: number | null = null;
     let nativeEnqueueMs: number | null = null;
     try {
+      if (job.preparedUri && !(await stagedUploadFileExists(job.preparedUri))) {
+        if (await stagedUploadFileExists(job.stagedUri)) {
+          console.warn('[upload] prepared missing; will re-prepare from source', { jobId: job.id });
+          await patchDurableUploadJob(job.id, {
+            preparedUri: null,
+            finalSizeBytes: null,
+            contentType: null,
+            progress: 0,
+            errorCode: null,
+            errorMessage: null,
+          });
+          job = (await getDurableUploadJob(job.id)) ?? { ...job, preparedUri: null };
+        } else {
+          const missing = new Error('Lokalny plik wysyłki nie jest już dostępny.') as Error & {
+            code?: string;
+          };
+          missing.code = 'FILE_NOT_RECOVERABLE';
+          throw missing;
+        }
+      }
+
       if (!job.preparedUri) {
         await patchDurableUploadJob(job.id, {
           state: 'preparing',
@@ -329,6 +351,13 @@ function useUploadQueueController(): UploadQueueContextValue {
           errorMessage: null,
         });
         const prepareStartedAt = Date.now();
+        console.warn('[upload] prepare start', {
+          jobId: job.id,
+          mediaType: job.mediaType,
+          stagedTail: job.stagedUri.slice(-48),
+          sourceWidth: job.sourceWidth,
+          sourceHeight: job.sourceHeight,
+        });
         const onProgress = (progress: { progress: number }) => {
           void patchDurableUploadJob(job.id, {
             state: 'preparing',
@@ -346,14 +375,24 @@ function useUploadQueueController(): UploadQueueContextValue {
               sourceHeight: job.sourceHeight ?? undefined,
               onProgress,
             });
+        console.warn('[upload] prepare encode done', {
+          jobId: job.id,
+          ms: Date.now() - prepareStartedAt,
+          sizeBytes: prepared.sizeBytes,
+        });
         const preparedWasStaged = await runWithFinally(async () => {
           const latestBeforeStaging = await getDurableUploadJob(job.id);
           if (isLocallyStopped(latestBeforeStaging)) return false;
+          console.warn('[upload] stage prepared start', { jobId: job.id });
           const stagedPrepared = await stageUploadFile({
             jobId: job.id,
             sourceUri: prepared.uri,
             mediaType: job.mediaType,
             role: 'prepared',
+          });
+          console.warn('[upload] stage prepared done', {
+            jobId: job.id,
+            sizeBytes: stagedPrepared.sizeBytes,
           });
           const maxBytes = job.mediaType === 'video' ? PREPARE_MAX_VIDEO_BYTES : PREPARE_MAX_IMAGE_BYTES;
           if (stagedPrepared.sizeBytes <= 0 || stagedPrepared.sizeBytes > maxBytes) {
@@ -408,6 +447,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           progress: Math.max(job.progress, 0.3),
         });
         const beginStartedAt = Date.now();
+        console.warn('[upload] begin start', { jobId: job.id, mediaType: job.mediaType });
         const target = await beginMediaUploadBatch({
           idempotencyKey: job.idempotencyKey,
           mediaType: job.mediaType,
@@ -419,6 +459,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           recipients: job.recipients,
         });
         beginMs = Date.now() - beginStartedAt;
+        console.warn('[upload] begin done', { jobId: job.id, ms: beginMs, status: target.status });
         rememberPhaseTimings(job.id, { beginMs });
         if (target.status === 'completed' || target.status === 'partially_completed') {
           const finalized = await finalizeMediaUploadBatch({
@@ -475,6 +516,11 @@ function useUploadQueueController(): UploadQueueContextValue {
       if (isLocallyStopped(job)) return;
 
       assertUploadReadyForNativeTransfer(job);
+      if (!(await stagedUploadFileExists(job.preparedUri))) {
+        const missing = new Error('Staged upload file does not exist.') as Error & { code?: string };
+        missing.code = 'STAGED_FILE_MISSING';
+        throw missing;
+      }
 
       await patchDurableUploadJob(job.id, {
         state: online ? 'uploading' : 'waiting_network',
@@ -484,7 +530,11 @@ function useUploadQueueController(): UploadQueueContextValue {
       const latestBeforeEnqueue = await getDurableUploadJob(job.id);
       if (isLocallyStopped(latestBeforeEnqueue)) return;
       const enqueueStartedAt = Date.now();
-      await backgroundUploader.enqueue({
+      console.warn('[upload] native enqueue start', {
+        jobId: job.id,
+        preparedTail: job.preparedUri.slice(-48),
+      });
+      const result = await backgroundUploader.enqueue({
         jobId: job.id,
         batchId: job.batchId,
         fileUri: job.preparedUri,
@@ -498,6 +548,31 @@ function useUploadQueueController(): UploadQueueContextValue {
         sizeBytes: job.finalSizeBytes ?? job.originalSizeBytes ?? 0,
       });
       nativeEnqueueMs = Date.now() - enqueueStartedAt;
+      console.warn('[upload] native enqueue done', {
+        jobId: job.id,
+        ms: nativeEnqueueMs,
+        result,
+      });
+      // Diagnose silent PUT stalls: native progress events should move past 0.31.
+      setTimeout(() => {
+        void backgroundUploader.listTasks().then((snapshots) => {
+          const snap = snapshots.find((item) => item.jobId === job.id);
+          console.warn('[upload] post-enqueue snapshot', {
+            jobId: job.id,
+            snap: snap
+              ? {
+                  state: snap.state,
+                  progress: snap.progress,
+                  bytesSent: snap.bytesSent,
+                  bytesTotal: snap.bytesTotal,
+                  errorCode: snap.errorCode,
+                  errorMessage: snap.errorMessage,
+                  statusCode: snap.statusCode,
+                }
+              : null,
+          });
+        });
+      }, 3000);
       rememberPhaseTimings(job.id, {
         prepareMs,
         beginMs,
@@ -511,6 +586,30 @@ function useUploadQueueController(): UploadQueueContextValue {
       }
     } catch (error) {
       if (isLocallyStopped(await getDurableUploadJob(job.id))) return;
+      if (isMissingStagedUploadError(error)) {
+        const sourceExists = await stagedUploadFileExists(job.stagedUri);
+        if (!sourceExists) {
+          await patchDurableUploadJob(job.id, {
+            state: 'failed',
+            errorCode: 'FILE_NOT_RECOVERABLE',
+            errorMessage: 'Lokalny plik wysyłki nie jest już dostępny.',
+            finishedAt: Date.now(),
+          });
+          return;
+        }
+        console.warn('[upload] restaging after missing prepared file', { jobId: job.id });
+        await patchDurableUploadJob(job.id, {
+          state: 'queued',
+          preparedUri: null,
+          finalSizeBytes: null,
+          contentType: null,
+          progress: 0,
+          nextAttemptAt: null,
+          errorCode: null,
+          errorMessage: null,
+        });
+        return;
+      }
       if (errorCode(error) === 'UNAUTHORIZED') {
         if (!job.authRefreshAttempted) {
           const { error: refreshError } = await supabase.auth.refreshSession();
@@ -833,6 +932,25 @@ function useUploadQueueController(): UploadQueueContextValue {
             uploadUrl: null,
             uploadHeaders: null,
             uploadUrlExpiresAt: null,
+            errorCode: null,
+            errorMessage: null,
+          });
+          await refresh();
+          return;
+        }
+
+        // Native "queued" only means the URLSession task is scheduled. Never
+        // rewrite an already-active JS job back to processJob's pickable state.
+        if (
+          snapshot.state === 'queued'
+          && ['uploading', 'finalizing', 'requesting_target'].includes(current.state)
+        ) {
+          await patchDurableUploadJob(snapshot.jobId, {
+            state: 'uploading',
+            progress: Math.max(current.progress, 0.31),
+            bytesSent: snapshot.bytesSent,
+            bytesTotal: snapshot.bytesTotal > 0 ? snapshot.bytesTotal : current.bytesTotal,
+            retryCount: Math.max(current.retryCount, snapshot.attempt),
             errorCode: null,
             errorMessage: null,
           });

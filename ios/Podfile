@@ -67,6 +67,19 @@ target 'NiX' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    # expo-modules-autolinking emits `bash -l -c` for [Expo] Configure project.
+    # Login shells inherit Homebrew npm_config_prefix and then source nvm, which
+    # aborts the phase. Keep non-login bash with prefix cleared.
+    pbxproj = File.join(__dir__, 'NiX.xcodeproj', 'project.pbxproj')
+    if File.exist?(pbxproj)
+      contents = File.read(pbxproj)
+      patched = contents.gsub(
+        'bash -l -c',
+        'env -u npm_config_prefix -u NPM_CONFIG_PREFIX /bin/bash -c'
+      )
+      File.write(pbxproj, patched) if patched != contents
+    end
   end
 
 end

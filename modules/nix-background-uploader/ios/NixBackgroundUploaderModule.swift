@@ -44,11 +44,16 @@ public final class NixBackgroundUploaderModule: Module {
     }
 
     AsyncFunction("stageFile") { (jobId: String, sourceUri: URL, fileName: String) in
-      try BackgroundUploadCoordinator.shared.stageFile(
+      let started = Date()
+      print("[NixBackgroundUploader] stageFile start job=\(jobId) file=\(fileName)")
+      let result = try BackgroundUploadCoordinator.shared.stageFile(
         jobId: jobId,
         sourceUri: sourceUri,
         fileName: fileName
       )
+      let ms = Int(Date().timeIntervalSince(started) * 1000)
+      print("[NixBackgroundUploader] stageFile done job=\(jobId) ms=\(ms)")
+      return result
     }
 
     AsyncFunction("deleteStagedJob") { (jobId: String) in
