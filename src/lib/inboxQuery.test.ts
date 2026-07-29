@@ -8,11 +8,20 @@ import {
 } from './inboxQuery';
 import { queryKeys } from './queryKeys';
 
-const { mockFetchInbox, mockFetchProfiles, mockFetchSent, mockFetchRecentTextMessages } = vi.hoisted(() => ({
+const {
+  mockFetchInbox,
+  mockFetchProfiles,
+  mockFetchSent,
+  mockFetchRecentTextMessages,
+  mockListReadStates,
+  mockGetUnreadCount,
+} = vi.hoisted(() => ({
   mockFetchInbox: vi.fn(),
   mockFetchProfiles: vi.fn(),
   mockFetchSent: vi.fn(),
   mockFetchRecentTextMessages: vi.fn(),
+  mockListReadStates: vi.fn(),
+  mockGetUnreadCount: vi.fn(),
 }));
 
 vi.mock('../services/nixService', () => ({
@@ -25,6 +34,11 @@ vi.mock('../services/textMessageService', () => ({
   fetchRecentTextMessagesForInbox: mockFetchRecentTextMessages,
 }));
 
+vi.mock('../services/conversationReadService', () => ({
+  listConversationReadStates: mockListReadStates,
+  getUnreadInboxCount: mockGetUnreadCount,
+}));
+
 function bundle(): InboxBundle {
   return {
     inboxData: [
@@ -33,6 +47,7 @@ function bundle(): InboxBundle {
     ] as InboxBundle['inboxData'],
     sentData: [],
     textMessagesData: [],
+    unreadCount: 1,
   };
 }
 
@@ -40,6 +55,8 @@ describe('inbox query cache', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetchRecentTextMessages.mockResolvedValue([]);
+    mockListReadStates.mockResolvedValue(new Map());
+    mockGetUnreadCount.mockResolvedValue(0);
   });
 
   it('pobiera profile rozmówców jednym wspólnym wywołaniem', async () => {
@@ -72,6 +89,45 @@ describe('inbox query cache', () => {
   it('wylicza badge bez osobnego zapytania', () => {
     expect(countUnreadInboxNixes(bundle())).toBe(1);
     expect(countUnreadInboxNixes(undefined)).toBe(0);
+  });
+
+  it('oznacza jako unread tylko odebraną wiadomość po prywatnym last_read_at', async () => {
+    mockFetchInbox.mockResolvedValue([]);
+    mockFetchSent.mockResolvedValue([]);
+    mockFetchRecentTextMessages.mockResolvedValue([
+      {
+        id: 'incoming-text',
+        peer_id: 'peer-1',
+        sender_id: 'peer-1',
+        receiver_id: 'current-user',
+        body: 'hello',
+        created_at: '2026-07-29T10:00:00.000Z',
+        expires_at: '2026-07-30T10:00:00.000Z',
+      },
+      {
+        id: 'outgoing-text',
+        peer_id: 'peer-2',
+        sender_id: 'current-user',
+        receiver_id: 'peer-2',
+        body: 'hello',
+        created_at: '2026-07-29T10:00:00.000Z',
+        expires_at: '2026-07-30T10:00:00.000Z',
+      },
+    ]);
+    mockListReadStates.mockResolvedValue(
+      new Map([['peer-1', '2026-07-29T09:00:00.000Z']])
+    );
+    mockFetchProfiles.mockResolvedValue(
+      new Map([
+        ['peer-1', { username: 'one' }],
+        ['peer-2', { username: 'two' }],
+      ])
+    );
+
+    const result = await fetchInboxNixesBundle();
+
+    expect(result.textMessagesData[0].is_unread).toBe(true);
+    expect(result.textMessagesData[1].is_unread).toBe(false);
   });
 
   it('optymistycznie oznacza NiX jako odczytany', () => {

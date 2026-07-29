@@ -6,6 +6,9 @@ import {
   pushCopy,
   formatPushActorLabel,
   retryAt,
+  cappedPushBadge,
+  isConversationMuteActive,
+  isPushCategoryEnabled,
   type PushDevice,
   type PushJob,
 } from '../_shared/push.ts';
@@ -94,6 +97,36 @@ Deno.serve(async (req) => {
         return;
       }
 
+      if (job.event_type !== 'capture_attempt') {
+        const { data: preferences } = await client
+          .from('notification_preferences')
+          .select('messages_enabled,reactions_enabled,friends_enabled')
+          .eq('user_id', job.recipient_id)
+          .maybeSingle();
+        const categoryEnabled = isPushCategoryEnabled(job.event_type, preferences);
+        if (!categoryEnabled) {
+          await markJob(job, 'skipped', 'notification_category_disabled');
+          return;
+        }
+
+        if (
+          job.event_type === 'new_nix'
+          || job.event_type === 'new_text_message'
+          || job.event_type === 'message_reaction'
+        ) {
+          const { data: mute } = await client
+            .from('conversation_mutes')
+            .select('muted_until')
+            .eq('owner_user_id', job.recipient_id)
+            .eq('peer_user_id', job.actor_id)
+            .maybeSingle();
+          if (isConversationMuteActive(mute)) {
+            await markJob(job, 'skipped', 'conversation_muted');
+            return;
+          }
+        }
+      }
+
       const [
         { data: actor },
         { data: deviceRows, error: devicesError },
@@ -118,14 +151,10 @@ Deno.serve(async (req) => {
         return;
       }
 
-      const { count: unreadCount, error: unreadError } = await client
-        .from('nixes')
-        .select('id', { count: 'exact', head: true })
-        .eq('receiver_id', job.recipient_id)
-        .eq('status', 'sent')
-        .neq('is_viewed', true);
+      const { data: unreadCount, error: unreadError } = await client
+        .rpc('get_unread_inbox_count_for_user', { p_user_id: job.recipient_id });
       if (unreadError) throw unreadError;
-      const badge = unreadCount ?? 0;
+      const badge = cappedPushBadge(unreadCount);
 
       const actorLabel = formatPushActorLabel(actor?.display_name, actor?.username);
       let reactionEmoji: string | null = null;

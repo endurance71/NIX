@@ -10,6 +10,10 @@ import {
   fetchRecentTextMessagesForInbox,
   type RecentTextMessageItem,
 } from '../services/textMessageService';
+import {
+  getUnreadInboxCount,
+  listConversationReadStates,
+} from '../services/conversationReadService';
 import { queryKeys } from './queryKeys';
 
 export type InboxBundle = {
@@ -23,13 +27,16 @@ export type InboxBundle = {
       avatar_emoji?: string | null;
     } | null;
   })[];
+  unreadCount: number;
 };
 
 export async function fetchInboxNixesBundle(): Promise<InboxBundle> {
-  const [inboxRows, sentRows, textRows] = await Promise.all([
+  const [inboxRows, sentRows, textRows, readStates, unreadCount] = await Promise.all([
     fetchInboxNixes({ includeProfiles: false }),
     fetchSentNixes({ includeProfiles: false }),
     fetchRecentTextMessagesForInbox(),
+    listConversationReadStates(),
+    getUnreadInboxCount(),
   ]);
   const profileIds = [
     ...inboxRows.map((nix) => nix.sender_id),
@@ -70,8 +77,14 @@ export async function fetchInboxNixesBundle(): Promise<InboxBundle> {
 
   const textMessagesData = textRows.map((msg) => {
     const profile = profiles.get(msg.peer_id);
+    const lastReadAt = readStates.get(msg.peer_id);
+    const isUnread =
+      msg.sender_id === msg.peer_id &&
+      new Date(msg.created_at).getTime() >
+        (lastReadAt ? new Date(lastReadAt).getTime() : 0);
     return {
       ...msg,
+      is_unread: isUnread,
       peerProfile: profile
         ? {
             username: profile.username,
@@ -83,7 +96,7 @@ export async function fetchInboxNixesBundle(): Promise<InboxBundle> {
     };
   });
 
-  return { inboxData, sentData, textMessagesData };
+  return { inboxData, sentData, textMessagesData, unreadCount };
 }
 
 export function inboxNixesBundleQueryOptions() {
@@ -99,7 +112,7 @@ export function inboxNixesBundleQueryOptions() {
 }
 
 export function countUnreadInboxNixes(bundle: InboxBundle | undefined): number {
-  return bundle?.inboxData.filter((nix) => nix.is_viewed !== true).length ?? 0;
+  return bundle?.unreadCount ?? 0;
 }
 
 export function markInboxNixViewedInCache(
@@ -111,6 +124,7 @@ export function markInboxNixViewedInCache(
     if (!current) return current;
     return {
       ...current,
+      unreadCount: Math.max(0, current.unreadCount - 1),
       inboxData: current.inboxData.map((nix) =>
         nix.id === nixId
           ? { ...nix, is_viewed: true, status: 'viewed' as const, viewed_at: viewedAt }

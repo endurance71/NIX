@@ -364,6 +364,11 @@ function MessageBubbleContent({
         {message.isSending ? (
           <ActivityIndicator size="small" color={labelColor} style={styles.sendingSpinner} />
         ) : null}
+        {message.sendFailed ? (
+          <Text style={[styles.failedText, { color: labelColor }]}>
+            {i18n.t('chat.sendFailedTap')}
+          </Text>
+        ) : null}
       </View>
       <ReactionBadges
         reactions={reactions}
@@ -387,6 +392,8 @@ function MessageBubble({
   isFocused,
   onOpenPicker,
   onReport,
+  onRetry,
+  onDeleteFailed,
 }: {
   message: OptimisticTextMessage;
   isOwn: boolean;
@@ -397,6 +404,8 @@ function MessageBubble({
   isFocused: boolean;
   onOpenPicker: (layout: BubbleWindowLayout) => void;
   onReport: () => void;
+  onRetry: () => void;
+  onDeleteFailed: () => void;
 }) {
   const { colors } = useAppTheme();
   const bubbleRef = useRef<View>(null);
@@ -418,6 +427,14 @@ function MessageBubble({
   }));
 
   const openPickerFromBubble = () => {
+    if (message.sendFailed) {
+      Alert.alert(i18n.t('chat.sendFailedTitle'), undefined, [
+        { text: i18n.t('chat.retrySend'), onPress: onRetry },
+        { text: i18n.t('chat.deleteFailed'), style: 'destructive', onPress: onDeleteFailed },
+        { text: i18n.t('common.cancel'), style: 'cancel' },
+      ]);
+      return;
+    }
     if (!canReact) {
       if (!isOwn) onReport();
       return;
@@ -442,6 +459,7 @@ function MessageBubble({
         ]}>
         <View ref={bubbleRef} collapsable={false}>
           <Pressable
+            onPress={message.sendFailed ? onRetry : undefined}
             onLongPress={openPickerFromBubble}
             delayLongPress={350}
             accessibilityRole="button"
@@ -1281,6 +1299,8 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
                   isFocused={pickerOpen && picker?.messageId === item.message.id}
                   onOpenPicker={(layout) => openPickerForMessage(item.message, isOwn, layout)}
                   onReport={() => openReportSheet(item.message)}
+                  onRetry={() => void vm.handleRetryTextMessage(item.message)}
+                  onDeleteFailed={() => void vm.handleDeleteFailedTextMessage(item.message)}
                 />
               );
             }}
@@ -1471,6 +1491,11 @@ const styles = StyleSheet.create({
   sendingSpinner: {
     marginTop: 4,
     alignSelf: 'flex-start',
+  },
+  failedText: {
+    ...typography.caption,
+    marginTop: 4,
+    opacity: 0.82,
   },
   separatorRow: {
     width: '100%',

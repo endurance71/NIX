@@ -28,6 +28,11 @@ import {
 import { getPendingInviteCount } from '../lib/profileFriendsPresentation';
 import { userHasEmailPasswordIdentity } from '../lib/authProviders';
 import { usePushNotifications } from '../context/pushNotifications';
+import {
+  getProductAnalyticsConsent,
+  setProductAnalyticsConsent,
+} from '../services/productAnalyticsService';
+import { getActivationState } from '../services/activationService';
 
 export function useProfileScreen() {
   const { t } = useTranslation();
@@ -36,6 +41,16 @@ export function useProfileScreen() {
   const { user, signOut } = useAuth();
   const [avatarBusy, setAvatarBusy] = useState(false);
   const pushNotifications = usePushNotifications();
+  const { data: analyticsEnabled = false, isPending: analyticsPending } = useQuery({
+    queryKey: queryKeys.productAnalyticsConsent,
+    queryFn: getProductAnalyticsConsent,
+    staleTime: 1000 * 60 * 5,
+  });
+  const { data: activationState } = useQuery({
+    queryKey: queryKeys.activationState,
+    queryFn: getActivationState,
+    staleTime: 30_000,
+  });
 
   const { data: profileRow = null, isPending: profilePending } = useQuery({
     queryKey: queryKeys.currentUserProfile,
@@ -206,6 +221,16 @@ export function useProfileScreen() {
     else await pushNotifications.disable();
   };
 
+  const handleAnalyticsToggle = async (enabled: boolean) => {
+    try {
+      await setProductAnalyticsConsent(enabled);
+      queryClient.setQueryData(queryKeys.productAnalyticsConsent, enabled);
+      notifySuccess(enabled ? t('profile.analyticsEnabled') : t('profile.analyticsDisabled'));
+    } catch {
+      notifyError(t('profile.analyticsUpdateFailed'));
+    }
+  };
+
   return {
     profilePending,
     colors,
@@ -233,5 +258,9 @@ export function useProfileScreen() {
     handleTogglePrivacy,
     handleRateApp,
     handleSupport,
+    analyticsEnabled,
+    analyticsPending,
+    handleAnalyticsToggle,
+    activationState,
   };
 }

@@ -15,6 +15,8 @@ export type AppIconName =
   | 'document'
   | 'inbox'
   | 'notification'
+  | 'message'
+  | 'reaction'
   | 'lock'
   | 'mic'
   | 'micOff'
@@ -38,7 +40,13 @@ export type AppIconName =
   | 'warning'
   | 'block'
   | 'folder'
-  | 'undo';
+  | 'undo'
+  | 'chart'
+  | 'devices'
+  | 'download'
+  | 'share'
+  | 'friends'
+  | 'privacySecurity';
 
 /** Canonical point sizes for SF Symbols across AppIcon / SwiftImage / SymbolView. */
 export const APP_ICON_SIZE = {
@@ -68,6 +76,8 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   document: 'doc.text',
   inbox: 'tray',
   notification: 'bell',
+  message: 'message',
+  reaction: 'heart',
   lock: 'lock',
   mic: 'mic',
   micOff: 'mic.slash',
@@ -92,8 +102,39 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   block: 'hand.raised',
   folder: 'folder',
   undo: 'arrow.uturn.backward',
+  chart: 'chart.bar',
+  devices: 'iphone.gen3',
+  download: 'arrow.down.doc',
+  share: 'square.and.arrow.up',
+  friends: 'person.2',
+  privacySecurity: 'lock.shield',
 };
 
 export function resolveAppIconName(name: AppIconName): SFSymbol {
   return APP_ICONS[name];
+}
+
+type SettingsIconMetrics = {
+  size: number;
+  weight: 'regular';
+};
+
+const DEFAULT_SETTINGS_ICON_METRICS: SettingsIconMetrics = {
+  size: 17.5,
+  weight: 'regular',
+};
+
+/**
+ * SF Symbols share a typographic point size, but their visible bounds differ.
+ * These small corrections keep settings icons optically equal without stretching them.
+ */
+const SETTINGS_ICON_METRICS: Partial<Record<AppIconName, SettingsIconMetrics>> = {
+  notification: { size: 17, weight: 'regular' },
+  message: { size: 20, weight: 'regular' },
+  reaction: { size: 17, weight: 'regular' },
+  friends: { size: 22, weight: 'regular' },
+};
+
+export function resolveSettingsIconMetrics(name: AppIconName): SettingsIconMetrics {
+  return SETTINGS_ICON_METRICS[name] ?? DEFAULT_SETTINGS_ICON_METRICS;
 }

@@ -4,6 +4,9 @@ import { router } from 'expo-router';
 import { supabase } from './supabase';
 import { extractFriendInvitePayload } from './friendInvite';
 import { isInboxDeepLink } from './deepLinkRoute';
+import { savePendingFriendInviteToken } from './pendingFriendInvite';
+import { recordProductEvent } from '../services/productAnalyticsService';
+import { iosRoadmapFeatures } from '../config/iosRoadmapFeatures';
 
 function parseAuthUrl(url: string) {
   try {
@@ -38,17 +41,25 @@ async function handleAuthDeepLink(url: string, isCancelled: () => boolean) {
   }
 }
 
-function handleFriendInviteDeepLink(url: string) {
+async function handleFriendInviteDeepLink(url: string) {
   const payload = extractFriendInvitePayload(url);
   if (!payload?.token && !payload?.profileId) return false;
+  if (payload.token && !iosRoadmapFeatures.shareInvites) return false;
+  if (payload.token) {
+    await savePendingFriendInviteToken(payload.token);
+    void recordProductEvent('invite_opened', { channel: url.startsWith('https:') ? 'share' : 'deeplink' });
+  }
 
-  router.push({
-    pathname: '/friend-invite',
-    params: {
-      ...(payload.token ? { token: payload.token } : {}),
-      ...(payload.profileId ? { profileId: payload.profileId } : {}),
-    },
-  });
+  const { data } = await supabase.auth.getSession();
+  if (data.session) {
+    router.push({
+      pathname: '/friend-invite',
+      params: {
+        ...(payload.token ? { token: payload.token } : {}),
+        ...(payload.profileId ? { profileId: payload.profileId } : {}),
+      },
+    });
+  }
 
   return true;
 }
@@ -67,7 +78,7 @@ export function DeepLinkHandler() {
           router.replace('/(tabs)/inbox');
           return;
         }
-        if (handleFriendInviteDeepLink(linkingUrl)) return;
+        if (await handleFriendInviteDeepLink(linkingUrl)) return;
         await handleAuthDeepLink(linkingUrl, () => cancelled);
       } catch {
         // ignorujemy parsowanie / sesję przy niepoprawnym URL

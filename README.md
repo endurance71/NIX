@@ -1,13 +1,12 @@
 # NiX
 
-NiX to aplikacja Expo (iOS + Android) z efemerycznym przepływem wiadomości wizualnych oparta o Supabase. **Naczelnym wyznacznikiem UI/UX są natywne rozwiązania obu platform** — szczegóły: [`docs/native-platform-guidelines.md`](docs/native-platform-guidelines.md).
+NiX to aplikacja Expo przeznaczona wyłącznie na iPhone/iOS, z efemerycznym przepływem wiadomości wizualnych i tekstowych oparta o Supabase. Android pozostaje poza bieżącą roadmapą.
 
 ## Wymagania
 
 - Node.js 20+
 - npm 10+
 - Xcode + iOS Simulator (dla `expo run:ios`)
-- Android Studio + SDK Platform 35 (dla `expo run:android`)
 
 ## Szybki start
 
@@ -17,17 +16,18 @@ NiX to aplikacja Expo (iOS + Android) z efemerycznym przepływem wiadomości wiz
    - `EXPO_PUBLIC_SUPABASE_URL=...`
    - `EXPO_PUBLIC_SUPABASE_ANON_KEY=...`
    - `EXPO_PUBLIC_SENTRY_DSN` jest obecnie ignorowane — Sentry pozostaje twardo wyłączone
+   - wewnętrzny TestFlight roadmapy: `EXPO_PUBLIC_INTERNAL_TESTFLIGHT_ROADMAP_ENABLED=true`
+   - produkcyjnie można włączać powierzchnie osobno: `EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED`,
+     `EXPO_PUBLIC_SHARE_INVITES_ENABLED`, `EXPO_PUBLIC_COMMUNICATION_CONTROLS_ENABLED`,
+     `EXPO_PUBLIC_ACCOUNT_DATA_TOOLS_ENABLED` (wartość `true`; domyślnie wyłączone)
 3. Uruchom aplikację:
    - `npm run start`
-4. (Opcjonalnie) build lokalny:
-   - iOS: `npm run ios`
-   - Android: `npm run android`
+4. (Opcjonalnie) uruchom lokalny build iOS: `npm run ios`
 
 ## Skrypty
 
 - `npm run start` — uruchamia Expo
 - `npm run ios` — uruchamia natywny build iOS
-- `npm run android` — uruchamia natywny build Android
 - `npm run lint` — lint projektu
 - `npm run test` — testy jednostkowe (Vitest)
 - `npm run typecheck` — TypeScript bez emit
@@ -35,7 +35,8 @@ NiX to aplikacja Expo (iOS + Android) z efemerycznym przepływem wiadomości wiz
 ## Dokumentacja
 
 - **Deploy iOS (cost-first):** [`docs/DEPLOY_IOS_TESTFLIGHT.md`](docs/DEPLOY_IOS_TESTFLIGHT.md) — hotfix JS → `eas update`; nowy binary → lokalny Xcode Archive → TestFlight; **bez** domyślnego `eas build`
-- **Wytyczne native-first (iOS + Android):** [`docs/native-platform-guidelines.md`](docs/native-platform-guidelines.md)
+- **Rollout roadmapy iOS:** [`docs/ios-roadmap-rollout.md`](docs/ios-roadmap-rollout.md)
+- **Wytyczne native-first dla iOS:** [`docs/native-platform-guidelines.md`](docs/native-platform-guidelines.md)
 - **Design Apple (referencja HIG, nie dev):** [`docs/Design by apple/README.md`](docs/Design%20by%20apple/README.md)
 - **Główna dokumentacja produktowo-techniczna:** [`docs/NiX_Documentation_v1.2.md`](docs/NiX_Documentation_v1.2.md)
 - **Auth (e-mail + hasło + Apple):** [`docs/auth-flow.md`](docs/auth-flow.md)
@@ -53,7 +54,7 @@ NiX to aplikacja Expo (iOS + Android) z efemerycznym przepływem wiadomości wiz
 - **Seed grafu społecznego:** [`docs/supabase_seed_social_graph.sql`](docs/supabase_seed_social_graph.sql)
 - **Dashboard SQL uploadów:** [`docs/upload-observability-dashboard.sql`](docs/upload-observability-dashboard.sql)
 - **Przepływ pracy i testy dymne:** [`docs/development-workflow.md`](docs/development-workflow.md)
-- **Motyw systemowy (iOS + Android):** [`docs/theme-guidelines.md`](docs/theme-guidelines.md)
+- **Motyw systemowy iOS:** [`docs/theme-guidelines.md`](docs/theme-guidelines.md)
 - **i18n (PL + EN):** [`docs/i18n-guidelines.md`](docs/i18n-guidelines.md)
 - **Performance re-audit:** [`docs/performance-reaudit.md`](docs/performance-reaudit.md)
 
@@ -79,9 +80,9 @@ Jeżeli w bazie jest mniej niż 11 użytkowników, skrypt doda brakujące konta 
 - Trzeci SELECT (odchylenia) powinien zwrócić pusty wynik.
 - Skrypt jest idempotentny: można uruchamiać wielokrotnie bez tworzenia duplikatów seedowych par i seedowych nixów.
 
-## System Theme (iOS + Android)
+## System Theme (iOS)
 
-- Aplikacja używa **systemowego** motywu urządzenia (`userInterfaceStyle: automatic`) — light/dark na obu platformach zgodnie z [native-platform-guidelines.md](docs/native-platform-guidelines.md).
+- Aplikacja używa **systemowego** motywu iOS (`userInterfaceStyle: automatic`) — light/dark zgodnie z [native-platform-guidelines.md](docs/native-platform-guidelines.md).
 - Kolory są zarządzane centralnie przez tokeny:
   - `src/theme/colors.ts`
   - `src/theme/theme-context.tsx`
@@ -90,9 +91,9 @@ Jeżeli w bazie jest mniej niż 11 użytkowników, skrypt doda brakujące konta 
 
 ### Jak testować
 
-1. Uruchom `npm run ios` i/lub `npm run android`.
+1. Uruchom `npm run ios`.
 2. Przełącz motyw systemowy (Light / Dark) na symulatorze lub urządzeniu.
-3. Sprawdź kluczowe flow na **obu platformach**: logowanie, onboarding, kamera, preview, send-to, inbox, viewer, profil.
+3. Sprawdź kluczowe flow na iPhonie: logowanie, onboarding, kamera, preview, send-to, inbox, viewer i profil.
 
 ## Supabase Edge Function: cleanup-nix
 

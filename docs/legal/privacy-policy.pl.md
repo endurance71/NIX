@@ -1,7 +1,7 @@
 # Polityka prywatności NiX
 
-**Wersja:** 2026-07-15
-**Data wejścia w życie:** 15 lipca 2026 r.
+**Wersja:** 2026-07-29
+**Data wejścia w życie:** 29 lipca 2026 r.
 
 ## Administrator i kontakt
 
@@ -16,7 +16,8 @@ Przetwarzamy e-mail i dane logowania, identyfikator konta, nazwę użytkownika,
 awatar, relacje znajomych i zaproszenia QR, potwierdzenie ukończenia 16 lat
 (bez zapisywania daty urodzenia), treść oraz metadane zdjęć i wideo, zgłoszenia
 nadużyć, blokady, ustawienia ochrony przechwytywania ekranu, token powiadomień,
-identyfikator instalacji urządzenia, język aplikacji i techniczne logi. Dane są
+identyfikator instalacji urządzenia, model urządzenia, wersję iOS i aplikacji,
+język aplikacji, prywatny stan przeczytania rozmów oraz techniczne logi. Dane są
 potrzebne do utworzenia i obsługi konta oraz dostarczenia wiadomości
 (art. 6 ust. 1 lit. b RODO), bezpieczeństwa i obrony roszczeń
 (art. 6 ust. 1 lit. f RODO) albo wykonania obowiązku prawnego
@@ -25,6 +26,12 @@ potrzebne do utworzenia i obsługi konta oraz dostarczenia wiadomości
 Powiadomienia push są opcjonalne i można je wyłączyć niezależnie na każdym
 urządzeniu w Profilu albo w ustawieniach iOS. Powiadomienie może zawierać nazwę
 użytkownika oraz rodzaj zdarzenia, ale nie zawiera zdjęcia, filmu ani miniatury wiadomości.
+
+Za odrębną, dobrowolną zgodą zbieramy ograniczone zdarzenia analityki produktu.
+Zdarzenie zawiera losowy identyfikator instalacji, nazwę zdarzenia z zamkniętej
+listy, wersję aplikacji, język, czas i ograniczone właściwości. Nie zawiera treści
+wiadomości, nazwy użytkownika, ścieżek mediów, tokenów ani identyfikatorów konta
+lub rozmowy. Analitykę można wyłączyć w Profilu; przed zgodą zdarzenia nie są wysyłane.
 
 Kamera, mikrofon i biblioteka zdjęć są używane wyłącznie po przyznaniu
 uprawnienia systemowego do tworzenia wiadomości i awatara. Wiadomości są
@@ -46,12 +53,16 @@ adekwatności, standardowych klauzul umownych lub innego mechanizmu z rozdziału
 Konto, profil, potwierdzenie wieku i relacje przechowujemy do usunięcia konta.
 Aktywne tokeny powiadomień przechowujemy do wyłączenia powiadomień, wylogowania,
 usunięcia konta albo otrzymania informacji, że urządzenie nie jest już zarejestrowane.
-Techniczną historię dostarczenia powiadomień przechowujemy do 30 dni.
+Techniczną historię dostarczenia powiadomień i surowe zdarzenia dobrowolnej
+analityki przechowujemy do 30 dni. Dzienne agregaty analityczne nie zawierają
+identyfikatora instalacji.
 Treść mediów usuwamy po odczycie. Efemeryczne wiadomości tekstowe usuwamy automatycznie
 po 24 godzinach od wysłania. Gdy odbiorca zgłosi wiadomość (multimedialną lub tekstową),
 zabezpieczamy materiał dowodowy wyłącznie na potrzeby moderacji i usuwamy go po 30 dniach. Rozstrzygnięte
 zgłoszenia i audyt decyzji przechowujemy do 365 dni, a logi techniczne do 30 dni.
 Otwarte zgłoszenie może pozostać do rozstrzygnięcia.
+Na żądanie tworzymy prywatne archiwum eksportu danych. Gotowe archiwum i link do
+niego wygasają po 24 godzinach, a rekord operacyjny eksportu po 30 dniach.
 Po usunięciu konta usuwamy dane aplikacyjne i pliki, z wyjątkiem minimalnych
 danych koniecznych do obsługi zgłoszenia, obowiązku prawnego lub obrony roszczeń.
 

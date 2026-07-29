@@ -17,11 +17,15 @@ import {
   AUTH_LOGIN_LOGO_SIZE,
   AUTH_LOGIN_PROMPT_TO_SOCIAL_GAP,
   AUTH_LOGIN_WELCOME_TO_TAGLINE_GAP,
+  AUTH_LEGAL_CHECKBOX_HIT_SIZE,
+  AUTH_LEGAL_CHECKBOX_VISUAL_SIZE,
+  AUTH_LEGAL_CONTROL_MIN_HEIGHT,
   AUTH_OR_DIVIDER_GAP,
   getAuthContentWidth,
   getAuthElevatedSurfaceColor,
   getAuthOrDividerLineWidth,
   getAuthPrimaryButtonWidth,
+  getAuthLegalAcceptanceState,
 } from './authLayout';
 
 describe('getAuthContentWidth', () => {
@@ -66,6 +70,29 @@ describe('getAuthPrimaryButtonWidth', () => {
     for (const { idle, loading } of widths) {
       expect(loading).toBe(idle);
     }
+  });
+});
+
+describe('legal acceptance control', () => {
+  it('reserves an iOS-size touch target around the visual checkbox', () => {
+    expect(AUTH_LEGAL_CONTROL_MIN_HEIGHT).toBeGreaterThanOrEqual(44);
+    expect(AUTH_LEGAL_CHECKBOX_HIT_SIZE).toBeGreaterThanOrEqual(44);
+    expect(AUTH_LEGAL_CHECKBOX_VISUAL_SIZE).toBeLessThan(AUTH_LEGAL_CHECKBOX_HIT_SIZE);
+  });
+
+  it('keeps submit disabled until acceptance and while loading', () => {
+    expect(getAuthLegalAcceptanceState(false, false)).toEqual({
+      accessibilityState: { checked: false, disabled: false },
+      submitDisabled: true,
+    });
+    expect(getAuthLegalAcceptanceState(true, false)).toEqual({
+      accessibilityState: { checked: true, disabled: false },
+      submitDisabled: false,
+    });
+    expect(getAuthLegalAcceptanceState(true, true)).toEqual({
+      accessibilityState: { checked: true, disabled: true },
+      submitDisabled: true,
+    });
   });
 });
 

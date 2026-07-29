@@ -1,8 +1,8 @@
-# Theme Guidelines (systemowy motyw iOS + Android)
+# Theme Guidelines (systemowy motyw iOS)
 
-> **Wyznacznik platformowy:** Kolory i typografia muszą odzwierciedlać **systemowy motyw urządzenia** na iOS i Android — nie własny „brand skin” niezależny od platformy. Zasada native-first: [native-platform-guidelines.md](./native-platform-guidelines.md).
+> **Wyznacznik platformowy:** bieżąca roadmapa jest iOS-only. Kolory i typografia mają odzwierciedlać systemowy motyw iPhone’a.
 
-Ten projekt używa systemowego motywu (`light`/`dark`, `userInterfaceStyle: automatic`) i mapuje go na tokeny kolorystyczne w jednym miejscu. Tokeny obejmują role znane z iOS Human Interface Guidelines; na Androidzie ten sam zestaw zapewnia spójny, systemowy wygląd w ramach warstwy `@expo/ui` (Jetpack Compose).
+Ten projekt używa systemowego motywu (`light`/`dark`, `userInterfaceStyle: automatic`) i mapuje go na tokeny kolorystyczne w jednym miejscu. Tokeny obejmują role znane z iOS Human Interface Guidelines.
 
 ## Źródło prawdy
 
@@ -47,12 +47,12 @@ Dozwolona jest **wyłącznie** personalizacja tintu interaktywnego przez stałe 
 - `StatusBar` ustawiaj dynamicznie: `style={statusBarStyle}`.
 - `headerTintColor` (back / toolbar tint) → `colors.accent`; tytuły → `colors.label`.
 - Dla tabów używaj koloru z tokenów (`colors.accent`) zamiast stałych wartości.
-- Tab bar: **iOS** `NativeTabs` (`app-tabs-layout.ios.tsx`, ikony bez podpisów); **Android** custom tabs (`FloatingTabBar`, floating pill, ikony bez podpisów). Nie używaj JS `Tabs` z React Navigation do głównej nawigacji.
+- Tab bar: iOS `NativeTabs` (`app-tabs-layout.ios.tsx`, ikony bez podpisów). Nie używaj JS `Tabs` z React Navigation do głównej nawigacji.
 
 ## Checklista dla nowego ekranu
 
 1. Dodaj `useAppTheme` i użyj tokenów zamiast heksów.
 2. Zadbaj o kontrast tekstu i elementów interaktywnych w obu trybach.
 3. Ustaw dynamiczny `StatusBar` jeśli ekran go kontroluje.
-4. Sprawdź ekran ręcznie w `light` i `dark` na **iOS Simulator i Android emulatorze**.
+4. Sprawdź ekran ręcznie w `light` i `dark` na iOS Simulator i fizycznym iPhonie.
 5. Przy zmianach tintu: smoke z 2–3 presetami akcentu (np. blue, purple, teal) w light i dark.

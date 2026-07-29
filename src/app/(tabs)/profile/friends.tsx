@@ -1,4 +1,4 @@
-import { FieldGroup, ListItem, RNHostView, Text, TextInput } from '@expo/ui';
+import { ListItem, RNHostView, Text, TextInput } from '@expo/ui';
 import { Button, HStack, ProgressView } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
@@ -195,7 +195,9 @@ export default function FriendsScreen() {
           </NativeSettingsSection>
         ) : null}
 
-        <FieldGroup.Section title={vm.t('profile.friends', { count: vm.friends.length })}>
+        <NativeSettingsSection
+          title={vm.t('profile.friends', { count: vm.friends.length })}
+          footer={vm.t('profile.screenshotPermissionHint')}>
           {vm.friends.length === 0 ? (
             <NativeSettingsEmptyRow text={vm.t('profile.noFriends')} />
           ) : null}
@@ -231,10 +233,7 @@ export default function FriendsScreen() {
               </NativeSettingsSwipeActions>
             );
           })}
-          <FieldGroup.SectionFooter>
-            <Text>{vm.t('profile.screenshotPermissionHint')}</Text>
-          </FieldGroup.SectionFooter>
-        </FieldGroup.Section>
+        </NativeSettingsSection>
       </SettingsListScreen>
       <Stack.Screen.Title style={{ color: vm.colors.label }}>{vm.t('profile.friendsTitle')}</Stack.Screen.Title>
     </>

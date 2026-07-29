@@ -1,4 +1,5 @@
-import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useState } from 'react';
 import { FieldGroup, RNHostView } from '@expo/ui';
 import { Stack, router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -12,6 +13,11 @@ import { getCurrentUserProfile } from '../services/profileService';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
 import { NativeSettingsRow } from '../components/ui/native-settings';
 import { SettingsListScreen } from '../components/ui/settings-list-screen';
+import { createFriendInviteShareToken } from '../services/friendService';
+import { buildFriendInviteShareLink } from '../lib/friendInvite';
+import { notifyDomainError } from '../lib/appNotify';
+import { recordProductEvent } from '../services/productAnalyticsService';
+import { iosRoadmapFeatures } from '../config/iosRoadmapFeatures';
 
 export default function FriendMyCodeScreen() {
   const { t } = useTranslation();
@@ -19,6 +25,7 @@ export default function FriendMyCodeScreen() {
   const { width } = useWindowDimensions();
   const { user } = useAuth();
   const qrPayload = useProfileQrPayload();
+  const [shareBusy, setShareBusy] = useState(false);
   const { data: profileRow = null, isPending: profilePending } = useQuery({
     queryKey: queryKeys.currentUserProfile,
     queryFn: getCurrentUserProfile,
@@ -39,6 +46,27 @@ export default function FriendMyCodeScreen() {
     .charAt(0)
     .toUpperCase();
   const qrSize = Math.max(180, Math.min(236, width - 112));
+
+  const handleShareInvite = async () => {
+    if (shareBusy) return;
+    setShareBusy(true);
+    try {
+      const { token } = await createFriendInviteShareToken();
+      const url = buildFriendInviteShareLink(token);
+      const result = await Share.share({
+        title: t('profile.shareInviteTitle'),
+        message: t('profile.shareInviteMessage', { url }),
+        url,
+      });
+      if (result.action === Share.sharedAction) {
+        void recordProductEvent('invite_shared', { channel: 'share' });
+      }
+    } catch (error) {
+      notifyDomainError(error, t('profile.shareInviteFailure'));
+    } finally {
+      setShareBusy(false);
+    }
+  };
 
   return (
     <>
@@ -75,6 +103,15 @@ export default function FriendMyCodeScreen() {
               </View>
             </RNHostView>
           </FieldGroup.SectionHeader>
+          {iosRoadmapFeatures.shareInvites ? (
+            <NativeSettingsRow
+              title={shareBusy ? t('profile.shareInviteLoading') : t('profile.shareInvite')}
+              icon="share"
+              disabled={shareBusy}
+              onPress={() => void handleShareInvite()}
+              testID="my-code-share"
+            />
+          ) : null}
           <NativeSettingsRow
             title={t('profile.scanQr')}
             icon="qrcode"

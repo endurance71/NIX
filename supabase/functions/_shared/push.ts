@@ -93,6 +93,38 @@ export function retryAt(attempts: number) {
   return new Date(Date.now() + delayMinutes * 60_000).toISOString();
 }
 
+export type PushPreferenceSnapshot = {
+  messages_enabled?: boolean | null;
+  reactions_enabled?: boolean | null;
+  friends_enabled?: boolean | null;
+} | null;
+
+export function isPushCategoryEnabled(
+  type: PushEventType,
+  preferences: PushPreferenceSnapshot
+) {
+  if (type === 'capture_attempt') return true;
+  if (type === 'new_nix' || type === 'new_text_message') {
+    return preferences?.messages_enabled !== false;
+  }
+  if (type === 'message_reaction') return preferences?.reactions_enabled !== false;
+  return preferences?.friends_enabled !== false;
+}
+
+export function isConversationMuteActive(
+  mute: { muted_until?: string | null } | null,
+  now = Date.now()
+) {
+  return Boolean(
+    mute &&
+    (!mute.muted_until || new Date(mute.muted_until).getTime() > now)
+  );
+}
+
+export function cappedPushBadge(count: unknown) {
+  return Math.max(0, Math.min(99, Number(count) || 0));
+}
+
 export function expoHeaders(accessToken: string) {
   return {
     Accept: 'application/json',

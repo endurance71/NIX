@@ -53,7 +53,9 @@ export default function AppTabsLayout() {
       <NativeTabs.Trigger name="inbox" contentStyle={{ backgroundColor: colors.systemBackground }}>
         <NativeTabs.Trigger.Icon sf={resolveAppIconName('inbox')} />
         <NativeTabs.Trigger.Label>{t('tabs.inbox')}</NativeTabs.Trigger.Label>
-        {count > 0 ? <NativeTabs.Trigger.Badge>{String(count)}</NativeTabs.Trigger.Badge> : null}
+        {count > 0 ? (
+          <NativeTabs.Trigger.Badge>{count > 99 ? '99+' : String(count)}</NativeTabs.Trigger.Badge>
+        ) : null}
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="profile" contentStyle={{ backgroundColor: colors.background }}>

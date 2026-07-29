@@ -445,6 +445,12 @@ verify_jwt = true
 [functions.cleanup-media-upload-orphans]
 verify_jwt = true
 
+[functions.data-export-download]
+verify_jwt = true
+
+[functions.process-data-exports]
+verify_jwt = true
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

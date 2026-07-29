@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>NiX — private invitation</title>
+    <style>
+      :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #000; color: #fff; }
+      main { width: min(420px, calc(100% - 40px)); text-align: center; }
+      .mark { width: 92px; height: 92px; margin: 0 auto; border-radius: 22px; display: grid; place-items: center; background: #fff; color: #000; font-size: 27px; font-weight: 800; letter-spacing: -1px; }
+      h1 { margin: 24px 0 10px; font-size: 30px; }
+      p { color: #b8b8bd; font-size: 17px; line-height: 1.45; }
+      a { display: block; margin-top: 28px; padding: 14px 18px; border-radius: 14px; background: #fff; color: #000; text-decoration: none; font-weight: 700; }
+      small { display: block; margin-top: 18px; color: #77777d; line-height: 1.4; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-label="NiX">NiX</div>
+      <h1 data-i18n="title">Private NiX invitation</h1>
+      <p data-i18n="body">Install NiX, then open this invitation link again to securely preview who invited you.</p>
+      <a id="store-link" href="https://apps.apple.com/app/id6791332379" data-i18n="action">Open App Store</a>
+      <small data-i18n="privacy">This page does not reveal the inviter and does not store the invitation token.</small>
+    </main>
+    <script>
+      // The invite token stays in the URL handled by the browser/OS. This
+      // landing never reads, copies or persists it.
+      const copy = {
+        pl: {
+          title: 'Prywatne zaproszenie NiX',
+          body: 'Zainstaluj NiX, a następnie ponownie otwórz ten link, aby bezpiecznie zobaczyć, kto Cię zaprosił.',
+          action: 'Otwórz App Store',
+          privacy: 'Ta strona nie ujawnia osoby zapraszającej i nie zapisuje tokenu zaproszenia.'
+        }
+      };
+      if ((navigator.language || '').toLowerCase().startsWith('pl')) {
+        document.documentElement.lang = 'pl';
+        document.querySelectorAll('[data-i18n]').forEach((node) => {
+          node.textContent = copy.pl[node.dataset.i18n];
+        });
+      }
+    </script>
+  </body>
+</html>

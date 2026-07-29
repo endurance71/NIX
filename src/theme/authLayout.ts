@@ -71,6 +71,13 @@ export const AUTH_PRIMARY_BUTTON_HEIGHT = 52;
 
 export const AUTH_PRIMARY_BUTTON_RADIUS = 14;
 
+/** Minimum iOS touch target and visual metrics for the legal acceptance control. */
+export const AUTH_LEGAL_CONTROL_MIN_HEIGHT = 44;
+
+export const AUTH_LEGAL_CHECKBOX_HIT_SIZE = 44;
+
+export const AUTH_LEGAL_CHECKBOX_VISUAL_SIZE = 22;
+
 export const AUTH_OR_DIVIDER_GAP = 12;
 
 export const AUTH_OR_DIVIDER_MIN_LINE_WIDTH = 24;
@@ -102,4 +109,14 @@ export function getAuthOrDividerLineWidth(
 export function getAuthPrimaryButtonWidth(contentWidth: number, loading: boolean): number {
   void loading;
   return contentWidth;
+}
+
+export function getAuthLegalAcceptanceState(accepted: boolean, loading: boolean) {
+  return {
+    accessibilityState: {
+      checked: accepted,
+      disabled: loading,
+    },
+    submitDisabled: loading || !accepted,
+  };
 }

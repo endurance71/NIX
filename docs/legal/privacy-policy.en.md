@@ -1,7 +1,7 @@
 # NiX Privacy Policy
 
-**Version:** 2026-07-15
-**Effective date:** 15 July 2026
+**Version:** 2026-07-29
+**Effective date:** 29 July 2026
 
 ## Controller and contact
 
@@ -16,13 +16,20 @@ We process email and login data, account identifiers, username, avatar, friend
 relationships and QR invitations, confirmation that the user is 16 or older
 (without storing date of birth), photo/video content and metadata, abuse reports,
 blocks, screen-capture settings, notification token, app-installation identifier,
-app language, and technical logs. This is necessary to provide the account and
+device model, iOS and app versions, app language, private conversation read state,
+and technical logs. This is necessary to provide the account and
 messaging service (GDPR Article 6(1)(b)), protect the service and defend claims
 (Article 6(1)(f)), or comply with law (Article 6(1)(c)).
 
 Push notifications are optional and can be disabled independently on each device
 in Profile or iOS Settings. A notification may contain a username and event type,
 but never includes a message photo, video, or thumbnail.
+
+With separate, optional consent, we collect limited product-analytics events.
+An event contains a random installation identifier, an allowlisted event name,
+app version, language, time, and restricted properties. It does not contain
+message content, usernames, media paths, tokens, account IDs, or conversation IDs.
+No events are sent before consent, and analytics can be disabled in Profile.
 
 Camera, microphone and photo-library permissions are used only after your
 operating-system permission for messages and avatars. Messages are ephemeral: the
@@ -41,12 +48,16 @@ clauses, or another GDPR Chapter V mechanism.
 Account, profile, age confirmation, and relationship data are retained until deletion.
 Active notification tokens are retained until notifications are disabled, the user
 signs out, the account is deleted, or the device is reported as unregistered.
-Technical notification-delivery history is retained for up to 30 days.
+Technical notification-delivery history and raw, consented product-analytics
+events are retained for up to 30 days. Daily aggregates do not contain an
+installation identifier.
 Media is removed after viewing. Ephemeral text messages are automatically deleted 24 hours after sending.
 If a recipient reports a message (media or text), an evidence copy is
 kept only for moderation and deleted after 30 days. Resolved reports and decision audit
 records are retained for up to 365 days; technical logs for up to 30 days.
-An open report may remain until resolved. Account deletion removes application data and
+An open report may remain until resolved. A private account-export archive is
+available for 24 hours; its operational job record is removed after 30 days.
+Account deletion removes application data and
 Storage objects except minimal data required for a report, law, or legal claims.
 
 ## Safety and moderation

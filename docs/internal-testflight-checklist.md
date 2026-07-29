@@ -1,61 +1,68 @@
-# NiX — Internal TestFlight checklist
+# NiX — zamknięcie roadmapy w Internal TestFlight
 
-> **Kanoniczna ścieżka:** cost-first — OTA (`eas update`) lub lokalny Xcode Archive;
-> nie `eas build` jako default. [`DEPLOY_IOS_TESTFLIGHT.md`](./DEPLOY_IOS_TESTFLIGHT.md).
+> Kanoniczna ścieżka jest kosztowa: lokalny Xcode Archive i upload przez
+> Organizer. Nie uruchamiaj płatnego EAS Build ani zewnętrznego Beta Review.
 
-Local validation snapshot: **15 July 2026**. Checked items below were executed
-without changing the linked Supabase project, EAS credentials or App Store Connect.
+## Źródło wydania
 
-## Release source
+- [x] Bieżący numer to `1.0.5 (8)`; build 7 jest już zapisany jako wysłany.
+- [ ] Wszystkie zamierzone zmiany są zacommitowane na dedykowanej gałęzi.
+- [ ] Worktree jest czysty, a SHA buildu zapisane w raporcie wydania.
+- [x] `.env.production` włącza roadmapę wewnętrzną, ale jawnie wyłącza
+      `EXPO_PUBLIC_SHARE_INVITES_ENABLED`.
 
-- [ ] Branch is `codex/internal-testflight`; all intended changes are committed.
-- [ ] Remote branch SHA equals the SHA approved for the EAS workflow.
-- [ ] Working tree is clean; no build is created from local uncommitted files.
-- [ ] External workflow `testflight-submit.yml` has not been run.
+## Automatyczne bramki
 
-## Automated gates
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [x] `npm test`
+- [x] `npm run deno:check`
+- [x] `npm run deno:test`
+- [x] `npm run test:supabase-db`
+- [x] `npm run check:supabase-migrations`
+- [x] `npm run check:supabase-db-lint`
+- [x] `npm run check:ios-config`
+- [x] `npm run check:internal-testflight-config`
+- [x] `npm run check:invite-hosting`
+- [x] `npm run check:text-outbox-security`
+- [x] `npm run check-knip`
+- [x] `npm run expo-install-check`
+- [x] `npm run expo-doctor`
+- [x] `npm run export:production`
+- [x] `npm audit --omit=dev` — 0 podatności
 
-- [x] Typecheck, lint, 194 tests in 35 files and Knip pass.
-- [x] Expo Doctor is 19/19 and `expo install --check` reports no mismatch.
-- [x] React Doctor is 100/100 with zero warnings and zero changed issues.
-- [x] Sentry hard-off, iOS config and Hermes production export pass.
-- [x] Deno check/tests pass for every function currently in the worktree.
-- [x] `supabase db reset` succeeds from the consolidated baseline.
-- [x] Supabase DB lint reports zero schema/function findings after reset.
-- [x] Active migrations contain no `TRUNCATE` or unbounded `DELETE`.
-- [x] Local unsigned iOS Release succeeds and validates the final app bundle.
+## Backend i hosting
 
-## Backend gate
+- [x] Zaszyfrowany backup i liczniki sprzed wdrożenia są zapisane poza repo.
+- [x] Zdalne migracje obejmują `20260729120000`–`20260729123000`.
+- [x] Funkcje `push-dispatch`, `data-export-download` i
+      `process-data-exports` mają zatwierdzone wersje i punkt rollbacku.
+- [x] Crony eksportów i analityki są aktywne, a kolejki nie narastają.
+- [ ] `nix.damianmotylinski.pl` ma DNS, HTTPS, działający landing i AASA bez redirectu
+      — odłożone; nie blokuje builda 8, bo zaproszenia `share` są wyłączone.
+- [ ] Hosting nie zapisuje pełnych ścieżek `/invite/<token>` — odłożone razem
+      z zaproszeniami `share`.
+- [ ] Polityka prywatności `2026-07-29` jest publicznie dostępna.
 
-- [ ] Encrypted schema/data backup and pre-deploy counts are stored outside the repo.
-- [ ] Remote migration history is repaired only after local reset passes.
-- [ ] Dry-run shows only the approved post-baseline migrations.
-- [ ] The mandatory `20260715170000` RLS/RPC hardening migration is included.
-- [ ] Decide whether concurrent push-notification changes belong to this release;
-      do not repair or deploy migration `20260715160000` until that scope is approved.
-- [ ] `MODERATOR_API_SECRET` and `MODERATION_CLEANUP_SECRET` are random 32+ byte secrets.
-- [ ] `SENTRY_DSN` is absent.
-- [ ] Both QA user UUIDs are in `private.safety_policy_cohort`; mode remains `cohort`.
-- [ ] Control user outside the cohort remains compatible with the previous client.
-- [x] Soft rollback preserves moderation evidence/tables and restores compatibility locally.
-- [ ] Deployed Edge Functions and their rollback have both been exercised remotely.
-- [ ] Pre/post counts match except for documented QA data.
+## Podpisany artefakt
 
-## EAS and App Store Connect
+- [x] Archiwum `1.0.5 (8)` utworzono lokalnie i przeszło `codesign --verify`.
+- [x] Associated Domains zawiera `applinks:nix.damianmotylinski.pl`.
+- [ ] Profil dystrybucyjny nadał produkcyjne APNs.
+- [x] Bundle ID to `com.damianmotylinski.nixapp`.
+- [x] Sentry i upload symboli pozostają wyłączone.
+- [ ] Build jest przypisany wyłącznie do `NiX Internal QA`.
 
-- [ ] EAS `production` contains Supabase URL and anon key, but no Sentry DSN.
-- [ ] `eas.json` contains the real numeric `ascAppId`.
-- [ ] App record is NiX / `com.damianmotylinski.nixapp` / SKU `NIX-IOS-001`.
-- [ ] Sign in with Apple and APNs credentials are configured.
-- [ ] Group **NiX Internal QA** exists with automatic distribution disabled.
-- [ ] Only App Store Connect team members are in the group.
-- [ ] Paid build approval is granted only for the pushed, approved SHA.
-- [ ] Build reaches Processing/Testing and is not submitted to Beta App Review.
+Eksport dystrybucyjny builda 8 jest zablokowany lokalnie do czasu ponownego
+zalogowania konta Apple w Xcode i pobrania certyfikatu iOS Distribution.
+Associated Domains pozostaje w binarium na późniejszy rollout, ale UI,
+obsługa linków i realizacja tokenów `share` są w buildzie 8 wyłączone flagą.
 
-## Two-device smoke
+## Akceptacja
 
-- [ ] Complete every scenario in `internal-testflight-what-to-test.md` on two iPhones.
-- [ ] No P0 crash, auth/signing regression, data loss, UGC failure or Sentry transport.
-- [ ] TestFlight feedback and backend logs are reviewed after 24h and 48h.
+- [ ] Wszystkie scenariusze z `internal-testflight-what-to-test.md` przeszły na dwóch iPhone’ach.
+- [ ] Brak otwartych P0/P1 oraz naruszeń prywatności, autoryzacji i idempotencji.
+- [ ] TestFlight Crashes, Xcode Organizer i logi Supabase sprawdzono po 24 i 48 godzinach.
 
-**GO Internal** requires every item above. External TestFlight remains NO-GO.
+**GO Internal** wymaga wszystkich pozycji. Publiczny App Store i External
+TestFlight pozostają poza tym zamknięciem.

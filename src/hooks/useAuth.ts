@@ -1,4 +1,4 @@
-import { useReducer, useEffect } from 'react';
+import { useReducer, useEffect, useRef } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { clearUserCache } from '../services/profileService';
@@ -16,6 +16,8 @@ import {
 } from '../services/socialAuthService';
 import { getCurrentLocale } from '../lib/i18n';
 import { disableCurrentPushDeviceBeforeSignOut } from '../services/pushNotificationService';
+import { clearTextOutbox } from '../services/textOutboxService';
+import { clearPendingFriendInviteToken } from '../lib/pendingFriendInvite';
 
 type AuthState = {
   session: Session | null;
@@ -88,15 +90,25 @@ async function reauthenticatePasswordChange() {
 }
 
 async function logout() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   await disableCurrentPushDeviceBeforeSignOut().catch((error) => {
     console.warn('Push device unregister before sign-out failed', error);
   });
+  if (user) {
+    await clearTextOutbox(user.id).catch((error) => {
+      console.warn('Text outbox cleanup before sign-out failed', error);
+    });
+  }
+  await clearPendingFriendInviteToken();
   clearUserCache();
   const { error } = await requestSignOut();
   return { error };
 }
 
 export function useAuth() {
+  const previousUserIdRef = useRef<string | null>(null);
   const [{ session, user, loading }, dispatch] = useReducer(authReducer, {
     session: null,
     user: null,
@@ -112,6 +124,7 @@ export function useAuth() {
 
     supabase.auth.getSession().then(({ data: { session: nextSession } }) => {
       if (!mounted) return;
+      previousUserIdRef.current = nextSession?.user.id ?? null;
       dispatch({ type: 'hydrated', session: nextSession });
     }).catch((err) => {
       console.warn('getSession error:', err);
@@ -123,6 +136,13 @@ export function useAuth() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
+      const previousUserId = previousUserIdRef.current;
+      const nextUserId = nextSession?.user.id ?? null;
+      if (previousUserId && previousUserId !== nextUserId) {
+        void clearTextOutbox(previousUserId);
+        void clearPendingFriendInviteToken();
+      }
+      previousUserIdRef.current = nextUserId;
       dispatch({ type: 'hydrated', session: nextSession });
     });
 

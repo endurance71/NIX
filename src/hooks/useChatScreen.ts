@@ -8,7 +8,6 @@ import { sortMessagesAscending } from '../lib/chatTimeline';
 import { runWithFinally } from '../lib/runWithFinally';
 import {
   fetchTextMessagesWithPeer,
-  sendTextMessage,
 } from '../services/textMessageService';
 import {
   fetchMessageReactionsWithPeer,
@@ -31,6 +30,18 @@ import type { MessageReaction, MessageReactionEmoji, TextMessage } from '../type
 import { useUploadJobs, useUploadQueue } from '../context/uploadQueue';
 import { selectChatUploadJobs } from '../lib/chatUploadPresentation';
 import type { UploadRowAction } from '../lib/inboxPresentation';
+import { markTextConversationRead } from '../services/conversationReadService';
+import {
+  getConversationMute,
+  setConversationMute,
+} from '../services/notificationPreferencesService';
+import {
+  deleteTextOutboxJob,
+  enqueueTextOutbox,
+  flushTextOutbox,
+  listTextOutbox,
+  retryTextOutboxJob,
+} from '../services/textOutboxService';
 
 function generateClientMessageId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -42,6 +53,7 @@ function generateClientMessageId(): string {
 export type OptimisticTextMessage = TextMessage & {
   isSending?: boolean;
   sendFailed?: boolean;
+  outboxId?: string;
 };
 
 const CHAT_REPORT_REASON_IDS = ['harassment', 'spam', 'other'] as const satisfies readonly ReportReason[];
@@ -86,6 +98,7 @@ export function useChatScreen(peerId: string) {
   >(() => new Map());
   const peerActionBusyRef = useRef(false);
   const busyUploadActionsRef = useRef(new Map<string, UploadRowAction>());
+  const lastReadThroughRef = useRef<string | null>(null);
 
   const peerProfileQuery = useQuery({
     queryKey: ['peerProfile', peerId],
@@ -113,6 +126,12 @@ export function useChatScreen(peerId: string) {
     refetchOnWindowFocus: true,
     select: (rows) => sortMessagesAscending(rows),
   });
+  const outboxQuery = useQuery({
+    queryKey: ['textOutbox', currentUserId, peerId] as const,
+    queryFn: () => listTextOutbox(currentUserId, peerId),
+    enabled: Boolean(currentUserId && peerId),
+    staleTime: 0,
+  });
 
   const reactionsQuery = useQuery({
     queryKey: queryKeys.messageReactionsWithPeer(peerId),
@@ -130,14 +149,61 @@ export function useChatScreen(peerId: string) {
     refetchOnWindowFocus: true,
     placeholderData: EMPTY_CHAT_NIXES,
   });
+  const muteQuery = useQuery({
+    queryKey: queryKeys.conversationMute(peerId),
+    queryFn: () => getConversationMute(peerId),
+    enabled: Boolean(peerId),
+    staleTime: 30_000,
+  });
 
-  const messages: OptimisticTextMessage[] = messagesQuery.data ?? [];
+  const outboxMessages: OptimisticTextMessage[] = (outboxQuery.data ?? []).map((job) => ({
+    id: `temp-${job.id}`,
+    sender_id: currentUserId,
+    receiver_id: job.receiverId,
+    body: job.body,
+    created_at: new Date(job.createdAt).toISOString(),
+    expires_at: new Date(job.expiresAt).toISOString(),
+    client_message_id: job.id,
+    is_system: false,
+    metadata: null,
+    isSending: job.state === 'pending' || job.state === 'sending',
+    sendFailed: job.state === 'failed',
+    outboxId: job.id,
+  }));
+  const messages: OptimisticTextMessage[] = sortMessagesAscending([
+    ...(messagesQuery.data ?? []),
+    ...outboxMessages.filter(
+      (local) =>
+        !(messagesQuery.data ?? []).some(
+          (server) => server.client_message_id === local.client_message_id
+        )
+    ),
+  ]);
   const nixes: ChatNixEvent[] = nixesQuery.data ?? EMPTY_CHAT_NIXES;
   const chatUploadJobs = selectChatUploadJobs(uploadJobs, peerId, nixes, {
     now: uploadClock,
     completedVisibilityMs: COMPLETED_UPLOAD_VISIBILITY_MS,
   });
   const reactionsByMessageId = groupReactionsByMessageId(reactionsQuery.data ?? []);
+
+  useEffect(() => {
+    if (!currentUserId || !peerId || messagesQuery.isPending || messages.length === 0) return;
+    const lastReceived = [...messages]
+      .reverse()
+      .find((message) => message.sender_id === peerId && !message.id.startsWith('temp-'));
+    if (!lastReceived || lastReadThroughRef.current === lastReceived.created_at) return;
+    const timer = setTimeout(() => {
+      void markTextConversationRead(peerId, lastReceived.created_at)
+        .then(() => {
+          lastReadThroughRef.current = lastReceived.created_at;
+          void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
+        })
+        .catch((error) => {
+          console.warn('Could not mark text conversation read', error);
+        });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [currentUserId, messages, messagesQuery.isPending, peerId, queryClient]);
 
   useEffect(() => {
     const completionTimes = uploadJobs.flatMap((job) => {
@@ -167,56 +233,38 @@ export function useChatScreen(peerId: string) {
     if (!trimmed || sending || !peerId) return;
 
     const clientMessageId = generateClientMessageId();
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
-
-    const optimisticMsg: OptimisticTextMessage = {
-      id: `temp-${clientMessageId}`,
-      sender_id: currentUserId,
-      receiver_id: peerId,
-      body: trimmed,
-      created_at: now.toISOString(),
-      expires_at: expiresAt,
-      client_message_id: clientMessageId,
-      is_system: false,
-      metadata: null,
-      isSending: true,
-    };
-
     setInputBody('');
     setComposerKey((key) => key + 1);
     setSending(true);
 
-    queryClient.setQueryData<TextMessage[]>(queryKeys.textMessagesWithPeer(peerId), (old = []) =>
-      sortMessagesAscending([...old, optimisticMsg])
-    );
-
     await runWithFinally(
       async () => {
         try {
-          const saved = await sendTextMessage({
-            receiverId: peerId,
-            body: trimmed,
-            clientMessageId,
-          });
-          queryClient.setQueryData<TextMessage[]>(queryKeys.textMessagesWithPeer(peerId), (old = []) =>
-            sortMessagesAscending([
-              ...old.filter((m) => m.client_message_id !== clientMessageId && m.id !== saved.id),
-              saved,
-            ])
-          );
+          await enqueueTextOutbox(currentUserId, peerId, trimmed, clientMessageId);
+          await outboxQuery.refetch();
+          await flushTextOutbox(currentUserId);
+          await Promise.all([outboxQuery.refetch(), messagesQuery.refetch()]);
           refreshInboxInBackground();
         } catch (error) {
-          queryClient.setQueryData<TextMessage[]>(queryKeys.textMessagesWithPeer(peerId), (old = []) =>
-            old.filter((m) => m.client_message_id !== clientMessageId)
-          );
           notifyDomainError(error, t('chat.sendFailure'));
-          setInputBody(trimmed);
-          setComposerKey((key) => key + 1);
         }
       },
       () => setSending(false)
     );
+  };
+
+  const handleRetryTextMessage = async (message: OptimisticTextMessage) => {
+    if (!message.outboxId) return;
+    await retryTextOutboxJob(message.outboxId);
+    await outboxQuery.refetch();
+    await flushTextOutbox(currentUserId);
+    await Promise.all([outboxQuery.refetch(), messagesQuery.refetch()]);
+  };
+
+  const handleDeleteFailedTextMessage = async (message: OptimisticTextMessage) => {
+    if (!message.outboxId) return;
+    await deleteTextOutboxJob(message.outboxId);
+    await outboxQuery.refetch();
   };
 
   const peerUsername = peerProfileQuery.data?.username ?? 'user';
@@ -435,6 +483,16 @@ export function useChatScreen(peerId: string) {
     );
   };
 
+  const handleSetMute = async (duration: '1h' | '24h' | 'forever' | 'off') => {
+    try {
+      await setConversationMute(peerId, duration);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.conversationMute(peerId) });
+      notifySuccess(duration === 'off' ? t('chat.unmuted') : t('chat.muted'));
+    } catch (error) {
+      notifyDomainError(error, t('chat.muteFailure'));
+    }
+  };
+
   const peerAvatarUrl = peerAvatarPath ? peerAvatarQuery.data?.[peerAvatarPath] ?? null : null;
   // Full-screen loader only on cold messages — nixes stream into the timeline.
   const messagesLoading = messagesQuery.isPending && messagesQuery.data === undefined;
@@ -461,6 +519,8 @@ export function useChatScreen(peerId: string) {
     sending,
     reportReasons,
     handleSend,
+    handleRetryTextMessage,
+    handleDeleteFailedTextMessage,
     handleReportMessage,
     handleReportPeer,
     handleBlockPeer,
@@ -469,6 +529,8 @@ export function useChatScreen(peerId: string) {
     handleRemoveReaction,
     handleOpenNix,
     handleUploadAction,
+    isMuted: Boolean(muteQuery.data),
+    handleSetMute,
     refetchMessages: async () => {
       await Promise.all([
         messagesQuery.refetch(),

@@ -1,56 +1,47 @@
-# NiX 1.0.5 (5) — What to Test (Internal)
+# NiX 1.0.5 (8) — What to Test (Internal)
 
-Audience: members of the App Store Connect group **NiX Internal QA** only.
-This build must not be submitted for external Beta App Review.
+Udostępniane linki zaproszeń są w tym buildzie celowo wyłączone. Nie testujemy
+landingu, AASA ani realizacji tokenów `share`; QR i dodawanie po username nadal
+wchodzą w zakres regresji.
 
-Build: **1.0.5 (5)** · runtimeVersion **1.0.5** · channel **production**
+Audience: members of **NiX Internal QA** only. Do not submit this build for
+external Beta App Review.
 
-## Focus for this build — photo upload speed
+## Roadmap — dwa konta i dwa iPhone’y
 
-- Send a single photo on Wi‑Fi with the app in the foreground — expect roughly
-  seconds, not minutes, end-to-end.
-- Confirm Live Activity / Dynamic Island still updates and ends after success.
-- Send a video and verify background resume after brief lock / network blip.
-- Retry after a forced failure still recovers without long 60s stalls on photos.
+- Skrzynka: wyszukaj po nazwie i `@username`, także inną wielkością liter i bez
+  znaków diakrytycznych; sprawdź pusty stan.
+- Unread: tekst zwiększa badge tylko odbiorcy, wejście do rozmowy go zeruje,
+  nadawca nie widzi potwierdzenia odczytu, a wspólny badge kończy się na `99+`.
+- Outbox: wyślij tekst offline, uruchom aplikację ponownie i odzyskaj sieć.
+  Wiadomość ma zostać wysłana dokładnie raz. Sprawdź „Ponów”, „Usuń”, czyszczenie
+  po 24 godzinach i po zmianie konta.
+- Znajomi: dodaj drugie konto po `@username` oraz przez QR; udostępniany link
+  nie może być widoczny ani obsługiwany.
+- Aktywacja: dodaj pierwszego znajomego, wyślij pierwszy NiX i potwierdź
+  automatyczne ukończenie. Sprawdź pominięcie oraz checklistę w Profilu.
+- Analityka: przed opt-in nie może powstać event; po zgodzie zapisywane są tylko
+  dozwolone eventy bez treści, username, tokenów i identyfikatorów konta.
+- Powiadomienia: sprawdź mute 1h, 24h i bezterminowy, każdą kategorię i globalny
+  przełącznik urządzenia. Alert capture ma pozostać aktywny.
+- Urządzenia: bieżący iPhone pozostaje zalogowany, „Wyloguj pozostałe” unieważnia
+  drugi refresh token i wyłącza jego push.
+- Eksport: jeden aktywny job, limit 24h, reautoryzacja, prywatny signed URL,
+  manifest SHA-256 i brak cudzych, wygasłych lub tajnych danych. Archiwum ma
+  przestać być dostępne po 24h.
 
-## Durable media delivery (regression)
+## UI i regresja
 
-- Send a photo and a video to one recipient, then to several recipients.
-- The send sheet closes after durable staging and opens Inbox; the camera session stops.
-- Every recipient has a temporary Inbox row and a chat bubble with a consistent state.
-- While sending, the chat bubble shows a circular loader; on failure it shows
-  **„Błąd wysyłania · Spróbuj ponownie”** without raw backend errors or a percentage.
-- Tap retry and verify the icon animates and the copy changes to sending. Long-press
-  the bubble and verify retry/cancel actions and the shared-recipient warning.
-- One media object is uploaded once and shared by all selected recipients.
-- Lock the device, move between Wi-Fi/LTE/offline, restart the process and restart
-  the phone. The queued job must remain visible and resume safely.
-- Force quit may stop the transfer; opening NiX again must reconcile and resume it.
-- Dynamic Island / Live Activity starts immediately, uses the NiX logo, opens
-  `nix://inbox`, shows offline/failure/success states, and ends after success.
-- On an iPhone without Dynamic Island, verify the Lock Screen Live Activity.
+- PL/EN, jasny/ciemny motyw, większy Dynamic Type i VoiceOver.
+- Rejestracja i reset hasła: transparentny header, sam chevron wstecz i brak
+  nakładania checkboxa na przycisk.
+- Profil: spójne SF Symbols, maksymalnie trzy wiersze głównych ustawień.
+- Kamera, zdjęcie/wideo, galeria, podgląd i wysłanie do jednego oraz kilku odbiorców.
+- Trwały upload po blokadzie ekranu, utracie sieci, restarcie procesu i restarcie telefonu.
+- Raportowanie, blokowanie, odblokowanie i usunięcie konta nadal działają.
 
-## Regression
+## Warunek GO
 
-- Camera: photo + video (front/rear), gallery pick, hold-drag zoom while recording.
-- Status bar remains visible; camera privacy indicator disappears after leaving Camera.
-- Unlimited / timed view durations; replay ×1 within 10 minutes.
-- Save to Photos follows the recipient capture policy.
-- Capture attempt push + chat chip when policy is deny.
-- Light and dark appearance on a physical iPhone.
-
-## Accounts / safety
-
-- Email and Apple Sign-In session restore.
-- Friend QR / username, report, block, unblock and account deletion.
-- Push for a new NiX on a physical device.
-- A non-recipient cannot read a shared asset.
-- Cleanup of one recipient does not remove media still referenced by another recipient.
-
-## Diagnostics
-
-- Sentry must stay disabled (no envelopes / dSYM upload).
-- Record failures, retries, duplicates and orphan assets during the 24-hour QA window.
-- Block rollout on any P0/P1, lost job, duplicate NiX, unauthorized asset read or
-  destructive shared-asset cleanup.
-- After Processing in ASC, assign build **1.0.5 (5)** to **NiX Internal QA**.
+Zablokuj rollout przy każdym crashu P0, utracie lub duplikacji wiadomości,
+nieautoryzowanym odczycie, wycieku tokenu zaproszenia, cudzym eksporcie albo
+wysłaniu push mimo blokady/mute.

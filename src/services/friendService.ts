@@ -45,7 +45,7 @@ export type SendFriendRequestResult =
   | 'already_friends'
   | 'accepted_reverse_request';
 
-export type InviteChannel = 'qr';
+export type InviteChannel = 'qr' | 'share';
 
 export type RedeemInviteResult = SendFriendRequestResult | 'invalid_or_expired' | 'own_invite';
 
@@ -436,9 +436,11 @@ export async function sendFriendRequestByProfileQr(profileId: string): Promise<{
   return { result, profile: preview.profile };
 }
 
-export async function createFriendInviteQrToken(): Promise<FriendInviteTokenPayload> {
+export async function createFriendInviteToken(
+  channel: InviteChannel
+): Promise<FriendInviteTokenPayload> {
   const { data, error } = await supabase.rpc('create_friend_invite', {
-    invite_channel: 'qr',
+    invite_channel: channel,
   });
 
   if (error) throw toFriendlyError(error);
@@ -448,10 +450,18 @@ export async function createFriendInviteQrToken(): Promise<FriendInviteTokenPayl
   const expiresAt = typeof payload?.expires_at === 'string' ? payload.expires_at : null;
 
   if (!token || !expiresAt) {
-    throw new Error('Nie udało się wygenerować kodu QR.');
+    throw new Error('Nie udało się wygenerować zaproszenia.');
   }
 
   return { token, expiresAt };
+}
+
+export function createFriendInviteQrToken(): Promise<FriendInviteTokenPayload> {
+  return createFriendInviteToken('qr');
+}
+
+export function createFriendInviteShareToken(): Promise<FriendInviteTokenPayload> {
+  return createFriendInviteToken('share');
 }
 
 export async function previewFriendInviteToken(token: string): Promise<PreviewFriendInviteTokenResult> {

@@ -13,15 +13,12 @@ import {
   NativeSettingsSection,
 } from '../ui/native-settings';
 import { SettingsListScreen } from '../ui/settings-list-screen';
+import { iosRoadmapFeatures } from '../../config/iosRoadmapFeatures';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
   const { colors } = useAppTheme();
   const appVersion = Constants.expoConfig?.version ?? vm.t('common.unknown');
-  const socialSummary =
-    vm.pendingInviteCount > 0
-      ? vm.t('profile.socialSummaryPendingInvites', { count: vm.pendingInviteCount })
-      : undefined;
   const accountFooterLines = [
     vm.t('profile.creatorValue', { creator: 'MT HUB' }),
     vm.t('profile.appVersionValue', { version: appVersion }),
@@ -60,10 +57,21 @@ export default function ProfileScreenSurface() {
 
         {/* Social / Friends */}
         <NativeSettingsSection title={vm.t('profile.social', 'Społeczność')}>
+          {iosRoadmapFeatures.activation &&
+          !vm.activationState?.completed_at &&
+          !vm.activationState?.dismissed_at ? (
+            <NativeSettingsRow
+              title={vm.t('activation.checklistTitle')}
+              icon="checkCircle"
+              iconColor={colors.accent}
+              showsChevron
+              onPress={() => router.push('/activation' as never)}
+              testID="profile-activation"
+            />
+          ) : null}
           <NativeSettingsRow
             title={vm.t('profile.friendsTitle')}
-            supportingText={socialSummary}
-            icon="profile"
+            icon="friends"
             iconColor={colors.accent}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/friends')}
@@ -71,10 +79,10 @@ export default function ProfileScreenSurface() {
           />
         </NativeSettingsSection>
 
-        {/* Appearance */}
-        <NativeSettingsSection title={vm.t('profile.appearanceSectionTitle')}>
+        {/* Compact settings hub */}
+        <NativeSettingsSection title={vm.t('profile.settingsSectionTitle')}>
           <NativeSettingsRow
-            title={vm.t('profile.accentColor')}
+            title={vm.t('profile.appearanceTitle')}
             icon="paintpalette"
             iconColor={colors.accent}
             trailing={<AccentColorSwatch color={colors.accent} />}
@@ -82,47 +90,24 @@ export default function ProfileScreenSurface() {
             onPress={() => router.push('/(tabs)/profile/appearance')}
             testID="profile-appearance"
           />
-        </NativeSettingsSection>
-
-        {/* Privacy & Account Config */}
-        <NativeSettingsSection title={vm.t('profile.privacySectionTitle', 'Prywatność i bezpieczeństwo')}>
-          {vm.canChangePassword ? (
+          {Platform.OS === 'ios' && iosRoadmapFeatures.communicationControls ? (
             <NativeSettingsRow
-              title={vm.t('profile.changePassword')}
-              icon="key"
-              iconColor={colors.accent}
-              showsChevron
-              onPress={() => router.push('/(tabs)/profile/change-password')}
-              testID="profile-change-password"
-            />
-          ) : null}
-          <NativeSettingsRow
-            title={vm.t('profile.privateAccount', 'Konto prywatne')}
-            icon="lock"
-            iconColor={colors.accent}
-            switchValue={vm.profileRow?.is_private ?? false}
-            onSwitchValueChange={(val) => void vm.handleTogglePrivacy(val)}
-            testID="profile-private-account"
-          />
-          <NativeSettingsRow
-            title={vm.t('profile.safetyCenter')}
-            icon="shield"
-            iconColor={colors.accent}
-            showsChevron
-            onPress={() => router.push('/(tabs)/profile/safety')}
-            testID="profile-safety"
-          />
-          {Platform.OS === 'ios' ? (
-            <NativeSettingsRow
-              title={vm.t('profile.notifications', 'Powiadomienia')}
+              title={vm.t('notifications.title')}
               icon="notification"
               iconColor={colors.accent}
-              switchValue={vm.pushNotificationsEnabled}
-              onSwitchValueChange={(enabled) => void vm.handlePushToggle(enabled)}
-              disabled={vm.pushNotificationsBusy}
+              showsChevron
+              onPress={() => router.push('/(tabs)/profile/notifications' as never)}
               testID="profile-push-notifications"
             />
           ) : null}
+          <NativeSettingsRow
+            title={vm.t('profile.privacySectionTitle')}
+            icon="privacySecurity"
+            iconColor={colors.accent}
+            showsChevron
+            onPress={() => router.push('/(tabs)/profile/privacy-security' as never)}
+            testID="profile-privacy-security"
+          />
         </NativeSettingsSection>
 
         {/* Avatar Config */}
@@ -139,7 +124,7 @@ export default function ProfileScreenSurface() {
             <NativeSettingsRow
               title={vm.t('profile.removeAvatar')}
               icon="trash"
-              iconColor={colors.accent}
+              role="destructive"
               disabled={vm.avatarBusy}
               onPress={() =>
                 Alert.alert(
@@ -175,14 +160,6 @@ export default function ProfileScreenSurface() {
             iconColor={colors.accent}
             onPress={vm.handleSupport}
             testID="profile-support"
-          />
-          <NativeSettingsRow
-            title={vm.t('profile.privacyPolicy')}
-            icon="document"
-            iconColor={colors.accent}
-            showsChevron
-            onPress={() => router.push('/(tabs)/profile/privacy-policy')}
-            testID="profile-privacy-policy"
           />
           <NativeSettingsRow
             title={vm.t('profile.terms')}

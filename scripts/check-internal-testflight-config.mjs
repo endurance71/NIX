@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 const eas = JSON.parse(await readFile('eas.json', 'utf8'));
 const workflow = await readFile('.eas/workflows/internal-testflight.yml', 'utf8');
+const productionEnv = await readFile('.env.production', 'utf8');
 const failures = [];
 const production = eas.build?.production;
 const submit = eas.submit?.production?.ios;
@@ -25,6 +26,9 @@ for (const marker of [
   if (!workflow.includes(marker)) failures.push(`internal workflow is missing: ${marker}`);
 }
 if (/external_groups:/i.test(workflow)) failures.push('internal workflow must not contain external groups');
+if (!/^EXPO_PUBLIC_SHARE_INVITES_ENABLED=false$/m.test(productionEnv)) {
+  failures.push('shared invite links must remain explicitly disabled for the current internal build');
+}
 
 if (failures.length) {
   console.error(failures.map((failure) => `- ${failure}`).join('\n'));

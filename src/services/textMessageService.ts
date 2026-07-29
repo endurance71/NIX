@@ -124,6 +124,7 @@ export async function deleteTextMessageConversation(peerId: string): Promise<num
 
 export type RecentTextMessageItem = TextMessage & {
   peer_id: string;
+  is_unread?: boolean;
 };
 
 export async function fetchRecentTextMessagesForInbox(): Promise<RecentTextMessageItem[]> {

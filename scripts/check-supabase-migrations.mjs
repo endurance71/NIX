@@ -25,6 +25,10 @@ const expected = [
   '20260728120000_durable_shared_media_uploads.sql',
   '20260728121000_schedule_media_upload_orphan_cleanup.sql',
   '20260728122000_fix_capture_attempt_idempotency.sql',
+  '20260729120000_ios_product_roadmap.sql',
+  '20260729121000_schedule_data_export_worker.sql',
+  '20260729122000_fix_read_state_rpc.sql',
+  '20260729123000_harden_product_analytics_properties.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
@@ -117,6 +121,8 @@ for (const name of [
   'finalize-media-upload',
   'cancel-media-upload',
   'cleanup-media-upload-orphans',
+  'data-export-download',
+  'process-data-exports',
 ]) {
   const escaped = name.replaceAll('-', '\\-');
   const section = new RegExp(`\\[functions\\.${escaped}\\][\\s\\S]*?verify_jwt\\s*=\\s*true`);
@@ -140,6 +146,21 @@ for (const marker of [
 ]) {
   if (!durableUploads.includes(marker)) {
     failures.push(`durable upload migration is missing ${marker}`);
+  }
+}
+
+const analyticsHardening = await readFile(
+  path.join(migrationsDir, '20260729123000_harden_product_analytics_properties.sql'),
+  'utf8'
+);
+for (const marker of [
+  'CREATE OR REPLACE FUNCTION public.record_product_analytics_event',
+  "property.key NOT IN ('channel', 'enabled', 'has_results', 'outcome', 'source', 'step')",
+  "jsonb_typeof(property.value) NOT IN ('null', 'boolean', 'number', 'string')",
+  "RAISE EXCEPTION 'Unsupported analytics properties'",
+]) {
+  if (!analyticsHardening.includes(marker)) {
+    failures.push(`analytics hardening migration is missing ${marker}`);
   }
 }
 

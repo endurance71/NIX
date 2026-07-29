@@ -23,7 +23,7 @@ import { selection, tap } from '../lib/haptics';
 import { usePushNotifications } from '../context/pushNotifications';
 import { APP_ICON_SIZE } from '../theme/app-icons';
 import { runWithFinally } from '../lib/runWithFinally';
-import i18n from '../lib/i18n';
+import { useTranslation } from 'react-i18next';
 
 function paramFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
@@ -59,9 +59,12 @@ function FriendRecipientRow({
   tintColor,
 }: FriendRecipientRowProps) {
   const { colors } = useAppTheme();
+  const { t } = useTranslation();
   return (
     <Pressable
-      accessibilityLabel={`${selected ? 'Odznacz' : 'Zaznacz'} @${item.username}`}
+      accessibilityLabel={t(selected ? 'sendTo.deselectA11y' : 'sendTo.selectA11y', {
+        username: item.username,
+      })}
       accessibilityRole="button"
       accessibilityState={{ selected }}
       style={({ pressed }) => [
@@ -82,7 +85,7 @@ function FriendRecipientRow({
         />
       </View>
       <Text numberOfLines={1} style={[styles.username, { color: colors.label }]}>
-        {item.display_name ? item.display_name : item.username ? `@${item.username}` : 'Nieznany'}
+        {item.display_name ? item.display_name : item.username ? `@${item.username}` : t('common.unknown')}
       </Text>
       {selected ? <AppIcon name="checkCircle" size={APP_ICON_SIZE.xxl} color={tintColor} /> : null}
     </Pressable>
@@ -90,6 +93,7 @@ function FriendRecipientRow({
 }
 
 export default function SendToSheet() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { topContentInset, bottomContentInset } = useScreenInsets('sheet');
   const { colors } = useAppTheme();
@@ -193,14 +197,14 @@ export default function SendToSheet() {
 
         if (isVideo) clearSegments();
         else clearPhotoDraft();
-        notifySuccess(i18n.t('inbox.sent'));
+        notifySuccess(t('inbox.sent'));
         router.dismissAll();
         router.replace('/(tabs)/inbox');
         setTimeout(() => void offerAfterSuccessfulSend(), 400);
       } catch (err) {
         await Promise.all(enqueuedJobIds.map((jobId) => cancelUpload(jobId).catch(() => undefined)));
-        notifyError('Nie udało się zabezpieczyć wysyłki', {
-          message: toDomainError(err, 'Spróbuj ponownie za chwilę.').message,
+        notifyError(t('sendTo.enqueueFailureTitle'), {
+          message: toDomainError(err, t('sendTo.enqueueFailureBody')).message,
         });
       }
     }, () => {
@@ -226,24 +230,24 @@ export default function SendToSheet() {
 
   return (
     <View style={stylesForTheme.container}>
-      <Text style={stylesForTheme.title}>Wyślij do</Text>
-      <Text style={stylesForTheme.subtitle}>Wybierz jednego lub wielu znajomych</Text>
+      <Text style={stylesForTheme.title}>{t('sendTo.title')}</Text>
+      <Text style={stylesForTheme.subtitle}>{t('sendTo.subtitle')}</Text>
 
       {showInitialLoader ? (
         <ActivityIndicator color={colors.label} style={styles.loading} />
       ) : isError ? (
         <View style={stylesForTheme.emptyState}>
-          <Text style={stylesForTheme.emptyStateText}>Nie udało się wczytać znajomych.</Text>
+          <Text style={stylesForTheme.emptyStateText}>{t('sendTo.loadFailure')}</Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Spróbuj ponownie"
+            accessibilityLabel={t('common.retry')}
             onPress={() => void refetch()}
             style={styles.retryButton}
             disabled={isFetching}>
             {isFetching ? (
               <ActivityIndicator color={colors.label} />
             ) : (
-              <Text style={[styles.retryButtonText, { color: colors.systemBlue }]}>Spróbuj ponownie</Text>
+              <Text style={[styles.retryButtonText, { color: colors.systemBlue }]}>{t('common.retry')}</Text>
             )}
           </Pressable>
         </View>
@@ -261,7 +265,7 @@ export default function SendToSheet() {
             contentContainerStyle={stylesForTheme.listContent}
             ListEmptyComponent={
               <View style={stylesForTheme.emptyState}>
-                <Text style={stylesForTheme.emptyStateText}>Nie masz jeszcze zaakceptowanych znajomych.</Text>
+                <Text style={stylesForTheme.emptyStateText}>{t('sendTo.empty')}</Text>
               </View>
             }
           />
@@ -269,9 +273,9 @@ export default function SendToSheet() {
       )}
 
       <View style={stylesForTheme.footer}>
-        <Text style={stylesForTheme.selectionCount}>Zaznaczeni: {selectedCount}</Text>
+        <Text style={stylesForTheme.selectionCount}>{t('sendTo.selectedCount', { count: selectedCount })}</Text>
         <Pressable
-          accessibilityLabel="Wyślij wiadomość"
+          accessibilityLabel={t('sendTo.sendA11y')}
           accessibilityRole="button"
           accessibilityState={{ disabled: selectedCount === 0 || isSending }}
           style={[
@@ -284,11 +288,13 @@ export default function SendToSheet() {
           {isSending ? (
             <View style={styles.sendingContent}>
               <ActivityIndicator color={colors.buttonPrimaryText} />
-              <Text style={stylesForTheme.sendButtonText}>Zabezpieczanie…</Text>
+              <Text style={stylesForTheme.sendButtonText}>{t('sendTo.securing')}</Text>
             </View>
           ) : (
             <Text style={stylesForTheme.sendButtonText}>
-              {selectedCount > 1 ? `Wyślij do ${selectedCount} znajomych` : 'Wyślij wiadomość'}
+              {selectedCount > 1
+                ? t('sendTo.sendMany', { count: selectedCount })
+                : t('sendTo.sendOne')}
             </Text>
           )}
         </Pressable>

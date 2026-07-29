@@ -8,6 +8,7 @@ import { AppIcon } from '../../components/ui/app-icon';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
 import { APP_FONT_FAMILY } from '../../theme/typography';
+import { iosRoadmapFeatures } from '../../config/iosRoadmapFeatures';
 
 /** Matches iOS liquid-glass back control diameter in the nav bar. */
 const HEADER_AVATAR_SIZE = 36;
@@ -81,6 +82,12 @@ export default function ChatScreen() {
 
   const openFallbackMenu = () => {
     Alert.alert(vm.t('chat.moreA11y'), undefined, [
+      ...(iosRoadmapFeatures.communicationControls
+        ? [{
+            text: vm.isMuted ? vm.t('chat.unmute') : vm.t('chat.mute'),
+            onPress: requestMute,
+          }]
+        : []),
       {
         text: vm.t('chat.report'),
         onPress: () => {
@@ -111,6 +118,19 @@ export default function ChatScreen() {
       { text: vm.t('common.cancel'), style: 'cancel' },
     ]);
   };
+
+  function requestMute() {
+    if (vm.isMuted) {
+      void vm.handleSetMute('off');
+      return;
+    }
+    Alert.alert(vm.t('chat.muteTitle'), undefined, [
+      { text: vm.t('chat.mute1h'), onPress: () => void vm.handleSetMute('1h') },
+      { text: vm.t('chat.mute24h'), onPress: () => void vm.handleSetMute('24h') },
+      { text: vm.t('chat.muteForever'), onPress: () => void vm.handleSetMute('forever') },
+      { text: vm.t('common.cancel'), style: 'cancel' },
+    ]);
+  }
 
   return (
     <>
@@ -151,6 +171,11 @@ export default function ChatScreen() {
       {Platform.OS === 'ios' ? (
         <Stack.Toolbar placement="right">
           <Stack.Toolbar.Menu icon={resolveAppIconName('more')} accessibilityLabel={vm.t('chat.moreA11y')}>
+            {iosRoadmapFeatures.communicationControls ? (
+              <Stack.Toolbar.MenuAction icon={resolveAppIconName('notification')} onPress={requestMute}>
+                {vm.isMuted ? vm.t('chat.unmute') : vm.t('chat.mute')}
+              </Stack.Toolbar.MenuAction>
+            ) : null}
             <Stack.Toolbar.Menu title={vm.t('chat.report')} icon={resolveAppIconName('warning')}>
               {CHAT_PEER_REPORT_REASONS.map((reason) => (
                 <Stack.Toolbar.MenuAction

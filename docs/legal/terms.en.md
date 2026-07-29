@@ -1,7 +1,7 @@
 # NiX Terms of Use
 
-**Version:** 2026-07-15
-**Effective date:** 15 July 2026
+**Version:** 2026-07-29
+**Effective date:** 29 July 2026
 
 ## Service and account
 

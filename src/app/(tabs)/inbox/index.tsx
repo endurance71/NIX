@@ -93,9 +93,9 @@ export default function InboxScreen() {
                   headerIconColor: colors.secondaryLabel,
                 }
               : {}),
-            onChangeText: (_e) => {
-              // TODO: Implement search filter in VM if needed
-            },
+            onChangeText: (event) => vm.handleSearchChange(event.nativeEvent.text),
+            onSearchButtonPress: vm.handleSearchEnd,
+            onCancelButtonPress: () => vm.handleSearchChange(''),
           },
         }}
       />

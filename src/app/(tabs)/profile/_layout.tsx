@@ -10,6 +10,7 @@ export default function ProfileTabLayout() {
     <Stack
       screenOptions={{
         headerShown: true,
+        headerBackButtonDisplayMode: 'minimal',
         headerLargeTitle: true,
         headerTintColor: colors.accent,
         headerTransparent: true,
@@ -52,6 +53,34 @@ export default function ProfileTabLayout() {
         name="appearance"
         options={{
           title: t('profile.appearanceTitle'),
+          headerLargeTitle: false,
+        }}
+      />
+      <Stack.Screen
+        name="privacy-security"
+        options={{
+          title: t('profile.privacySectionTitle'),
+          headerLargeTitle: false,
+        }}
+      />
+      <Stack.Screen
+        name="devices"
+        options={{
+          title: t('devices.title'),
+          headerLargeTitle: false,
+        }}
+      />
+      <Stack.Screen
+        name="notifications"
+        options={{
+          title: t('notifications.title'),
+          headerLargeTitle: false,
+        }}
+      />
+      <Stack.Screen
+        name="data-export"
+        options={{
+          title: t('dataExport.title'),
           headerLargeTitle: false,
         }}
       />

@@ -20,6 +20,7 @@ import {
   multilineTextAlignment,
   onTapGesture,
   padding,
+  scrollDismissesKeyboard,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { useAppTheme } from '../../hooks/useAppTheme';
@@ -145,7 +146,10 @@ export function AuthFormLayout({ children, description }: AuthFormLayoutProps) {
         <ScrollView
           axes="vertical"
           showsIndicators={false}
-          modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
+          modifiers={[
+            frame({ maxWidth: Infinity, maxHeight: Infinity }),
+            scrollDismissesKeyboard('interactively'),
+          ]}>
           <VStack
             alignment="center"
             spacing={0}

@@ -1,23 +1,14 @@
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { getAuthStackScreenOptions } from '../../lib/authNavigation';
 
 export default function AuthLayout() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   return (
     <Stack
-      screenOptions={{
-        headerShown: true,
-        headerBackButtonDisplayMode: 'minimal',
-        headerLargeTitle: false,
-        headerTransparent: false,
-        headerShadowVisible: false,
-        headerTintColor: colors.accent,
-        headerTitleStyle: { color: colors.label },
-        headerStyle: { backgroundColor: colors.background },
-        contentStyle: { backgroundColor: colors.background },
-      }}
+      screenOptions={getAuthStackScreenOptions(colors)}
     >
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="register" options={{ title: t('auth.registerHeader') }} />

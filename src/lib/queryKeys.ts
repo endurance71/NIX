@@ -14,6 +14,12 @@ export const queryKeys = {
   currentAgeAttestation: ['currentAgeAttestation'] as const,
   blockedUsers: ['blockedUsers'] as const,
   contentReports: ['contentReports'] as const,
+  productAnalyticsConsent: ['productAnalyticsConsent'] as const,
+  activationState: ['activationState'] as const,
+  notificationPreferences: ['notificationPreferences'] as const,
+  conversationMute: (peerId: string) => ['conversationMute', peerId] as const,
+  appInstallations: ['appInstallations'] as const,
+  dataExportJobs: ['dataExportJobs'] as const,
 };
 
 const avatarSignedUrlsPrefix = 'avatarSignedUrls' as const;

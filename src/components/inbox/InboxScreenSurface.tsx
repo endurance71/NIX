@@ -712,6 +712,17 @@ export function InboxScreenSurface(props: InboxScreenSurfaceProps) {
     );
   }
 
+  if (vm.showSearchEmpty) {
+    return (
+      <InboxUnavailableState
+        kind="empty"
+        title={vm.t('inbox.searchEmptyTitle')}
+        description={vm.t('inbox.searchEmptyDescription')}
+        onRefresh={vm.handleRefresh}
+      />
+    );
+  }
+
   return <InboxList {...props} />;
 }
 

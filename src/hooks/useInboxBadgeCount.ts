@@ -11,12 +11,12 @@ export function useInboxBadgeCount() {
   const count = countUnreadInboxNixes(query.data);
 
   useEffect(() => {
-    void syncAppIconBadge(count);
+    void syncAppIconBadge(Math.min(99, count));
   }, [count]);
 
   useEffect(() => {
     return subscribeToAppForeground(() => {
-      void syncAppIconBadge(count);
+      void syncAppIconBadge(Math.min(99, count));
     });
   }, [count]);
 

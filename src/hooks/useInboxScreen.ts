@@ -37,6 +37,8 @@ import { blockUser } from '../services/safetyService';
 import { fetchTextMessagesWithPeer } from '../services/textMessageService';
 import { fetchMessageReactionsWithPeer } from '../services/messageReactionService';
 import { useAuth } from './useAuth';
+import { filterInboxRows } from '../lib/inboxSearch';
+import { recordProductEvent } from '../services/productAnalyticsService';
 import {
   useUploadJobs,
   useUploadQueue,
@@ -77,6 +79,7 @@ export function useInboxScreen() {
   const [inviteActionIds, setInviteActionIds] = useState<ReadonlySet<string>>(() => new Set());
   const [busyPeerIds, setBusyPeerIds] = useState<ReadonlySet<string>>(() => new Set());
   const [uploadClock, setUploadClock] = useState(() => Date.now());
+  const [searchQuery, setSearchQuery] = useState('');
 
   const nixesQuery = useQuery(inboxNixesBundleQueryOptions());
 
@@ -111,7 +114,7 @@ export function useInboxScreen() {
     staleTime: 1000 * 60 * 2,
   });
   const requests = requestsQuery.data ?? [];
-  const rows = mergeInboxRowsWithUploads(
+  const allRows = mergeInboxRowsWithUploads(
     baseRows,
     uploadPresentations,
     acceptedFriendsQuery.data ?? [],
@@ -120,6 +123,10 @@ export function useInboxScreen() {
       locale,
       yesterdayLabel: t('inbox.yesterday'),
     }
+  );
+  const rows = useMemo(
+    () => filterInboxRows(allRows, searchQuery),
+    [allRows, searchQuery]
   );
 
   useEffect(() => {
@@ -364,7 +371,17 @@ export function useInboxScreen() {
     && rows.length === 0
     && !hasVisibleLocalUploads;
   const requestsReady = !(requestsQuery.isPending && requestsQuery.data === undefined);
-  const showEmpty = requestsReady && requests.length === 0 && rows.length === 0;
+  const showEmpty = requestsReady && requests.length === 0 && allRows.length === 0;
+  const showSearchEmpty = searchQuery.trim().length > 0 && allRows.length > 0 && rows.length === 0;
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+  };
+
+  const handleSearchEnd = () => {
+    if (!searchQuery.trim()) return;
+    void recordProductEvent('inbox_search_used', { has_results: rows.length > 0 });
+  };
 
   return {
     t,
@@ -376,6 +393,10 @@ export function useInboxScreen() {
     loading,
     initialError,
     showEmpty,
+    showSearchEmpty,
+    searchQuery,
+    handleSearchChange,
+    handleSearchEnd,
     handleRefresh,
     handleRetry,
     handleAccept,

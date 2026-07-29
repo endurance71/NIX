@@ -2,7 +2,7 @@
 
 **Status:** W toku — stabilizacja MVP  
 **Stack:** React Native (Expo SDK 57) + Supabase  
-**Ostatnia aktualizacja:** 2026-07-14
+**Ostatnia aktualizacja:** 2026-07-29
 
 ---
 
@@ -13,8 +13,8 @@
 ---
 
 > [!IMPORTANT]
-> **Native-first (iOS + Android)**  
-> Naczelnym wyznacznikiem aplikacji są **natywne rozwiązania platform iOS i Android** (SwiftUI / Jetpack Compose przez `@expo/ui`, moduły Expo, systemowy motyw). Pełne wytyczne: [native-platform-guidelines.md](native-platform-guidelines.md).
+> **iOS-only / native-first**
+> Bieżącym produktem jest aplikacja wyłącznie na iPhone’a. Android, jego buildy i smoke testy pozostają poza roadmapą.
 
 ---
 
@@ -29,7 +29,7 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 1. **Prywatność:** Sign in with Apple (iOS) + Supabase Auth e-mail+hasło (e-mail wyłącznie w warstwie auth, bez kolumny e-mail w `profiles`).
 2. **Speed-to-Camera & Chat:** Szybki dostęp do kamery z zakładki głównej oraz natywny efemeryczny chat tekstowy 1:1 (TTL 24h).
 3. **True Ephemeral:** Po obejrzeniu (dla NiXów) lub po 24 godzinach od wysłania (dla tekstu) — automatyczny cleanup i usuwanie z bazy.
-4. **Native-first (naczelny wyznacznik):** Każda warstwa UI i UX jest oceniana pod kątem natywnych konwencji **iOS i Android**. Domyślnie universal `@expo/ui` (SwiftUI / Jetpack Compose), moduły Expo z mostem natywnym, systemowy motyw; RN primitives tylko tam, gdzie natywna warstwa nie wystarcza. Szczegóły: [native-platform-guidelines.md](native-platform-guidelines.md).
+4. **iOS native-first:** Każda warstwa UI i UX jest oceniana pod kątem konwencji iOS. Domyślnie `@expo/ui`/SwiftUI, moduły Expo i systemowy motyw; RN primitives tylko tam, gdzie natywna warstwa nie wystarcza.
 5. **Budget-first:** Supabase Free Tier → Pro przy wzroście.
 
 ### 1.3 User Stories (P0)
@@ -47,13 +47,15 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 ### 1.4 Wymagania funkcjonalne
 
 - **Uwierzytelnianie:** rejestracja i logowanie e-mail+hasło; Sign in with Apple (iOS); potwierdzenie e-maila; reset i zmiana hasła (e-mail); onboarding z jednorazowym `username`. Szczegóły: [auth-flow.md](auth-flow.md).
-- **Znajomi:** wyszukiwanie po `@username`, zaproszenia, akceptacja/odrzucenie, usuwanie znajomości; zaproszenia QR (token jednorazowy). Szczegóły: [friend-invites-qr.md](friend-invites-qr.md).
+- **Znajomi:** wyszukiwanie po `@username`, zaproszenia, akceptacja/odrzucenie, usuwanie znajomości; jednorazowe zaproszenia QR oraz 7-dniowe Universal Links.
 - **Awatary:** zdjęcie (buckiet `avatars`, ścieżka `<uuid>/...`) **lub** pojedyncze emoji — wykluczają się wzajemnie (`profiles_avatar_exclusive`).
 - **Kamera:** front/back, zoom pinch, flash, zdjęcie (tap) i wideo (przytrzymanie); segmenty do **30 s**, sumarycznie do **180 s** na jedno przytrzymanie; opcjonalne wyciszenie mikrofonu przy nagrywaniu.
 - **Preview / Send-to:** wybór czasu wyświetlania u odbiorcy: **5, 15, 30, 60, 180** sekund (`view_duration_sec`); wysyłka tylko do **zaakceptowanych** znajomych.
 - **Multimedia:** obrazy i wideo (`media_type`: `image` | `video`); upload wideo z retry TUS (resumable); embedded miniatura JPEG w `nixes.thumbnail_b64` dla wideo; limit rozmiaru pliku wideo po stronie klienta **100 MB** (bucket `media-vault` do **400 MB**). Szczegóły: [video-pipeline.md](video-pipeline.md).
 - **Chat Tekstowy (1:1 Realtime, TTL 24h):** dedykowana tabela `text_messages`, automatyczne wygasanie (`expires_at = created_at + 24h`), rate-limit 30 msgs/min, maks. 2000 znaków na wiadomość, bez treść w Push (tylko powiadomienie z nazwiskiem nadawcy). Ekran `/chat/[peerId]` bazuje na natywnym SwiftUI List / `@expo/ui`.
-- **Skrzynka:** połączone wątki odebranych/wysłanych NiXów i tekstu, usuwanie rozmowy (`delete_my_conversation_with_peer`), kolejka cleanup przy wejściu na skrzynkę.
+- **Skrzynka:** połączone wątki odebranych/wysłanych NiXów i tekstu, prywatny unread, wyszukiwanie bez rozróżniania diakrytyków, usuwanie rozmowy (`delete_my_conversation_with_peer`) i kolejka cleanup.
+- **Niezawodność tekstu:** szyfrowany AES-256-GCM outbox w SQLite, idempotencja `client_message_id`, automatyczny retry z backoffem i TTL 24h.
+- **Prywatność i kontrola:** analityka produktu tylko po opt-in, granularne powiadomienia, mute rozmów, rejestr instalacji i eksport konta ZIP.
 - **Viewer:** odtwarzanie obrazu/wideo z timerem; ochrona screenshot/nagrywania wg polityki per nadawca (domyślnie `deny`). Szczegóły: [capture-protection.md](capture-protection.md).
 - **i18n:** interfejs **PL** i **EN** (`react-i18next`, zasoby w `src/lib/i18n.ts`; metadane App Store z `src/locales/*/common.json`). Szczegóły: [i18n-guidelines.md](i18n-guidelines.md).
 - **Observability:** lokalna telemetria (`telemetry.ts`) i logi uploadu w `upload_logs`; Sentry SDK pozostaje twardo wyłączone. Szczegóły: [observability.md](observability.md).
@@ -65,15 +67,15 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 
 ### 2.0 Zasada platformowa (native-first)
 
-**Naczelnym wyznacznikiem NiX są natywne rozwiązania iOS i Android** — nie web ani generyczne UI-kity RN.
+**Naczelnym wyznacznikiem NiX są natywne rozwiązania iOS** — nie web ani generyczne UI-kity RN.
 
 | Obszar | Zasada |
 | :--- | :--- |
-| UI | Universal `@expo/ui` → platform-specific `@expo/ui` → RN primitive (wyjątek) |
+| UI | `@expo/ui`/SwiftUI → RN primitive (wyjątek) |
 | Nawigacja | Expo Router + custom tabs (`expo-router/ui`, floating pill) |
 | Media / hardware | Moduły Expo (`expo-camera`, `expo-video`, `expo-screen-capture`…) |
-| Motyw | Systemowy light/dark na obu platformach — [theme-guidelines.md](theme-guidelines.md) |
-| Testy | Smoke manualny na iOS **i** Android przed merge zmian UI |
+| Motyw | Systemowy light/dark na iOS — [theme-guidelines.md](theme-guidelines.md) |
+| Testy | Smoke manualny na dwóch iPhone’ach przed wydaniem |
 
 Pełna hierarchia wyboru, antywzorce i checklista PR: [native-platform-guidelines.md](native-platform-guidelines.md).
 

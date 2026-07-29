@@ -13,6 +13,20 @@ describe('i18n', () => {
     await i18nModule.default.changeLanguage('pl');
   });
 
+  it('utrzymuje identyczny zestaw kluczy PL i EN', () => {
+    const flatten = (value: unknown, prefix = ''): string[] => {
+      if (!value || typeof value !== 'object') return [prefix];
+      return Object.entries(value as Record<string, unknown>).flatMap(([key, child]) =>
+        flatten(child, prefix ? `${prefix}.${key}` : key)
+      );
+    };
+    const normalizePluralKeys = (keys: string[]) =>
+      [...new Set(keys.map((key) => key.replace(/_(one|few|many|other)$/, '_plural')))].sort();
+    expect(normalizePluralKeys(flatten(i18nModule.resources.pl.translation))).toEqual(
+      normalizePluralKeys(flatten(i18nModule.resources.en.translation))
+    );
+  });
+
   it('fallbackuje do en dla nieznanego języka', async () => {
     await i18nModule.default.changeLanguage('de');
     expect(i18nModule.default.t('tabs.camera')).toBe('Camera');

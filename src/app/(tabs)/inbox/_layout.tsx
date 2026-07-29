@@ -8,6 +8,7 @@ export default function InboxTabLayout() {
     <Stack
       screenOptions={{
         headerShown: true,
+        headerBackButtonDisplayMode: 'minimal',
         headerLargeTitle: true,
         headerTintColor: colors.accent,
         headerTransparent: true,

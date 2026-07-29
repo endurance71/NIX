@@ -27,6 +27,10 @@ import { resolveNeedsOnboarding } from '../lib/profileGate';
 import { hasCurrentAgeAttestation } from '../services/safetyService';
 import { PushNotificationsProvider } from '../context/PushNotificationsProvider';
 import { UploadQueueProvider } from '../context/UploadQueueProvider';
+import { getPendingFriendInviteToken } from '../lib/pendingFriendInvite';
+import { TextOutboxSync } from '../components/sync/TextOutboxSync';
+import { AppInstallationSync } from '../components/sync/AppInstallationSync';
+import { iosRoadmapFeatures } from '../config/iosRoadmapFeatures';
 
 // Initialize monitoring at module load (runs once).
 initMonitoring();
@@ -130,6 +134,25 @@ function RootNavigator() {
     }
   }, [appReady, inAuthGroup, needsOnboarding, onResetPasswordScreen, segments, session, profilePending, ageAttestationPending]);
 
+  useEffect(() => {
+    if (
+      !iosRoadmapFeatures.shareInvites ||
+      !appReady ||
+      !session ||
+      needsOnboarding ||
+      profilePending ||
+      ageAttestationPending
+    ) return;
+    let cancelled = false;
+    void getPendingFriendInviteToken().then((token) => {
+      if (cancelled || !token || segments[0] === 'friend-invite') return;
+      router.push({ pathname: '/friend-invite', params: { token } });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ageAttestationPending, appReady, needsOnboarding, profilePending, segments, session]);
+
   if (loading) {
     return (
       <View
@@ -171,6 +194,8 @@ function RootNavigator() {
     <>
       <StatusBar style={statusBarStyle} hidden={false} />
       {session ? <AppRealtimeSync userId={session.user.id} /> : null}
+      {session ? <TextOutboxSync userId={session.user.id} /> : null}
+      {session && iosRoadmapFeatures.accountData ? <AppInstallationSync /> : null}
       <Stack
         screenOptions={{
           headerShown: false,
@@ -217,7 +242,7 @@ function RootNavigator() {
           presentation: 'card',
           headerShown: true,
           title: t('profile.myQrCode'),
-          headerBackButtonDisplayMode: 'default',
+          headerBackButtonDisplayMode: 'minimal',
           headerTransparent: true,
           headerShadowVisible: false,
           headerStyle: { backgroundColor: 'transparent' },

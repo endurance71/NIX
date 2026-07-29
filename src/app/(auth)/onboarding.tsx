@@ -20,6 +20,11 @@ import { runWithFinally } from '../../lib/runWithFinally';
 import { queryKeys } from '../../lib/queryKeys';
 import { isAtLeastMinimumAge, isValidBirthDate } from '../../lib/ageGate';
 import { hasCurrentAgeAttestation, recordCurrentAgeAttestation } from '../../services/safetyService';
+import {
+  recordProductEvent,
+  setProductAnalyticsConsent,
+} from '../../services/productAnalyticsService';
+import { iosRoadmapFeatures } from '../../config/iosRoadmapFeatures';
 
 export default function OnboardingScreen() {
   const { t } = useTranslation();
@@ -31,6 +36,7 @@ export default function OnboardingScreen() {
   const [loading, setLoading] = useState(false);
   const [signOutLoading, setSignOutLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [analyticsConsent, setAnalyticsConsent] = useState(false);
   const busy = loading || signOutLoading;
   const { data: ageAttested = false } = useQuery({
     queryKey: queryKeys.currentAgeAttestation,
@@ -86,13 +92,23 @@ export default function OnboardingScreen() {
           await saveUsernameForCurrentUser(cleaned);
           await updateCurrentUserProfile({ display_name: cleanedDisplayName });
         }
+        if (iosRoadmapFeatures.analytics) {
+          await setProductAnalyticsConsent(analyticsConsent);
+        }
+        if (iosRoadmapFeatures.analytics && analyticsConsent) {
+          await recordProductEvent('onboarding_completed', { enabled: true });
+        }
 
         await queryClient.refetchQueries({ queryKey: queryKeys.currentUserProfile });
-        router.replace('/(tabs)');
+        router.replace(
+          iosRoadmapFeatures.activation
+            ? ('/activation' as never)
+            : '/(tabs)'
+        );
       },
       () => setLoading(false)
     ).catch((err: any) => {
-      setError(`Błąd: ${err?.message || JSON.stringify(err)}`);
+      setError(t('auth.onboardingFailure', { message: err?.message || t('common.unknown') }));
     });
   };
 
@@ -182,6 +198,20 @@ export default function OnboardingScreen() {
       ) : null}
 
       {error ? <AuthErrorText>{error}</AuthErrorText> : null}
+
+      {iosRoadmapFeatures.analytics ? (
+        <AuthFieldGroup
+          footer={<AuthTertiaryText>{t('auth.analyticsConsentDescription')}</AuthTertiaryText>}>
+          <AuthSecondaryButton
+            label={
+              analyticsConsent
+                ? t('auth.analyticsConsentEnabled')
+                : t('auth.analyticsConsentDisabled')
+            }
+            onPress={() => setAnalyticsConsent((value) => !value)}
+          />
+        </AuthFieldGroup>
+      ) : null}
 
       <AuthPrimaryButton
         label={currentProfile?.username ? t('auth.ageGateSubmit') : t('auth.onboardingSubmit')}

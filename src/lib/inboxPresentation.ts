@@ -89,7 +89,7 @@ export function buildInboxRowModel(
       username,
       display_name: displayName,
       direction: item.direction,
-      unread: false,
+      unread: textMessage.is_unread === true,
       status: item.direction === 'received' ? 'opened' : 'sent',
       createdAt: textMessage.created_at,
       timestampLabel: formatInboxTimestamp(textMessage.created_at, locale, { now, yesterdayLabel }),

@@ -39,6 +39,7 @@ export type InboxThreadItem =
 type PeerThreadState = {
   latest: InboxThreadItem;
   latestUnreadReceived: Extract<InboxThreadItem, { kind: 'nix'; direction: 'received' }> | null;
+  hasUnreadText: boolean;
   bestProfile: InboxPeerProfile | null;
 };
 
@@ -161,6 +162,7 @@ export function buildInboxThreads(
       byPeer.set(id, {
         latest: item,
         latestUnreadReceived: isUnreadReceivedNix ? item : null,
+        hasUnreadText: item.kind === 'text' && item.direction === 'received' && item.textMessage.is_unread === true,
         bestProfile: profile,
       });
       continue;
@@ -173,6 +175,9 @@ export function buildInboxThreads(
     if (item.timestamp > prev.latest.timestamp) {
       prev.latest = item;
     }
+    if (item.kind === 'text' && item.direction === 'received' && item.textMessage.is_unread === true) {
+      prev.hasUnreadText = true;
+    }
 
     if (
       isUnreadReceivedNix &&
@@ -183,6 +188,15 @@ export function buildInboxThreads(
   }
 
   return [...byPeer.values()]
-    .map((entry) => withEnrichedProfile(entry.latestUnreadReceived ?? entry.latest, entry.bestProfile))
+    .map((entry) => {
+      const selected = withEnrichedProfile(entry.latestUnreadReceived ?? entry.latest, entry.bestProfile);
+      if (selected.kind === 'text' && entry.hasUnreadText) {
+        return {
+          ...selected,
+          textMessage: { ...selected.textMessage, is_unread: true },
+        };
+      }
+      return selected;
+    })
     .sort((a, b) => b.timestamp - a.timestamp);
 }

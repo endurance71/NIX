@@ -1,12 +1,15 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
-import { Button, FieldGroup, ListItem, RNHostView, Switch, Text } from '@expo/ui';
+import { FieldGroup, ListItem, RNHostView, Switch, Text } from '@expo/ui';
 import { Button as SwiftUIButton, HStack, Image as SwiftImage, SwipeActions, VStack } from '@expo/ui/swift-ui';
 import { SymbolView } from 'expo-symbols';
 import {
+  buttonStyle,
+  disabled as swiftDisabled,
   font,
   foregroundStyle,
   frame,
+  lineLimit,
   listRowBackground,
   listRowInsets,
   listRowSeparator,
@@ -15,16 +18,40 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
+import {
+  APP_ICON_SIZE,
+  resolveAppIconName,
+  resolveSettingsIconMetrics,
+  type AppIconName,
+} from '../../theme/app-icons';
 import { AvatarCircle } from './avatar-circle';
 
 type NativeSettingsSectionProps = {
   title?: string;
+  footer?: string;
   children: ReactNode;
 };
 
-export function NativeSettingsSection({ title, children }: NativeSettingsSectionProps) {
-  return <FieldGroup.Section title={title}>{children}</FieldGroup.Section>;
+export function NativeSettingsSection({ title, footer, children }: NativeSettingsSectionProps) {
+  const { colors } = useAppTheme();
+
+  return (
+    <FieldGroup.Section title={title}>
+      {children}
+      {footer ? (
+        <FieldGroup.SectionFooter>
+          <Text
+            modifiers={[
+              font({ textStyle: 'footnote' }),
+              foregroundStyle(colors.secondaryLabel),
+              lineLimit(2),
+            ]}>
+            {footer}
+          </Text>
+        </FieldGroup.SectionFooter>
+      ) : null}
+    </FieldGroup.Section>
+  );
 }
 
 type NativeSettingsRowProps = {
@@ -73,6 +100,12 @@ export function NativeSettingsRow({
     : role === 'destructive'
       ? colors.destructive
       : colors.label;
+  const resolvedIconColor = disabled
+    ? colors.tertiaryLabel
+    : role === 'destructive'
+      ? colors.destructive
+      : (iconColor ?? colors.accent);
+  const iconMetrics = icon ? resolveSettingsIconMetrics(icon) : null;
   const resolvedLeading = avatar ? (
     <RNHostView matchContents>
       <View collapsable={false} style={{ width: avatarSize, height: avatarSize }}>
@@ -89,9 +122,17 @@ export function NativeSettingsRow({
     <HStack alignment="center" modifiers={[frame({ width: 26, alignment: 'center' })]}>
       <SymbolView
         name={resolveAppIconName(icon) as SFSymbol}
-        size={APP_ICON_SIZE.settings}
-        tintColor={iconColor ?? foregroundColor}
-        fallback={<View style={{ width: APP_ICON_SIZE.settings, height: APP_ICON_SIZE.settings }} />}
+        size={iconMetrics?.size ?? APP_ICON_SIZE.settings}
+        weight={iconMetrics?.weight ?? 'regular'}
+        tintColor={resolvedIconColor}
+        fallback={
+          <View
+            style={{
+              width: iconMetrics?.size ?? APP_ICON_SIZE.settings,
+              height: iconMetrics?.size ?? APP_ICON_SIZE.settings,
+            }}
+          />
+        }
       />
     </HStack>
   ) : (
@@ -124,15 +165,32 @@ export function NativeSettingsRow({
     ) : (
       trailing ?? chevron
     );
+  const resolvedSupportingText = supportingText ? (
+    <Text
+      modifiers={[
+        font({ textStyle: 'footnote' }),
+        foregroundStyle(colors.secondaryLabel),
+        lineLimit(2),
+      ]}>
+      {supportingText}
+    </Text>
+  ) : undefined;
 
   return (
     <ListItem
       leading={resolvedLeading}
       trailing={resolvedTrailing}
-      supportingText={supportingText}
+      supportingText={resolvedSupportingText}
       onPress={disabled ? undefined : onPress}
       testID={testID}>
-      <Text textStyle={{ color: foregroundColor }}>{title}</Text>
+      <Text
+        modifiers={[
+          font({ textStyle: 'body' }),
+          foregroundStyle(foregroundColor),
+          lineLimit(2),
+        ]}>
+        {title}
+      </Text>
     </ListItem>
   );
 }
@@ -180,11 +238,14 @@ export function NativeSettingsActionRow({
   onPress: () => void;
 }) {
   return (
-    <Button
+    <SwiftUIButton
       label={title}
-      variant={destructive ? 'outlined' : 'filled'}
+      role={destructive ? 'destructive' : 'default'}
       onPress={onPress}
-      disabled={disabled}
+      modifiers={[
+        buttonStyle(destructive ? 'bordered' : 'borderedProminent'),
+        swiftDisabled(Boolean(disabled)),
+      ]}
     />
   );
 }
@@ -192,7 +253,11 @@ export function NativeSettingsActionRow({
 export function NativeSettingsEmptyRow({ text }: { text: string }) {
   const { colors } = useAppTheme();
   return (
-    <Text textStyle={{ fontSize: 15, color: colors.secondaryLabel, lineHeight: 20 }}>
+    <Text
+      modifiers={[
+        font({ textStyle: 'footnote' }),
+        foregroundStyle(colors.secondaryLabel),
+      ]}>
       {text}
     </Text>
   );
