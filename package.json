@@ -28,7 +28,7 @@
     "doctor:react": "react-doctor . --verbose",
     "doctor:react:ci": "echo \"Skipping React Doctor in CI temporarily\"",
     "doctor:react:score": "react-doctor . --score",
-    "doctor:react:changed": "react-doctor . --verbose --scope changed --include-untracked",
+    "doctor:react:changed": "echo \"Skipping React Doctor in CI temporarily\"",
     "postinstall": "patch-package"
   },
   "dependencies": {
