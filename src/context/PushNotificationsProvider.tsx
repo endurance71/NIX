@@ -31,14 +31,24 @@ import { parsePushNotificationData, routeForPushNotification } from '../lib/push
 import { queryKeys } from '../lib/queryKeys';
 import { notifyError } from '../lib/appNotify';
 import { trackEvent } from '../lib/telemetry';
+import { activeChatPeerRef } from '../lib/activeChatPeer';
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    const data = parsePushNotificationData(notification.request.content.data);
+    const isChatNotification =
+      data?.type === 'new_text_message' ||
+      data?.type === 'message_reaction' ||
+      data?.type === 'capture_attempt';
+    const suppress = isChatNotification && data?.actorId === activeChatPeerRef.current;
+
+    return {
+      shouldPlaySound: !suppress,
+      shouldSetBadge: !suppress,
+      shouldShowBanner: !suppress,
+      shouldShowList: !suppress,
+    };
+  },
 });
 
 async function runWithBusyState(

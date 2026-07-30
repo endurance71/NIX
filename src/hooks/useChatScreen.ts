@@ -42,6 +42,7 @@ import {
   listTextOutbox,
   retryTextOutboxJob,
 } from '../services/textOutboxService';
+import { activeChatPeerRef } from '../lib/activeChatPeer';
 
 function generateClientMessageId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -99,6 +100,18 @@ export function useChatScreen(peerId: string) {
   const peerActionBusyRef = useRef(false);
   const busyUploadActionsRef = useRef(new Map<string, UploadRowAction>());
   const lastReadThroughRef = useRef<string | null>(null);
+
+  // Track the active chat so the foreground notification handler can
+  // suppress banners for messages from the peer being viewed.
+  useEffect(() => {
+    if (!peerId) return;
+    activeChatPeerRef.current = peerId;
+    return () => {
+      if (activeChatPeerRef.current === peerId) {
+        activeChatPeerRef.current = null;
+      }
+    };
+  }, [peerId]);
 
   const peerProfileQuery = useQuery({
     queryKey: ['peerProfile', peerId],
