@@ -1027,7 +1027,7 @@ index 1dcdf55..94fd1fb 100755
  
  # shellcheck disable=SC2086
 diff --git a/node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec b/node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec
-index e08e6c2..fa51281 100644
+index bed8eba..49d12cd 100644
 --- a/node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec
 +++ b/node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec
 @@ -21,7 +21,7 @@ end

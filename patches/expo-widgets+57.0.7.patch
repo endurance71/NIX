@@ -2,7 +2,10 @@ diff --git a/node_modules/expo-widgets/ios/LiveActivity.swift b/node_modules/exp
 index c4b5bcc..d3d56dd 100644
 --- a/node_modules/expo-widgets/ios/LiveActivity.swift
 +++ b/node_modules/expo-widgets/ios/LiveActivity.swift
-@@ -4,3 +4,65 @@
+@@ -1,6 +1,68 @@
+ import ExpoModulesCore
+ import ActivityKit
+ 
 +@available(iOS 16.2, *)
 +public enum ExpoWidgetsLiveActivityBridge {
 +  public static func status(name: String) -> [String: Any] {
