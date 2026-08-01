@@ -84,7 +84,7 @@ export default function InboxScreen() {
           headerSearchBarOptions: {
             placeholder: vm.t('inbox.searchPlaceholder'),
             hideWhenScrolling: false,
-            barTintColor: colors.secondarySystemGroupedBackground,
+            barTintColor: colors.secondarySystemBackground,
             textColor: colors.label,
             tintColor: colors.systemBlue,
             ...(Platform.OS === 'android'

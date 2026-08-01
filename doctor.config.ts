@@ -70,6 +70,24 @@ export default {
         files: ['src/services/messageReactionService.ts'],
         rules: ['deslop/unused-export'],
       },
+      {
+        // False positive: this effect owns and cleans every allocation it creates:
+        // clearInterval(timer), unsubscribeNetwork(), and unsubscribeForeground().
+        files: ['src/components/sync/TextOutboxSync.tsx'],
+        rules: ['react-doctor/effect-needs-cleanup'],
+      },
+      {
+        // Text outbox sends sequentially on purpose to preserve retry ordering and
+        // serialize SQLite state transitions for each pending local message.
+        files: ['src/services/textOutboxService.ts'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Account export work is intentionally bounded: media files are streamed into one
+        // zip in order, and queued export jobs are processed one at a time to cap memory.
+        files: ['supabase/functions/process-data-exports/index.ts'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
     ],
   },
 };

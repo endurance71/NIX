@@ -43,6 +43,19 @@ function ChatHeaderTitle({
   );
 }
 
+function requestMuteForChat(vm: ReturnType<typeof useChatScreen>) {
+  if (vm.isMuted) {
+    void vm.handleSetMute('off');
+    return;
+  }
+  Alert.alert(vm.t('chat.muteTitle'), undefined, [
+    { text: vm.t('chat.mute1h'), onPress: () => void vm.handleSetMute('1h') },
+    { text: vm.t('chat.mute24h'), onPress: () => void vm.handleSetMute('24h') },
+    { text: vm.t('chat.muteForever'), onPress: () => void vm.handleSetMute('forever') },
+    { text: vm.t('common.cancel'), style: 'cancel' },
+  ]);
+}
+
 export default function ChatScreen() {
   const { peerId } = useLocalSearchParams<{ peerId: string }>();
   const vm = useChatScreen(peerId ?? '');
@@ -85,7 +98,7 @@ export default function ChatScreen() {
       ...(iosRoadmapFeatures.communicationControls
         ? [{
             text: vm.isMuted ? vm.t('chat.unmute') : vm.t('chat.mute'),
-            onPress: requestMute,
+            onPress: () => requestMuteForChat(vm),
           }]
         : []),
       {
@@ -118,19 +131,6 @@ export default function ChatScreen() {
       { text: vm.t('common.cancel'), style: 'cancel' },
     ]);
   };
-
-  function requestMute() {
-    if (vm.isMuted) {
-      void vm.handleSetMute('off');
-      return;
-    }
-    Alert.alert(vm.t('chat.muteTitle'), undefined, [
-      { text: vm.t('chat.mute1h'), onPress: () => void vm.handleSetMute('1h') },
-      { text: vm.t('chat.mute24h'), onPress: () => void vm.handleSetMute('24h') },
-      { text: vm.t('chat.muteForever'), onPress: () => void vm.handleSetMute('forever') },
-      { text: vm.t('common.cancel'), style: 'cancel' },
-    ]);
-  }
 
   return (
     <>
@@ -172,7 +172,7 @@ export default function ChatScreen() {
         <Stack.Toolbar placement="right">
           <Stack.Toolbar.Menu icon={resolveAppIconName('more')} accessibilityLabel={vm.t('chat.moreA11y')}>
             {iosRoadmapFeatures.communicationControls ? (
-              <Stack.Toolbar.MenuAction icon={resolveAppIconName('notification')} onPress={requestMute}>
+              <Stack.Toolbar.MenuAction icon={resolveAppIconName('notification')} onPress={() => requestMuteForChat(vm)}>
                 {vm.isMuted ? vm.t('chat.unmute') : vm.t('chat.mute')}
               </Stack.Toolbar.MenuAction>
             ) : null}

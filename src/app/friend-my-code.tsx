@@ -19,6 +19,25 @@ import { notifyDomainError } from '../lib/appNotify';
 import { recordProductEvent } from '../services/productAnalyticsService';
 import { iosRoadmapFeatures } from '../config/iosRoadmapFeatures';
 
+type ShareInviteOutcome =
+  | { status: 'shared' | 'dismissed' }
+  | { status: 'failed'; error: unknown };
+
+async function shareFriendInvite(title: string, messageTemplate: string): Promise<ShareInviteOutcome> {
+  try {
+    const { token } = await createFriendInviteShareToken();
+    const url = buildFriendInviteShareLink(token);
+    const result = await Share.share({
+      title,
+      message: messageTemplate.replace('{{url}}', url),
+      url,
+    });
+    return { status: result.action === Share.sharedAction ? 'shared' : 'dismissed' };
+  } catch (error) {
+    return { status: 'failed', error };
+  }
+}
+
 export default function FriendMyCodeScreen() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
@@ -50,22 +69,16 @@ export default function FriendMyCodeScreen() {
   const handleShareInvite = async () => {
     if (shareBusy) return;
     setShareBusy(true);
-    try {
-      const { token } = await createFriendInviteShareToken();
-      const url = buildFriendInviteShareLink(token);
-      const result = await Share.share({
-        title: t('profile.shareInviteTitle'),
-        message: t('profile.shareInviteMessage', { url }),
-        url,
-      });
-      if (result.action === Share.sharedAction) {
-        void recordProductEvent('invite_shared', { channel: 'share' });
-      }
-    } catch (error) {
-      notifyDomainError(error, t('profile.shareInviteFailure'));
-    } finally {
-      setShareBusy(false);
+    const result = await shareFriendInvite(
+      t('profile.shareInviteTitle'),
+      t('profile.shareInviteMessage', { url: '{{url}}' })
+    );
+    if (result.status === 'shared') {
+      void recordProductEvent('invite_shared', { channel: 'share' });
+    } else if (result.status === 'failed') {
+      notifyDomainError(result.error, t('profile.shareInviteFailure'));
     }
+    setShareBusy(false);
   };
 
   return (

@@ -78,6 +78,16 @@ type UploadPhaseTimings = {
   nativeEnqueueMs: number | null;
 };
 
+function uploadError(message: string, code: string) {
+  const error = new Error(message) as Error & { code?: string };
+  error.code = code;
+  return error;
+}
+
+function throwUploadError(message: string, code: string): never {
+  throw uploadError(message, code);
+}
+
 const uploadPhaseTimings = new Map<string, UploadPhaseTimings>();
 
 function rememberPhaseTimings(jobId: string, patch: Partial<UploadPhaseTimings>) {
@@ -332,11 +342,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           });
           job = (await getDurableUploadJob(job.id)) ?? { ...job, preparedUri: null };
         } else {
-          const missing = new Error('Lokalny plik wysyłki nie jest już dostępny.') as Error & {
-            code?: string;
-          };
-          missing.code = 'FILE_NOT_RECOVERABLE';
-          throw missing;
+          throwUploadError('Lokalny plik wysyłki nie jest już dostępny.', 'FILE_NOT_RECOVERABLE');
         }
       }
 
@@ -517,9 +523,7 @@ function useUploadQueueController(): UploadQueueContextValue {
 
       assertUploadReadyForNativeTransfer(job);
       if (!(await stagedUploadFileExists(job.preparedUri))) {
-        const missing = new Error('Staged upload file does not exist.') as Error & { code?: string };
-        missing.code = 'STAGED_FILE_MISSING';
-        throw missing;
+        throwUploadError('Staged upload file does not exist.', 'STAGED_FILE_MISSING');
       }
 
       await patchDurableUploadJob(job.id, {

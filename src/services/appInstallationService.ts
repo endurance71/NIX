@@ -21,11 +21,13 @@ export async function registerCurrentAppInstallation() {
 export async function listAppInstallations(): Promise<
   (AppInstallation & { is_current: boolean })[]
 > {
-  const currentId = await getInstallationId();
-  const { data, error } = await supabase
-    .from('app_installations')
-    .select('*')
-    .order('last_seen_at', { ascending: false });
+  const [currentId, { data, error }] = await Promise.all([
+    getInstallationId(),
+    supabase
+      .from('app_installations')
+      .select('*')
+      .order('last_seen_at', { ascending: false }),
+  ]);
   if (error) throw error;
   return (data ?? []).map((row) => ({ ...row, is_current: row.installation_id === currentId })) as (
     AppInstallation & { is_current: boolean }
@@ -33,8 +35,10 @@ export async function listAppInstallations(): Promise<
 }
 
 export async function signOutOtherInstallations() {
-  const currentId = await getInstallationId();
-  const { error: authError } = await supabase.auth.signOut({ scope: 'others' });
+  const [currentId, { error: authError }] = await Promise.all([
+    getInstallationId(),
+    supabase.auth.signOut({ scope: 'others' }),
+  ]);
   if (authError) throw authError;
   const { data, error } = await supabase.rpc('revoke_other_app_installations', {
     p_current_installation_id: currentId,

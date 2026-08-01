@@ -21,6 +21,49 @@ import { recordProductEvent } from '../services/productAnalyticsService';
 
 type InviteResult = RedeemInviteResult | SendFriendRequestResult | 'own_profile' | 'invalid_profile';
 
+type InvitePreviewOutcome =
+  | { status: 'missing' | 'legacy' | 'own' | 'invalid' | 'failure' }
+  | { status: 'ok'; profile: FriendProfile };
+
+type InviteRedeemOutcome =
+  | { status: 'failure' }
+  | { status: 'ok'; result: InviteResult; username?: string; channel: 'share' | 'legacy' };
+
+async function previewInvite(token?: string, profileId?: string): Promise<InvitePreviewOutcome> {
+  if (!token && !profileId) return { status: 'missing' };
+  if (profileId) return { status: 'legacy' };
+  const inviteToken = token ?? '';
+  try {
+    const preview = await previewFriendInviteToken(inviteToken);
+    if (preview.status !== 'ok' || !preview.profile) {
+      return { status: preview.status === 'own_invite' ? 'own' : 'invalid' };
+    }
+    return { status: 'ok', profile: preview.profile };
+  } catch {
+    return { status: 'failure' };
+  }
+}
+
+async function redeemInvite(token?: string, profileId?: string): Promise<InviteRedeemOutcome> {
+  if (!token && !profileId) return { status: 'failure' };
+  try {
+    const result = profileId
+      ? await sendFriendRequestByProfileQr(profileId)
+      : await redeemFriendInviteToken(token ?? '');
+    const username =
+      'profile' in result ? result.profile?.username : result.inviterProfile?.username;
+    await clearPendingFriendInviteToken();
+    return {
+      status: 'ok',
+      result: result.result,
+      username,
+      channel: token ? 'share' : 'legacy',
+    };
+  } catch {
+    return { status: 'failure' };
+  }
+}
+
 export default function FriendInviteScreen() {
   const { t } = useTranslation();
   const raw = useLocalSearchParams<{ token?: string | string[]; profileId?: string | string[] }>();
@@ -45,30 +88,24 @@ export default function FriendInviteScreen() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      try {
-        if (!token && !profileId) {
-          setMessage(t('invite.missing'));
-          return;
-        }
-        if (profileId) {
-          setMessage(t('invite.legacyConfirm'));
-          return;
-        }
-        const preview = await previewFriendInviteToken(token as string);
-        if (cancelled) return;
-        if (preview.status !== 'ok' || !preview.profile) {
-          setMessage(
-            preview.status === 'own_invite' ? t('invite.resultOwn') : t('invite.resultInvalid')
-          );
-          void clearPendingFriendInviteToken();
-          return;
-        }
-        setProfile(preview.profile);
-      } catch {
-        if (!cancelled) setMessage(t('invite.previewFailure'));
-      } finally {
-        if (!cancelled) setLoading(false);
+      const outcome = await previewInvite(token, profileId);
+      if (cancelled) return;
+      if (outcome.status === 'ok') {
+        setProfile(outcome.profile);
+      } else if (outcome.status === 'missing') {
+        setMessage(t('invite.missing'));
+      } else if (outcome.status === 'legacy') {
+        setMessage(t('invite.legacyConfirm'));
+      } else if (outcome.status === 'own') {
+        setMessage(t('invite.resultOwn'));
+        void clearPendingFriendInviteToken();
+      } else if (outcome.status === 'invalid') {
+        setMessage(t('invite.resultInvalid'));
+        void clearPendingFriendInviteToken();
+      } else {
+        setMessage(t('invite.previewFailure'));
       }
+      setLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -78,22 +115,15 @@ export default function FriendInviteScreen() {
   const accept = async () => {
     if (actionBusy || (!token && !profileId)) return;
     setActionBusy(true);
-    try {
-      const result = profileId
-        ? await sendFriendRequestByProfileQr(profileId)
-        : await redeemFriendInviteToken(token as string);
-      const outcome = result.result;
-      const username =
-        'profile' in result ? result.profile?.username : result.inviterProfile?.username;
-      setMessage(resultMessage(outcome, username));
+    const outcome = await redeemInvite(token, profileId);
+    if (outcome.status === 'ok') {
+      setMessage(resultMessage(outcome.result, outcome.username));
       setProfile(null);
-      await clearPendingFriendInviteToken();
-      void recordProductEvent('invite_redeemed', { channel: token ? 'share' : 'legacy' });
-    } catch {
+      void recordProductEvent('invite_redeemed', { channel: outcome.channel });
+    } else {
       setMessage(t('invite.redeemFailure'));
-    } finally {
-      setActionBusy(false);
     }
+    setActionBusy(false);
   };
 
   return (
