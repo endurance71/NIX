@@ -11,6 +11,7 @@ import {
 } from '../services/friendService';
 import { uploadProfileAvatarFromUri } from '../services/avatarService';
 import { notifyDomainError, notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
+import i18n from '../lib/i18n';
 import { upsertCapturePolicyForFriend, type CapturePolicy } from '../services/capturePolicyService';
 
 type NativeCropResult = { path: string };
@@ -25,31 +26,57 @@ type NativeCropPickerModule = {
     cropperChooseText?: string;
     cropperCancelText?: string;
   }) => Promise<NativeCropResult>;
+  openCamera: (options: {
+    mediaType: 'photo';
+    cropping: true;
+    cropperCircleOverlay: true;
+    width: number;
+    height: number;
+    compressImageQuality: number;
+    cropperChooseText?: string;
+    cropperCancelText?: string;
+  }) => Promise<NativeCropResult>;
 };
 
-export async function pickProfileAvatarPhoto(invalidateSocialQueries: () => Promise<void>): Promise<void> {
-  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+export type AvatarPhotoSource = 'camera' | 'library';
+
+export async function pickProfileAvatarPhoto(
+  invalidateSocialQueries: () => Promise<void>,
+  source: AvatarPhotoSource = 'library'
+): Promise<void> {
+  const permission = source === 'camera'
+    ? await ImagePicker.requestCameraPermissionsAsync()
+    : await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) {
-    notifyError('Brak dostępu do zdjęć.', {
-      message: 'Zezwól w ustawieniach systemowych.',
-    });
+    notifyError(
+      i18n.t(source === 'camera' ? 'profile.cameraPermissionTitle' : 'profile.photoPermissionTitle'),
+      {
+        message: i18n.t(
+          source === 'camera' ? 'profile.cameraPermissionMessage' : 'profile.photoPermissionMessage'
+        ),
+      }
+    );
     return;
   }
+
+  const cropOptions = {
+    mediaType: 'photo' as const,
+    cropping: true as const,
+    cropperCircleOverlay: true as const,
+    width: 512,
+    height: 512,
+    compressImageQuality: 0.85,
+    cropperChooseText: i18n.t('profile.choosePhoto'),
+    cropperCancelText: i18n.t('common.cancel'),
+  };
 
   let pickedUri: string | null = null;
   try {
     const nativeCropPickerModule = await import('react-native-image-crop-picker');
     const nativeCropPicker = nativeCropPickerModule.default as NativeCropPickerModule;
-    const result = await nativeCropPicker.openPicker({
-      mediaType: 'photo',
-      cropping: true,
-      cropperCircleOverlay: true,
-      width: 512,
-      height: 512,
-      compressImageQuality: 0.85,
-      cropperChooseText: 'Wybierz',
-      cropperCancelText: 'Anuluj',
-    });
+    const result = source === 'camera'
+      ? await nativeCropPicker.openCamera(cropOptions)
+      : await nativeCropPicker.openPicker(cropOptions);
     pickedUri = result.path.startsWith('file://') ? result.path : `file://${result.path}`;
   } catch (nativeErr: unknown) {
     const code = (nativeErr as { code?: string })?.code;
@@ -58,16 +85,25 @@ export async function pickProfileAvatarPhoto(invalidateSocialQueries: () => Prom
     const nativeModuleUnavailable =
       message.includes('RNCImageCropPicker') ||
       message.includes('could not be found') ||
-      message.includes('Cannot find module');
+      message.includes('Cannot find module') ||
+      message.includes('openCamera is not a function') ||
+      message.includes('openPicker is not a function');
 
     if (!nativeModuleUnavailable) throw nativeErr;
 
-    const fallbackResult = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.85,
-    });
+    const fallbackResult = source === 'camera'
+      ? await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.85,
+        })
+      : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.85,
+        });
     if (fallbackResult.canceled || !fallbackResult.assets[0]?.uri) return;
     pickedUri = fallbackResult.assets[0].uri;
   }
@@ -75,7 +111,7 @@ export async function pickProfileAvatarPhoto(invalidateSocialQueries: () => Prom
   if (!pickedUri) return;
   await uploadProfileAvatarFromUri(pickedUri);
   await invalidateSocialQueries();
-  notifySuccess('Awatar zapisany.');
+  notifySuccess(i18n.t('profile.avatarSaved'));
 }
 
 export async function sendProfileInvite(

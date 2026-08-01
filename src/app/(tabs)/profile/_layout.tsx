@@ -29,6 +29,13 @@ export default function ProfileTabLayout() {
       }}>
       <Stack.Screen name="index" />
       <Stack.Screen
+        name="edit"
+        options={{
+          title: t('profile.editProfile'),
+          headerLargeTitle: false,
+        }}
+      />
+      <Stack.Screen
         name="friends"
         options={{
           title: t('profile.friendsTitle'),

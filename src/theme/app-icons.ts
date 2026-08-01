@@ -26,6 +26,7 @@ export type AppIconName =
   | 'saveToPhotos'
   | 'send'
   | 'compose'
+  | 'edit'
   | 'more'
   | 'timer'
   | 'trash'
@@ -87,6 +88,7 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   saveToPhotos: 'square.and.arrow.down',
   send: 'arrow.up',
   compose: 'square.and.pencil',
+  edit: 'pencil',
   more: 'ellipsis',
   timer: 'timer',
   trash: 'trash',

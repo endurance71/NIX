@@ -12,8 +12,8 @@ type LegalDocument = {
 export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms: LegalDocument }> = {
   pl: {
     privacy: {
-      version: '2026-07-15',
-      effectiveDate: '15 lipca 2026 r.',
+      version: '2026-08-01',
+      effectiveDate: '1 sierpnia 2026 r.',
       sections: [
         {
           title: 'Administrator danych i kontakt',
@@ -21,7 +21,7 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
         },
         {
           title: 'Jakie dane przetwarzamy',
-          body: 'Przetwarzamy e-mail i dane uwierzytelniania, identyfikator konta, nazwę użytkownika, awatar, relacje znajomych, zaproszenia QR, potwierdzenie ukończenia 16 lat bez zapisywania daty urodzenia, blokady, zgłoszenia nadużyć, ustawienia ochrony przechwytywania ekranu, treść i metadane wiadomości oraz techniczne logi.',
+          body: 'Przetwarzamy e-mail i dane uwierzytelniania, identyfikator konta, nazwę użytkownika, nazwę wyświetlaną, opis profilu, awatar, relacje znajomych, zaproszenia QR, potwierdzenie ukończenia 16 lat bez zapisywania daty urodzenia, blokady, zgłoszenia nadużyć, ustawienia ochrony przechwytywania ekranu, treść i metadane wiadomości tekstowych i multimedialnych oraz techniczne logi.',
         },
         {
           title: 'Cele i podstawy prawne',
@@ -62,11 +62,11 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
       ],
     },
     terms: {
-      version: '2026-07-15',
-      effectiveDate: '15 lipca 2026 r.',
+      version: '2026-08-01',
+      effectiveDate: '1 sierpnia 2026 r.',
       sections: [
         { title: 'Usługodawca', body: 'Usługę NiX świadczy MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, NIP 8393229228. Kontakt: kontakt@damianmotylinski.pl.' },
-        { title: 'Usługa', body: 'NiX umożliwia zaakceptowanym znajomym wymianę efemerycznych wiadomości zdjęciowych i wideo. Do korzystania wymagane są kompatybilne urządzenie, dostęp do Internetu oraz konto.' },
+        { title: 'Usługa', body: 'NiX umożliwia zaakceptowanym znajomym wymianę efemerycznych wiadomości tekstowych, zdjęciowych i wideo. Do korzystania wymagane są kompatybilne urządzenie, dostęp do Internetu oraz konto.' },
         { title: 'Konto', body: 'Musisz mieć ukończone 16 lat, potwierdzić ten próg, podać prawdziwe dane wymagane przy rejestracji i chronić dostęp do konta. Konto e-mail i konto Apple mogą być odrębne. Nazwy użytkownika nie można zmienić po jej ustawieniu.' },
         { title: 'Treści użytkownika', body: 'Zachowujesz prawa do własnych treści. Udzielasz nam wyłącznie niewyłącznego, nieodpłatnego upoważnienia technicznego koniecznego do hostowania, przetworzenia i doręczenia treści wybranemu odbiorcy.' },
         { title: 'Zakazane działania', body: 'Nie wolno przesyłać treści bez prawa do ich użycia, niezgodnych z prawem, naruszających cudzą prywatność, dobra osobiste, prawa autorskie lub bezpieczeństwo. Zakazane jest nękanie, podszywanie się, obchodzenie zabezpieczeń i zakłócanie działania usługi.' },
@@ -79,11 +79,11 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
   },
   en: {
     privacy: {
-      version: '2026-07-15',
-      effectiveDate: '15 July 2026',
+      version: '2026-08-01',
+      effectiveDate: '1 August 2026',
       sections: [
         { title: 'Controller and contact', body: 'The controller is MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. Contact us about privacy at kontakt@damianmotylinski.pl.' },
-        { title: 'Data we process', body: 'We process email and authentication data, account ID, username, avatar, friend relationships, QR invitations, confirmation of being 16+ without storing date of birth, blocks, abuse reports, screen-capture preferences, message content and metadata, and technical logs.' },
+        { title: 'Data we process', body: 'We process email and authentication data, account ID, username, display name, profile bio, avatar, friend relationships, QR invitations, confirmation of being 16+ without storing date of birth, blocks, abuse reports, screen-capture preferences, text and media message content and metadata, and technical logs.' },
         { title: 'Purposes and legal bases', body: 'We process data to create and operate the account and deliver messages under performance of a contract (GDPR Article 6(1)(b)); for security, fraud prevention and defence of claims under legitimate interests (Article 6(1)(f)); and to comply with law where required (Article 6(1)(c)).' },
         { title: 'Device permissions', body: 'Camera, microphone and photo-library access is used only after iOS permission: to create photo/video messages and set an avatar. You can refuse or withdraw permission in device settings, but that feature will not work.' },
         { title: 'Messages and privacy', body: 'Messages are available only to their selected recipient. After viewing, the app attempts to remove the media file. A technical message record may remain only as long as necessary to complete deletion and resolve errors. Screenshot blocking is a system feature and is not an absolute guarantee.' },
@@ -96,11 +96,11 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
       ],
     },
     terms: {
-      version: '2026-07-15',
-      effectiveDate: '15 July 2026',
+      version: '2026-08-01',
+      effectiveDate: '1 August 2026',
       sections: [
         { title: 'Provider', body: 'NiX is provided by MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. Contact: kontakt@damianmotylinski.pl.' },
-        { title: 'Service', body: 'NiX enables accepted friends to exchange ephemeral photo and video messages. Use requires a compatible device, Internet access and an account.' },
+        { title: 'Service', body: 'NiX enables accepted friends to exchange ephemeral text, photo, and video messages. Use requires a compatible device, Internet access and an account.' },
         { title: 'Account', body: 'You must be 16 or older, confirm that threshold, provide accurate registration data, and keep your account secure. Email and Apple accounts can be separate. A username cannot be changed once set.' },
         { title: 'Your content', body: 'You retain rights in your content and grant only the non-exclusive, royalty-free technical permission necessary to host, process and deliver it to the selected recipient.' },
         { title: 'Prohibited use', body: 'Do not send content you lack rights to use, unlawful content, or content that violates privacy, personality, copyright or safety. Harassment, impersonation, bypassing safeguards and disrupting the service are prohibited.' },

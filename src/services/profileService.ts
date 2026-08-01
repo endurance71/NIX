@@ -6,6 +6,7 @@ export type CurrentUserProfileRow = {
   id: string;
   username: string | null;
   display_name: string | null;
+  bio: string | null;
   is_private: boolean;
   avatar_storage_path: string | null;
   avatar_emoji: string | null;
@@ -35,15 +36,35 @@ export function clearUserCache() {
   cachedUserAt = 0;
 }
 
+function isMissingBioColumnError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return (
+    error.code === '42703' ||
+    (error.code === 'PGRST204' && error.message?.toLowerCase().includes('bio') === true)
+  );
+}
+
 export async function getCurrentUserProfile(): Promise<CurrentUserProfileRow | null> {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const { data, error } = await supabase
+  const withBioResult = await supabase
     .from('profiles')
-    .select('id, username, display_name, is_private, avatar_storage_path, avatar_emoji')
+    .select('id, username, display_name, bio, is_private, avatar_storage_path, avatar_emoji')
     .eq('id', user.id)
     .maybeSingle();
+
+  let data = withBioResult.data;
+  let error = withBioResult.error;
+  if (isMissingBioColumnError(error)) {
+    const fallbackResult = await supabase
+      .from('profiles')
+      .select('id, username, display_name, is_private, avatar_storage_path, avatar_emoji')
+      .eq('id', user.id)
+      .maybeSingle();
+    data = fallbackResult.data ? { ...fallbackResult.data, bio: null } : null;
+    error = fallbackResult.error;
+  }
 
   if (error) throw error;
   if (!data) return null;
@@ -61,6 +82,7 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfileRow | n
     id: data.id,
     username: data.username,
     display_name: data.display_name,
+    bio: data.bio ?? null,
     is_private: data.is_private,
     avatar_storage_path: data.avatar_storage_path ?? null,
     avatar_emoji: avatarEmoji,
@@ -118,11 +140,14 @@ export async function saveAppleIdForCurrentUser(appleUserId: string) {
   if (error) throw error;
 }
 
-export async function updateCurrentUserProfile(data: { display_name?: string | null; is_private?: boolean }) {
+export async function updateCurrentUserProfile(data: {
+  display_name?: string | null;
+  bio?: string | null;
+  is_private?: boolean;
+}) {
   const user = await getCurrentUser();
   if (!user) throw new Error('Brak sesji. Zaloguj się ponownie.');
 
   const { error } = await supabase.from('profiles').update(data).eq('id', user.id);
   if (error) throw error;
 }
-

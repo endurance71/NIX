@@ -85,6 +85,7 @@ export interface Database {
           id: string;
           username: string | null;
           display_name: string | null;
+          bio: string | null;
           is_private: boolean;
           apple_id: string | null;
           avatar_storage_path: string | null;
@@ -95,6 +96,7 @@ export interface Database {
           id: string;
           username?: string | null;
           display_name?: string | null;
+          bio?: string | null;
           is_private?: boolean;
           apple_id?: string | null;
           avatar_storage_path?: string | null;
@@ -105,6 +107,7 @@ export interface Database {
           id?: string;
           username?: string | null;
           display_name?: string | null;
+          bio?: string | null;
           is_private?: boolean;
           apple_id?: string | null;
           avatar_storage_path?: string | null;

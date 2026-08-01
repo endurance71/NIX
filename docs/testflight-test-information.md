@@ -6,9 +6,9 @@ uzupełnione w App Store Connect przed uruchomieniem workflow wysyłki.
 ## Beta App Description
 
 NiX is a private visual messenger for people aged 16 and older. Accepted friends
-can exchange ephemeral photo and video messages. The beta validates sign-in,
-friend invitations, media capture/upload/view cleanup, account deletion, and the
-report/block safety flow.
+can exchange ephemeral text, photo and video messages. The beta validates sign-in,
+friend invitations, profile editing, media capture/upload/view cleanup, account
+deletion, and the report/block safety flow.
 
 ## What to Test
 
@@ -20,6 +20,9 @@ report/block safety flow.
 6. Block the sender; confirm messages and friendship disappear and a new invite is impossible.
 7. Unblock in Profile → Safety. Confirm this does not automatically restore friendship.
 8. Delete the reviewer account from Profile → Privacy Policy → Delete account.
+
+Profile editing in this build includes a display name, an optional 140-character
+bio visible to accepted friends, and avatar capture, selection, cropping, or removal.
 
 Messages are private and are not automatically scanned. A copy is retained for
 up to 30 days only when the recipient explicitly reports that message. Screenshot

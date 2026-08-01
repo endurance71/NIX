@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { assertSentryDisabled } from './check-sentry-disabled.mjs';
 
 const app = JSON.parse(readFileSync(new URL('../app.json', import.meta.url), 'utf8')).expo;
+const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const plist = readFileSync(new URL('../ios/NiX/Info.plist', import.meta.url), 'utf8');
+const widgetPlist = readFileSync(new URL('../ios/ExpoWidgetsTarget/Info.plist', import.meta.url), 'utf8');
 const expoPlist = readFileSync(new URL('../ios/NiX/Supporting/Expo.plist', import.meta.url), 'utf8');
 const en = readFileSync(new URL('../ios/NiX/Supporting/en.lproj/InfoPlist.strings', import.meta.url), 'utf8');
 const pl = readFileSync(new URL('../ios/NiX/Supporting/pl.lproj/InfoPlist.strings', import.meta.url), 'utf8');
@@ -17,6 +19,10 @@ let failed = false;
 function fail(message) {
   failed = true;
   console.error(`iOS config: ${message}`);
+}
+
+if (packageJson.version !== app.version) {
+  fail(`package.json version (${packageJson.version}) must equal app.json version (${app.version})`);
 }
 
 for (const key of purposeKeys) {
@@ -62,13 +68,23 @@ if (marketingVersionMatches.length === 0) {
   fail(`MARKETING_VERSION in project.pbxproj must equal app.json version (${app.version})`);
 }
 const plistBuildMatch = plist.match(/<key>CFBundleVersion<\/key>\n\t<string>([^<]+)<\/string>/);
+const widgetVersionMatch = widgetPlist.match(/<key>CFBundleShortVersionString<\/key>\n\t<string>([^<]+)<\/string>/);
+const widgetBuildMatch = widgetPlist.match(/<key>CFBundleVersion<\/key>\n\t<string>([^<]+)<\/string>/);
 const projectBuildMatches = [...project.matchAll(/CURRENT_PROJECT_VERSION = ([^;]+);/g)].map((m) => m[1]);
 if (!plistBuildMatch) {
   fail('CFBundleVersion is missing from Info.plist');
+} else if (plistBuildMatch[1] !== app.ios.buildNumber) {
+  fail(`CFBundleVersion (${plistBuildMatch[1]}) must equal app.json buildNumber (${app.ios.buildNumber})`);
 } else if (projectBuildMatches.length === 0) {
   fail('CURRENT_PROJECT_VERSION is missing from project.pbxproj');
 } else if (projectBuildMatches.some((value) => value !== plistBuildMatch[1])) {
   fail(`CFBundleVersion (${plistBuildMatch[1]}) must match CURRENT_PROJECT_VERSION in project.pbxproj`);
+}
+if (widgetVersionMatch?.[1] !== app.version) {
+  fail(`widget CFBundleShortVersionString must equal app.json version (${app.version})`);
+}
+if (widgetBuildMatch?.[1] !== app.ios.buildNumber) {
+  fail(`widget CFBundleVersion must equal app.json buildNumber (${app.ios.buildNumber})`);
 }
 if (!plist.includes('<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>')) {
   fail('ITSAppUsesNonExemptEncryption must be false');

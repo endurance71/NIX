@@ -1,4 +1,4 @@
-# NiX 1.0.5 (8) — What to Test (Internal)
+# NiX 1.0.6 (1) — What to Test (Internal)
 
 Udostępniane linki zaproszeń są w tym buildzie celowo wyłączone. Nie testujemy
 landingu, AASA ani realizacji tokenów `share`; QR i dodawanie po username nadal
@@ -33,6 +33,15 @@ external Beta App Review.
 ## UI i regresja
 
 - PL/EN, jasny/ciemny motyw, większy Dynamic Type i VoiceOver.
+- Profil: kod QR po lewej i ołówek edycji po prawej, z równym rozmiarem,
+  hit area, haptics i poprawną nawigacją.
+- Edycja profilu: nazwa wymagana po trimie i maksymalnie 50 znaków; opcjonalny
+  opis maksymalnie 140 znaków; sprawdź zapis, anulowanie, ponowne otwarcie,
+  tryb offline i błąd sieci.
+- Awatar: aparat, biblioteka, kadrowanie 1:1, anulowanie, odmowa uprawnień,
+  ponowne przyznanie oraz usunięcie zdjęcia.
+- Prywatność opisu: `bio` widzi zaakceptowany znajomy, ale nie wyszukiwanie,
+  podgląd QR ani oczekujące zaproszenie.
 - Rejestracja i reset hasła: transparentny header, sam chevron wstecz i brak
   nakładania checkboxa na przycisk.
 - Profil: spójne SF Symbols, maksymalnie trzy wiersze głównych ustawień.

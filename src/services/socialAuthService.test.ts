@@ -112,8 +112,8 @@ describe('socialAuthService', () => {
     expect(mockSaveAppleId).toHaveBeenCalledWith('apple-user-123');
     expect(mockLegalAcceptanceInsert).toHaveBeenCalledWith({
       user_id: 'user-1',
-      terms_version: '2026-07-29',
-      privacy_version: '2026-07-29',
+      terms_version: '2026-08-01',
+      privacy_version: '2026-08-01',
     });
   });
 

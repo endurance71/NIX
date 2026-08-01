@@ -1,7 +1,7 @@
 # NiX Privacy Policy
 
-**Version:** 2026-07-29
-**Effective date:** 29 July 2026
+**Version:** 2026-08-01
+**Effective date:** 1 August 2026
 
 ## Controller and contact
 
@@ -12,9 +12,10 @@ competent data-protection authority.
 
 ## Data, purposes and legal bases
 
-We process email and login data, account identifiers, username, avatar, friend
-relationships and QR invitations, confirmation that the user is 16 or older
-(without storing date of birth), photo/video content and metadata, abuse reports,
+We process email and login data, account identifiers, username, display name,
+profile bio, avatar, friend relationships and QR invitations, confirmation that
+the user is 16 or older (without storing date of birth), text and photo/video
+content and metadata, abuse reports,
 blocks, screen-capture settings, notification token, app-installation identifier,
 device model, iOS and app versions, app language, private conversation read state,
 and technical logs. This is necessary to provide the account and

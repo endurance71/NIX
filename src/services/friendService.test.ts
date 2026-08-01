@@ -3,6 +3,7 @@ import {
   cancelOutgoingFriendRequest,
   createFriendInviteQrToken,
   getFriendInviteRelationStatus,
+  listAcceptedFriends,
   listOutgoingFriendRequests,
   normalizeUsername,
   previewFriendInviteToken,
@@ -127,6 +128,37 @@ describe('removeFriend', () => {
     expect(mockFriendshipsDeleteOr).toHaveBeenCalledWith(
       'and(user_id.eq.user-1,friend_id.eq.user-2),and(user_id.eq.user-2,friend_id.eq.user-1)'
     );
+  });
+});
+
+describe('accepted friends', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('pobiera bio wyłącznie przez RPC zaakceptowanych znajomych', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
+    mockSupabaseRpc.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'user-2',
+          username: 'friend_user',
+          display_name: 'Friend',
+          bio: 'Tylko dla znajomych',
+          avatar_storage_path: null,
+          avatar_emoji: null,
+        },
+      ],
+      error: null,
+    });
+
+    const result = await listAcceptedFriends({ limit: 25 });
+
+    expect(mockSupabaseRpc).toHaveBeenCalledWith('list_accepted_friends_paginated', {
+      page_limit: 25,
+      before_created_at: undefined,
+    });
+    expect(result[0]?.bio).toBe('Tylko dla znajomych');
   });
 });
 

@@ -5,7 +5,7 @@
 
 ## Źródło wydania
 
-- [x] Bieżący numer to `1.0.5 (8)`; build 7 jest już zapisany jako wysłany.
+- [ ] Bieżący release candidate to `1.0.6 (1)`; poprzedni build `1.0.5 (8)` pozostaje punktem rollbacku.
 - [ ] Wszystkie zamierzone zmiany są zacommitowane na dedykowanej gałęzi.
 - [ ] Worktree jest czysty, a SHA buildu zapisane w raporcie wydania.
 - [x] `.env.production` włącza roadmapę wewnętrzną, ale jawnie wyłącza
@@ -46,7 +46,7 @@
 
 ## Podpisany artefakt
 
-- [x] Archiwum `1.0.5 (8)` utworzono lokalnie i przeszło `codesign --verify`.
+- [ ] Archiwum `1.0.6 (1)` utworzono lokalnie i przeszło `codesign --verify`.
 - [x] Associated Domains zawiera `applinks:nix.damianmotylinski.pl`.
 - [ ] Profil dystrybucyjny nadał produkcyjne APNs.
 - [x] Bundle ID to `com.damianmotylinski.nixapp`.

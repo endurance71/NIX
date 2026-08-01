@@ -1,6 +1,6 @@
 # NiX — pakiet prawny przed publikacją
 
-**Wersja:** 2026-07-15
+**Wersja:** 2026-08-01
 **Status:** treść kompletna technicznie; wymaga akceptacji prawnej i publikacji HTTPS.
 
 Ten katalog jest źródłem wersjonowanych treści dla aplikacji i przyszłej strony HTTPS:

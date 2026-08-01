@@ -5,6 +5,7 @@ export type FriendProfile = {
   id: string;
   username: string;
   display_name?: string | null;
+  bio?: string | null;
   avatar_storage_path?: string | null;
   avatar_emoji?: string | null;
 };
@@ -70,6 +71,10 @@ type PublicProfileRpcRow = {
   display_name?: string | null;
   avatar_storage_path?: string | null;
   avatar_emoji?: string | null;
+};
+
+type AcceptedFriendRpcRow = PublicProfileRpcRow & {
+  bio?: string | null;
 };
 
 function mapPublicProfileRow(row: PublicProfileRpcRow): FriendProfile | null {
@@ -342,37 +347,20 @@ export async function listAcceptedFriends(options: FriendListOptions = {}): Prom
   if (!user) return [];
   const limit = normalizeFriendPageLimit(options.limit);
 
-  let relationQuery = supabase
-    .from('friendships')
-    .select('user_id, friend_id, created_at')
-    .eq('status', 'accepted')
-    .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
-  if (options.beforeCreatedAt) {
-    relationQuery = relationQuery.lt('created_at', options.beforeCreatedAt);
-  }
-  const { data: relations, error: relationsError } = await relationQuery
-    .order('created_at', { ascending: false })
-    .limit(limit);
-
-  if (relationsError) throw toFriendlyError(relationsError);
-
-  const friendIds = (relations ?? []).flatMap((relation) => {
-    const id = relation.user_id === user.id ? relation.friend_id : relation.user_id;
-    return id ? [id as string] : [];
-  });
-
-  if (friendIds.length === 0) return [];
-
-  const { data: profiles, error: profilesError } = await supabase.rpc('get_public_profiles_by_ids', {
-    profile_ids: friendIds,
-  });
+  const { data: profiles, error: profilesError } = await supabase.rpc(
+    'list_accepted_friends_paginated',
+    {
+      page_limit: limit,
+      before_created_at: options.beforeCreatedAt ?? undefined,
+    }
+  );
 
   if (profilesError) throw toFriendlyError(profilesError);
 
-  return ((profiles ?? []) as PublicProfileRpcRow[]).flatMap((row) => {
+  return ((profiles ?? []) as AcceptedFriendRpcRow[]).flatMap((row) => {
     const mapped = mapPublicProfileRow(row);
-    return mapped ? [mapped] : [];
-  }) as FriendProfile[];
+    return mapped ? [{ ...mapped, bio: row.bio ?? null }] : [];
+  });
 }
 
 export async function removeFriend(friendId: string) {

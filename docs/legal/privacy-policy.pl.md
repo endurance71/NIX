@@ -1,7 +1,7 @@
 # Polityka prywatności NiX
 
-**Wersja:** 2026-07-29
-**Data wejścia w życie:** 29 lipca 2026 r.
+**Wersja:** 2026-08-01
+**Data wejścia w życie:** 1 sierpnia 2026 r.
 
 ## Administrator i kontakt
 
@@ -13,8 +13,9 @@ Ochrony Danych Osobowych.
 ## Zakres, cele i podstawy
 
 Przetwarzamy e-mail i dane logowania, identyfikator konta, nazwę użytkownika,
-awatar, relacje znajomych i zaproszenia QR, potwierdzenie ukończenia 16 lat
-(bez zapisywania daty urodzenia), treść oraz metadane zdjęć i wideo, zgłoszenia
+nazwę wyświetlaną, opis profilu, awatar, relacje znajomych i zaproszenia QR,
+potwierdzenie ukończenia 16 lat (bez zapisywania daty urodzenia), treść oraz
+metadane wiadomości tekstowych, zdjęć i wideo, zgłoszenia
 nadużyć, blokady, ustawienia ochrony przechwytywania ekranu, token powiadomień,
 identyfikator instalacji urządzenia, model urządzenia, wersję iOS i aplikacji,
 język aplikacji, prywatny stan przeczytania rozmów oraz techniczne logi. Dane są

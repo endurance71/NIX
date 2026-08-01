@@ -6,6 +6,7 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { useProfileScreen } from '../../hooks/useProfileScreen';
 import { registerTabScrollToTop } from '../../lib/tabBarScrollActions';
 import { HeaderQrButton } from '../navigation/header-qr-button';
+import { HeaderEditProfileButton } from '../navigation/header-edit-profile-button';
 import { AccentColorSwatch } from '../ui/accent-color-swatch';
 import {
   NativeSettingsCenteredFooter,
@@ -34,7 +35,8 @@ export default function ProfileScreenSurface() {
     <>
       <Stack.Screen
         options={{
-          headerRight: () => <HeaderQrButton />,
+          headerLeft: () => <HeaderQrButton />,
+          headerRight: () => <HeaderEditProfileButton />,
         }}
       />
       <SettingsListScreen loading={vm.profilePending} onRefresh={vm.handleListRefresh}>
@@ -42,7 +44,12 @@ export default function ProfileScreenSurface() {
         <NativeSettingsSection>
           <NativeSettingsRow
             title={vm.profileRow?.display_name || vm.t('profile.setDisplayName', 'Ustaw nazwę wyświetlaną')}
-            supportingText={`@${vm.profileUsername ?? vm.t('profile.missingUsername')}`}
+            supportingText={[
+              `@${vm.profileUsername ?? vm.t('profile.missingUsername')}`,
+              vm.profileRow?.bio?.trim(),
+            ]
+              .filter(Boolean)
+              .join('\n')}
             avatar={{
               url: vm.avatarSignedUrl,
               storagePath: vm.profileRow?.avatar_storage_path ?? null,
@@ -50,7 +57,8 @@ export default function ProfileScreenSurface() {
               fallbackInitial: vm.initialLetter,
               size: 60,
             }}
-            onPress={vm.handleEditDisplayName}
+            showsChevron
+            onPress={() => router.push('/(tabs)/profile/edit' as never)}
             testID="profile-identity"
           />
         </NativeSettingsSection>
@@ -108,41 +116,6 @@ export default function ProfileScreenSurface() {
             onPress={() => router.push('/(tabs)/profile/privacy-security' as never)}
             testID="profile-privacy-security"
           />
-        </NativeSettingsSection>
-
-        {/* Avatar Config */}
-        <NativeSettingsSection title={vm.t('profile.avatarSectionTitle', 'Awatar')}>
-          <NativeSettingsRow
-            title={vm.avatarBusy ? vm.t('profile.changeAvatarLoading') : vm.t('profile.changeAvatar')}
-            icon="photoLibrary"
-            iconColor={colors.accent}
-            disabled={vm.avatarBusy}
-            onPress={() => void vm.handlePickAvatarPhoto()}
-            testID="profile-change-avatar"
-          />
-          {vm.hasAvatar ? (
-            <NativeSettingsRow
-              title={vm.t('profile.removeAvatar')}
-              icon="trash"
-              role="destructive"
-              disabled={vm.avatarBusy}
-              onPress={() =>
-                Alert.alert(
-                  vm.t('profile.removeAvatarConfirmTitle'),
-                  vm.t('profile.removeAvatarConfirmMessage'),
-                  [
-                    { text: vm.t('common.cancel'), style: 'cancel' },
-                    {
-                      text: vm.t('profile.removeAvatar'),
-                      style: 'destructive',
-                      onPress: () => void vm.handleRemoveAvatar(),
-                    },
-                  ]
-                )
-              }
-              testID="profile-remove-avatar"
-            />
-          ) : null}
         </NativeSettingsSection>
 
         {/* Support & Legal */}

@@ -212,7 +212,12 @@ export default function FriendsScreen() {
                 onAction={() => confirmRemoveFriend(friend.id, friend.username)}>
                 <NativeSettingsRow
                   title={friend.display_name || `@${friend.username}`}
-                  supportingText={vm.t('profile.screenshotPermission')}
+                  supportingText={[
+                    friend.bio?.trim(),
+                    vm.t('profile.screenshotPermission'),
+                  ]
+                    .filter(Boolean)
+                    .join('\n')}
                   avatar={{
                     url: avatarPath ? vm.friendAvatarUrls[avatarPath] ?? null : null,
                     storagePath: avatarPath,
