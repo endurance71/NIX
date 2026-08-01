@@ -56,15 +56,16 @@
 - [ ] Profil dystrybucyjny nadał produkcyjne APNs.
 - [x] Bundle ID to `com.damianmotylinski.nixapp`.
 - [x] Sentry i upload symboli pozostają wyłączone.
+- [x] Organizer podpisał paczkę dystrybucyjnie i przesłał `1.0.6 (1)` do
+      App Store Connect 1 sierpnia 2026 o 13:54.
 - [ ] Build jest przypisany wyłącznie do `NiX Internal QA`.
 
-Archiwum utworzone 1 sierpnia 2026 jest podpisane certyfikatem Apple Development;
-ma `aps-environment=development` i `get-task-allow=true`. Test eksportu
-`app-store-connect` zakończył się komunikatami `No Accounts` oraz
-`No signing certificate "iOS Distribution" found`. Eksport dystrybucyjny jest
-zablokowany do czasu ponownego zalogowania konta Apple w Xcode i pobrania
-certyfikatu iOS Distribution. Po naprawie podpisu trzeba utworzyć nowe archiwum,
-sprawdzić produkcyjne APNs i dopiero wtedy wykonać Validate/Upload w Organizerze.
+Lokalny test `xcodebuild -exportArchive` nie widział konta Apple, ale dystrybucja
+z interaktywnego Organizera użyła aktywnej sesji Xcode, podpisała aplikację i
+zakończyła upload statusem `Uploaded to Apple`. Apple zaakceptował paczkę z
+ostrzeżeniami o brakujących dSYM dla prekompilowanych frameworków ExpoImage,
+React, ReactNativeDependencies, SDWebImage (wraz z coderami) i Hermes. Ostrzeżenia
+nie zablokowały uploadu; ograniczają symbolikację ewentualnych crashy w tych SDK.
 Associated Domains pozostaje w binarium na późniejszy rollout, ale UI,
 obsługa linków i realizacja tokenów `share` są w buildzie `1.0.6 (1)` wyłączone flagą.
 
@@ -80,9 +81,11 @@ obsługa linków i realizacja tokenów `share` są w buildzie `1.0.6 (1)` wyłą
   poprawny.
 - Unsigned Release i lokalne Archive zakończone poprawnie w Xcode 26.6; artefakt
   potwierdza `1.0.6 (1)` oraz `com.damianmotylinski.nixapp`.
-- Status: **NO-GO** do czasu publikacji `/privacy` i `/terms`, podpisu Apple
-  Distribution, testów na urządzeniach, Validate/Upload i konfiguracji Internal QA
-  w App Store Connect.
+- Upload przez Xcode Organizer: zakończony statusem `Uploaded to Apple`; build jest
+  przetwarzany przez App Store Connect.
+- Status: **NO-GO** do czasu publikacji `/privacy` i `/terms`, potwierdzenia
+  produkcyjnych APNs w przetworzonym buildzie, testów na urządzeniach oraz
+  konfiguracji Internal QA w App Store Connect.
 
 ## Akceptacja
 
