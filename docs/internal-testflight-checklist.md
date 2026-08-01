@@ -58,7 +58,14 @@
 - [x] Sentry i upload symboli pozostają wyłączone.
 - [x] Organizer podpisał paczkę dystrybucyjnie i przesłał `1.0.6 (1)` do
       App Store Connect 1 sierpnia 2026 o 13:54.
-- [ ] Build jest przypisany wyłącznie do `NiX Internal QA`.
+- [ ] Build jest przypisany wyłącznie do `NiX Internal QA` — świadomie
+      zaakceptowany wyjątek: pozostaje również w automatycznej wewnętrznej grupie
+      `Team (Expo)`. Nie dodano grup zewnętrznych ani Beta App Review.
+- [x] Przetwarzanie w App Store Connect zakończyło się poprawnie; build ma status
+      `Testing` i jest dostępny dla testerów wewnętrznych.
+- [x] `What to Test`, Beta App Description, Feedback Email oraz URL polityki
+      prywatności zapisano w TestFlight.
+- [x] Grupa `NiX Internal QA` używa ręcznego przypisywania buildów z Xcode.
 
 Lokalny test `xcodebuild -exportArchive` nie widział konta Apple, ale dystrybucja
 z interaktywnego Organizera użyła aktywnej sesji Xcode, podpisała aplikację i
@@ -81,11 +88,19 @@ obsługa linków i realizacja tokenów `share` są w buildzie `1.0.6 (1)` wyłą
   poprawny.
 - Unsigned Release i lokalne Archive zakończone poprawnie w Xcode 26.6; artefakt
   potwierdza `1.0.6 (1)` oraz `com.damianmotylinski.nixapp`.
-- Upload przez Xcode Organizer: zakończony statusem `Uploaded to Apple`; build jest
-  przetwarzany przez App Store Connect.
+- Upload przez Xcode Organizer: zakończony statusem `Uploaded to Apple`;
+  przetwarzanie App Store Connect zakończone, a build `1.0.6 (1)` ma status
+  `Testing`.
+- Dystrybucja wewnętrzna: build przypisano do `NiX Internal QA`; decyzją właściciela
+  pozostawiono go również w automatycznej grupie `Team (Expo)`. Obie grupy mają
+  tych samych czterech testerów. Nie uruchomiono dystrybucji zewnętrznej ani Beta
+  App Review.
+- Metadane TestFlight: zapisano opis wersji beta, `What to Test`, adres
+  `kontakt@damianmotylinski.pl` i URL polityki prywatności. Jedno konto
+  wewnętrzne zainstalowało już `1.0.6 (1)`.
 - Status: **NO-GO** do czasu publikacji `/privacy` i `/terms`, potwierdzenia
-  produkcyjnych APNs w przetworzonym buildzie, testów na urządzeniach oraz
-  konfiguracji Internal QA w App Store Connect.
+  produkcyjnych APNs w podpisanym buildzie oraz zakończenia testów na urządzeniach
+  i obserwacji po wdrożeniu.
 
 ## Akceptacja
 
