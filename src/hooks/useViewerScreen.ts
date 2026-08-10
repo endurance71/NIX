@@ -10,9 +10,9 @@ import {
   useAnimatedStyle,
   withTiming,
   Easing,
-  runOnJS,
   cancelAnimation,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { useScreenInsets } from './useScreenInsets';
 import type { EdgeInsets } from '../theme/safeArea';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -492,7 +492,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
           },
           (finished) => {
             if (finished) {
-              runOnJS(finishCurrentSlideEvent)();
+              scheduleOnRN(finishCurrentSlideEvent);
             }
           }
         )

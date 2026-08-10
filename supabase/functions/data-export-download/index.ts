@@ -8,7 +8,10 @@ import {
 
 function jwtIssuedAt(token: string): number | null {
   try {
-    const payload = token.split('.')[1].replaceAll('-', '+').replaceAll('_', '/');
+    const parts = token.split('.');
+    const payloadPart = parts[1];
+    if (!payloadPart) return null;
+    const payload = payloadPart.replaceAll('-', '+').replaceAll('_', '/');
     const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
     const decoded = JSON.parse(atob(padded)) as { iat?: unknown };
     return typeof decoded.iat === 'number' ? decoded.iat : null;

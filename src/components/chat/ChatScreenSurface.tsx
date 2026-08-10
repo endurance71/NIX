@@ -26,7 +26,6 @@ import Animated, {
   ZoomIn,
   ZoomOut,
   Easing,
-  runOnJS,
   useAnimatedKeyboard,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -35,6 +34,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import type { ChatScreenViewModel, OptimisticTextMessage } from '../../hooks/useChatScreen';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
@@ -561,7 +561,7 @@ function ReactionPickerOverlay({
     progress.set(
       withTiming(0, { duration: duration.medium, easing: Easing.out(Easing.cubic) }, (finished) => {
         if (finished) {
-          runOnJS(onExited)();
+          scheduleOnRN(onExited);
         }
       })
     );
@@ -1130,7 +1130,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     () => keyboard.height.value,
     (current, previous) => {
       if (previous == null && current < 0.5) return;
-      runOnJS(applyKeyboardScroll)(current);
+      scheduleOnRN(applyKeyboardScroll, current);
     }
   );
 

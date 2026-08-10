@@ -14,8 +14,8 @@ import {
   withRepeat,
   cancelAnimation,
   useAnimatedReaction,
-  runOnJS,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { Gesture } from 'react-native-gesture-handler';
 import { router, useFocusEffect } from 'expo-router';
 import { useScreenInsets, type ScreenInsetsResult } from './useScreenInsets';
@@ -293,7 +293,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     () => Math.floor(recordingElapsedMs.get() / 1000),
     (sec, previousSec) => {
       if (sec !== previousSec) {
-        runOnJS(pushRecordingElapsedSec)(sec);
+        scheduleOnRN(pushRecordingElapsedSec, sec);
       }
     }
   );
@@ -345,18 +345,18 @@ export function useCameraScreen(): CameraScreenViewModel {
           const tick = lastZoomCommitMs.get() + 1;
           lastZoomCommitMs.set(tick);
           if (tick % 3 === 0) {
-            runOnJS(setZoomFromGesture)(nextZoom);
+            scheduleOnRN(setZoomFromGesture, nextZoom);
           }
         })
         .onEnd(() => {
           'worklet';
           lastZoomCommitMs.set(0);
-          runOnJS(setZoomFromGesture)(zoomShared.get());
+          scheduleOnRN(setZoomFromGesture, zoomShared.get());
         })
         .onFinalize(() => {
           'worklet';
           lastZoomCommitMs.set(0);
-          runOnJS(setZoomFromGesture)(zoomShared.get());
+          scheduleOnRN(setZoomFromGesture, zoomShared.get());
         }),
     [
       lastZoomCommitMs,
@@ -1017,7 +1017,7 @@ export function useCameraScreen(): CameraScreenViewModel {
           }
           shutterFingerActive.set(true);
           state.activate();
-          runOnJS(handleShutterPressIn)();
+          scheduleOnRN(handleShutterPressIn);
         })
         .onChange((event) => {
           'worklet';
@@ -1031,7 +1031,7 @@ export function useCameraScreen(): CameraScreenViewModel {
           const tick = lastZoomCommitMs.get() + 1;
           lastZoomCommitMs.set(tick);
           if (tick % 3 === 0) {
-            runOnJS(setZoomFromGesture)(nextZoom);
+            scheduleOnRN(setZoomFromGesture, nextZoom);
           }
         })
         .onFinalize(() => {
@@ -1039,8 +1039,8 @@ export function useCameraScreen(): CameraScreenViewModel {
           if (!shutterFingerActive.get()) return;
           shutterFingerActive.set(false);
           lastZoomCommitMs.set(0);
-          runOnJS(setZoomFromGesture)(zoomShared.get());
-          runOnJS(handleShutterPressOut)();
+          scheduleOnRN(setZoomFromGesture, zoomShared.get());
+          scheduleOnRN(handleShutterPressOut);
         }),
     [
       handleShutterPressIn,
