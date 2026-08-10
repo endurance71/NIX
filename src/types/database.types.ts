@@ -641,6 +641,33 @@ export interface Database {
         Args: { p_peer_id: string; p_muted_until: string | null; p_indefinite?: boolean };
         Returns: void;
       };
+      register_push_device: {
+        Args: {
+          p_installation_id: string;
+          p_expo_push_token: string;
+          p_native_push_token: string | null;
+          p_platform: string;
+          p_locale: string;
+          p_app_version: string | null;
+        };
+        Returns: void;
+      };
+      touch_push_device: {
+        Args: {
+          p_installation_id: string;
+          p_locale?: string | null;
+          p_app_version?: string | null;
+        };
+        Returns: void;
+      };
+      get_push_device_state: {
+        Args: { p_installation_id: string };
+        Returns: { enabled: boolean; exists: boolean }[];
+      };
+      disable_push_device: {
+        Args: { p_installation_id: string; p_reason?: string };
+        Returns: void;
+      };
       register_app_installation: {
         Args: {
           p_installation_id: string;
@@ -664,6 +691,10 @@ export interface Database {
         Returns: void;
       };
       mark_nix_replayed: {
+        Args: { p_nix_id: string };
+        Returns: void;
+      };
+      mark_nix_unplayable: {
         Args: { p_nix_id: string };
         Returns: void;
       };

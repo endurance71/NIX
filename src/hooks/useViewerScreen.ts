@@ -22,7 +22,7 @@ import {
   fetchUnreadInboxQueueFromSender,
   fetchInboxNixById,
 } from '../services/nixService';
-import { markViewerSlideViewed } from '../lib/viewerSlideActions';
+import { markViewerSlideViewed, markViewerSlideUnplayable } from '../lib/viewerSlideActions';
 import { normalizeNixViewDurationSec } from '../lib/nixViewDuration';
 import { useAppTheme } from './useAppTheme';
 import { clearMediaMemoryCache } from '../lib/mediaCache';
@@ -37,7 +37,7 @@ import { useAppStateSnapshot } from './useAppStateSnapshot';
 import { useViewerCaptureGuard } from './useViewerCaptureGuard';
 import { toViewerQueueItem } from '../lib/viewerQueue';
 import { createViewerStyles } from '../components/viewer/viewerScreen.styles';
-import { markInboxNixViewedInCache } from '../lib/inboxQuery';
+import { markInboxNixUnplayableInCache, markInboxNixViewedInCache } from '../lib/inboxQuery';
 import { useTranslation } from 'react-i18next';
 import { blockUser, reportNix, type ReportReason } from '../services/safetyService';
 import { notifyDomainError, notifySuccess } from '../lib/appNotify';
@@ -310,6 +310,29 @@ export function useViewerScreen(): ViewerScreenViewModel {
       void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
     });
 
+    advanceAfterCurrentSlide();
+  };
+
+  /** Load/media failure — do not treat as a successful open (no replay window). */
+  const skipUnplayableSlide = (reason: string) => {
+    if (closingRef.current) return;
+    const item = queueRef.current[slideIndexRef.current];
+    if (!item) return;
+    if (lastFinishedSlideIdRef.current === item.id) return;
+    lastFinishedSlideIdRef.current = item.id;
+
+    cancelAnimation(segmentProgress);
+    segmentProgress.set(1);
+
+    markInboxNixUnplayableInCache(queryClient, item.id);
+    void markViewerSlideUnplayable(item, reason, () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
+    });
+
+    advanceAfterCurrentSlide();
+  };
+
+  const advanceAfterCurrentSlide = () => {
     if (slideIndexRef.current < queueRef.current.length - 1) {
       if (queueRef.current.length > 1) {
         selection();
@@ -324,6 +347,10 @@ export function useViewerScreen(): ViewerScreenViewModel {
 
   const finishCurrentSlideEvent = useEffectEvent(() => {
     finishCurrentSlide();
+  });
+
+  const skipUnplayableSlideEvent = useEffectEvent((reason: string) => {
+    skipUnplayableSlide(reason);
   });
 
   useEffect(() => {
@@ -403,7 +430,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
           error_message: err instanceof Error ? err.message : 'Unknown viewer load error',
         });
         if (!cancelled) {
-          finishCurrentSlideEvent();
+          skipUnplayableSlideEvent('signed_url_failed');
         }
       }
     })();
@@ -509,7 +536,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
       imageReady: false,
       imageLoadError: 'Nie udało się wczytać wideo.',
     }));
-    finishCurrentSlide();
+    skipUnplayableSlide('video_load_failed');
   };
 
   const onPrimaryImageLoad = () => {
@@ -535,7 +562,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
       imageReady: false,
       imageLoadError: 'Nie udało się wczytać zdjęcia.',
     }));
-    finishCurrentSlide();
+    skipUnplayableSlide('image_load_failed');
   };
 
   const handleReport = async (reason: ReportReason) => {

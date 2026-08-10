@@ -263,6 +263,7 @@ src/
 | `src/services/resumableUploadService.ts` | TUS dla wideo |
 | `src/services/capturePolicyService.ts` | `nix_capture_prefs`, RPC `get_capture_policy_for_sender` |
 | `src/app/viewer.tsx` | Odtwarzanie, timer, capture guard, cleanup |
+| `src/hooks/useViewerScreen.ts` | Kolejka unread od nadawcy **oldest→newest**; błąd loadu → `mark_nix_unplayable` (bez replay), nie `mark_nix_viewed_for_replay` |
 | `supabase/functions/cleanup-nix/index.ts` | Edge Function cleanup |
 
 ---
@@ -370,7 +371,7 @@ Smoke P0 (manualnie — rozszerzone o [development-workflow.md](development-work
 - Reset hasła (link) → `reset-password`; zmiana hasła z profilu
 - Znajomi: wyszukiwanie, zaproszenie, akceptacja; QR create/redeem
 - Kamera: zdjęcie i wideo → preview → send-to → rekord `nixes`
-- Inbox → viewer → `is_viewed`, cleanup, status końcowy
+- Inbox → viewer → kolejka FIFO (najstarszy→najnowszy); pełne odtworzenie → `is_viewed` + replay; błąd mediów → `cleaned` bez replay
 - Capture: domyślnie blokada; przełącznik per znajomy → allow
 - i18n: przełączenie PL/EN na kluczowych ekranach
 

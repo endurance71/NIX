@@ -28,6 +28,7 @@ Deno.serve(async (req) => {
   const { data, error } = await client.rpc('claim_push_notification_jobs', { p_limit: 10 });
   if (error) return json({ error: 'Could not claim push jobs' }, 500);
   const jobs = (data ?? []) as PushJob[];
+  const metrics = { skippedNoDevice: 0, ticketed: 0 };
 
   const markJob = async (job: PushJob, status: 'dispatched' | 'skipped' | 'failed', lastError: string | null) => {
     await client.from('push_notification_jobs').update({
@@ -143,6 +144,7 @@ Deno.serve(async (req) => {
       const completedDeviceIds = new Set((completedDeliveries ?? []).map((row) => row.device_id));
       const devices = ((deviceRows ?? []) as PushDevice[]).filter((device) => !completedDeviceIds.has(device.id));
       if (!deviceRows?.length) {
+        metrics.skippedNoDevice += 1;
         await markJob(job, 'skipped', 'no_active_devices');
         return;
       }
@@ -196,6 +198,7 @@ Deno.serve(async (req) => {
         await Promise.all(batch.map(async (device, index) => {
           const ticket = tickets[index];
           if (ticket?.status === 'ok') {
+            metrics.ticketed += 1;
             await client.from('push_notification_deliveries').upsert({
               job_id: job.id,
               device_id: device.id,
@@ -235,5 +238,10 @@ Deno.serve(async (req) => {
   };
 
   await Promise.all(jobs.map(processJob));
-  return json({ ok: true, processed: jobs.length });
+  return json({
+    ok: true,
+    processed: jobs.length,
+    skippedNoDevice: metrics.skippedNoDevice,
+    ticketed: metrics.ticketed,
+  });
 });

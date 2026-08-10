@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import {
   countUnreadInboxNixes,
+  markInboxNixUnplayableInCache,
   markInboxNixViewedInCache,
   type InboxBundle,
   fetchInboxNixesBundle,
@@ -142,6 +143,24 @@ describe('inbox query cache', () => {
       id: 'unread',
       is_viewed: true,
       status: 'viewed',
+      viewed_at: '2026-07-14T10:00:00.000Z',
+    });
+  });
+
+  it('optymistycznie oznacza nieodtwarzalny NiX jako cleaned bez replay', () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(queryKeys.inboxNixesBundle, bundle());
+
+    markInboxNixUnplayableInCache(queryClient, 'unread', '2026-07-14T10:00:00.000Z');
+
+    const cached = queryClient.getQueryData<InboxBundle>(queryKeys.inboxNixesBundle);
+    expect(countUnreadInboxNixes(cached)).toBe(0);
+    expect(cached?.inboxData[0]).toMatchObject({
+      id: 'unread',
+      is_viewed: true,
+      is_replayed: true,
+      status: 'cleaned',
+      replay_expires_at: null,
       viewed_at: '2026-07-14T10:00:00.000Z',
     });
   });

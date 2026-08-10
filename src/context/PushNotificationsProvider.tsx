@@ -25,6 +25,7 @@ import {
   requestPushPermission,
   setLocalPushDesired,
   subscribeToAppForeground,
+  touchCurrentPushDevice,
   wasPushPromptOffered,
 } from '../services/pushNotificationService';
 import { parsePushNotificationData, routeForPushNotification } from '../lib/pushNotificationPayload';
@@ -96,6 +97,11 @@ async function refreshPushNotificationState(
     if (permission === 'granted' && remote.enabled) {
       if (!desired) await setLocalPushDesired(userId, true);
       await ensureBadgePermission();
+      try {
+        await touchCurrentPushDevice();
+      } catch (error) {
+        console.warn('Push device heartbeat failed', error);
+      }
       setState('enabled');
       return;
     }
@@ -216,8 +222,10 @@ export function PushNotificationsProvider({
     });
   };
 
-  const offerAfterSuccessfulSend = async () => {
-    if (state === 'enabled' || state === 'denied' || busy) return;
+  const offerPushRationale = async () => {
+    if (state === 'enabled' || state === 'denied' || state === 'unavailable' || state === 'loading' || busy) {
+      return;
+    }
     if (await wasPushPromptOffered(userId)) return;
     await markPushPromptOffered(userId);
     trackEvent('push_rationale_shown');
@@ -225,6 +233,10 @@ export function PushNotificationsProvider({
       { text: t('push.notNow'), style: 'cancel' },
       { text: t('push.enableAction'), onPress: () => void enable() },
     ]);
+  };
+
+  const offerAfterSuccessfulSend = async () => {
+    await offerPushRationale();
   };
 
   useEffect(() => {
@@ -240,6 +252,15 @@ export function PushNotificationsProvider({
       unsubscribe();
     };
   }, [userId]);
+
+  // After onboarding, offer push once so receivers (not only senders) register a token.
+  useEffect(() => {
+    if (!canNavigate || state !== 'disabled' || busy) return;
+    const timer = setTimeout(() => void offerPushRationale(), 800);
+    return () => clearTimeout(timer);
+    // Intentionally omit offerPushRationale: prompt once when state settles after onboarding.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canNavigate, state, busy, userId]);
 
   useEffect(() => {
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {

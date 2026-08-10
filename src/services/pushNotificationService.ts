@@ -151,6 +151,17 @@ export async function registerCurrentPushDevice(
   return { installationId, expoToken };
 }
 
+/** Heartbeat for an already-enabled device — does not rotate row id or wipe deliveries. */
+export async function touchCurrentPushDevice() {
+  const installationId = await getInstallationId();
+  const { error } = await supabase.rpc('touch_push_device', {
+    p_installation_id: installationId,
+    p_locale: getCurrentLocale(),
+    p_app_version: Constants.expoConfig?.version ?? null,
+  });
+  if (error) throw error;
+}
+
 export async function disableCurrentPushDevice(userId: string, reason: string) {
   const installationId = await getInstallationId();
   const { error } = await supabase.rpc('disable_push_device', {

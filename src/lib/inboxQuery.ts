@@ -133,3 +133,31 @@ export function markInboxNixViewedInCache(
     };
   });
 }
+
+/** Unplayable media removed from unread without a successful open / replay. */
+export function markInboxNixUnplayableInCache(
+  queryClient: QueryClient,
+  nixId: string,
+  viewedAt = new Date().toISOString()
+) {
+  queryClient.setQueryData<InboxBundle>(queryKeys.inboxNixesBundle, (current) => {
+    if (!current) return current;
+    const wasUnread = current.inboxData.some((nix) => nix.id === nixId && nix.is_viewed !== true);
+    return {
+      ...current,
+      unreadCount: wasUnread ? Math.max(0, current.unreadCount - 1) : current.unreadCount,
+      inboxData: current.inboxData.map((nix) =>
+        nix.id === nixId
+          ? {
+              ...nix,
+              is_viewed: true,
+              is_replayed: true,
+              status: 'cleaned' as const,
+              viewed_at: viewedAt,
+              replay_expires_at: null,
+            }
+          : nix
+      ),
+    };
+  });
+}

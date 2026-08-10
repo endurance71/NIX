@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import { getCurrentUser } from './profileService';
 import { DomainError } from './errors';
 import { nowMs, trackDuration } from '../lib/telemetry';
+import { filterUnreadInboxNixesFromSender } from '../lib/nixUnreadQueue';
 
 export type InboxNix = {
   id: string;
@@ -456,11 +457,7 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
 }
 
 /** Nieobejrzane nixy od jednego nadawcy, od najstarszego (FIFO przy odtwarzaniu). */
-function filterUnreadInboxNixesFromSender(nixes: InboxNix[], senderId: string): InboxNix[] {
-  return nixes
-    .filter((s) => s.sender_id === senderId && s.is_viewed !== true)
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-}
+export { filterUnreadInboxNixesFromSender } from '../lib/nixUnreadQueue';
 
 export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise<InboxNix[]> {
   const user = await getCurrentUser();
@@ -477,6 +474,7 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
     .eq('receiver_id', user.id)
     .eq('sender_id', senderId)
     .eq('is_viewed', false)
+    .not('status', 'in', '("cleaned","cleanup_failed")')
     .order('created_at', { ascending: true });
 
   if (error && isMissingThumbnailColumnError(error)) {
@@ -845,6 +843,14 @@ export async function flushCleanupQueue(limit = 10) {
 
 export async function markNixViewedForReplay(nixId: string) {
   const { error } = await supabase.rpc('mark_nix_viewed_for_replay', {
+    p_nix_id: nixId,
+  });
+  if (error) throw mapDatabaseError(error);
+}
+
+/** Media missing / unreadable — remove from unread FIFO without a replay window. */
+export async function markNixUnplayable(nixId: string) {
+  const { error } = await supabase.rpc('mark_nix_unplayable', {
     p_nix_id: nixId,
   });
   if (error) throw mapDatabaseError(error);
