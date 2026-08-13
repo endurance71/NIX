@@ -669,7 +669,7 @@
 				CODE_SIGN_ENTITLEMENTS = NiX/NiX.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -683,7 +683,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.4;
-				MARKETING_VERSION = 1.0.6;
+				MARKETING_VERSION = 1.0.9;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -709,7 +709,7 @@
 				CODE_SIGN_ENTITLEMENTS = NiX/NiX.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				INFOPLIST_FILE = NiX/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
@@ -718,7 +718,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.4;
-				MARKETING_VERSION = 1.0.6;
+				MARKETING_VERSION = 1.0.9;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -742,14 +742,14 @@
 				CODE_SIGN_ENTITLEMENTS = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ExpoWidgetsTarget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ExpoWidgetsTarget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
-				MARKETING_VERSION = 1.0.6;
+				MARKETING_VERSION = 1.0.9;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.damianmotylinski.nixapp.UploadStatusWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -903,14 +903,14 @@
 				CODE_SIGN_ENTITLEMENTS = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ExpoWidgetsTarget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ExpoWidgetsTarget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
-				MARKETING_VERSION = 1.0.6;
+				MARKETING_VERSION = 1.0.9;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.damianmotylinski.nixapp.UploadStatusWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";

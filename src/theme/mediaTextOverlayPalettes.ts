@@ -23,11 +23,10 @@ export const MEDIA_TEXT_COLOR_SWATCHES: MediaTextPaletteSwatch[] = [
   { id: 'mint', labelKey: 'mint', color: '#00C7BE' },
 ];
 
-/** Caption bar fill presets. Default keeps Liquid Glass in preview. */
+/** Caption bar fill presets. White is the default translucent fill. */
 export const MEDIA_TEXT_BAR_SWATCHES: MediaTextPaletteSwatch[] = [
-  { id: 'default', labelKey: 'barDefault', color: DEFAULT_MEDIA_TEXT_BAR_COLOR },
   { id: 'black', labelKey: 'barBlack', color: '#000000E6' },
-  { id: 'white', labelKey: 'barWhite', color: '#FFFFFF8C' },
+  { id: 'white', labelKey: 'barWhite', color: DEFAULT_MEDIA_TEXT_BAR_COLOR },
   { id: 'clear', labelKey: 'barClear', color: TRANSPARENT_MEDIA_TEXT_BAR_COLOR },
   { id: 'blue', labelKey: 'blue', color: '#007AFFCC' },
   { id: 'purple', labelKey: 'purple', color: '#AF52DECC' },

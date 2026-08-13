@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
   clampOverlayY,
@@ -49,6 +49,62 @@ type UsePreviewTextOverlayArgs = {
   clampBottomPx: number;
 };
 
+function applyPreviewTextStylePatch(
+  previous: PreviewTextEditorState,
+  patch: PreviewTextStylePatch
+): PreviewTextEditorState {
+  const defaults = defaultMediaTextOverlayStyle();
+  const presetPatch =
+    patch.preset != null ? applyMediaTextPreset(normalizeMediaTextPreset(patch.preset)) : null;
+  const fontDesign =
+    patch.fontDesign != null
+      ? normalizeMediaTextFontDesign(patch.fontDesign)
+      : previous.fontDesign;
+  const leavingMonospaceViaFont =
+    patch.fontDesign != null && previous.preset === 'monospace' && presetPatch == null;
+
+  return {
+    ...previous,
+    textColor:
+      patch.textColor != null
+        ? normalizeHexColor(patch.textColor, defaults.textColor)
+        : previous.textColor,
+    barColor:
+      patch.barColor != null
+        ? normalizeHexColor(patch.barColor, defaults.barColor)
+        : previous.barColor,
+    bold:
+      typeof patch.bold === 'boolean'
+        ? patch.bold
+        : (presetPatch?.bold ?? previous.bold),
+    italic: typeof patch.italic === 'boolean' ? patch.italic : previous.italic,
+    underline:
+      typeof patch.underline === 'boolean' ? patch.underline : previous.underline,
+    strikethrough:
+      typeof patch.strikethrough === 'boolean'
+        ? patch.strikethrough
+        : previous.strikethrough,
+    monospace:
+      typeof patch.monospace === 'boolean'
+        ? patch.monospace
+        : patch.fontDesign != null
+          ? false
+          : (presetPatch?.monospace ?? previous.monospace),
+    fontDesign,
+    preset: leavingMonospaceViaFont
+      ? 'body'
+      : (presetPatch?.preset ?? previous.preset),
+    fontSize:
+      typeof patch.fontSize === 'number' &&
+      Number.isFinite(patch.fontSize) &&
+      patch.fontSize > 0
+        ? patch.fontSize
+        : (presetPatch?.fontSize ?? previous.fontSize),
+    align:
+      patch.align != null ? normalizeMediaTextAlign(patch.align) : previous.align,
+  };
+}
+
 export function usePreviewTextOverlay({
   overlay,
   onChangeOverlay,
@@ -60,19 +116,14 @@ export function usePreviewTextOverlay({
 
   const usableHeight = Math.max(1, windowHeight - clampTopPx - clampBottomPx);
 
-  const yToTopPx = useCallback(
-    (y: number) => clampTopPx + clampOverlayY(y) * usableHeight,
-    [clampTopPx, usableHeight]
-  );
+  const yToTopPx = (y: number) => clampTopPx + clampOverlayY(y) * usableHeight;
 
-  const topPxToY = useCallback(
-    (topPx: number) => clampOverlayY((topPx - clampTopPx) / usableHeight),
-    [clampTopPx, usableHeight]
-  );
+  const topPxToY = (topPx: number) =>
+    clampOverlayY((topPx - clampTopPx) / usableHeight);
 
-  const committed = useMemo(() => normalizeMediaTextOverlay(overlay), [overlay]);
+  const committed = normalizeMediaTextOverlay(overlay);
 
-  const startEditing = useCallback(() => {
+  const startEditing = () => {
     const base = committed ?? createDefaultMediaTextOverlay('');
     const style = defaultMediaTextOverlayStyle();
     setEditor({
@@ -91,13 +142,13 @@ export function usePreviewTextOverlay({
       preset: base.preset ?? style.preset,
       align: base.align ?? style.align,
     });
-  }, [committed]);
+  };
 
-  const cancelEditing = useCallback(() => {
+  const cancelEditing = () => {
     setEditor(null);
-  }, []);
+  };
 
-  const confirmEditing = useCallback(() => {
+  const confirmEditing = () => {
     if (!editor) return;
     const next = normalizeMediaTextOverlay({
       text: editor.draftText,
@@ -134,89 +185,45 @@ export function usePreviewTextOverlay({
       }
     }
     setEditor(null);
-  }, [committed, editor, onChangeOverlay]);
+  };
 
-  const setDraftText = useCallback((text: string) => {
+  const setDraftText = (text: string) => {
     setEditor((prev) => (prev ? { ...prev, draftText: text } : prev));
-  }, []);
+  };
 
-  const setY = useCallback(
-    (y: number, mode: 'editor' | 'committed') => {
-      const nextY = clampOverlayY(y);
-      if (mode === 'editor') {
-        setEditor((prev) => (prev ? { ...prev, y: nextY } : prev));
-        return;
-      }
-      if (!committed) return;
-      onChangeOverlay({ ...committed, y: nextY });
-    },
-    [committed, onChangeOverlay]
-  );
+  const setY = (y: number, mode: 'editor' | 'committed') => {
+    const nextY = clampOverlayY(y);
+    if (mode === 'editor') {
+      setEditor((prev) => (prev ? { ...prev, y: nextY } : prev));
+      return;
+    }
+    if (!committed) return;
+    onChangeOverlay({ ...committed, y: nextY });
+  };
 
-  const patchDraftStyle = useCallback((patch: PreviewTextStylePatch) => {
-    setEditor((prev) => {
-      if (!prev) return prev;
-      const defaults = defaultMediaTextOverlayStyle();
-      const presetPatch =
-        patch.preset != null ? applyMediaTextPreset(normalizeMediaTextPreset(patch.preset)) : null;
-      const fontDesign =
-        patch.fontDesign != null
-          ? normalizeMediaTextFontDesign(patch.fontDesign)
-          : prev.fontDesign;
-      const leavingMonospaceViaFont =
-        patch.fontDesign != null && prev.preset === 'monospace' && presetPatch == null;
-      const next = {
-        ...prev,
-        textColor:
-          patch.textColor != null
-            ? normalizeHexColor(patch.textColor, defaults.textColor)
-            : prev.textColor,
-        barColor:
-          patch.barColor != null
-            ? normalizeHexColor(patch.barColor, defaults.barColor)
-            : prev.barColor,
-        bold: typeof patch.bold === 'boolean' ? patch.bold : (presetPatch?.bold ?? prev.bold),
-        italic: typeof patch.italic === 'boolean' ? patch.italic : prev.italic,
-        underline: typeof patch.underline === 'boolean' ? patch.underline : prev.underline,
-        strikethrough:
-          typeof patch.strikethrough === 'boolean' ? patch.strikethrough : prev.strikethrough,
-        monospace:
-          typeof patch.monospace === 'boolean'
-            ? patch.monospace
-            : patch.fontDesign != null
-              ? false
-              : (presetPatch?.monospace ?? prev.monospace),
-        fontDesign,
-        preset: leavingMonospaceViaFont
-          ? 'body'
-          : (presetPatch?.preset ?? prev.preset),
-        fontSize:
-          typeof patch.fontSize === 'number' && Number.isFinite(patch.fontSize) && patch.fontSize > 0
-            ? patch.fontSize
-            : (presetPatch?.fontSize ?? prev.fontSize),
-        align: patch.align != null ? normalizeMediaTextAlign(patch.align) : prev.align,
-      };
-      trackEvent('preview_text_format_changed', {
-        text_color: next.textColor,
-        bar_color: next.barColor,
-        bold: next.bold,
-        italic: next.italic,
-        underline: next.underline,
-        strikethrough: next.strikethrough,
-        monospace: next.monospace,
-        font_design: next.fontDesign,
-        preset: next.preset,
-        align: next.align,
-      });
-      return next;
+  const patchDraftStyle = (patch: PreviewTextStylePatch) => {
+    if (!editor) return;
+    const next = applyPreviewTextStylePatch(editor, patch);
+    setEditor(next);
+    trackEvent('preview_text_format_changed', {
+      text_color: next.textColor,
+      bar_color: next.barColor,
+      bold: next.bold,
+      italic: next.italic,
+      underline: next.underline,
+      strikethrough: next.strikethrough,
+      monospace: next.monospace,
+      font_design: next.fontDesign,
+      preset: next.preset,
+      align: next.align,
     });
-  }, []);
+  };
 
-  const removeOverlay = useCallback(() => {
+  const removeOverlay = () => {
     onChangeOverlay(null);
     setEditor(null);
     trackEvent('preview_text_removed', { reason: 'manual' });
-  }, [onChangeOverlay]);
+  };
 
   return {
     committed,

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -96,6 +96,7 @@ function FriendRecipientRow({
 }
 
 export default function SendToSheet() {
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { topContentInset, bottomContentInset } = useScreenInsets('sheet');
@@ -190,6 +191,8 @@ export default function SendToSheet() {
                 mediaType: 'video',
                 textOverlay,
                 drawingOverlay,
+                viewportWidth,
+                viewportHeight,
               });
               return { ...segment, uri: baked.uri };
             })
@@ -216,6 +219,8 @@ export default function SendToSheet() {
             mediaType: 'image',
             textOverlay,
             drawingOverlay,
+            viewportWidth,
+            viewportHeight,
           });
           const result = await enqueueMediaBatch({
             fileUri: baked.uri,

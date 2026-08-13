@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -89,7 +89,7 @@ export function PreviewTextTools({
     opacity: textBtnOpacity.get(),
   }));
 
-  const confirmEditing = useCallback(() => {
+  const confirmEditing = () => {
     if (stickerExitActionRef.current) return;
     const isEmptyDraft = (controls.editor?.draftText.trim().length ?? 0) === 0;
     if (controls.isEditing && isEmptyDraft && motionEnabled) {
@@ -98,9 +98,9 @@ export function PreviewTextTools({
       return;
     }
     controls.confirmEditing();
-  }, [controls, motionEnabled]);
+  };
 
-  const deleteSticker = useCallback(() => {
+  const deleteSticker = () => {
     if (stickerExitActionRef.current) return;
     if (!motionEnabled) {
       controls.removeOverlay();
@@ -108,9 +108,9 @@ export function PreviewTextTools({
     }
     stickerExitActionRef.current = 'delete';
     setStickerExiting(true);
-  }, [controls, motionEnabled]);
+  };
 
-  const completeStickerExit = useCallback(() => {
+  const completeStickerExit = () => {
     const action = stickerExitActionRef.current;
     stickerExitActionRef.current = null;
     setStickerExiting(false);
@@ -119,7 +119,7 @@ export function PreviewTextTools({
       return;
     }
     controls.confirmEditing();
-  }, [controls]);
+  };
 
   const textButton = (
     <Animated.View

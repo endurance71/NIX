@@ -7,8 +7,15 @@ export const DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE = 34;
 /** Black text is the default for newly created stickers. */
 export const DEFAULT_MEDIA_TEXT_COLOR = '#000000';
 
-/** Dark translucent caption bar — rgba(0,0,0,0.55) as #RRGGBBAA. */
-export const DEFAULT_MEDIA_TEXT_BAR_COLOR = '#0000008C';
+/** Default light translucent caption bar — rgba(255,255,255,0.8). */
+export const DEFAULT_MEDIA_TEXT_BAR_COLOR = '#FFFFFFCC';
+
+/** Static export uses the same fill as preview. */
+export const DEFAULT_MEDIA_TEXT_BAKED_BAR_COLOR = DEFAULT_MEDIA_TEXT_BAR_COLOR;
+
+/** Previous defaults accepted while normalizing persisted drafts. */
+const LEGACY_MEDIA_TEXT_GLASS_BAR_COLOR = '#0000008C';
+const LEGACY_MEDIA_TEXT_TRANSLUCENT_BAR_COLOR = '#FFFFFF8C';
 
 /** Fully transparent bar (no fill in bake / solid preview). */
 export const TRANSPARENT_MEDIA_TEXT_BAR_COLOR = '#00000000';
@@ -124,7 +131,18 @@ export function defaultMediaTextOverlayStyle(): MediaTextOverlayStyle {
 }
 
 export function isDefaultBarColor(barColor: string): boolean {
-  return normalizeHexColor(barColor, DEFAULT_MEDIA_TEXT_BAR_COLOR) === DEFAULT_MEDIA_TEXT_BAR_COLOR;
+  const normalized = normalizeHexColor(barColor, DEFAULT_MEDIA_TEXT_BAR_COLOR);
+  return (
+    normalized === DEFAULT_MEDIA_TEXT_BAR_COLOR ||
+    normalized === LEGACY_MEDIA_TEXT_GLASS_BAR_COLOR ||
+    normalized === LEGACY_MEDIA_TEXT_TRANSLUCENT_BAR_COLOR
+  );
+}
+
+export function resolveMediaTextBarColor(barColor: string): string {
+  return isDefaultBarColor(barColor)
+    ? DEFAULT_MEDIA_TEXT_BAKED_BAR_COLOR
+    : normalizeHexColor(barColor, DEFAULT_MEDIA_TEXT_BAKED_BAR_COLOR);
 }
 
 export function normalizeMediaTextOverlay(
@@ -143,7 +161,7 @@ export function normalizeMediaTextOverlay(
         ? overlay.fontSize
         : DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE,
     textColor: normalizeHexColor(overlay.textColor, defaults.textColor),
-    barColor: normalizeHexColor(overlay.barColor, defaults.barColor),
+    barColor: resolveMediaTextBarColor(overlay.barColor ?? defaults.barColor),
     bold: typeof overlay.bold === 'boolean' ? overlay.bold : defaults.bold,
     italic: typeof overlay.italic === 'boolean' ? overlay.italic : defaults.italic,
     underline: typeof overlay.underline === 'boolean' ? overlay.underline : defaults.underline,

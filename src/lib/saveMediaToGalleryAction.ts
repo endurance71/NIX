@@ -21,6 +21,8 @@ type SaveLocalArgs = {
   segmentCount?: number;
   textOverlay?: MediaTextOverlay | null;
   drawingOverlay?: MediaDrawingOverlay | null;
+  viewportWidth: number;
+  viewportHeight: number;
 };
 
 type SaveRemoteArgs = {
@@ -83,20 +85,32 @@ export async function saveLocalMediaToGallery(args: SaveLocalArgs): Promise<bool
   return withWritePermission(async () => {
     const temporaryUris: string[] = [];
     try {
+      const results = await Promise.allSettled(
+        args.uris.map((uri) =>
+          bakeMediaOverlays({
+            uri,
+            mediaType: args.mediaType,
+            textOverlay: args.textOverlay,
+            drawingOverlay: args.drawingOverlay,
+            viewportWidth: args.viewportWidth,
+            viewportHeight: args.viewportHeight,
+          })
+        )
+      );
       const urisToSave: string[] = [];
-      for (const uri of args.uris) {
-        const baked = await bakeMediaOverlays({
-          uri,
-          mediaType: args.mediaType,
-          textOverlay: args.textOverlay,
-          drawingOverlay: args.drawingOverlay,
-        });
-        urisToSave.push(baked.uri);
-        temporaryUris.push(...baked.temporaryUris);
+      let firstError: unknown;
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          urisToSave.push(result.value.uri);
+          temporaryUris.push(...result.value.temporaryUris);
+        } else if (firstError === undefined) {
+          firstError = result.reason;
+        }
       }
+      if (firstError !== undefined) throw firstError;
       await saveLocalUrisToLibrary(urisToSave);
     } finally {
-      void releaseBakedOverlayUris(temporaryUris);
+      await releaseBakedOverlayUris(temporaryUris);
     }
   }, args.source, extra);
 }

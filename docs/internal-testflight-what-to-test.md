@@ -1,4 +1,4 @@
-# NiX 1.0.6 (1) — What to Test (Internal)
+# NiX 1.0.9 (1) — What to Test (Internal)
 
 Udostępniane linki zaproszeń są w tym buildzie celowo wyłączone. Nie testujemy
 landingu, AASA ani realizacji tokenów `share`; QR i dodawanie po username nadal
@@ -6,6 +6,21 @@ wchodzą w zakres regresji.
 
 Audience: members of **NiX Internal QA** only. Do not submit this build for
 external Beta App Review.
+
+## Naklejki i rysowanie — dwa konta i dwa iPhone’y
+
+- Zrób zdjęcie, dodaj naklejkę tekstową i sprawdź klawiaturę, przeciąganie,
+  zamknięcie przez overlay, usuwanie oraz formatowanie bez przeskoków UI.
+- Sprawdź każdy preset tekstu, wyrównanie, styl, kolor tekstu i kolor belki,
+  w tym „Bez belki”; domyślny tekst ma być czarny, a biała belka półprzezroczysta.
+- Narysuj kilka linii różnymi narzędziami, sprawdź undo/redo, anulowanie i
+  zatwierdzenie. Przejście headera ma być płynnym crossfade bez błędnej klatki.
+- Zapisz zdjęcie do galerii i wyślij je drugiemu kontu. Preview, zapisane medium
+  i widok odbiorcy muszą mieć zgodną geometrię, kolor i przezroczystość naklejki.
+- Powtórz dla krótkiego wideo i wielu segmentów. Kolejność segmentów musi zostać
+  zachowana, a częściowy błąd bake nie może zapisać niepełnego zestawu.
+- Po błędzie lub anulowaniu ponów zapis/wysyłkę i potwierdź brak błędu bridge,
+  osieroconych plików tymczasowych, crasha oraz podwójnego wysłania.
 
 ## Roadmap — dwa konta i dwa iPhone’y
 
@@ -51,6 +66,7 @@ external Beta App Review.
 
 ## Warunek GO
 
-Zablokuj rollout przy każdym crashu P0, utracie lub duplikacji wiadomości,
-nieautoryzowanym odczycie, wycieku tokenu zaproszenia, cudzym eksporcie albo
-wysłaniu push mimo blokady/mute.
+Zablokuj rollout przy każdym crashu P0, błędzie bake/bridge, różnicy między
+preview i medium odbiorcy, utracie lub duplikacji wiadomości, nieautoryzowanym
+odczycie, wycieku tokenu zaproszenia, cudzym eksporcie albo wysłaniu push mimo
+blokady/mute.

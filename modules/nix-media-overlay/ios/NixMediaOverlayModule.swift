@@ -4,6 +4,28 @@ import ExpoModulesCore
 import PencilKit
 import UIKit
 
+private struct BakeOverlaysOptions: Record {
+  @Field var sourcePath: String = ""
+  @Field var targetPath: String = ""
+  @Field var text: String = ""
+  @Field var normalizedY: Double = 0.5
+  @Field var fontSizePoints: Double = 34
+  @Field var viewportWidth: Double = 0
+  @Field var viewportHeight: Double = 0
+  @Field var textColor: String = "#000000"
+  @Field var barColor: String = "#FFFFFFCC"
+  @Field var bold: Bool = true
+  @Field var italic: Bool = false
+  @Field var underline: Bool = false
+  @Field var strikethrough: Bool = false
+  @Field var monospace: Bool = false
+  @Field var fontDesign: String = "system"
+  @Field var align: String = "center"
+  @Field var drawingData: String = ""
+  @Field var drawingWidth: Double = 0
+  @Field var drawingHeight: Double = 0
+}
+
 public class NixMediaOverlayModule: Module {
   public func definition() -> ModuleDefinition {
     Name("NixMediaOverlay")
@@ -42,53 +64,32 @@ public class NixMediaOverlayModule: Module {
       }
     }
 
-    AsyncFunction("bakeTextOnImageAsync") {
-      (
-        sourcePath: String,
-        targetPath: String,
-        text: String,
-        normalizedY: Double,
-        fontSizePoints: Double,
-        viewportWidth: Double,
-        viewportHeight: Double,
-        textColor: String,
-        barColor: String,
-        bold: Bool,
-        italic: Bool,
-        underline: Bool,
-        strikethrough: Bool,
-        monospace: Bool,
-        fontDesign: String,
-        align: String,
-        drawingData: String,
-        drawingWidth: Double,
-        drawingHeight: Double,
-        promise: Promise
-      ) in
+    AsyncFunction("bakeOverlaysOnImageAsync") {
+      (options: BakeOverlaysOptions, promise: Promise) in
       DispatchQueue.global(qos: .userInitiated).async {
         do {
           let style = Self.OverlayStyle(
-            textColor: textColor,
-            barColor: barColor,
-            bold: bold,
-            italic: italic,
-            underline: underline,
-            strikethrough: strikethrough,
-            monospace: monospace,
-            fontDesign: fontDesign,
-            align: align
+            textColor: options.textColor,
+            barColor: options.barColor,
+            bold: options.bold,
+            italic: options.italic,
+            underline: options.underline,
+            strikethrough: options.strikethrough,
+            monospace: options.monospace,
+            fontDesign: options.fontDesign,
+            align: options.align
           )
           let result = try Self.bakeTextOnImage(
-            sourcePath: Self.stripFileScheme(sourcePath),
-            targetPath: Self.stripFileScheme(targetPath),
-            text: text,
-            normalizedY: CGFloat(normalizedY),
-            fontSizePoints: CGFloat(fontSizePoints),
-            viewportWidth: CGFloat(viewportWidth),
-            viewportHeight: CGFloat(viewportHeight),
+            sourcePath: Self.stripFileScheme(options.sourcePath),
+            targetPath: Self.stripFileScheme(options.targetPath),
+            text: options.text,
+            normalizedY: CGFloat(options.normalizedY),
+            fontSizePoints: CGFloat(options.fontSizePoints),
+            viewportWidth: CGFloat(options.viewportWidth),
+            viewportHeight: CGFloat(options.viewportHeight),
             style: style,
-            drawingData: drawingData,
-            drawingSize: CGSize(width: drawingWidth, height: drawingHeight)
+            drawingData: options.drawingData,
+            drawingSize: CGSize(width: options.drawingWidth, height: options.drawingHeight)
           )
           promise.resolve(result)
         } catch {
@@ -97,52 +98,31 @@ public class NixMediaOverlayModule: Module {
       }
     }
 
-    AsyncFunction("bakeTextOnVideoAsync") {
-      (
-        sourcePath: String,
-        targetPath: String,
-        text: String,
-        normalizedY: Double,
-        fontSizePoints: Double,
-        viewportWidth: Double,
-        viewportHeight: Double,
-        textColor: String,
-        barColor: String,
-        bold: Bool,
-        italic: Bool,
-        underline: Bool,
-        strikethrough: Bool,
-        monospace: Bool,
-        fontDesign: String,
-        align: String,
-        drawingData: String,
-        drawingWidth: Double,
-        drawingHeight: Double,
-        promise: Promise
-      ) in
+    AsyncFunction("bakeOverlaysOnVideoAsync") {
+      (options: BakeOverlaysOptions, promise: Promise) in
       DispatchQueue.global(qos: .userInitiated).async {
         let style = Self.OverlayStyle(
-          textColor: textColor,
-          barColor: barColor,
-          bold: bold,
-          italic: italic,
-          underline: underline,
-          strikethrough: strikethrough,
-          monospace: monospace,
-          fontDesign: fontDesign,
-          align: align
+          textColor: options.textColor,
+          barColor: options.barColor,
+          bold: options.bold,
+          italic: options.italic,
+          underline: options.underline,
+          strikethrough: options.strikethrough,
+          monospace: options.monospace,
+          fontDesign: options.fontDesign,
+          align: options.align
         )
         Self.bakeTextOnVideo(
-          sourcePath: Self.stripFileScheme(sourcePath),
-          targetPath: Self.stripFileScheme(targetPath),
-          text: text,
-          normalizedY: CGFloat(normalizedY),
-          fontSizePoints: CGFloat(fontSizePoints),
-          viewportWidth: CGFloat(viewportWidth),
-          viewportHeight: CGFloat(viewportHeight),
+          sourcePath: Self.stripFileScheme(options.sourcePath),
+          targetPath: Self.stripFileScheme(options.targetPath),
+          text: options.text,
+          normalizedY: CGFloat(options.normalizedY),
+          fontSizePoints: CGFloat(options.fontSizePoints),
+          viewportWidth: CGFloat(options.viewportWidth),
+          viewportHeight: CGFloat(options.viewportHeight),
           style: style,
-          drawingData: drawingData,
-          drawingSize: CGSize(width: drawingWidth, height: drawingHeight)
+          drawingData: options.drawingData,
+          drawingSize: CGSize(width: options.drawingWidth, height: options.drawingHeight)
         ) { result in
           switch result {
           case .success(let uri):
@@ -179,7 +159,7 @@ public class NixMediaOverlayModule: Module {
       align: String
     ) {
       self.textColor = Self.parseHexColor(textColor) ?? .white
-      self.barColor = Self.parseHexColor(barColor) ?? UIColor.black.withAlphaComponent(0.55)
+      self.barColor = Self.parseHexColor(barColor) ?? UIColor.white.withAlphaComponent(0.8)
       self.bold = bold
       self.italic = italic
       self.underline = underline

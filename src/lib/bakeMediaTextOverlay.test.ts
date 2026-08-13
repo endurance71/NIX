@@ -22,12 +22,6 @@ vi.mock('expo-file-system/legacy', () => ({
   deleteAsync: vi.fn(async () => undefined),
 }));
 
-vi.mock('react-native', () => ({
-  Dimensions: {
-    get: () => ({ width: 390, height: 844 }),
-  },
-}));
-
 describe('bakeMediaTextOverlay', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -35,11 +29,13 @@ describe('bakeMediaTextOverlay', () => {
   });
 
   it('returns original uri when overlay is empty', async () => {
-    const { bakeMediaTextOverlay } = await import('./bakeMediaTextOverlay');
-    const result = await bakeMediaTextOverlay({
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    const result = await bakeMediaOverlays({
       uri: 'file:///photo.jpg',
       mediaType: 'image',
-      overlay: { text: '  ', y: 0.5, fontSize: 36 },
+      textOverlay: { text: '  ', y: 0.5, fontSize: 36 },
+      viewportWidth: 390,
+      viewportHeight: 844,
     });
     expect(result).toEqual({ uri: 'file:///photo.jpg', didBake: false, temporaryUris: [] });
     expect(bakeOverlaysOnImageAsync).not.toHaveBeenCalled();
@@ -47,11 +43,13 @@ describe('bakeMediaTextOverlay', () => {
 
   it('returns original uri when native module is unavailable', async () => {
     isNixMediaOverlayAvailable.mockReturnValue(false);
-    const { bakeMediaTextOverlay } = await import('./bakeMediaTextOverlay');
-    const result = await bakeMediaTextOverlay({
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    const result = await bakeMediaOverlays({
       uri: 'file:///photo.jpg',
       mediaType: 'image',
-      overlay: { text: 'hi', y: 0.5, fontSize: 36 },
+      textOverlay: { text: 'hi', y: 0.5, fontSize: 36 },
+      viewportWidth: 390,
+      viewportHeight: 844,
     });
     expect(result.didBake).toBe(false);
     expect(result.uri).toBe('file:///photo.jpg');
@@ -59,11 +57,11 @@ describe('bakeMediaTextOverlay', () => {
 
   it('bakes image overlay via native module with style defaults', async () => {
     bakeOverlaysOnImageAsync.mockResolvedValue('file:///cache/nix-text-overlay/out.jpg');
-    const { bakeMediaTextOverlay } = await import('./bakeMediaTextOverlay');
-    const result = await bakeMediaTextOverlay({
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    const result = await bakeMediaOverlays({
       uri: 'file:///photo.jpg',
       mediaType: 'image',
-      overlay: { text: 'hi', y: 0.3, fontSize: 36 },
+      textOverlay: { text: 'hi', y: 0.3, fontSize: 36 },
       viewportWidth: 390,
       viewportHeight: 844,
     });
@@ -97,11 +95,11 @@ describe('bakeMediaTextOverlay', () => {
 
   it('passes custom style into bake args', async () => {
     bakeOverlaysOnImageAsync.mockResolvedValue('file:///cache/nix-text-overlay/out.jpg');
-    const { bakeMediaTextOverlay } = await import('./bakeMediaTextOverlay');
-    await bakeMediaTextOverlay({
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    await bakeMediaOverlays({
       uri: 'file:///photo.jpg',
       mediaType: 'image',
-      overlay: {
+      textOverlay: {
         text: 'hi',
         y: 0.3,
         fontSize: 36,
@@ -116,6 +114,8 @@ describe('bakeMediaTextOverlay', () => {
         preset: 'monospace',
         align: 'right',
       },
+      viewportWidth: 390,
+      viewportHeight: 844,
     });
     const call = bakeOverlaysOnImageAsync.mock.calls[0][0] as {
       textOverlay: {
@@ -148,6 +148,8 @@ describe('bakeMediaTextOverlay', () => {
       uri: 'file:///photo.jpg',
       mediaType: 'image',
       drawingOverlay: { data: 'cGtEcmF3aW5n', width: 390, height: 844 },
+      viewportWidth: 390,
+      viewportHeight: 844,
     });
 
     expect(result.didBake).toBe(true);
@@ -171,6 +173,8 @@ describe('bakeMediaTextOverlay', () => {
       mediaType: 'image',
       textOverlay: { text: 'hi', y: 0.5, fontSize: 36 },
       drawingOverlay: { data: 'cGtEcmF3aW5n', width: 390, height: 844 },
+      viewportWidth: 390,
+      viewportHeight: 844,
     });
 
     expect(bakeOverlaysOnImageAsync).toHaveBeenCalledOnce();
@@ -178,11 +182,13 @@ describe('bakeMediaTextOverlay', () => {
 
   it('bakes video overlay via native module', async () => {
     bakeOverlaysOnVideoAsync.mockResolvedValue('file:///cache/nix-text-overlay/out.mp4');
-    const { bakeMediaTextOverlay } = await import('./bakeMediaTextOverlay');
-    const result = await bakeMediaTextOverlay({
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    const result = await bakeMediaOverlays({
       uri: 'file:///clip.mp4',
       mediaType: 'video',
-      overlay: { text: 'hi', y: 0.7, fontSize: 36 },
+      textOverlay: { text: 'hi', y: 0.7, fontSize: 36 },
+      viewportWidth: 390,
+      viewportHeight: 844,
     });
     expect(result.didBake).toBe(true);
     expect(bakeOverlaysOnVideoAsync).toHaveBeenCalledOnce();

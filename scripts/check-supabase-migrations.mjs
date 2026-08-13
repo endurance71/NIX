@@ -30,6 +30,8 @@ const expected = [
   '20260729122000_fix_read_state_rpc.sql',
   '20260729123000_harden_product_analytics_properties.sql',
   '20260801120000_profile_bio.sql',
+  '20260810190000_stable_push_device_registration.sql',
+  '20260810194500_mark_nix_unplayable.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();

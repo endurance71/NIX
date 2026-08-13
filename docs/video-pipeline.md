@@ -25,10 +25,12 @@ Po migawce: `setPhotoUri(photo.uri)` + natychmiastowy `router.push('/preview')`.
 
 - Tryb foto czyta URI z `PhotoDraft` (fallback: params `uri`).
 - Tryb wideo czyta segmenty z `VideoDraft`.
+- **Nakładka tekstowa (Snapchat-style):** przycisk Tekst → belka z klawiaturą → Gotowe; przeciąganie **góra–dół** (`y` 0–1). Draft: `PhotoDraft.textOverlay` / `VideoDraft.textOverlay`.
+- Przed **Wyślij** / **Zapisz w galerii** tekst jest wypalany w pliku przez lokalny moduł [`modules/nix-media-overlay`](../modules/nix-media-overlay) (`bakeTextOnImageAsync` / `bakeTextOnVideoAsync`) — geometria jak `contentFit: cover`.
 - Wybór **czasu wyświetlania** u odbiorcy (`view_duration_sec`): 5 / 15 / 30 / 60 / 180 (`ALLOWED_VIEW_DURATIONS` w nixService).
 - Chrome preview: `chromeVariant="glass"` — natywne Liquid Glass (`glassEffect` na SwiftUI `Button`).
-- **Zapisz w galerii** (lewy dół): zawsze dostępne dla nadawcy — `expo-media-library` write-only (`Asset.create`); wymaga native binary (`runtimeVersion` ≥ 1.0.4). Odbiorca zapisuje dopiero w viewerze przy `capture_policy=allow` — patrz [capture-protection.md](capture-protection.md).
-- Przygotowanie pliku i metadanych przed wysyłką — orchestracja w [`src/services/mediaService.ts`](../src/services/mediaService.ts).
+- **Zapisz w galerii** (lewy dół): zawsze dostępne dla nadawcy — `expo-media-library` write-only (`Asset.create`); wymaga native binary. Odbiorca zapisuje dopiero w viewerze przy `capture_policy=allow` — patrz [capture-protection.md](capture-protection.md).
+- Przygotowanie pliku i metadanych przed wysyłką — orchestracja w [`src/services/mediaService.ts`](../src/services/mediaService.ts); bake tekstu w [`src/lib/bakeMediaTextOverlay.ts`](../src/lib/bakeMediaTextOverlay.ts) przed enqueue / save.
 
 ## Kompresja
 

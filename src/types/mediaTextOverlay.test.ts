@@ -1,13 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MEDIA_TEXT_BAR_COLOR,
+  DEFAULT_MEDIA_TEXT_BAKED_BAR_COLOR,
   DEFAULT_MEDIA_TEXT_COLOR,
   createDefaultMediaTextOverlay,
   isDefaultBarColor,
   normalizeMediaTextOverlay,
+  resolveMediaTextBarColor,
 } from './mediaTextOverlay';
 
 describe('normalizeMediaTextOverlay', () => {
+  it('uses the light translucent fill and migrates the previous glass sentinel', () => {
+    expect(resolveMediaTextBarColor(DEFAULT_MEDIA_TEXT_BAR_COLOR)).toBe(
+      DEFAULT_MEDIA_TEXT_BAKED_BAR_COLOR
+    );
+    expect(resolveMediaTextBarColor('#0000008C')).toBe(DEFAULT_MEDIA_TEXT_BAR_COLOR);
+    expect(resolveMediaTextBarColor('#FFFFFF8C')).toBe(DEFAULT_MEDIA_TEXT_BAR_COLOR);
+    expect(resolveMediaTextBarColor('#000000E6')).toBe('#000000E6');
+  });
+
   it('returns null for empty text', () => {
     expect(normalizeMediaTextOverlay({ text: '  ', y: 0.5, fontSize: 34 })).toBeNull();
   });

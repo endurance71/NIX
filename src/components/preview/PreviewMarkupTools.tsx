@@ -1,7 +1,7 @@
-import { type ReactNode, useCallback, useRef, useState } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { NixDrawingCanvas } from '../../../modules/nix-media-overlay/NixDrawingCanvas';
+import NixDrawingCanvas from '../../../modules/nix-media-overlay/NixDrawingCanvas.ios';
 import type { NixDrawingCanvasHandle } from '../../../modules/nix-media-overlay/NixDrawingCanvas.types';
 import type { MediaDrawingOverlay } from '../../types/mediaDrawingOverlay';
 import { normalizeMediaDrawingOverlay } from '../../types/mediaDrawingOverlay';
@@ -49,14 +49,14 @@ export function PreviewMarkupTools({
   const [canRedo, setCanRedo] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
 
-  const startDrawing = useCallback(() => {
+  const startDrawing = () => {
     drawingBeforeEditRef.current = normalizeMediaDrawingOverlay(drawingOverlay);
     setCanUndo(false);
     setCanRedo(false);
     setIsDrawing(true);
-  }, [drawingOverlay]);
+  };
 
-  const cancelDrawing = useCallback(() => {
+  const cancelDrawing = () => {
     if (isCommitting) return;
     const canvas = canvasRef.current;
     if (!canvas) {
@@ -71,9 +71,9 @@ export function PreviewMarkupTools({
         setIsDrawing(false);
         setIsCommitting(false);
       });
-  }, [isCommitting]);
+  };
 
-  const finishDrawing = useCallback(() => {
+  const finishDrawing = () => {
     if (isCommitting) return;
     const canvas = canvasRef.current;
     if (!canvas) {
@@ -89,7 +89,7 @@ export function PreviewMarkupTools({
         setIsDrawing(false);
         setIsCommitting(false);
       });
-  }, [isCommitting, onChangeDrawingOverlay]);
+  };
 
   const drawingHeader = (
     <View style={styles.drawingHeader}>

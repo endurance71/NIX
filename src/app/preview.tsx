@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { View, StyleSheet, Pressable, Text, ActivityIndicator, type StyleProp, type ViewStyle } from 'react-native';
+import { View, StyleSheet, Pressable, Text, ActivityIndicator, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Image } from 'expo-image';
 import { useEventListener } from 'expo';
@@ -344,6 +344,7 @@ function PreviewVideoContent({
   onChangeDrawingOverlay: (next: MediaDrawingOverlay | null) => void;
 }) {
   const { t } = useTranslation();
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const { colors, statusBarStyle, isDark } = useAppTheme();
   const insets = useScreenInsets('mediaChrome');
   const styles = createStyles(colors);
@@ -581,6 +582,8 @@ function PreviewVideoContent({
                           segmentCount: segments.length,
                           textOverlay: normalizeMediaTextOverlay(textOverlay),
                           drawingOverlay: normalizeMediaDrawingOverlay(drawingOverlay),
+                          viewportWidth,
+                          viewportHeight,
                         }),
                       () => setIsSaving(false)
                     );
@@ -610,6 +613,7 @@ function PreviewVideoContent({
 }
 
 export default function PreviewScreen() {
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const { t } = useTranslation();
   const { colors, statusBarStyle } = useAppTheme();
   const insets = useScreenInsets('mediaChrome');
@@ -840,6 +844,8 @@ export default function PreviewScreen() {
                           mediaType: 'image',
                           textOverlay: normalizeMediaTextOverlay(photoTextOverlay),
                           drawingOverlay: normalizeMediaDrawingOverlay(photoDrawingOverlay),
+                          viewportWidth,
+                          viewportHeight,
                         }),
                       () => setIsSavingPhoto(false)
                     );

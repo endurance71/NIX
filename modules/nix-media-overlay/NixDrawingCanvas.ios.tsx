@@ -29,7 +29,7 @@ const NativeDrawingCanvas = requireNativeViewManager<NativeDrawingCanvasProps>(
   'NixMediaOverlay'
 ) as ComponentType<NativeDrawingCanvasProps & RefAttributes<NativeDrawingCanvasHandle>>;
 
-export const NixDrawingCanvas = forwardRef<NixDrawingCanvasHandle, NixDrawingCanvasProps>(
+const NixDrawingCanvas = forwardRef<NixDrawingCanvasHandle, NixDrawingCanvasProps>(
   function NixDrawingCanvas({ overlay, editing, onUndoStateChange, style }, forwardedRef) {
     const nativeRef = useRef<NativeDrawingCanvasHandle | null>(null);
 
@@ -62,3 +62,5 @@ export const NixDrawingCanvas = forwardRef<NixDrawingCanvasHandle, NixDrawingCan
     );
   }
 );
+
+export default NixDrawingCanvas;

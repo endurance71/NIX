@@ -125,10 +125,13 @@ SELECT is(
   0::BIGINT,
   'account export objects are not directly readable'
 );
-SELECT throws_ok(
-  $$SELECT public.get_unread_inbox_count_for_user('10000000-0000-0000-0000-000000000002')$$,
-  '42501',
-  'permission denied for function get_unread_inbox_count_for_user',
+SELECT is(
+  has_function_privilege(
+    'authenticated',
+    'public.get_unread_inbox_count_for_user(uuid)',
+    'EXECUTE'
+  ),
+  FALSE,
   'authenticated users cannot query another user unread count'
 );
 UPDATE public.product_analytics_preferences

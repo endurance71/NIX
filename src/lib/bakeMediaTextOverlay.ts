@@ -1,4 +1,3 @@
-import { Dimensions } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   bakeOverlaysOnImageAsync,
@@ -25,11 +24,6 @@ export type BakeMediaTextOverlayResult = {
 };
 
 export type BakeMediaOverlaysResult = BakeMediaTextOverlayResult;
-
-function defaultViewport() {
-  const { width, height } = Dimensions.get('window');
-  return { viewportWidth: width, viewportHeight: height };
-}
 
 function extensionFor(mediaType: 'image' | 'video', sourceUri: string): string {
   const fromUri = sourceUri.split('?')[0].split('.').pop()?.toLowerCase();
@@ -59,8 +53,8 @@ export async function bakeMediaOverlays(params: {
   mediaType: 'image' | 'video';
   textOverlay?: MediaTextOverlayInput | null;
   drawingOverlay?: MediaDrawingOverlayInput | null;
-  viewportWidth?: number;
-  viewportHeight?: number;
+  viewportWidth: number;
+  viewportHeight: number;
 }): Promise<BakeMediaOverlaysResult> {
   const textOverlay = normalizeMediaTextOverlay(params.textOverlay);
   const drawingOverlay = normalizeMediaDrawingOverlay(params.drawingOverlay);
@@ -75,8 +69,8 @@ export async function bakeMediaOverlays(params: {
   }
 
   const viewport = {
-    viewportWidth: params.viewportWidth ?? defaultViewport().viewportWidth,
-    viewportHeight: params.viewportHeight ?? defaultViewport().viewportHeight,
+    viewportWidth: params.viewportWidth,
+    viewportHeight: params.viewportHeight,
   };
   const targetUri = await makeTargetUri(params.mediaType, params.uri);
   const startedAt = nowMs();
@@ -136,23 +130,6 @@ export async function bakeMediaOverlays(params: {
     }
     throw error;
   }
-}
-
-/** Compatibility wrapper for existing text-only call sites. */
-export function bakeMediaTextOverlay(params: {
-  uri: string;
-  mediaType: 'image' | 'video';
-  overlay?: MediaTextOverlayInput | null;
-  viewportWidth?: number;
-  viewportHeight?: number;
-}): Promise<BakeMediaTextOverlayResult> {
-  return bakeMediaOverlays({
-    uri: params.uri,
-    mediaType: params.mediaType,
-    textOverlay: params.overlay,
-    viewportWidth: params.viewportWidth,
-    viewportHeight: params.viewportHeight,
-  });
 }
 
 export async function releaseBakedOverlayUris(uris: readonly string[]) {
