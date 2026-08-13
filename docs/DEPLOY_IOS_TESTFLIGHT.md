@@ -652,7 +652,7 @@ Kopiuj wiersz po każdym uploadzie binary **lub** po OTA:
 
 | Data | Wersja | Build / Update | Commit | Ścieżka (A OTA / B Xcode) | Środowisko | Status | Uwagi |
 | ---- | ------ | -------------- | ------ | ------------------------ | ---------- | ------ | ----- |
-| 2026-08-13 | 1.0.9 | 1 | pending RC | B | production | preparing | native drawing and text overlays; runtime 1.0.9; React Doctor 100/100; Internal QA after Processing |
+| 2026-08-13 | 1.0.9 | 1 | `2da2247` | B | production | uploaded ASC, processing | native drawing and text overlays; runtime 1.0.9; React Doctor 100/100; production APNs; non-blocking missing-dSYM warnings for precompiled frameworks; Internal QA after Processing |
 | 2026-08-10 | 1.0.6 | 2 | `9ee78e6` | B | production | uploaded ASC, processing | React Doctor 100 + Expo Doctor 19/19; scheduleOnRN migration; Expo SDK 57 patch bump + regenerated patches; Internal QA po Processing |
 | 2026-07-28 | 1.0.5 | 5 | `11ad990` | B | production | uploaded ASC | foreground URLSession for image+finalize; JPEG fast-path; image retry; phase telemetry; dSYM warnings prebuilt frameworks; Internal QA po Processing |
 | 2026-07-28 | 1.0.5 | OTA `15777d7e` | `bb4ee35` | A | production | published | JPEG fast-path + image retry + phase telemetry (native foreground needs build 5) |

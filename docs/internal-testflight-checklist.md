@@ -5,13 +5,13 @@
 
 ## Źródło wydania
 
-- [ ] Wszystkie zamierzone zmiany są na `release/ios-1.0.9-testflight`.
-- [ ] Worktree jest czysty, a SHA kandydata zapisany poniżej.
+- [x] Wszystkie zamierzone zmiany są na `release/ios-1.0.9-testflight`.
+- [x] Worktree jest czysty, a SHA kandydata zapisany poniżej.
 - [x] Wersja, runtime i marketing version to `1.0.9`.
-- [ ] Build `1` jest wolny w App Store Connect; w przeciwnym razie użyto `N+1`.
+- [x] Build `1` został przyjęty przez App Store Connect.
 - [x] `.env.production` ma produkcyjne flagi, Sentry off i share invites off.
 
-SHA RC: `pending`
+SHA RC: `2da2247`
 
 ## Automatyczne bramki
 
@@ -45,9 +45,10 @@ lokalnego bundlowania. `npm audit fix --force` proponuje niezgodny downgrade Exp
 
 ## Archive i dystrybucja
 
-- [ ] Archive Release ma `1.0.9 (1)`, właściwy Bundle ID i runtime `1.0.9`.
-- [ ] Podpis dystrybucyjny, App Groups i `aps-environment=production` są poprawne.
-- [ ] Organizer potwierdził `Uploaded to Apple`, a Processing zakończył się.
+- [x] Archive Release ma `1.0.9 (1)`, właściwy Bundle ID i runtime `1.0.9`.
+- [x] Podpis dystrybucyjny, App Groups i `aps-environment=production` są poprawne.
+- [x] App Store Connect potwierdził `Upload succeeded` 13 sierpnia 2026 o 15:18 CEST.
+- [ ] Processing zakończył się bez błędów.
 - [ ] Export Compliance i What to Test są uzupełnione.
 - [ ] Build przypisano wyłącznie do `NiX Internal QA`.
 
