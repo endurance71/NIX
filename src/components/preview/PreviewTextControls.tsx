@@ -36,6 +36,8 @@ type PreviewTextToolsProps = {
   chromeVariant?: ChromeVariant;
   /** Renders chrome; Text button is placed top-right by the parent. */
   renderChrome: (slots: PreviewTextChromeSlots) => ReactNode;
+  renderTextButton?: (startEditing: () => void) => ReactNode;
+  stickerPointerEvents?: 'box-none' | 'none';
 };
 
 export function PreviewTextTools({
@@ -46,6 +48,8 @@ export function PreviewTextTools({
   colors,
   chromeVariant = 'glass',
   renderChrome,
+  renderTextButton,
+  stickerPointerEvents = 'box-none',
 }: PreviewTextToolsProps) {
   const { t } = useTranslation();
   const motionEnabled = useMotionEnabled();
@@ -121,15 +125,19 @@ export function PreviewTextTools({
     <Animated.View
       style={textButtonStyle}
       pointerEvents={controls.isEditing ? 'none' : 'auto'}>
-      <NativeChromeIconButton
-        name="textFormat"
-        accessibilityLabel={t('preview.addText')}
-        onPress={controls.startEditing}
-        disabled={controls.isEditing}
-        backgroundColor={colors.cameraControlBackground}
-        tintColor={colors.cameraControlTint}
-        chromeVariant={chromeVariant}
-      />
+      {renderTextButton ? (
+        renderTextButton(controls.startEditing)
+      ) : (
+        <NativeChromeIconButton
+          name="textFormat"
+          accessibilityLabel={t('preview.addText')}
+          onPress={controls.startEditing}
+          disabled={controls.isEditing}
+          backgroundColor={colors.cameraControlBackground}
+          tintColor={colors.cameraControlTint}
+          chromeVariant={chromeVariant}
+        />
+      )}
     </Animated.View>
   );
 
@@ -152,7 +160,7 @@ export function PreviewTextTools({
 
   return (
     <>
-      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      <View style={StyleSheet.absoluteFill} pointerEvents={stickerPointerEvents}>
         {showSticker ? (
           <PreviewTextSticker
             mode={mode}

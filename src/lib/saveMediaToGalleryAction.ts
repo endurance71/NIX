@@ -8,8 +8,9 @@ import {
   saveLocalUrisToLibrary,
   saveRemoteUriToLibrary,
 } from './saveToMediaLibrary';
-import { bakeMediaTextOverlay, releaseBakedOverlayUris } from './bakeMediaTextOverlay';
+import { bakeMediaOverlays, releaseBakedOverlayUris } from './bakeMediaTextOverlay';
 import type { MediaTextOverlay } from '../types/mediaTextOverlay';
+import type { MediaDrawingOverlay } from '../types/mediaDrawingOverlay';
 
 export type SaveToGallerySource = 'preview' | 'viewer';
 
@@ -19,6 +20,7 @@ type SaveLocalArgs = {
   mediaType: 'image' | 'video';
   segmentCount?: number;
   textOverlay?: MediaTextOverlay | null;
+  drawingOverlay?: MediaDrawingOverlay | null;
 };
 
 type SaveRemoteArgs = {
@@ -76,16 +78,18 @@ export async function saveLocalMediaToGallery(args: SaveLocalArgs): Promise<bool
     mediaType: args.mediaType,
     segmentCount: args.segmentCount ?? args.uris.length,
     has_text_overlay: Boolean(args.textOverlay?.text?.trim()),
+    has_drawing_overlay: Boolean(args.drawingOverlay?.data),
   };
   return withWritePermission(async () => {
     const temporaryUris: string[] = [];
     try {
       const urisToSave: string[] = [];
       for (const uri of args.uris) {
-        const baked = await bakeMediaTextOverlay({
+        const baked = await bakeMediaOverlays({
           uri,
           mediaType: args.mediaType,
-          overlay: args.textOverlay,
+          textOverlay: args.textOverlay,
+          drawingOverlay: args.drawingOverlay,
         });
         urisToSave.push(baked.uri);
         temporaryUris.push(...baked.temporaryUris);

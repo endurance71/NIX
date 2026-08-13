@@ -24,8 +24,9 @@ import { usePushNotifications } from '../context/pushNotifications';
 import { APP_ICON_SIZE } from '../theme/app-icons';
 import { runWithFinally } from '../lib/runWithFinally';
 import { useTranslation } from 'react-i18next';
-import { bakeMediaTextOverlay } from '../lib/bakeMediaTextOverlay';
+import { bakeMediaOverlays } from '../lib/bakeMediaTextOverlay';
 import { normalizeMediaTextOverlay } from '../types/mediaTextOverlay';
+import { normalizeMediaDrawingOverlay } from '../types/mediaDrawingOverlay';
 
 function paramFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
@@ -106,7 +107,12 @@ export default function SendToSheet() {
   const mode = paramFirst(rawParams.mode);
   const viewDurationSec = normalizeNixViewDurationSec(paramFirst(rawParams.viewDurationSec));
   const isVideo = mode === 'video';
-  const { segments, clearSegments, textOverlay: videoTextOverlay } = useVideoDraft();
+  const {
+    segments,
+    clearSegments,
+    textOverlay: videoTextOverlay,
+    drawingOverlay: videoDrawingOverlay,
+  } = useVideoDraft();
   const { enqueueMediaBatch, cancelUpload } = useUploadQueue();
   const { offerAfterSuccessfulSend } = usePushNotifications();
   const {
@@ -172,14 +178,18 @@ export default function SendToSheet() {
         const textOverlay = isVideo
           ? normalizeMediaTextOverlay(videoTextOverlay)
           : normalizeMediaTextOverlay(draftPhoto?.textOverlay);
+        const drawingOverlay = isVideo
+          ? normalizeMediaDrawingOverlay(videoDrawingOverlay)
+          : normalizeMediaDrawingOverlay(draftPhoto?.drawingOverlay);
 
         if (isVideo) {
           const bakedSegments = await Promise.all(
             segments!.map(async (segment) => {
-              const baked = await bakeMediaTextOverlay({
+              const baked = await bakeMediaOverlays({
                 uri: segment.uri,
                 mediaType: 'video',
-                overlay: textOverlay,
+                textOverlay,
+                drawingOverlay,
               });
               return { ...segment, uri: baked.uri };
             })
@@ -201,10 +211,11 @@ export default function SendToSheet() {
           );
           throwRejectedResult(failedResult);
         } else {
-          const baked = await bakeMediaTextOverlay({
+          const baked = await bakeMediaOverlays({
             uri: photoUri!,
             mediaType: 'image',
-            overlay: textOverlay,
+            textOverlay,
+            drawingOverlay,
           });
           const result = await enqueueMediaBatch({
             fileUri: baked.uri,

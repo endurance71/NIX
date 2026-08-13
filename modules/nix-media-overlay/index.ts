@@ -5,11 +5,13 @@ import {
   DEFAULT_MEDIA_TEXT_COLOR,
   type MediaTextOverlay,
 } from '../../src/types/mediaTextOverlay';
+import type { MediaDrawingOverlay } from '../../src/types/mediaDrawingOverlay';
 
 type BakeArgs = {
   sourceUri: string;
   targetUri: string;
-  overlay: MediaTextOverlay;
+  textOverlay: MediaTextOverlay | null;
+  drawingOverlay: MediaDrawingOverlay | null;
   viewportWidth: number;
   viewportHeight: number;
 };
@@ -31,7 +33,10 @@ type NixMediaOverlayNativeModule = {
     strikethrough: boolean,
     monospace: boolean,
     fontDesign: string,
-    align: string
+    align: string,
+    drawingData: string,
+    drawingWidth: number,
+    drawingHeight: number
   ): Promise<string>;
   bakeTextOnVideoAsync(
     sourcePath: string,
@@ -49,7 +54,10 @@ type NixMediaOverlayNativeModule = {
     strikethrough: boolean,
     monospace: boolean,
     fontDesign: string,
-    align: string
+    align: string,
+    drawingData: string,
+    drawingWidth: number,
+    drawingHeight: number
   ): Promise<string>;
 };
 
@@ -75,64 +83,84 @@ async function ensureParentDir(targetUri: string) {
   }
 }
 
-function styleArgs(overlay: MediaTextOverlay) {
+function styleArgs(overlay: MediaTextOverlay | null) {
   return {
-    textColor: overlay.textColor ?? DEFAULT_MEDIA_TEXT_COLOR,
-    barColor: overlay.barColor ?? DEFAULT_MEDIA_TEXT_BAR_COLOR,
-    bold: overlay.bold ?? true,
-    italic: overlay.italic ?? false,
-    underline: overlay.underline ?? false,
-    strikethrough: overlay.strikethrough ?? false,
-    monospace: overlay.monospace ?? false,
-    fontDesign: overlay.fontDesign ?? 'system',
-    align: overlay.align ?? 'center',
+    textColor: overlay?.textColor ?? DEFAULT_MEDIA_TEXT_COLOR,
+    barColor: overlay?.barColor ?? DEFAULT_MEDIA_TEXT_BAR_COLOR,
+    bold: overlay?.bold ?? true,
+    italic: overlay?.italic ?? false,
+    underline: overlay?.underline ?? false,
+    strikethrough: overlay?.strikethrough ?? false,
+    monospace: overlay?.monospace ?? false,
+    fontDesign: overlay?.fontDesign ?? 'system',
+    align: overlay?.align ?? 'center',
   };
 }
 
-export async function bakeTextOnImageAsync(args: BakeArgs): Promise<string | null> {
+function overlayArgs(args: BakeArgs) {
+  const text = args.textOverlay;
+  const drawing = args.drawingOverlay;
+  return {
+    text: text?.text ?? '',
+    y: text?.y ?? 0.5,
+    fontSize: text?.fontSize ?? 34,
+    style: styleArgs(text),
+    drawingData: drawing?.data ?? '',
+    drawingWidth: drawing?.width ?? 0,
+    drawingHeight: drawing?.height ?? 0,
+  };
+}
+
+export async function bakeOverlaysOnImageAsync(args: BakeArgs): Promise<string | null> {
   if (!NixMediaOverlay) return null;
   await ensureParentDir(args.targetUri);
-  const style = styleArgs(args.overlay);
+  const overlay = overlayArgs(args);
   return NixMediaOverlay.bakeTextOnImageAsync(
     args.sourceUri,
     args.targetUri,
-    args.overlay.text,
-    args.overlay.y,
-    args.overlay.fontSize,
+    overlay.text,
+    overlay.y,
+    overlay.fontSize,
     args.viewportWidth,
     args.viewportHeight,
-    style.textColor,
-    style.barColor,
-    style.bold,
-    style.italic,
-    style.underline,
-    style.strikethrough,
-    style.monospace,
-    style.fontDesign,
-    style.align
+    overlay.style.textColor,
+    overlay.style.barColor,
+    overlay.style.bold,
+    overlay.style.italic,
+    overlay.style.underline,
+    overlay.style.strikethrough,
+    overlay.style.monospace,
+    overlay.style.fontDesign,
+    overlay.style.align,
+    overlay.drawingData,
+    overlay.drawingWidth,
+    overlay.drawingHeight
   );
 }
 
-export async function bakeTextOnVideoAsync(args: BakeArgs): Promise<string | null> {
+export async function bakeOverlaysOnVideoAsync(args: BakeArgs): Promise<string | null> {
   if (!NixMediaOverlay) return null;
   await ensureParentDir(args.targetUri);
-  const style = styleArgs(args.overlay);
+  const overlay = overlayArgs(args);
   return NixMediaOverlay.bakeTextOnVideoAsync(
     args.sourceUri,
     args.targetUri,
-    args.overlay.text,
-    args.overlay.y,
-    args.overlay.fontSize,
+    overlay.text,
+    overlay.y,
+    overlay.fontSize,
     args.viewportWidth,
     args.viewportHeight,
-    style.textColor,
-    style.barColor,
-    style.bold,
-    style.italic,
-    style.underline,
-    style.strikethrough,
-    style.monospace,
-    style.fontDesign,
-    style.align
+    overlay.style.textColor,
+    overlay.style.barColor,
+    overlay.style.bold,
+    overlay.style.italic,
+    overlay.style.underline,
+    overlay.style.strikethrough,
+    overlay.style.monospace,
+    overlay.style.fontDesign,
+    overlay.style.align,
+    overlay.drawingData,
+    overlay.drawingWidth,
+    overlay.drawingHeight
   );
 }

@@ -625,6 +625,11 @@ export const resources = {
       },
       preview: {
         addText: 'Dodaj tekst',
+        draw: 'Rysuj',
+        undo: 'Cofnij',
+        redo: 'Ponów',
+        drawingDone: 'Zakończ rysowanie',
+        drawingCancel: 'Anuluj rysowanie',
         deleteText: 'Usuń tekst',
         textPlaceholder: 'Napisz coś…',
         textDone: 'Gotowe',
@@ -1298,6 +1303,11 @@ export const resources = {
       },
       preview: {
         addText: 'Add text',
+        draw: 'Draw',
+        undo: 'Undo',
+        redo: 'Redo',
+        drawingDone: 'Finish drawing',
+        drawingCancel: 'Cancel drawing',
         deleteText: 'Delete text',
         textPlaceholder: 'Say something…',
         textDone: 'Done',

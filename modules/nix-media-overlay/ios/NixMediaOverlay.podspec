@@ -1,8 +1,8 @@
 Pod::Spec.new do |s|
   s.name           = 'NixMediaOverlay'
   s.version        = '1.0.0'
-  s.summary        = 'NiX bake text overlays onto photos and videos'
-  s.description    = 'Local Expo module that composites Snapchat-style text onto images and videos before upload or gallery save.'
+  s.summary        = 'NiX media drawing and overlay compositor'
+  s.description    = 'Local Expo module that edits PencilKit drawings and composites drawings and text onto images and videos.'
   s.author         = ''
   s.homepage       = 'https://docs.expo.dev/modules/'
   s.platforms      = {
@@ -18,5 +18,5 @@ Pod::Spec.new do |s|
   }
 
   s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
-  s.frameworks = 'AVFoundation', 'UIKit', 'CoreText'
+  s.frameworks = 'AVFoundation', 'UIKit', 'CoreText', 'PencilKit'
 end

@@ -1,8 +1,8 @@
 import { Dimensions } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
-  bakeTextOnImageAsync,
-  bakeTextOnVideoAsync,
+  bakeOverlaysOnImageAsync,
+  bakeOverlaysOnVideoAsync,
   isNixMediaOverlayAvailable,
 } from '../../modules/nix-media-overlay';
 import { nowMs, trackDuration, trackEvent } from './telemetry';
@@ -10,6 +10,10 @@ import {
   normalizeMediaTextOverlay,
   type MediaTextOverlayInput,
 } from '../types/mediaTextOverlay';
+import {
+  normalizeMediaDrawingOverlay,
+  type MediaDrawingOverlayInput,
+} from '../types/mediaDrawingOverlay';
 
 const BAKE_CACHE_DIR = `${FileSystem.cacheDirectory ?? ''}nix-text-overlay/`;
 
@@ -19,6 +23,8 @@ export type BakeMediaTextOverlayResult = {
   didBake: boolean;
   temporaryUris: string[];
 };
+
+export type BakeMediaOverlaysResult = BakeMediaTextOverlayResult;
 
 function defaultViewport() {
   const { width, height } = Dimensions.get('window');
@@ -45,23 +51,26 @@ async function makeTargetUri(mediaType: 'image' | 'video', sourceUri: string): P
 }
 
 /**
- * Bakes text overlay into a local media file. Returns the original URI when
- * there is no overlay or the native module is unavailable (with telemetry).
+ * Bakes drawing and text in one native render pass. Drawing is composited first,
+ * keeping text readable and matching the preview layer order.
  */
-export async function bakeMediaTextOverlay(params: {
+export async function bakeMediaOverlays(params: {
   uri: string;
   mediaType: 'image' | 'video';
-  overlay?: MediaTextOverlayInput | null;
+  textOverlay?: MediaTextOverlayInput | null;
+  drawingOverlay?: MediaDrawingOverlayInput | null;
   viewportWidth?: number;
   viewportHeight?: number;
-}): Promise<BakeMediaTextOverlayResult> {
-  const overlay = normalizeMediaTextOverlay(params.overlay);
-  if (!overlay) {
+}): Promise<BakeMediaOverlaysResult> {
+  const textOverlay = normalizeMediaTextOverlay(params.textOverlay);
+  const drawingOverlay = normalizeMediaDrawingOverlay(params.drawingOverlay);
+  if (!textOverlay && !drawingOverlay) {
     return { uri: params.uri, didBake: false, temporaryUris: [] };
   }
+  const eventPrefix = drawingOverlay ? 'media_overlay' : 'text_overlay';
 
   if (!isNixMediaOverlayAvailable()) {
-    trackEvent('text_overlay_bake_unavailable', { media_type: params.mediaType });
+    trackEvent(`${eventPrefix}_bake_unavailable`, { media_type: params.mediaType });
     return { uri: params.uri, didBake: false, temporaryUris: [] };
   }
 
@@ -71,48 +80,52 @@ export async function bakeMediaTextOverlay(params: {
   };
   const targetUri = await makeTargetUri(params.mediaType, params.uri);
   const startedAt = nowMs();
-  trackEvent('text_overlay_bake_started', {
+  trackEvent(`${eventPrefix}_bake_started`, {
     media_type: params.mediaType,
-    text_length: overlay.text.length,
-    y: overlay.y,
-    bold: overlay.bold,
-    italic: overlay.italic,
-    underline: overlay.underline,
-    strikethrough: overlay.strikethrough,
-    monospace: overlay.monospace,
-    font_design: overlay.fontDesign,
-    preset: overlay.preset,
-    align: overlay.align,
+    has_text: Boolean(textOverlay),
+    has_drawing: Boolean(drawingOverlay),
+    text_length: textOverlay?.text.length ?? 0,
+    y: textOverlay?.y,
+    bold: textOverlay?.bold,
+    italic: textOverlay?.italic,
+    underline: textOverlay?.underline,
+    strikethrough: textOverlay?.strikethrough,
+    monospace: textOverlay?.monospace,
+    font_design: textOverlay?.fontDesign,
+    preset: textOverlay?.preset,
+    align: textOverlay?.align,
   });
 
   try {
     const baked =
       params.mediaType === 'image'
-        ? await bakeTextOnImageAsync({
+        ? await bakeOverlaysOnImageAsync({
             sourceUri: params.uri,
             targetUri,
-            overlay,
+            textOverlay,
+            drawingOverlay,
             ...viewport,
           })
-        : await bakeTextOnVideoAsync({
+        : await bakeOverlaysOnVideoAsync({
             sourceUri: params.uri,
             targetUri,
-            overlay,
+            textOverlay,
+            drawingOverlay,
             ...viewport,
           });
 
     if (!baked) {
-      trackEvent('text_overlay_bake_unavailable', { media_type: params.mediaType });
+      trackEvent(`${eventPrefix}_bake_unavailable`, { media_type: params.mediaType });
       return { uri: params.uri, didBake: false, temporaryUris: [] };
     }
 
-    trackDuration('text_overlay_bake_success_ms', startedAt, {
+    trackDuration(`${eventPrefix}_bake_success_ms`, startedAt, {
       status: 'success',
       media_type: params.mediaType,
     });
     return { uri: baked, didBake: true, temporaryUris: [baked] };
   } catch (error) {
-    trackEvent('text_overlay_bake_failed', {
+    trackEvent(`${eventPrefix}_bake_failed`, {
       media_type: params.mediaType,
       error_message: error instanceof Error ? error.message : String(error ?? 'unknown'),
     });
@@ -123,6 +136,23 @@ export async function bakeMediaTextOverlay(params: {
     }
     throw error;
   }
+}
+
+/** Compatibility wrapper for existing text-only call sites. */
+export function bakeMediaTextOverlay(params: {
+  uri: string;
+  mediaType: 'image' | 'video';
+  overlay?: MediaTextOverlayInput | null;
+  viewportWidth?: number;
+  viewportHeight?: number;
+}): Promise<BakeMediaTextOverlayResult> {
+  return bakeMediaOverlays({
+    uri: params.uri,
+    mediaType: params.mediaType,
+    textOverlay: params.overlay,
+    viewportWidth: params.viewportWidth,
+    viewportHeight: params.viewportHeight,
+  });
 }
 
 export async function releaseBakedOverlayUris(uris: readonly string[]) {

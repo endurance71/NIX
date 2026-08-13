@@ -42,6 +42,8 @@ export type AppIconName =
   | 'block'
   | 'folder'
   | 'undo'
+  | 'redo'
+  | 'pencilTip'
   | 'chart'
   | 'devices'
   | 'download'
@@ -109,6 +111,8 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   block: 'hand.raised',
   folder: 'folder',
   undo: 'arrow.uturn.backward',
+  redo: 'arrow.uturn.forward',
+  pencilTip: 'pencil.tip',
   chart: 'chart.bar',
   devices: 'iphone.gen3',
   download: 'arrow.down.doc',

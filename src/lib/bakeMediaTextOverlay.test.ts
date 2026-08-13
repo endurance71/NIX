@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const bakeTextOnImageAsync = vi.fn();
-const bakeTextOnVideoAsync = vi.fn();
+const bakeOverlaysOnImageAsync = vi.fn();
+const bakeOverlaysOnVideoAsync = vi.fn();
 const isNixMediaOverlayAvailable = vi.fn(() => true);
 
 vi.mock('../../modules/nix-media-overlay', () => ({
-  bakeTextOnImageAsync: (...args: unknown[]) => bakeTextOnImageAsync(...args),
-  bakeTextOnVideoAsync: (...args: unknown[]) => bakeTextOnVideoAsync(...args),
+  bakeOverlaysOnImageAsync: (...args: unknown[]) => bakeOverlaysOnImageAsync(...args),
+  bakeOverlaysOnVideoAsync: (...args: unknown[]) => bakeOverlaysOnVideoAsync(...args),
   isNixMediaOverlayAvailable: () => isNixMediaOverlayAvailable(),
 }));
 
@@ -42,7 +42,7 @@ describe('bakeMediaTextOverlay', () => {
       overlay: { text: '  ', y: 0.5, fontSize: 36 },
     });
     expect(result).toEqual({ uri: 'file:///photo.jpg', didBake: false, temporaryUris: [] });
-    expect(bakeTextOnImageAsync).not.toHaveBeenCalled();
+    expect(bakeOverlaysOnImageAsync).not.toHaveBeenCalled();
   });
 
   it('returns original uri when native module is unavailable', async () => {
@@ -58,7 +58,7 @@ describe('bakeMediaTextOverlay', () => {
   });
 
   it('bakes image overlay via native module with style defaults', async () => {
-    bakeTextOnImageAsync.mockResolvedValue('file:///cache/nix-text-overlay/out.jpg');
+    bakeOverlaysOnImageAsync.mockResolvedValue('file:///cache/nix-text-overlay/out.jpg');
     const { bakeMediaTextOverlay } = await import('./bakeMediaTextOverlay');
     const result = await bakeMediaTextOverlay({
       uri: 'file:///photo.jpg',
@@ -69,9 +69,9 @@ describe('bakeMediaTextOverlay', () => {
     });
     expect(result.didBake).toBe(true);
     expect(result.uri).toBe('file:///cache/nix-text-overlay/out.jpg');
-    expect(bakeTextOnImageAsync).toHaveBeenCalledOnce();
-    const call = bakeTextOnImageAsync.mock.calls[0][0] as {
-      overlay: {
+    expect(bakeOverlaysOnImageAsync).toHaveBeenCalledOnce();
+    const call = bakeOverlaysOnImageAsync.mock.calls[0][0] as {
+      textOverlay: {
         textColor: string;
         barColor: string;
         bold: boolean;
@@ -84,19 +84,19 @@ describe('bakeMediaTextOverlay', () => {
         align: string;
       };
     };
-    expect(call.overlay.textColor).toBe('#000000');
-    expect(call.overlay.bold).toBe(true);
-    expect(call.overlay.italic).toBe(false);
-    expect(call.overlay.underline).toBe(false);
-    expect(call.overlay.strikethrough).toBe(false);
-    expect(call.overlay.monospace).toBe(false);
-    expect(call.overlay.fontDesign).toBe('system');
-    expect(call.overlay.preset).toBe('title');
-    expect(call.overlay.align).toBe('center');
+    expect(call.textOverlay.textColor).toBe('#000000');
+    expect(call.textOverlay.bold).toBe(true);
+    expect(call.textOverlay.italic).toBe(false);
+    expect(call.textOverlay.underline).toBe(false);
+    expect(call.textOverlay.strikethrough).toBe(false);
+    expect(call.textOverlay.monospace).toBe(false);
+    expect(call.textOverlay.fontDesign).toBe('system');
+    expect(call.textOverlay.preset).toBe('title');
+    expect(call.textOverlay.align).toBe('center');
   });
 
   it('passes custom style into bake args', async () => {
-    bakeTextOnImageAsync.mockResolvedValue('file:///cache/nix-text-overlay/out.jpg');
+    bakeOverlaysOnImageAsync.mockResolvedValue('file:///cache/nix-text-overlay/out.jpg');
     const { bakeMediaTextOverlay } = await import('./bakeMediaTextOverlay');
     await bakeMediaTextOverlay({
       uri: 'file:///photo.jpg',
@@ -117,8 +117,8 @@ describe('bakeMediaTextOverlay', () => {
         align: 'right',
       },
     });
-    const call = bakeTextOnImageAsync.mock.calls[0][0] as {
-      overlay: {
+    const call = bakeOverlaysOnImageAsync.mock.calls[0][0] as {
+      textOverlay: {
         textColor: string;
         bold: boolean;
         italic: boolean;
@@ -130,19 +130,54 @@ describe('bakeMediaTextOverlay', () => {
         align: string;
       };
     };
-    expect(call.overlay.textColor).toBe('#FF2D55');
-    expect(call.overlay.bold).toBe(false);
-    expect(call.overlay.italic).toBe(true);
-    expect(call.overlay.underline).toBe(true);
-    expect(call.overlay.strikethrough).toBe(true);
-    expect(call.overlay.monospace).toBe(true);
-    expect(call.overlay.fontDesign).toBe('rounded');
-    expect(call.overlay.preset).toBe('monospace');
-    expect(call.overlay.align).toBe('right');
+    expect(call.textOverlay.textColor).toBe('#FF2D55');
+    expect(call.textOverlay.bold).toBe(false);
+    expect(call.textOverlay.italic).toBe(true);
+    expect(call.textOverlay.underline).toBe(true);
+    expect(call.textOverlay.strikethrough).toBe(true);
+    expect(call.textOverlay.monospace).toBe(true);
+    expect(call.textOverlay.fontDesign).toBe('rounded');
+    expect(call.textOverlay.preset).toBe('monospace');
+    expect(call.textOverlay.align).toBe('right');
+  });
+
+  it('bakes a drawing without requiring text', async () => {
+    bakeOverlaysOnImageAsync.mockResolvedValue('file:///cache/nix-text-overlay/drawing.jpg');
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    const result = await bakeMediaOverlays({
+      uri: 'file:///photo.jpg',
+      mediaType: 'image',
+      drawingOverlay: { data: 'cGtEcmF3aW5n', width: 390, height: 844 },
+    });
+
+    expect(result.didBake).toBe(true);
+    const call = bakeOverlaysOnImageAsync.mock.calls[0][0] as {
+      textOverlay: unknown;
+      drawingOverlay: { data: string; width: number; height: number };
+    };
+    expect(call.textOverlay).toBeNull();
+    expect(call.drawingOverlay).toEqual({
+      data: 'cGtEcmF3aW5n',
+      width: 390,
+      height: 844,
+    });
+  });
+
+  it('passes drawing and text through a single native bake', async () => {
+    bakeOverlaysOnImageAsync.mockResolvedValue('file:///cache/nix-text-overlay/both.jpg');
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    await bakeMediaOverlays({
+      uri: 'file:///photo.jpg',
+      mediaType: 'image',
+      textOverlay: { text: 'hi', y: 0.5, fontSize: 36 },
+      drawingOverlay: { data: 'cGtEcmF3aW5n', width: 390, height: 844 },
+    });
+
+    expect(bakeOverlaysOnImageAsync).toHaveBeenCalledOnce();
   });
 
   it('bakes video overlay via native module', async () => {
-    bakeTextOnVideoAsync.mockResolvedValue('file:///cache/nix-text-overlay/out.mp4');
+    bakeOverlaysOnVideoAsync.mockResolvedValue('file:///cache/nix-text-overlay/out.mp4');
     const { bakeMediaTextOverlay } = await import('./bakeMediaTextOverlay');
     const result = await bakeMediaTextOverlay({
       uri: 'file:///clip.mp4',
@@ -150,6 +185,6 @@ describe('bakeMediaTextOverlay', () => {
       overlay: { text: 'hi', y: 0.7, fontSize: 36 },
     });
     expect(result.didBake).toBe(true);
-    expect(bakeTextOnVideoAsync).toHaveBeenCalledOnce();
+    expect(bakeOverlaysOnVideoAsync).toHaveBeenCalledOnce();
   });
 });
