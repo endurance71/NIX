@@ -638,7 +638,6 @@ export function PreviewTextSticker({
                   name="trash"
                   accessibilityLabel={t('preview.deleteText')}
                   onPress={() => {
-                    inputRef.current?.blur();
                     tap('light');
                     onDelete();
                   }}

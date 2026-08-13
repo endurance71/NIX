@@ -603,7 +603,7 @@ const styles = StyleSheet.create({
     ...typography.title2,
     fontSize: 24,
     lineHeight: 30,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   closeFallback: {
     width: 44,

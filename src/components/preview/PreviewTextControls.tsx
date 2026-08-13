@@ -56,7 +56,7 @@ export function PreviewTextTools({
     clampBottomPx,
   });
   const [stickerExiting, setStickerExiting] = useState(false);
-  const stickerExitPendingRef = useRef(false);
+  const stickerExitActionRef = useRef<'confirm' | 'delete' | null>(null);
 
   const minTop = clampTopPx;
   const maxTop = clampTopPx + controls.usableHeight;
@@ -86,19 +86,34 @@ export function PreviewTextTools({
   }));
 
   const confirmEditing = useCallback(() => {
-    if (stickerExitPendingRef.current) return;
+    if (stickerExitActionRef.current) return;
     const isEmptyDraft = (controls.editor?.draftText.trim().length ?? 0) === 0;
     if (controls.isEditing && isEmptyDraft && motionEnabled) {
-      stickerExitPendingRef.current = true;
+      stickerExitActionRef.current = 'confirm';
       setStickerExiting(true);
       return;
     }
     controls.confirmEditing();
   }, [controls, motionEnabled]);
 
+  const deleteSticker = useCallback(() => {
+    if (stickerExitActionRef.current) return;
+    if (!motionEnabled) {
+      controls.removeOverlay();
+      return;
+    }
+    stickerExitActionRef.current = 'delete';
+    setStickerExiting(true);
+  }, [controls, motionEnabled]);
+
   const completeStickerExit = useCallback(() => {
-    stickerExitPendingRef.current = false;
+    const action = stickerExitActionRef.current;
+    stickerExitActionRef.current = null;
     setStickerExiting(false);
+    if (action === 'delete') {
+      controls.removeOverlay();
+      return;
+    }
     controls.confirmEditing();
   }, [controls]);
 
@@ -165,7 +180,7 @@ export function PreviewTextTools({
             onPressDisplay={controls.startEditing}
             onConfirm={confirmEditing}
             onCancel={controls.cancelEditing}
-            onDelete={controls.removeOverlay}
+            onDelete={deleteSticker}
             exiting={stickerExiting}
             onExitComplete={completeStickerExit}
           />
