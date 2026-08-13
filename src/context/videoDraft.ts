@@ -1,4 +1,5 @@
 import { createContext, use } from 'react';
+import type { MediaTextOverlay } from '../types/mediaTextOverlay';
 
 export type VideoSegmentDraft = {
   uri: string;
@@ -7,7 +8,9 @@ export type VideoSegmentDraft = {
 
 export type VideoDraftContextValue = {
   segments: VideoSegmentDraft[] | null;
+  textOverlay: MediaTextOverlay | null;
   setSegments: (segments: VideoSegmentDraft[]) => void;
+  setTextOverlay: (overlay: MediaTextOverlay | null) => void;
   clearSegments: () => void;
 };
 

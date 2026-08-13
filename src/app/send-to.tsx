@@ -24,6 +24,8 @@ import { usePushNotifications } from '../context/pushNotifications';
 import { APP_ICON_SIZE } from '../theme/app-icons';
 import { runWithFinally } from '../lib/runWithFinally';
 import { useTranslation } from 'react-i18next';
+import { bakeMediaTextOverlay } from '../lib/bakeMediaTextOverlay';
+import { normalizeMediaTextOverlay } from '../types/mediaTextOverlay';
 
 function paramFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
@@ -104,7 +106,7 @@ export default function SendToSheet() {
   const mode = paramFirst(rawParams.mode);
   const viewDurationSec = normalizeNixViewDurationSec(paramFirst(rawParams.viewDurationSec));
   const isVideo = mode === 'video';
-  const { segments, clearSegments } = useVideoDraft();
+  const { segments, clearSegments, textOverlay: videoTextOverlay } = useVideoDraft();
   const { enqueueMediaBatch, cancelUpload } = useUploadQueue();
   const { offerAfterSuccessfulSend } = usePushNotifications();
   const {
@@ -167,8 +169,22 @@ export default function SendToSheet() {
     const enqueuedJobIds: string[] = [];
     await runWithFinally(async () => {
       try {
+        const textOverlay = isVideo
+          ? normalizeMediaTextOverlay(videoTextOverlay)
+          : normalizeMediaTextOverlay(draftPhoto?.textOverlay);
+
         if (isVideo) {
-          const segmentInputs = segments!.map((segment, sequenceIndex) => ({
+          const bakedSegments = await Promise.all(
+            segments!.map(async (segment) => {
+              const baked = await bakeMediaTextOverlay({
+                uri: segment.uri,
+                mediaType: 'video',
+                overlay: textOverlay,
+              });
+              return { ...segment, uri: baked.uri };
+            })
+          );
+          const segmentInputs = bakedSegments.map((segment, sequenceIndex) => ({
             fileUri: segment.uri,
             mediaType: 'video' as const,
             recipients: recipients.map((recipient) => ({ ...recipient, sequenceIndex })),
@@ -185,12 +201,18 @@ export default function SendToSheet() {
           );
           throwRejectedResult(failedResult);
         } else {
+          const baked = await bakeMediaTextOverlay({
+            uri: photoUri!,
+            mediaType: 'image',
+            overlay: textOverlay,
+          });
           const result = await enqueueMediaBatch({
-            fileUri: photoUri!,
+            fileUri: baked.uri,
             mediaType: 'image',
             recipients,
-            sourceWidth: draftPhoto?.width,
-            sourceHeight: draftPhoto?.height,
+            // After bake dimensions may change slightly; omit to force safe re-encode path when baked.
+            sourceWidth: baked.didBake ? undefined : draftPhoto?.width,
+            sourceHeight: baked.didBake ? undefined : draftPhoto?.height,
           });
           enqueuedJobIds.push(result.jobId);
         }

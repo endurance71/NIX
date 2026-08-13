@@ -37,6 +37,9 @@ import {
   loadPreferredNixViewDuration,
   type NixViewDurationSec,
 } from '../lib/nixViewDuration';
+import { PreviewTextTools } from '../components/preview/PreviewTextControls';
+import type { MediaTextOverlay } from '../types/mediaTextOverlay';
+import { normalizeMediaTextOverlay } from '../types/mediaTextOverlay';
 
 const TIMER_TRACK_HEIGHT = 8;
 /** Maks. czas oczekiwania na `readyToPlay` zanim wymusimy `play()` + `onReady()`. */
@@ -325,9 +328,13 @@ function PreviewSegmentVideo({
 function PreviewVideoContent({
   segments,
   clearDraft,
+  textOverlay,
+  onChangeTextOverlay,
 }: {
   segments: VideoSegmentDraft[];
   clearDraft: () => void;
+  textOverlay: MediaTextOverlay | null;
+  onChangeTextOverlay: (next: MediaTextOverlay | null) => void;
 }) {
   const { t } = useTranslation();
   const { colors, statusBarStyle, isDark } = useAppTheme();
@@ -336,6 +343,13 @@ function PreviewVideoContent({
   const [videoState, dispatchVideoState] = useReducer(previewVideoReducer, initialPreviewVideoState);
   const [isSaving, setIsSaving] = useState(false);
   const segmentProgress = useSharedValue(1);
+  const textClampTop =
+    insets.top
+    + VIDEO_PREVIEW_TIMER_HUD_TOP
+    + previewTimerHudContentHeight()
+    + VIDEO_PREVIEW_CLOSE_BELOW_TIMER_GAP
+    + 56;
+  const textClampBottom = insets.bottom + 16 + 56;
 
   const current = segments[videoState.clipIndex];
   const clipKey = `${videoState.clipIndex}:${current.uri}`;
@@ -497,64 +511,77 @@ function PreviewVideoContent({
         </View>
       ) : null}
 
-      <View
-        style={[
-          styles.overlay,
-          styles.overlayVideoChrome,
-          {
-            paddingTop:
-              insets.top +
-              VIDEO_PREVIEW_TIMER_HUD_TOP +
-              previewTimerHudContentHeight() +
-              VIDEO_PREVIEW_CLOSE_BELOW_TIMER_GAP,
-            paddingBottom: insets.bottom + 16,
-            paddingHorizontal: 24,
-          },
-        ]}>
-        <View style={styles.topControls}>
-          <NativeChromeIconButton
-            name="close"
-            accessibilityLabel="Porzuć nagranie"
-            onPress={() => discardVideoPreview(clearDraft)}
-            backgroundColor={colors.cameraControlBackground}
-            tintColor={colors.cameraControlTint}
-            chromeVariant="glass"
-          />
-        </View>
+      <PreviewTextTools
+        overlay={textOverlay}
+        onChangeOverlay={onChangeTextOverlay}
+        clampTopPx={textClampTop}
+        clampBottomPx={textClampBottom}
+        colors={colors}
+        chromeVariant="glass"
+        renderChrome={({ textButton, isEditing }) => (
+          <View
+            style={[
+              styles.overlay,
+              styles.overlayVideoChrome,
+              {
+                paddingTop:
+                  insets.top +
+                  VIDEO_PREVIEW_TIMER_HUD_TOP +
+                  previewTimerHudContentHeight() +
+                  VIDEO_PREVIEW_CLOSE_BELOW_TIMER_GAP,
+                paddingBottom: insets.bottom + 16,
+                paddingHorizontal: 24,
+              },
+            ]}
+            pointerEvents="box-none">
+            <View style={styles.topControls} pointerEvents={isEditing ? 'none' : 'auto'}>
+              <NativeChromeIconButton
+                name="close"
+                accessibilityLabel="Porzuć nagranie"
+                onPress={() => discardVideoPreview(clearDraft)}
+                backgroundColor={colors.cameraControlBackground}
+                tintColor={colors.cameraControlTint}
+                chromeVariant="glass"
+              />
+              {textButton}
+            </View>
 
-        <View style={styles.bottomControls}>
-          <NativeChromeIconButton
-            name="saveToPhotos"
-            accessibilityLabel={t('media.saveToGalleryA11y')}
-            onPress={() => {
-              if (isSaving) return;
-              setIsSaving(true);
-              void runWithFinally(
-                () =>
-                  saveLocalMediaToGallery({
-                    source: 'preview',
-                    uris: segments.map((segment) => segment.uri),
-                    mediaType: 'video',
-                    segmentCount: segments.length,
-                  }),
-                () => setIsSaving(false)
-              );
-            }}
-            disabled={isSaving}
-            backgroundColor={colors.cameraControlBackground}
-            tintColor={colors.cameraControlTint}
-            chromeVariant="glass"
-          />
-          <NativePreviewSendButton
-            label="Wyślij do"
-            accessibilityLabel="Wyślij nagranie"
-            onPress={openSendToVideo}
-            backgroundColor={colors.cameraControlBackground}
-            tintColor={colors.cameraControlTint}
-            chromeVariant="glass"
-          />
-        </View>
-      </View>
+            <View style={styles.bottomControls} pointerEvents={isEditing ? 'none' : 'auto'}>
+              <NativeChromeIconButton
+                name="saveToPhotos"
+                accessibilityLabel={t('media.saveToGalleryA11y')}
+                onPress={() => {
+                  if (isSaving) return;
+                  setIsSaving(true);
+                  void runWithFinally(
+                    () =>
+                      saveLocalMediaToGallery({
+                        source: 'preview',
+                        uris: segments.map((segment) => segment.uri),
+                        mediaType: 'video',
+                        segmentCount: segments.length,
+                        textOverlay: normalizeMediaTextOverlay(textOverlay),
+                      }),
+                    () => setIsSaving(false)
+                  );
+                }}
+                disabled={isSaving}
+                backgroundColor={colors.cameraControlBackground}
+                tintColor={colors.cameraControlTint}
+                chromeVariant="glass"
+              />
+              <NativePreviewSendButton
+                label="Wyślij do"
+                accessibilityLabel="Wyślij nagranie"
+                onPress={openSendToVideo}
+                backgroundColor={colors.cameraControlBackground}
+                tintColor={colors.cameraControlTint}
+                chromeVariant="glass"
+              />
+            </View>
+          </View>
+        )}
+      />
     </View>
   );
 }
@@ -574,9 +601,11 @@ export default function PreviewScreen() {
   const [imageLoading, setImageLoading] = useState(true);
   const [isSavingPhoto, setIsSavingPhoto] = useState(false);
 
-  const { segments, setSegments, clearSegments } = useVideoDraft();
-  const { draft: draftPhoto, clearDraft: clearPhotoDraft } = usePhotoDraft();
+  const { segments, setSegments, clearSegments, textOverlay: videoTextOverlay, setTextOverlay } =
+    useVideoDraft();
+  const { draft: draftPhoto, setDraft: setPhotoDraft, clearDraft: clearPhotoDraft } = usePhotoDraft();
   const photoUri = draftPhoto?.uri ?? paramUri;
+  const photoTextOverlay = draftPhoto?.textOverlay ?? null;
   const routeVideoSegment =
     mode === 'video' && paramUri
       ? { uri: paramUri, durationMs: Math.round(Math.max(0, Number(rawDurationMs) || 0)) }
@@ -628,7 +657,14 @@ export default function PreviewScreen() {
         </View>
       );
     }
-    return <PreviewVideoContent segments={previewVideoSegments} clearDraft={clearSegments} />;
+    return (
+      <PreviewVideoContent
+        segments={previewVideoSegments}
+        clearDraft={clearSegments}
+        textOverlay={videoTextOverlay}
+        onChangeTextOverlay={setTextOverlay}
+      />
+    );
   }
 
   if (!photoUri) {
@@ -658,6 +694,19 @@ export default function PreviewScreen() {
     );
   }
 
+  const photoClampTop = insets.top + 12 + 56;
+  const photoClampBottom = insets.bottom + 16 + 56;
+
+  const setPhotoTextOverlay = (next: MediaTextOverlay | null) => {
+    if (!draftPhoto && !photoUri) return;
+    setPhotoDraft({
+      uri: photoUri!,
+      width: draftPhoto?.width,
+      height: draftPhoto?.height,
+      textOverlay: next,
+    });
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar style={statusBarStyle} hidden={false} />
@@ -681,56 +730,81 @@ export default function PreviewScreen() {
         </View>
       ) : null}
 
-      <View style={[styles.overlay, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16, paddingHorizontal: 24 }]}>
-        <View style={[styles.topControls, styles.photoPreviewTopControls]}>
-          <NativeChromeIconButton
-            name="close"
-            accessibilityLabel="Odrzuć zdjęcie"
-            onPress={() => discardPhotoPreview(clearPhotoDraft)}
-            backgroundColor={colors.cameraControlBackground}
-            tintColor={colors.cameraControlTint}
-            chromeVariant="glass"
-          />
-          <PreviewDurationMenu
-            selectedDurationSec={viewDurationSec}
-            onSelect={setViewDurationSec}
-            colors={colors}
-            chromeVariant="glass"
-          />
-        </View>
+      <PreviewTextTools
+        overlay={photoTextOverlay}
+        onChangeOverlay={setPhotoTextOverlay}
+        clampTopPx={photoClampTop}
+        clampBottomPx={photoClampBottom}
+        colors={colors}
+        chromeVariant="glass"
+        renderChrome={({ textButton, isEditing }) => (
+          <View
+            style={[
+              styles.overlay,
+              {
+                paddingTop: insets.top + 12,
+                paddingBottom: insets.bottom + 16,
+                paddingHorizontal: 24,
+              },
+            ]}
+            pointerEvents="box-none">
+            <View
+              style={[styles.topControls, styles.photoPreviewTopControls]}
+              pointerEvents={isEditing ? 'none' : 'auto'}>
+              <View style={styles.topLeftCluster}>
+                <NativeChromeIconButton
+                  name="close"
+                  accessibilityLabel="Odrzuć zdjęcie"
+                  onPress={() => discardPhotoPreview(clearPhotoDraft)}
+                  backgroundColor={colors.cameraControlBackground}
+                  tintColor={colors.cameraControlTint}
+                  chromeVariant="glass"
+                />
+                <PreviewDurationMenu
+                  selectedDurationSec={viewDurationSec}
+                  onSelect={setViewDurationSec}
+                  colors={colors}
+                  chromeVariant="glass"
+                />
+              </View>
+              {textButton}
+            </View>
 
-        <View style={styles.bottomControls}>
-          <NativeChromeIconButton
-            name="saveToPhotos"
-            accessibilityLabel={t('media.saveToGalleryA11y')}
-            onPress={() => {
-              if (isSavingPhoto || !photoUri) return;
-              setIsSavingPhoto(true);
-              void runWithFinally(
-                () =>
-                  saveLocalMediaToGallery({
-                    source: 'preview',
-                    uris: [photoUri],
-                    mediaType: 'image',
-                  }),
-                () => setIsSavingPhoto(false)
-              );
-            }}
-            disabled={isSavingPhoto}
-            backgroundColor={colors.cameraControlBackground}
-            tintColor={colors.cameraControlTint}
-            chromeVariant="glass"
-          />
-          <NativePreviewSendButton
-            label="Wyślij do"
-            accessibilityLabel="Wybierz odbiorców zdjęcia"
-            onPress={() => openSendToPhoto(viewDurationSec)}
-            backgroundColor={colors.cameraControlBackground}
-            tintColor={colors.cameraControlTint}
-            chromeVariant="glass"
-          />
-        </View>
-      </View>
+            <View style={styles.bottomControls} pointerEvents={isEditing ? 'none' : 'auto'}>
+              <NativeChromeIconButton
+                name="saveToPhotos"
+                accessibilityLabel={t('media.saveToGalleryA11y')}
+                onPress={() => {
+                  if (isSavingPhoto || !photoUri) return;
+                  setIsSavingPhoto(true);
+                  void runWithFinally(
+                    () =>
+                      saveLocalMediaToGallery({
+                        source: 'preview',
+                        uris: [photoUri],
+                        mediaType: 'image',
+                        textOverlay: normalizeMediaTextOverlay(photoTextOverlay),
+                      }),
+                    () => setIsSavingPhoto(false)
+                  );
+                }}
+                disabled={isSavingPhoto}
+                backgroundColor={colors.cameraControlBackground}
+                tintColor={colors.cameraControlTint}
+                chromeVariant="glass"
+              />
+              <NativePreviewSendButton
+                label="Wyślij do"
+                accessibilityLabel="Wybierz odbiorców zdjęcia"
+                onPress={() => openSendToPhoto(viewDurationSec)}
+                backgroundColor={colors.cameraControlBackground}
+                tintColor={colors.cameraControlTint}
+                chromeVariant="glass"
+              />
+            </View>
+          </View>
+        )}
+      />
     </View>
   );
 }
@@ -785,12 +859,16 @@ const createStyles = (colors: ThemeColors) => {
     },
     topControls: {
       flexDirection: 'row',
-      justifyContent: 'flex-start',
-    },
-    photoPreviewTopControls: {
-      justifyContent: 'flex-start',
+      justifyContent: 'space-between',
       alignItems: 'center',
       alignSelf: 'stretch',
+    },
+    photoPreviewTopControls: {
+      alignItems: 'center',
+    },
+    topLeftCluster: {
+      flexDirection: 'row',
+      alignItems: 'center',
       gap: 12,
     },
     bottomControls: {

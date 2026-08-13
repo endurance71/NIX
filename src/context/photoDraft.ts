@@ -1,9 +1,11 @@
 import { createContext, use } from 'react';
+import type { MediaTextOverlay } from '../types/mediaTextOverlay';
 
 export type PhotoDraftData = {
   uri: string;
   width?: number;
   height?: number;
+  textOverlay?: MediaTextOverlay | null;
 };
 
 export type PhotoDraftContextValue = {

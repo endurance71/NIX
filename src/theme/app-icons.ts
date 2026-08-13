@@ -47,7 +47,12 @@ export type AppIconName =
   | 'download'
   | 'share'
   | 'friends'
-  | 'privacySecurity';
+  | 'privacySecurity'
+  | 'textFormat'
+  | 'bold'
+  | 'textAlignLeft'
+  | 'textAlignCenter'
+  | 'textAlignRight';
 
 /** Canonical point sizes for SF Symbols across AppIcon / SwiftImage / SymbolView. */
 export const APP_ICON_SIZE = {
@@ -110,6 +115,11 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   share: 'square.and.arrow.up',
   friends: 'person.2',
   privacySecurity: 'lock.shield',
+  textFormat: 'textformat',
+  bold: 'bold',
+  textAlignLeft: 'text.alignleft',
+  textAlignCenter: 'text.aligncenter',
+  textAlignRight: 'text.alignright',
 };
 
 export function resolveAppIconName(name: AppIconName): SFSymbol {

@@ -10,11 +10,14 @@ import { BottomSheet, RNHostView, type SnapPoint } from '@expo/ui';
 type AppBottomSheetProps = {
   isPresented: boolean;
   onDismiss: () => void;
+  onIsPresentedChange?: (isPresented: boolean) => void;
   children: ReactNode;
   testID?: string;
   /** Override auto-measured `{ height }` detent (e.g. scrollable half/full sheets). */
   snapPoints?: SnapPoint[];
   showDragIndicator?: boolean;
+  backgroundInteraction?: 'automatic' | 'enabled' | 'disabled';
+  disableInteractiveDismiss?: boolean;
 };
 
 // Metro resolves this fallback on non-iOS platforms; deslop only follows the
@@ -23,10 +26,13 @@ type AppBottomSheetProps = {
 export function AppBottomSheet({
   isPresented,
   onDismiss,
+  onIsPresentedChange: _onIsPresentedChange,
   children,
   testID,
   snapPoints,
   showDragIndicator = true,
+  backgroundInteraction: _backgroundInteraction,
+  disableInteractiveDismiss: _disableInteractiveDismiss,
 }: AppBottomSheetProps) {
   const hasSnapPoints = Boolean(snapPoints?.length);
 

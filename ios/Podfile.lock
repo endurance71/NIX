@@ -381,6 +381,8 @@ PODS:
     - ExpoWidgets
   - NixCameraTorch (1.0.0):
     - ExpoModulesCore
+  - NixMediaOverlay (1.0.0):
+    - ExpoModulesCore
   - PromisesObjC (2.4.1)
   - RCTDeprecation (0.86.2)
   - RCTRequired (0.86.2)
@@ -2835,6 +2837,7 @@ DEPENDENCIES:
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - NixBackgroundUploader (from `../modules/nix-background-uploader/ios`)
   - NixCameraTorch (from `../modules/nix-camera-torch/ios`)
+  - NixMediaOverlay (from `../modules/nix-media-overlay/ios`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
   - RCTRequired (from `../node_modules/react-native/Libraries/Required`)
   - RCTSwiftUI (from `../node_modules/react-native/ReactApple/RCTSwiftUI`)
@@ -3058,6 +3061,8 @@ EXTERNAL SOURCES:
     :path: "../modules/nix-background-uploader/ios"
   NixCameraTorch:
     :path: "../modules/nix-camera-torch/ios"
+  NixMediaOverlay:
+    :path: "../modules/nix-media-overlay/ios"
   RCTDeprecation:
     :path: "../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation"
   RCTRequired:
@@ -3300,6 +3305,7 @@ SPEC CHECKSUMS:
   libwebp: af5937a13536ef73f3784d69cc342b98961acf33
   NixBackgroundUploader: 9b7fc88e447f49d1659abef68f5bcc1e0d2fde1b
   NixCameraTorch: 4531f41a44261fe2626d576efcfa862a61c80a65
+  NixMediaOverlay: 78e7ed4ac74f54915b5a0e8abedfe37e1f7b1d8a
   PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
   RCTDeprecation: bccb6545c26db881ecddfd83a3f9ea82aba1605f
   RCTRequired: b2f74764d596fc0051f00fee94b49bf41a6f7f5a
