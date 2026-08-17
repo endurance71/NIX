@@ -23,6 +23,14 @@ export async function getCurrentUser() {
     return cachedUser;
   }
   const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (session?.user) {
+    cachedUser = session.user;
+    cachedUserAt = now;
+    return session.user;
+  }
+  const {
     data: { user },
   } = await supabase.auth.getUser();
   cachedUser = user;

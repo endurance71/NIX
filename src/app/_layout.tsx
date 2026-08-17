@@ -2,8 +2,9 @@ import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '../hooks/useAuth';
-import { View, ActivityIndicator, Text, Pressable, Platform } from 'react-native';
+import { View, Text, Pressable, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getCurrentUserProfile } from '../services/profileService';
 import { supabase } from '../lib/supabase';
@@ -31,6 +32,10 @@ import { getPendingFriendInviteToken } from '../lib/pendingFriendInvite';
 import { TextOutboxSync } from '../components/sync/TextOutboxSync';
 import { AppInstallationSync } from '../components/sync/AppInstallationSync';
 import { iosRoadmapFeatures } from '../config/iosRoadmapFeatures';
+
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Catch and ignore in environments where splash screen autohide prevention is unavailable.
+});
 
 // Initialize monitoring at module load (runs once).
 initMonitoring();
@@ -94,22 +99,30 @@ function RootNavigator() {
   const needsOnboarding = resolveNeedsOnboarding(!!session, profile, profileError, ageAttested);
   const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false);
 
+  const isAuthInitializing = loading;
+  const isProfileInitializing = Boolean(session && (profilePending || ageAttestationPending));
+  const appReady = !isAuthInitializing && !isProfileInitializing;
+  const inAuthGroup = segments[0] === '(auth)';
+  const onResetPasswordScreen = segments[1] === 'reset-password';
+
   useEffect(() => {
-    if (!loading) return;
+    if (appReady) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [appReady]);
+
+  useEffect(() => {
+    if (appReady) return;
 
     const timer = setTimeout(() => {
       setBootstrapTimedOut(true);
+      SplashScreen.hideAsync().catch(() => {});
     }, 4000);
 
     return () => {
       clearTimeout(timer);
-      setBootstrapTimedOut(false);
     };
-  }, [loading]);
-
-  const appReady = !loading;
-  const inAuthGroup = segments[0] === '(auth)';
-  const onResetPasswordScreen = segments[1] === 'reset-password';
+  }, [appReady]);
 
   useEffect(() => {
     if (!appReady) return;
@@ -121,9 +134,6 @@ function RootNavigator() {
 
     if (!session) return;
 
-    // Do not make routing decisions until profile is fetched
-    if (profilePending || ageAttestationPending) return;
-
     if (needsOnboarding && segments[1] !== 'onboarding' && !onResetPasswordScreen) {
       router.replace('/(auth)/onboarding');
       return;
@@ -132,16 +142,14 @@ function RootNavigator() {
     if (!needsOnboarding && inAuthGroup && !onResetPasswordScreen) {
       router.replace('/(tabs)');
     }
-  }, [appReady, inAuthGroup, needsOnboarding, onResetPasswordScreen, segments, session, profilePending, ageAttestationPending]);
+  }, [appReady, inAuthGroup, needsOnboarding, onResetPasswordScreen, segments, session]);
 
   useEffect(() => {
     if (
       !iosRoadmapFeatures.shareInvites ||
       !appReady ||
       !session ||
-      needsOnboarding ||
-      profilePending ||
-      ageAttestationPending
+      needsOnboarding
     ) return;
     let cancelled = false;
     void getPendingFriendInviteToken().then((token) => {
@@ -151,19 +159,18 @@ function RootNavigator() {
     return () => {
       cancelled = true;
     };
-  }, [ageAttestationPending, appReady, needsOnboarding, profilePending, segments, session]);
+  }, [appReady, needsOnboarding, segments, session]);
 
-  if (loading) {
+  if (!appReady) {
     return (
       <View
         style={{
           flex: 1,
           justifyContent: 'center',
           alignItems: 'center',
-          backgroundColor: colors.background,
+          backgroundColor: '#000000',
         }}>
         <StatusBar style={statusBarStyle} hidden={false} />
-        <ActivityIndicator color={colors.textPrimary} />
         {bootstrapTimedOut && (
           <>
             <Text style={{ color: colors.textMuted, marginTop: 16, textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
@@ -197,6 +204,7 @@ function RootNavigator() {
       {session ? <TextOutboxSync userId={session.user.id} /> : null}
       {session && iosRoadmapFeatures.accountData ? <AppInstallationSync /> : null}
       <Stack
+        initialRouteName={session && !needsOnboarding ? '(tabs)' : '(auth)'}
         screenOptions={{
           headerShown: false,
           headerBackButtonDisplayMode: 'minimal',

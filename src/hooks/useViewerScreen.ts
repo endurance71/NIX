@@ -77,6 +77,7 @@ export type ViewerScreenViewModel = {
   useNativeFallback: boolean;
   videoPosterUri: string | null;
   videoThumbnailOverlay: VideoThumbnail | null;
+  canDismissByTap: boolean;
   finishCurrentSlide: () => void;
   segmentProgress: ReturnType<typeof useSharedValue<number>>;
   onSegmentProgress: (nextProgress: number) => void;
@@ -161,12 +162,24 @@ export function useViewerScreen(): ViewerScreenViewModel {
   const appState = useAppStateSnapshot();
   const [safetyBusy, setSafetyBusy] = useState(false);
   const [safetyPaused, setSafetyPaused] = useState(false);
+  const [canDismissByTap, setCanDismissByTap] = useState(false);
   const segmentProgress = useSharedValue(1);
   const lastFinishedSlideIdRef = useRef<string | null>(null);
 
   const queueRef = useRef<NixQueueItem[]>(queue);
   const slideIndexRef = useRef(slideIndex);
   const closingRef = useRef(closing);
+
+  useEffect(() => {
+    if (!imageReady || imageLoadError || loading) return;
+    const timer = setTimeout(() => {
+      setCanDismissByTap(true);
+    }, 350);
+    return () => {
+      clearTimeout(timer);
+      setCanDismissByTap(false);
+    };
+  }, [imageReady, imageLoadError, loading, slideIndex]);
 
   useEffect(() => {
     queueRef.current = queue;
@@ -337,8 +350,21 @@ export function useViewerScreen(): ViewerScreenViewModel {
       if (queueRef.current.length > 1) {
         selection();
       }
-      setQueueState((current) => ({ ...current, slideIndex: current.slideIndex + 1 }));
-      setMediaState((current) => ({ ...current, imageReady: false, imageLoadError: null }));
+      unstable_batchedUpdates(() => {
+        setQueueState((current) => ({ ...current, slideIndex: current.slideIndex + 1 }));
+        setMediaState((current) => ({
+          ...current,
+          renderNix: null,
+          imageUrl: null,
+          loading: true,
+          imageReady: false,
+          imageLoadError: null,
+          useNativeFallback: false,
+          videoPosterUri: null,
+          videoThumbnailOverlay: null,
+        }));
+        setCanDismissByTap(false);
+      });
     } else {
       setQueueState((current) => ({ ...current, closing: true }));
       router.back();
@@ -474,29 +500,35 @@ export function useViewerScreen(): ViewerScreenViewModel {
     if (!loading && imageUrl && imageReady && !imageLoadError) {
       const isVideo = nix.media_type === 'video';
       const isUnlimited = nix.view_duration_sec === 0;
+
+      cancelAnimation(segmentProgress);
       segmentProgress.set(1);
-      
+
       if (isVideo || isUnlimited) {
         return () => {
           cancelAnimation(segmentProgress);
         };
       }
-      
+
       const slideMs = Math.max(1000, (nix.view_duration_sec ?? 5) * 1000);
+
+      // Smooth visual progress bar animation
       segmentProgress.set(
-        withTiming(
-          0,
-          {
-            duration: slideMs,
-            easing: Easing.linear,
-          },
-          (finished) => {
-            if (finished) {
-              scheduleOnRN(finishCurrentSlideEvent);
-            }
-          }
-        )
+        withTiming(0, {
+          duration: slideMs,
+          easing: Easing.linear,
+        })
       );
+
+      // Dedicated JS timer to reliably advance slide, avoiding Reanimated callback races
+      const timer = setTimeout(() => {
+        finishCurrentSlideEvent();
+      }, slideMs);
+
+      return () => {
+        clearTimeout(timer);
+        cancelAnimation(segmentProgress);
+      };
     }
     return () => {
       cancelAnimation(segmentProgress);
@@ -688,6 +720,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
     useNativeFallback,
     videoPosterUri,
     videoThumbnailOverlay,
+    canDismissByTap,
     finishCurrentSlide,
     segmentProgress,
     onSegmentProgress,

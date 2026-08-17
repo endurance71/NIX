@@ -3,19 +3,21 @@ export const DEFAULT_MEDIA_TEXT_OVERLAY_Y = 0.5;
 
 /** Preview-point font size baked into the media relative to frame height. */
 export const DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE = 34;
+export const MIN_MEDIA_TEXT_OVERLAY_FONT_SIZE = 14;
+export const MAX_MEDIA_TEXT_OVERLAY_FONT_SIZE = 60;
 
 /** Black text is the default for newly created stickers. */
 export const DEFAULT_MEDIA_TEXT_COLOR = '#000000';
 
-/** Default light translucent caption bar — rgba(255,255,255,0.8). */
-export const DEFAULT_MEDIA_TEXT_BAR_COLOR = '#FFFFFFCC';
+/** Default light translucent caption bar — rgba(255,255,255,0.55). */
+export const DEFAULT_MEDIA_TEXT_BAR_COLOR = '#FFFFFF8C';
 
 /** Static export uses the same fill as preview. */
 export const DEFAULT_MEDIA_TEXT_BAKED_BAR_COLOR = DEFAULT_MEDIA_TEXT_BAR_COLOR;
 
 /** Previous defaults accepted while normalizing persisted drafts. */
 const LEGACY_MEDIA_TEXT_GLASS_BAR_COLOR = '#0000008C';
-const LEGACY_MEDIA_TEXT_TRANSLUCENT_BAR_COLOR = '#FFFFFF8C';
+const LEGACY_MEDIA_TEXT_TRANSLUCENT_BAR_COLOR = '#FFFFFFCC';
 
 /** Fully transparent bar (no fill in bake / solid preview). */
 export const TRANSPARENT_MEDIA_TEXT_BAR_COLOR = '#00000000';
@@ -143,6 +145,39 @@ export function resolveMediaTextBarColor(barColor: string): string {
   return isDefaultBarColor(barColor)
     ? DEFAULT_MEDIA_TEXT_BAKED_BAR_COLOR
     : normalizeHexColor(barColor, DEFAULT_MEDIA_TEXT_BAKED_BAR_COLOR);
+}
+
+/**
+ * Computes optimal high-contrast text color ('#FFFFFF' or '#000000') for a given bar background color.
+ */
+export function getContrastingTextColor(barColor: string): string {
+  const upper = barColor.toUpperCase();
+  if (
+    upper === TRANSPARENT_MEDIA_TEXT_BAR_COLOR ||
+    upper === '#00000000' ||
+    upper === 'TRANSPARENT'
+  ) {
+    return '#FFFFFF';
+  }
+
+  let hex = barColor.trim().replace(/^#/, '');
+  if (hex.length === 3) {
+    hex = hex.split('').map((x) => x + x).join('');
+  }
+  if (hex.length >= 6) {
+    const r = parseInt(hex.slice(0, 2), 16) / 255;
+    const g = parseInt(hex.slice(2, 4), 16) / 255;
+    const b = parseInt(hex.slice(4, 6), 16) / 255;
+
+    const toLinear = (c: number) =>
+      c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    const luminance =
+      0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+
+    return luminance > 0.45 ? '#000000' : '#FFFFFF';
+  }
+
+  return '#000000';
 }
 
 export function normalizeMediaTextOverlay(

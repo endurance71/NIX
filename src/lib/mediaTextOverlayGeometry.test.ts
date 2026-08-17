@@ -32,7 +32,7 @@ describe('mediaTextOverlay model', () => {
       y: 0.25,
       fontSize: 36,
       textColor: '#000000',
-      barColor: '#FFFFFFCC',
+      barColor: '#FFFFFF8C',
       bold: true,
       italic: false,
       underline: false,

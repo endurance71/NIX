@@ -173,7 +173,7 @@ export function usePreviewTextStickerController({
           Math.max(BAR_TEXT_HORIZONTAL_PADDING, (barInnerWidth + placeholderWidth) / 2)
         )
       : undefined;
-  const minimumBarHeight = Math.max(48, fontSize * 1.25 + 20);
+  const minimumBarHeight = Math.max(44, fontSize + 20);
 
   useEffect(() => {
     formatOpenRef.current = formatOpen;

@@ -37,16 +37,38 @@ export function ViewerNixVideo({
 
   const readyEmittedRef = useRef(false);
   const errorEmittedRef = useRef(false);
+  const hasActuallyPlayedRef = useRef(false);
   const onReadyRef = useRef(onReady);
   const onErrorRef = useRef(onError);
+  const onPlayToEndRef = useRef(onPlayToEnd);
 
   useEffect(() => {
     onReadyRef.current = onReady;
     onErrorRef.current = onError;
+    onPlayToEndRef.current = onPlayToEnd;
   });
 
-  useEventListener(player, 'playToEnd', loop ? () => {} : onPlayToEnd);
+  useEventListener(player, 'playingChange', ({ isPlaying }) => {
+    if (isPlaying) {
+      hasActuallyPlayedRef.current = true;
+    }
+  });
+
+  useEventListener(player, 'playToEnd', () => {
+    if (loop) return;
+    const dur = player.duration;
+    const cur = player.currentTime;
+    const hasPlayed = hasActuallyPlayedRef.current || (dur > 0 && cur >= Math.min(0.3, dur * 0.8));
+    if (!hasPlayed) {
+      return;
+    }
+    onPlayToEndRef.current();
+  });
+
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    if (currentTime > 0.05) {
+      hasActuallyPlayedRef.current = true;
+    }
     const dur = player.duration;
     if (dur > 0) {
       const progress = Math.max(0, Math.min(1, 1 - currentTime / dur));
@@ -76,6 +98,7 @@ export function ViewerNixVideo({
   useEffect(() => {
     readyEmittedRef.current = false;
     errorEmittedRef.current = false;
+    hasActuallyPlayedRef.current = false;
   }, [uri]);
 
   useEffect(() => {

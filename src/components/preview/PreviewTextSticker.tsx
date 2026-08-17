@@ -98,6 +98,7 @@ export function PreviewTextSticker({
           isPresented={controller.sheetPresented}
           onDismiss={controller.closeFormatSheet}
           style={controller.formatStyle}
+          fontSize={fontSize}
           onChangeStyle={onChangeStyle}
           onContentHeightChange={controller.handleFormatSheetHeightChange}
         />

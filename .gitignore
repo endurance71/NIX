@@ -1,7 +1,9 @@
+.env*.local
 .env
 .env.local
 node_modules/
 .expo/
+.expo
 dist/
 build/
 *.jks

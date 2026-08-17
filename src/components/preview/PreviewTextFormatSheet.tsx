@@ -44,12 +44,17 @@ import {
 } from '../../theme/mediaTextOverlayFonts';
 import {
   TRANSPARENT_MEDIA_TEXT_BAR_COLOR,
+  getContrastingTextColor,
   type MediaTextAlign,
   type MediaTextFontDesign,
   type MediaTextOverlayStyle,
   type MediaTextPreset,
 } from '../../types/mediaTextOverlay';
 import type { PreviewTextStylePatch } from '../../hooks/usePreviewTextOverlay';
+import {
+  DEFAULT_MEDIA_TEXT_FONT_SIZE,
+  PreviewTextSizeSlider,
+} from './PreviewTextSizeSlider';
 
 /** Capsule fill — system gray pills. */
 const NOTES_CAPSULE_LIGHT = 'rgba(120,120,128,0.16)';
@@ -70,6 +75,7 @@ type PreviewTextFormatSheetProps = {
   isPresented: boolean;
   onDismiss: () => void;
   style: MediaTextOverlayStyle;
+  fontSize?: number;
   onChangeStyle: (patch: PreviewTextStylePatch) => void;
   /** Measured content height — used to park the text bar above the sheet. */
   onContentHeightChange?: (height: number) => void;
@@ -327,6 +333,7 @@ export function PreviewTextFormatSheet({
   isPresented,
   onDismiss,
   style,
+  fontSize = DEFAULT_MEDIA_TEXT_FONT_SIZE,
   onChangeStyle,
   onContentHeightChange,
 }: PreviewTextFormatSheetProps) {
@@ -490,7 +497,10 @@ export function PreviewTextFormatSheet({
                 iconSystemName={'rectangle.fill' as SFSymbol}
                 selectedColor={style.barColor}
                 swatches={MEDIA_TEXT_BAR_SWATCHES}
-                onSelect={(barColor) => onChangeStyle({ barColor })}
+                onSelect={(barColor) => {
+                  const textColor = getContrastingTextColor(barColor);
+                  onChangeStyle({ barColor, textColor });
+                }}
                 t={t}
                 labelColor={ink}
               />
@@ -568,6 +578,17 @@ export function PreviewTextFormatSheet({
               );
             })}
           </View>
+        </View>
+
+        <View style={styles.controlRow}>
+          <PreviewTextSizeSlider
+            fontSize={fontSize}
+            onChangeFontSize={(nextFontSize) => onChangeStyle({ fontSize: nextFontSize })}
+            accentColor={selectedCapsule}
+            capsuleColor={capsule}
+            labelColor={ink}
+            isDark={isDark}
+          />
         </View>
       </View>
     </AppBottomSheet>

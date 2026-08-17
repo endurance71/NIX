@@ -411,7 +411,7 @@ public class NixMediaOverlayModule: Module {
           options: [.usesLineFragmentOrigin, .usesFontLeading],
           context: nil
         )
-        let barHeight = max(textBounds.height + captionBarPaddingV * 2 * scale, 48 * scale)
+        let barHeight = max(textBounds.height + captionBarPaddingV * 2 * scale, 36 * scale)
         let barRect = CGRect(
           x: visible.midX - barWidth / 2,
           y: centerY - barHeight / 2,
@@ -562,7 +562,7 @@ public class NixMediaOverlayModule: Module {
         options: [.usesLineFragmentOrigin, .usesFontLeading],
         context: nil
       )
-      let barHeight = max(textBounds.height + captionBarPaddingV * 2 * scale, 48 * scale)
+      let barHeight = max(textBounds.height + captionBarPaddingV * 2 * scale, 36 * scale)
       let barRect = CGRect(
         x: visible.midX - barWidth / 2,
         y: centerY - barHeight / 2,

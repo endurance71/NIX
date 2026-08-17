@@ -3,6 +3,9 @@ import {
   DEFAULT_MEDIA_TEXT_BAR_COLOR,
   DEFAULT_MEDIA_TEXT_BAKED_BAR_COLOR,
   DEFAULT_MEDIA_TEXT_COLOR,
+  DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE,
+  MAX_MEDIA_TEXT_OVERLAY_FONT_SIZE,
+  MIN_MEDIA_TEXT_OVERLAY_FONT_SIZE,
   createDefaultMediaTextOverlay,
   isDefaultBarColor,
   normalizeMediaTextOverlay,
@@ -82,5 +85,13 @@ describe('normalizeMediaTextOverlay', () => {
     expect(overlay.preset).toBe('title');
     expect(overlay.align).toBe('center');
     expect(isDefaultBarColor(overlay.barColor)).toBe(true);
+  });
+
+  it('defines valid min, max, and default font size bounds', () => {
+    expect(MIN_MEDIA_TEXT_OVERLAY_FONT_SIZE).toBe(14);
+    expect(MAX_MEDIA_TEXT_OVERLAY_FONT_SIZE).toBe(60);
+    expect(DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE).toBe(34);
+    expect(MIN_MEDIA_TEXT_OVERLAY_FONT_SIZE).toBeLessThan(DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE);
+    expect(DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE).toBeLessThan(MAX_MEDIA_TEXT_OVERLAY_FONT_SIZE);
   });
 });

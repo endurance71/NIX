@@ -153,7 +153,6 @@ export function PreviewTextStickerContent({
                     styles.displayText,
                     {
                       fontSize,
-                      lineHeight: fontSize * 1.2,
                       color: textColor,
                       fontWeight,
                       textAlign,
@@ -182,7 +181,6 @@ export function PreviewTextStickerContent({
                     {
                       color: textColor,
                       fontSize,
-                      lineHeight: fontSize * 1.25,
                       fontWeight,
                       textAlign: emptyEditing ? 'left' : textAlign,
                       ...textStyleExtras,
@@ -252,18 +250,21 @@ const styles = StyleSheet.create({
   },
   barInner: {
     position: 'relative',
-    minHeight: 28,
+    width: '100%',
     justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: BAR_TEXT_HORIZONTAL_PADDING,
   },
   barContentLayer: {
     position: 'relative',
-    minHeight: '100%',
+    width: '100%',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   fakePlaceholder: {
     ...StyleSheet.absoluteFill,
     fontWeight: '700',
+    textAlignVertical: 'center',
   },
   placeholderMeasure: {
     position: 'absolute',
@@ -274,14 +275,17 @@ const styles = StyleSheet.create({
     color: DEFAULT_MEDIA_TEXT_COLOR,
     fontWeight: '700',
     textAlign: 'center',
+    textAlignVertical: 'center',
   },
   input: {
     fontWeight: '700',
     padding: 0,
     margin: 0,
+    textAlignVertical: 'center',
   },
   inputLayer: {
     ...StyleSheet.absoluteFill,
     justifyContent: 'center',
+    alignItems: 'center',
   },
 });

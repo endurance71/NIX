@@ -101,7 +101,7 @@ export function ViewerScreenSurface() {
         <Pressable
           style={vm.styles.dismissArea}
           onPress={vm.finishCurrentSlide}
-          disabled={vm.closing}
+          disabled={vm.closing || !vm.canDismissByTap}
           accessibilityLabel="Przejdź do następnego fragmentu"
           accessibilityRole="button"
         />
