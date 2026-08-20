@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 16.0.1",
-    "appVersionSource": "remote"
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -25,7 +25,7 @@
       "channel": "preview"
     },
     "production": {
-      "autoIncrement": true,
+      "autoIncrement": false,
       "environment": "production",
       "env": {
         "EXPO_PUBLIC_BACKGROUND_UPLOAD_ENABLED": "true",
