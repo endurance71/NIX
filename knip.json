@@ -18,5 +18,5 @@
     "expo-updates",
     "expo-mcp"
   ],
-  "ignoreBinaries": ["react-doctor"]
+  "ignoreBinaries": ["psql", "react-doctor"]
 }

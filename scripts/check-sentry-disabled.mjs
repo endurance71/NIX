@@ -33,8 +33,8 @@ export function sentryDisabledViolations() {
   ) {
     violations.push('the local production export does not hard-disable Sentry uploads');
   }
-  if (!monitoring.includes('const SENTRY_RUNTIME_ENABLED = false;')) {
-    violations.push('the app runtime hard-off flag is missing');
+  if (!monitoring.includes("process.env.EXPO_PUBLIC_SENTRY_ENABLED === 'true'")) {
+    violations.push('the app runtime opt-in gate is missing');
   }
   if (layout.includes('Sentry.wrap(')) {
     violations.push('the root layout must not be wrapped by Sentry while monitoring is disabled');
@@ -75,7 +75,7 @@ export function assertSentryDisabled() {
     for (const violation of violations) console.error(`Sentry hard-off: ${violation}`);
     return false;
   }
-  console.log('Sentry runtime, Edge transport, source maps and dSYM uploads are hard-disabled.');
+  console.log('Sentry is disabled by default and guarded by the explicit Internal TestFlight opt-in.');
   return true;
 }
 

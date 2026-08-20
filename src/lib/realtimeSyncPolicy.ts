@@ -49,6 +49,6 @@ export function realtimeQueryKeysForArea(area: SyncArea) {
     queryKeys.incomingFriendRequests,
     queryKeys.outgoingFriendRequests,
     queryKeys.acceptedFriends,
-    queryKeys.currentUserProfile,
+    queryKeys.currentUserProfiles,
   ];
 }

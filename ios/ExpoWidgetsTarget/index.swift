@@ -5,6 +5,7 @@ internal import ExpoWidgets
 @main
 struct ExportWidgets0: WidgetBundle {
   var body: some Widget {
+
     WidgetLiveActivity()
   }
 }

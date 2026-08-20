@@ -1,5 +1,6 @@
-import { useReducer, useEffect, useRef } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { clearUserCache } from '../services/profileService';
 import {
@@ -23,26 +24,9 @@ type AuthState = {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  error: Error | null;
 };
 
-type AuthAction =
-  | { type: 'hydrated'; session: Session | null }
-  | { type: 'bootstrap_timeout' };
-
-function authReducer(state: AuthState, action: AuthAction): AuthState {
-  switch (action.type) {
-    case 'hydrated':
-      return {
-        session: action.session,
-        user: action.session?.user ?? null,
-        loading: false,
-      };
-    case 'bootstrap_timeout':
-      return state.loading ? { ...state, loading: false } : state;
-    default:
-      return state;
-  }
-}
 
 async function signIn(email: string, password: string) {
   const { data, error } = await requestPasswordSignIn(email, password);
@@ -107,56 +91,83 @@ async function logout() {
   return { error };
 }
 
-export function useAuth() {
+type AuthContextValue = AuthState & {
+  signIn: typeof signIn;
+  signInWithGoogle: typeof signInWithGoogle;
+  signInWithApple: typeof signInWithApple;
+  signUp: typeof signUp;
+  verifyOTP: typeof verifyOTP;
+  requestPasswordReset: typeof requestPasswordReset;
+  updatePassword: typeof updatePassword;
+  reauthenticatePasswordChange: typeof reauthenticatePasswordChange;
+  signOut: typeof logout;
+  retryBootstrap: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const previousUserIdRef = useRef<string | null>(null);
-  const [{ session, user, loading }, dispatch] = useReducer(authReducer, {
+  const [state, setState] = useState<AuthState>({
     session: null,
     user: null,
     loading: true,
+    error: null,
   });
 
   useEffect(() => {
     let mounted = true;
-
-    const authBootstrapTimeout = setTimeout(() => {
-      if (mounted) dispatch({ type: 'bootstrap_timeout' });
-    }, 5000);
+    let authEventVersion = 0;
+    const bootstrapVersion = authEventVersion;
 
     supabase.auth.getSession().then(({ data: { session: nextSession } }) => {
-      if (!mounted) return;
+      if (!mounted || authEventVersion !== bootstrapVersion) return;
       previousUserIdRef.current = nextSession?.user.id ?? null;
-      dispatch({ type: 'hydrated', session: nextSession });
+      setState({ session: nextSession, user: nextSession?.user ?? null, loading: false, error: null });
     }).catch((err) => {
       console.warn('getSession error:', err);
       if (!mounted) return;
-      dispatch({ type: 'hydrated', session: null });
+      setState({ session: null, user: null, loading: false, error: err instanceof Error ? err : new Error('Auth bootstrap failed') });
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
+      authEventVersion += 1;
       const previousUserId = previousUserIdRef.current;
       const nextUserId = nextSession?.user.id ?? null;
       if (previousUserId && previousUserId !== nextUserId) {
         void clearTextOutbox(previousUserId);
         void clearPendingFriendInviteToken();
       }
+      if (previousUserId !== nextUserId) {
+        clearUserCache();
+        queryClient.clear();
+      }
       previousUserIdRef.current = nextUserId;
-      dispatch({ type: 'hydrated', session: nextSession });
+      setState({ session: nextSession, user: nextSession?.user ?? null, loading: false, error: null });
     });
 
     return () => {
       mounted = false;
-      clearTimeout(authBootstrapTimeout);
       subscription.unsubscribe();
     };
+  }, [queryClient]);
+
+  const retryBootstrap = useCallback(async () => {
+    setState((current) => ({ ...current, loading: true, error: null }));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      setState({ session, user: session?.user ?? null, loading: false, error: null });
+    } catch (error) {
+      setState({ session: null, user: null, loading: false, error: error instanceof Error ? error : new Error('Auth bootstrap failed') });
+    }
   }, []);
 
-  return {
-    session,
-    user,
-    loading,
+  const value = useMemo<AuthContextValue>(() => ({
+    ...state,
     signIn,
     signInWithGoogle,
     signInWithApple,
@@ -166,5 +177,14 @@ export function useAuth() {
     updatePassword,
     reauthenticatePasswordChange,
     signOut: logout,
-  };
+    retryBootstrap,
+  }), [retryBootstrap, state]);
+
+  return createElement(AuthContext.Provider, { value }, children);
+}
+
+export function useAuth() {
+  const value = useContext(AuthContext);
+  if (!value) throw new Error('useAuth must be used inside AuthProvider');
+  return value;
 }

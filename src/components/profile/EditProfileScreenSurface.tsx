@@ -182,7 +182,7 @@ export default function EditProfileScreenSurface() {
   const [avatarBusy, setAvatarBusy] = useState(false);
 
   const { data: profileRow = null, isPending: profilePending } = useQuery({
-    queryKey: queryKeys.currentUserProfile,
+    queryKey: queryKeys.currentUserProfile(user?.id ?? null),
     queryFn: getCurrentUserProfile,
     staleTime: 1000 * 60 * 5,
   });
@@ -209,7 +209,7 @@ export default function EditProfileScreenSurface() {
 
   const invalidateProfileData = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile(user?.id ?? null) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
       queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle }),
     ]);

@@ -1,13 +1,12 @@
 import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
-import { useAuth } from '../hooks/useAuth';
+import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { View, Text, Pressable, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getCurrentUserProfile } from '../services/profileService';
-import { supabase } from '../lib/supabase';
 import { DeepLinkHandler } from '../lib/deepLink';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { AppThemeProvider } from '../theme/theme-context';
@@ -24,14 +23,21 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useTranslation } from 'react-i18next';
 import { AppRealtimeSync } from '../components/sync/AppRealtimeSync';
 import { queryKeys } from '../lib/queryKeys';
-import { resolveNeedsOnboarding } from '../lib/profileGate';
+import { resolveBootstrapState } from '../lib/profileGate';
 import { hasCurrentAgeAttestation } from '../services/safetyService';
+import { AGE_POLICY_VERSION } from '../lib/ageGate';
+import {
+  clearProfileBootstrapSnapshot,
+  readProfileBootstrapSnapshot,
+  writeProfileBootstrapSnapshot,
+} from '../lib/profileBootstrapSnapshot';
 import { PushNotificationsProvider } from '../context/PushNotificationsProvider';
 import { UploadQueueProvider } from '../context/UploadQueueProvider';
 import { getPendingFriendInviteToken } from '../lib/pendingFriendInvite';
 import { TextOutboxSync } from '../components/sync/TextOutboxSync';
 import { AppInstallationSync } from '../components/sync/AppInstallationSync';
 import { iosRoadmapFeatures } from '../config/iosRoadmapFeatures';
+import { trackEvent } from '../lib/telemetry';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Catch and ignore in environments where splash screen autohide prevention is unavailable.
@@ -56,16 +62,18 @@ function RootLayout() {
       <SafeAreaProvider>
         <ToastProvider maxQueue={3} defaultConfig={{ duration: 4000 }}>
           <QueryClientProvider client={queryClient}>
-            <AppThemeProvider>
-              <VideoDraftProvider>
-                <PhotoDraftProvider>
-                  <UploadQueueProvider>
-                    <DeepLinkHandler />
-                    <RootNavigator />
-                  </UploadQueueProvider>
-                </PhotoDraftProvider>
-              </VideoDraftProvider>
-            </AppThemeProvider>
+            <AuthProvider>
+              <AppThemeProvider>
+                <VideoDraftProvider>
+                  <PhotoDraftProvider>
+                    <UploadQueueProvider>
+                      <DeepLinkHandler />
+                      <RootNavigator />
+                    </UploadQueueProvider>
+                  </PhotoDraftProvider>
+                </VideoDraftProvider>
+              </AppThemeProvider>
+            </AuthProvider>
           </QueryClientProvider>
         </ToastProvider>
       </SafeAreaProvider>
@@ -76,34 +84,70 @@ function RootLayout() {
 export default RootLayout;
 
 function RootNavigator() {
+  const queryClient = useQueryClient();
   const { t } = useTranslation();
   const { colors, statusBarStyle } = useAppTheme();
-  const { session, loading } = useAuth();
+  const { session, loading, error: authError, signOut, retryBootstrap } = useAuth();
+  const userId = session?.user.id ?? null;
   const segments = useSegments() as string[];
   const {
     data: profile,
     isPending: profilePending,
     isError: profileError,
+    isSuccess: profileSuccess,
+    refetch: refetchProfile,
   } = useQuery({
-    queryKey: queryKeys.currentUserProfile,
+    queryKey: queryKeys.currentUserProfile(userId),
     queryFn: getCurrentUserProfile,
     enabled: !!session,
     retry: 2,
   });
-  const { data: ageAttested = false, isPending: ageAttestationPending } = useQuery({
-    queryKey: queryKeys.currentAgeAttestation,
+  const {
+    data: ageAttested,
+    isPending: ageAttestationPending,
+    isError: ageAttestationError,
+    isSuccess: ageAttestationSuccess,
+    refetch: refetchAgeAttestation,
+  } = useQuery({
+    queryKey: queryKeys.currentAgeAttestation(userId, AGE_POLICY_VERSION),
     queryFn: hasCurrentAgeAttestation,
     enabled: !!session,
     retry: 2,
   });
-  const needsOnboarding = resolveNeedsOnboarding(!!session, profile, profileError, ageAttested);
-  const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false);
-
-  const isAuthInitializing = loading;
-  const isProfileInitializing = Boolean(session && (profilePending || ageAttestationPending));
-  const appReady = !isAuthInitializing && !isProfileInitializing;
+  const {
+    data: bootstrapSnapshot,
+    isPending: snapshotPending,
+    refetch: refetchSnapshot,
+  } = useQuery({
+    queryKey: ['profileBootstrapSnapshot', userId],
+    queryFn: () => readProfileBootstrapSnapshot(userId!),
+    enabled: !!userId,
+    staleTime: Infinity,
+    retry: false,
+  });
+  const bootstrap = resolveBootstrapState({
+    authLoading: loading,
+    authError: Boolean(authError),
+    hasSession: !!session,
+    profile,
+    profilePending: Boolean(session && profilePending),
+    profileError,
+    ageAttested,
+    agePending: Boolean(session && ageAttestationPending),
+    ageError: ageAttestationError,
+    snapshotPending: Boolean(session && snapshotPending),
+    hasValidSnapshot: bootstrapSnapshot?.userId === userId,
+  });
+  const needsOnboarding = bootstrap.status === 'needsOnboarding';
+  const appReady = bootstrap.status !== 'loading';
   const inAuthGroup = segments[0] === '(auth)';
   const onResetPasswordScreen = segments[1] === 'reset-password';
+
+  useEffect(() => {
+    if (bootstrap.status !== 'loading') {
+      trackEvent('bootstrap_resolution', { resolution: bootstrap.status });
+    }
+  }, [bootstrap.status]);
 
   useEffect(() => {
     if (appReady) {
@@ -112,20 +156,20 @@ function RootNavigator() {
   }, [appReady]);
 
   useEffect(() => {
-    if (appReady) return;
-
-    const timer = setTimeout(() => {
-      setBootstrapTimedOut(true);
-      SplashScreen.hideAsync().catch(() => {});
-    }, 4000);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [appReady]);
+    if (!userId || !profileSuccess || !ageAttestationSuccess) return;
+    if (profile?.username && ageAttested === true) {
+      void writeProfileBootstrapSnapshot(userId).then((snapshot) => {
+        queryClient.setQueryData(['profileBootstrapSnapshot', userId], snapshot);
+      });
+    } else {
+      void clearProfileBootstrapSnapshot(userId).then(() => {
+        queryClient.setQueryData(['profileBootstrapSnapshot', userId], null);
+      });
+    }
+  }, [ageAttestationSuccess, ageAttested, profile, profileSuccess, queryClient, userId]);
 
   useEffect(() => {
-    if (!appReady) return;
+    if (!appReady || bootstrap.status === 'recoverableError') return;
 
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/login');
@@ -142,12 +186,12 @@ function RootNavigator() {
     if (!needsOnboarding && inAuthGroup && !onResetPasswordScreen) {
       router.replace('/(tabs)');
     }
-  }, [appReady, inAuthGroup, needsOnboarding, onResetPasswordScreen, segments, session]);
+  }, [appReady, bootstrap.status, inAuthGroup, needsOnboarding, onResetPasswordScreen, segments, session]);
 
   useEffect(() => {
     if (
       !iosRoadmapFeatures.shareInvites ||
-      !appReady ||
+      !appReady || bootstrap.status === 'recoverableError' ||
       !session ||
       needsOnboarding
     ) return;
@@ -159,7 +203,7 @@ function RootNavigator() {
     return () => {
       cancelled = true;
     };
-  }, [appReady, needsOnboarding, segments, session]);
+  }, [appReady, bootstrap.status, needsOnboarding, segments, session]);
 
   if (!appReady) {
     return (
@@ -171,28 +215,35 @@ function RootNavigator() {
           backgroundColor: '#000000',
         }}>
         <StatusBar style={statusBarStyle} hidden={false} />
-        {bootstrapTimedOut && (
-          <>
-            <Text style={{ color: colors.textMuted, marginTop: 16, textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
-              {t('root.bootstrapTooLong')}
-            </Text>
-            <Pressable
-              style={{
-                marginTop: 18,
-                backgroundColor: colors.buttonPrimaryBg,
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                borderRadius: 10,
-              }}
-              onPress={async () => {
-                await supabase.auth.signOut();
-                router.replace('/(auth)/login');
-              }}
-            >
-              <Text style={{ color: colors.buttonPrimaryText, fontWeight: '700', fontFamily: APP_FONT_FAMILY }}>{t('root.goToLogin')}</Text>
-            </Pressable>
-          </>
-        )}
+      </View>
+    );
+  }
+
+  if (bootstrap.status === 'recoverableError') {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 28, backgroundColor: colors.background }}>
+        <StatusBar style={statusBarStyle} hidden={false} />
+        <Text style={{ color: colors.label, fontSize: 22, fontWeight: '700', textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
+          {t('root.accountVerificationFailed')}
+        </Text>
+        <Text style={{ color: colors.textMuted, marginTop: 12, textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
+          {t('root.accountVerificationHint')}
+        </Text>
+        <Pressable
+          style={{ marginTop: 24, backgroundColor: colors.buttonPrimaryBg, padding: 14, borderRadius: 12 }}
+          onPress={() => void Promise.all([retryBootstrap(), refetchProfile(), refetchAgeAttestation(), refetchSnapshot()])}
+        >
+          <Text style={{ color: colors.buttonPrimaryText, textAlign: 'center', fontWeight: '700', fontFamily: APP_FONT_FAMILY }}>{t('common.retry')}</Text>
+        </Pressable>
+        <Pressable
+          style={{ marginTop: 12, padding: 14 }}
+          onPress={async () => {
+            await signOut();
+            router.replace('/(auth)/login');
+          }}
+        >
+          <Text style={{ color: colors.accent, textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>{t('root.useAnotherAccount')}</Text>
+        </Pressable>
       </View>
     );
   }

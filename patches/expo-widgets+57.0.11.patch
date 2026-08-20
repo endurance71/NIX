@@ -1,3 +1,5 @@
+diff --git a/node_modules/expo-widgets/ios/LiveActivity.swift b/node_modules/expo-widgets/ios/LiveActivity.swift
+index c4b5bcc..d3d56dd 100644
 --- a/node_modules/expo-widgets/ios/LiveActivity.swift
 +++ b/node_modules/expo-widgets/ios/LiveActivity.swift
 @@ -1,6 +1,68 @@

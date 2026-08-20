@@ -46,7 +46,7 @@ export default function FriendMyCodeScreen() {
   const qrPayload = useProfileQrPayload();
   const [shareBusy, setShareBusy] = useState(false);
   const { data: profileRow = null, isPending: profilePending } = useQuery({
-    queryKey: queryKeys.currentUserProfile,
+    queryKey: queryKeys.currentUserProfile(user?.id ?? null),
     queryFn: getCurrentUserProfile,
     staleTime: 1000 * 60 * 5,
   });

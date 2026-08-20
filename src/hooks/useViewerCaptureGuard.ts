@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import * as ScreenCapture from 'expo-screen-capture';
 import { notifyWarning } from '../lib/appNotify';
 import { trackEvent } from '../lib/telemetry';
@@ -8,13 +8,20 @@ import {
 } from '../lib/viewerCaptureProtection';
 import { reportCaptureAttempt } from '../services/captureAttemptService';
 
-export function useViewerCaptureGuard(captureDenied: boolean, paramSenderId: string | undefined, paramNixId: string | undefined) {
+export function useViewerCaptureGuard(captureDenied: boolean | null, paramSenderId: string | undefined, paramNixId: string | undefined) {
+  const currentNixIdRef = useRef(paramNixId);
+  useEffect(() => {
+    currentNixIdRef.current = paramNixId;
+  }, [paramNixId]);
+
   useEffect(() => {
     let screenshotSubscription: { remove: () => void } | null = null;
     let isMounted = true;
 
+    if (captureDenied === null) return;
+
     if (!captureDenied) {
-      trackEvent('viewer_capture_policy_allow', { sender_id: paramSenderId ?? null });
+      trackEvent('viewer_capture_policy_allow');
       void disableViewerCaptureProtection().catch((error) => {
         console.warn('Could not disable screen capture guard in viewer', error);
       });
@@ -27,16 +34,14 @@ export function useViewerCaptureGuard(captureDenied: boolean, paramSenderId: str
       .then(() => {
         if (!isMounted) return;
 
-        trackEvent('viewer_capture_block_enabled', { sender_id: paramSenderId ?? null });
+        trackEvent('viewer_capture_block_enabled');
         screenshotSubscription = ScreenCapture.addScreenshotListener(() => {
           notifyWarning('Wykryto próbę zrzutu ekranu.', {
             message: 'Na tym NiXie ochrona capture jest aktywna.',
           });
-          trackEvent('viewer_capture_attempt', {
-            sender_id: paramSenderId ?? null,
-          });
-          if (paramNixId) {
-            void reportCaptureAttempt(paramNixId);
+          trackEvent('viewer_capture_attempt');
+          if (currentNixIdRef.current) {
+            void reportCaptureAttempt(currentNixIdRef.current);
           }
         });
       })
@@ -51,5 +56,5 @@ export function useViewerCaptureGuard(captureDenied: boolean, paramSenderId: str
         console.warn('Could not disable screen capture guard in viewer', error);
       });
     };
-  }, [captureDenied, paramSenderId, paramNixId]);
+  }, [captureDenied, paramSenderId]);
 }

@@ -39,6 +39,7 @@ import { fetchMessageReactionsWithPeer } from '../services/messageReactionServic
 import { useAuth } from './useAuth';
 import { filterInboxRows } from '../lib/inboxSearch';
 import { recordProductEvent } from '../services/productAnalyticsService';
+import { serializeViewerOpenParams } from '../lib/viewerRoute';
 import {
   useUploadJobs,
   useUploadQueue,
@@ -329,11 +330,7 @@ export function useInboxScreen() {
     if (!row.upload && row.kind === 'nix' && row.unread && row.openParams) {
       router.push({
         pathname: '/viewer',
-        params: {
-          id: row.openParams.id,
-          path: row.openParams.path,
-          senderId: row.openParams.senderId,
-        },
+        params: serializeViewerOpenParams(row.openParams),
       });
     } else {
       const peerId = row.peerId;

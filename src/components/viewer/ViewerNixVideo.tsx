@@ -8,7 +8,6 @@ const VIEWER_VIDEO_WATCHDOG_MS = 2500;
 
 export function ViewerNixVideo({
   uri,
-  nixId,
   onReady,
   onError,
   onPlayToEnd,
@@ -18,7 +17,6 @@ export function ViewerNixVideo({
   style,
 }: {
   uri: string;
-  nixId: string;
   onReady: () => void;
   onError: () => void;
   onPlayToEnd: () => void;
@@ -36,6 +34,7 @@ export function ViewerNixVideo({
   });
 
   const readyEmittedRef = useRef(false);
+  const readyToPlayRef = useRef(false);
   const errorEmittedRef = useRef(false);
   const hasActuallyPlayedRef = useRef(false);
   const onReadyRef = useRef(onReady);
@@ -51,6 +50,10 @@ export function ViewerNixVideo({
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
     if (isPlaying) {
       hasActuallyPlayedRef.current = true;
+      if (readyToPlayRef.current && !readyEmittedRef.current) {
+        readyEmittedRef.current = true;
+        onReadyRef.current();
+      }
     }
   });
 
@@ -68,6 +71,10 @@ export function ViewerNixVideo({
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
     if (currentTime > 0.05) {
       hasActuallyPlayedRef.current = true;
+      if (readyToPlayRef.current && !readyEmittedRef.current) {
+        readyEmittedRef.current = true;
+        onReadyRef.current();
+      }
     }
     const dur = player.duration;
     if (dur > 0) {
@@ -78,10 +85,7 @@ export function ViewerNixVideo({
 
   useEventListener(player, 'statusChange', ({ status: nextStatus }) => {
     if (nextStatus === 'readyToPlay') {
-      if (!readyEmittedRef.current) {
-        readyEmittedRef.current = true;
-        onReadyRef.current();
-      }
+      readyToPlayRef.current = true;
       try {
         if (!paused) player.play();
       } catch {
@@ -97,6 +101,7 @@ export function ViewerNixVideo({
 
   useEffect(() => {
     readyEmittedRef.current = false;
+    readyToPlayRef.current = false;
     errorEmittedRef.current = false;
     hasActuallyPlayedRef.current = false;
   }, [uri]);
@@ -111,18 +116,16 @@ export function ViewerNixVideo({
       if (readyEmittedRef.current || errorEmittedRef.current) return;
       trackEvent('viewer_video_stuck_watchdog', {
         current_status: player.status,
-        nix_id: nixId,
+        media_type: 'video',
       });
       try {
         player.play();
       } catch {
         // ignorujemy
       }
-      readyEmittedRef.current = true;
-      onReadyRef.current();
     }, VIEWER_VIDEO_WATCHDOG_MS);
     return () => clearTimeout(timer);
-  }, [uri, nixId, player]);
+  }, [uri, player]);
 
   return <VideoView style={style} player={player} contentFit="cover" nativeControls={false} />;
 }

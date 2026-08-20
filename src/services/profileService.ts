@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabase';
 import { normalizeAvatarEmoji } from '../lib/avatarEmoji';
-import type { User } from '@supabase/supabase-js';
 
 export type CurrentUserProfileRow = {
   id: string;
@@ -12,36 +11,20 @@ export type CurrentUserProfileRow = {
   avatar_emoji: string | null;
 };
 
-/** TTL for the cached auth user (ms). */
-const USER_CACHE_TTL_MS = 30_000;
-let cachedUser: User | null = null;
-let cachedUserAt = 0;
-
 export async function getCurrentUser() {
-  const now = Date.now();
-  if (cachedUser && now - cachedUserAt < USER_CACHE_TTL_MS) {
-    return cachedUser;
-  }
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  if (session?.user) {
-    cachedUser = session.user;
-    cachedUserAt = now;
-    return session.user;
-  }
+  if (session?.user) return session.user;
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  cachedUser = user;
-  cachedUserAt = now;
   return user;
 }
 
-/** Clear the cached user — call on sign-out. */
+/** Kept for callers that clear account-scoped state on auth transitions. */
 export function clearUserCache() {
-  cachedUser = null;
-  cachedUserAt = 0;
+  // Auth is read directly from Supabase; there is no cross-account module cache.
 }
 
 function isMissingBioColumnError(error: { code?: string; message?: string } | null): boolean {

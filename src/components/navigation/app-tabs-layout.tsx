@@ -8,13 +8,15 @@ import { createNativeTabAvatarIconSource } from '../../services/nativeTabAvatarI
 import { getCurrentUserProfile } from '../../services/profileService';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../../lib/queryKeys';
 import { resolveAppIconName } from '../../theme/app-icons';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function AppTabsLayout() {
   const { colors, isDark } = useAppTheme();
   const { count } = useInboxBadgeCount();
   const { t } = useTranslation();
+  const { user } = useAuth();
   const { data: profileRow = null } = useQuery({
-    queryKey: queryKeys.currentUserProfile,
+    queryKey: queryKeys.currentUserProfile(user?.id ?? null),
     queryFn: getCurrentUserProfile,
     staleTime: 1000 * 60 * 5,
   });

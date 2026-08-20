@@ -17,14 +17,14 @@ describe('monitoring hard-off', () => {
     vi.clearAllMocks();
   });
 
-  it('nie pozwala DSN włączyć wysyłki ani breadcrumbów', () => {
+  it('nie ładuje ani nie inicjalizuje Sentry w dev/hard-off', () => {
     vi.stubEnv('EXPO_PUBLIC_SENTRY_DSN', 'https://public@example.invalid/1');
     const consoleInfo = vi.spyOn(console, 'info').mockImplementation(() => undefined);
 
     initMonitoring();
     trackEvent('test_event', { status: 'success' });
 
-    expect(sentryInit).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
+    expect(sentryInit).not.toHaveBeenCalled();
     expect(sentryBreadcrumb).not.toHaveBeenCalled();
     expect(consoleInfo).toHaveBeenCalledWith('[telemetry] test_event', { status: 'success' });
 

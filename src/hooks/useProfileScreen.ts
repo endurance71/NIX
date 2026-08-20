@@ -44,7 +44,7 @@ export function useProfileScreen() {
   });
 
   const { data: profileRow = null, isPending: profilePending } = useQuery({
-    queryKey: queryKeys.currentUserProfile,
+    queryKey: queryKeys.currentUserProfile(user?.id ?? null),
     queryFn: getCurrentUserProfile,
     staleTime: 1000 * 60 * 5,
   });
@@ -79,7 +79,7 @@ export function useProfileScreen() {
   const handleListRefresh = async () => {
     try {
       await Promise.all([
-        queryClient.refetchQueries({ queryKey: queryKeys.currentUserProfile, type: 'active' }),
+        queryClient.refetchQueries({ queryKey: queryKeys.currentUserProfile(user?.id ?? null), type: 'active' }),
         queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
         queryClient.refetchQueries({ queryKey: queryKeys.outgoingFriendRequests, type: 'active' }),
         queryClient.refetchQueries({ queryKey: queryKeys.acceptedFriends, type: 'active' }),
@@ -96,7 +96,7 @@ export function useProfileScreen() {
       predicate: (query) => {
         const key = query.queryKey[0];
         if (
-          key !== queryKeys.currentUserProfile[0] &&
+          key !== queryKeys.currentUserProfiles[0] &&
           key !== queryKeys.incomingFriendRequests[0] &&
           key !== queryKeys.outgoingFriendRequests[0] &&
           key !== queryKeys.acceptedFriends[0]
@@ -117,7 +117,7 @@ export function useProfileScreen() {
   const handleTogglePrivacy = async (isPrivate: boolean) => {
     try {
       await updateCurrentUserProfile({ is_private: isPrivate });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile(user?.id ?? null) });
     } catch {
       notifyError(t('profile.privacyUpdateFailed', 'Nie udało się zmienić prywatności'));
     }

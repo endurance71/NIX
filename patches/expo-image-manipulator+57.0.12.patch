@@ -1,6 +1,8 @@
+diff --git a/node_modules/expo-image-manipulator/ios/ImageManipulatorModule.swift b/node_modules/expo-image-manipulator/ios/ImageManipulatorModule.swift
+index 1f8c73a..5f5a79a 100644
 --- a/node_modules/expo-image-manipulator/ios/ImageManipulatorModule.swift
 +++ b/node_modules/expo-image-manipulator/ios/ImageManipulatorModule.swift
-@@ -10,16 +10,19 @@
+@@ -10,17 +10,20 @@ public class ImageManipulatorModule: Module {
    public func definition() -> ModuleDefinition {
      Name("ExpoImageManipulator")
  
@@ -18,9 +20,10 @@
 -        }
          if let image: SharedRef<UIImage> = source.get() {
            return image.ref
-+        }
+         }
 +        if let url: URL = source.get() {
 +          return try await loadImage(atUrl: url, appContext: appContext)
-         }
++        }
          throw Exceptions.RuntimeLost()
        }
+ 

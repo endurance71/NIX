@@ -1,5 +1,4 @@
 import { View, StyleSheet, ActivityIndicator, Text, Pressable } from 'react-native';
-import { router } from 'expo-router';
 import { Image as ExpoImage } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { BlurView } from 'expo-blur';
@@ -60,7 +59,6 @@ export function ViewerScreenSurface() {
               <ViewerNixVideo
                 key={`${vm.displayedNix.id}-${vm.imageUrl}`}
                 uri={vm.imageUrl}
-                nixId={vm.displayedNix.id}
                 onReady={vm.onVideoReady}
                 onError={vm.onVideoError}
                 onPlayToEnd={vm.finishCurrentSlide}
@@ -129,17 +127,27 @@ export function ViewerScreenSurface() {
           />
         </View>
       ) : null}
-      {vm.loading && !vm.imageLoadError ? (
+      {vm.loading && !vm.viewerError ? (
         <View style={vm.styles.loadingOverlaySolid}>
           <ActivityIndicator color={vm.colors.cameraControlTint} />
         </View>
       ) : null}
-      {vm.imageLoadError ? (
+      {vm.viewerError ? (
         <View style={vm.styles.errorOverlay}>
-          <Text style={vm.styles.errorText}>{vm.imageLoadError}</Text>
+          <Text style={vm.styles.errorText}>{vm.viewerError.message}</Text>
+          {vm.viewerError.kind === 'transient' ? (
+            <Pressable style={vm.styles.backButton} onPress={vm.retryViewer} accessibilityLabel="Spróbuj ponownie" accessibilityRole="button">
+              <Text style={vm.styles.backButtonText}>Spróbuj ponownie</Text>
+            </Pressable>
+          ) : null}
+          {vm.viewerError.kind === 'permanentMissing' && vm.currentNix ? (
+            <Pressable style={vm.styles.backButton} onPress={vm.skipUnavailable} accessibilityLabel="Pomiń niedostępne medium" accessibilityRole="button">
+              <Text style={vm.styles.backButtonText}>Pomiń</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             style={vm.styles.backButton}
-            onPress={() => router.back()}
+            onPress={vm.leaveViewer}
             accessibilityLabel="Wróć"
             accessibilityRole="button"
             hitSlop={10}

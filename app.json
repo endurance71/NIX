@@ -2,7 +2,7 @@
   "expo": {
     "name": "NiX",
     "slug": "nix-app",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "platforms": [
       "ios"
     ],
@@ -44,6 +44,7 @@
         "expo-build-properties",
         {
           "ios": {
+            "buildReactNativeFromSource": true,
             "extraPods": [
               {
                 "name": "AppCheckCore",
@@ -133,7 +134,7 @@
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": false
     },
     "updates": {
       "enableBsdiffPatchSupport": true,
@@ -142,7 +143,7 @@
         "expo-channel-name": "production"
       }
     },
-    "runtimeVersion": "1.0.9",
+    "runtimeVersion": "1.0.10",
     "locales": {
       "en": "./src/locales/en/common.json",
       "pl": "./src/locales/pl/common.json"

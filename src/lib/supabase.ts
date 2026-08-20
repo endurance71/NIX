@@ -1,4 +1,4 @@
-import 'react-native-url-polyfill/auto';
+import './installUrlPolyfill';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { createClient } from '@supabase/supabase-js';

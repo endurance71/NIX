@@ -2,7 +2,8 @@
 export const queryKeys = {
   acceptedFriends: ['acceptedFriends'] as const,
   capturePolicyForSender: (senderId: string | null) => ['capturePolicyForSender', senderId ?? 'none'] as const,
-  currentUserProfile: ['currentUserProfile'] as const,
+  currentUserProfiles: ['currentUserProfile'] as const,
+  currentUserProfile: (userId: string | null) => ['currentUserProfile', userId ?? 'none'] as const,
   friendCapturePolicies: (friendIds: readonly string[]) =>
     ['friendCapturePolicies', Array.from(new Set(friendIds.filter(Boolean))).sort()] as const,
   incomingFriendRequests: ['incomingFriendRequests'] as const,
@@ -11,7 +12,8 @@ export const queryKeys = {
   inboxActivityBundle: ['inboxActivityBundle'] as const,
   textMessagesWithPeer: (peerId: string) => ['textMessagesWithPeer', peerId] as const,
   messageReactionsWithPeer: (peerId: string) => ['messageReactionsWithPeer', peerId] as const,
-  currentAgeAttestation: ['currentAgeAttestation'] as const,
+  currentAgeAttestation: (userId: string | null, policyVersion: string) =>
+    ['currentAgeAttestation', userId ?? 'none', policyVersion] as const,
   blockedUsers: ['blockedUsers'] as const,
   contentReports: ['contentReports'] as const,
   productAnalyticsConsent: ['productAnalyticsConsent'] as const,

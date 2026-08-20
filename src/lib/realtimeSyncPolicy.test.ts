@@ -18,7 +18,7 @@ describe('realtime sync policy', () => {
       queryKeys.incomingFriendRequests,
       queryKeys.outgoingFriendRequests,
       queryKeys.acceptedFriends,
-      queryKeys.currentUserProfile,
+      queryKeys.currentUserProfiles,
     ]);
   });
 

@@ -23,6 +23,9 @@ export const resources = {
         unknown: 'Nieznany',
       },
       root: {
+        accountVerificationFailed: 'Nie udało się zweryfikować konta',
+        accountVerificationHint: 'Sprawdź połączenie i spróbuj ponownie. Nie utracisz swojej sesji.',
+        useAnotherAccount: 'Użyj innego konta',
         bootstrapTooLong: 'Uruchamianie trwa zbyt długo. Możesz przejść do logowania.',
         goToLogin: 'Przejdź do logowania',
         qrMyCode: 'Mój kod QR',
@@ -703,6 +706,9 @@ export const resources = {
         unknown: 'Unknown',
       },
       root: {
+        accountVerificationFailed: 'Could not verify your account',
+        accountVerificationHint: 'Check your connection and try again. Your session will remain intact.',
+        useAnotherAccount: 'Use another account',
         bootstrapTooLong: 'Startup is taking too long. You can go to login.',
         goToLogin: 'Go to login',
         qrMyCode: 'My QR code',

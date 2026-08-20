@@ -1,6 +1,7 @@
 import type { InboxThreadItem } from './inboxThreads';
 import type { SentNix } from '../services/nixService';
 import type { SupportedLocale } from './i18n';
+import type { ViewerOpenParams } from './viewerRoute';
 
 export type InboxRowStatus = 'new' | 'sent' | 'opened' | 'cleaned' | 'cleanupFailed';
 
@@ -50,11 +51,7 @@ export type InboxRowModel = {
   /** Typ mediów NiXa; `null` dla wiadomości tekstowych i wysłanych (status zamiast typu). */
   mediaType: InboxRowMediaType | null;
   upload: RecipientUploadPresentation | null;
-  openParams: {
-    id: string;
-    path: string;
-    senderId: string;
-  } | null;
+  openParams: ViewerOpenParams | null;
 };
 
 export function resolveSentInboxStatus(
@@ -127,6 +124,11 @@ export function buildInboxRowModel(
             id: nix.id,
             path: nix.media_path,
             senderId: nix.sender_id,
+            mediaType: nix.media_type === 'video' ? 'video' : 'image',
+            viewDurationSec: nix.view_duration_sec,
+            playbackDurationMs: nix.playback_duration_ms ?? null,
+            thumbnailB64: nix.thumbnail_b64 ?? null,
+            isReplay: false,
           }
         : null,
     };

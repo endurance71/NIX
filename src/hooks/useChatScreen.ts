@@ -43,6 +43,7 @@ import {
   retryTextOutboxJob,
 } from '../services/textOutboxService';
 import { activeChatPeerRef } from '../lib/activeChatPeer';
+import { serializeViewerOpenParams } from '../lib/viewerRoute';
 
 function generateClientMessageId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -454,12 +455,16 @@ export function useChatScreen(peerId: string) {
 
     router.push({
       pathname: '/viewer',
-      params: {
+      params: serializeViewerOpenParams({
         id: nix.id,
         path: nix.media_path,
         senderId: peerId,
-        isReplay: canReplay ? '1' : '0',
-      },
+        mediaType: nix.media_type === 'video' ? 'video' : 'image',
+        viewDurationSec: nix.view_duration_sec,
+        playbackDurationMs: nix.playback_duration_ms ?? null,
+        thumbnailB64: nix.thumbnail_b64,
+        isReplay: canReplay,
+      }),
     });
   };
 

@@ -7,5 +7,6 @@
   "ios.forceStaticLinking": "[]",
   "apple.extraPods": "[{\"name\":\"AppCheckCore\",\"version\":\"11.2.0\"}]",
   "apple.privacyManifestAggregationEnabled": "true",
+  "ios.buildReactNativeFromSource": "true",
   "EXPO_USE_PRECOMPILED_MODULES": "true"
 }

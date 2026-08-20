@@ -18,7 +18,7 @@ import { useTrackedUsername } from '../../hooks/useAuthCredentials';
 import { normalizeUsername } from '../../services/friendService';
 import { runWithFinally } from '../../lib/runWithFinally';
 import { queryKeys } from '../../lib/queryKeys';
-import { isAtLeastMinimumAge, isValidBirthDate } from '../../lib/ageGate';
+import { AGE_POLICY_VERSION, isAtLeastMinimumAge, isValidBirthDate } from '../../lib/ageGate';
 import { hasCurrentAgeAttestation, recordCurrentAgeAttestation } from '../../services/safetyService';
 import {
   recordProductEvent,
@@ -28,7 +28,8 @@ import { iosRoadmapFeatures } from '../../config/iosRoadmapFeatures';
 
 export default function OnboardingScreen() {
   const { t } = useTranslation();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  const userId = user?.id ?? null;
   const queryClient = useQueryClient();
   const { username, onUsernameChange, getUsername } = useTrackedUsername();
   const [displayName, setDisplayName] = useState('');
@@ -39,11 +40,11 @@ export default function OnboardingScreen() {
   const [analyticsConsent, setAnalyticsConsent] = useState(false);
   const busy = loading || signOutLoading;
   const { data: ageAttested = false } = useQuery({
-    queryKey: queryKeys.currentAgeAttestation,
+    queryKey: queryKeys.currentAgeAttestation(userId, AGE_POLICY_VERSION),
     queryFn: hasCurrentAgeAttestation,
   });
   const { data: currentProfile } = useQuery({
-    queryKey: queryKeys.currentUserProfile,
+    queryKey: queryKeys.currentUserProfile(userId),
     queryFn: getCurrentUserProfile,
   });
 
@@ -80,7 +81,7 @@ export default function OnboardingScreen() {
       async () => {
         if (!ageAttested) {
           await recordCurrentAgeAttestation();
-          queryClient.setQueryData(queryKeys.currentAgeAttestation, true);
+          queryClient.setQueryData(queryKeys.currentAgeAttestation(userId, AGE_POLICY_VERSION), true);
         }
 
         if (!currentProfile?.username) {
@@ -99,7 +100,7 @@ export default function OnboardingScreen() {
           await recordProductEvent('onboarding_completed', { enabled: true });
         }
 
-        await queryClient.refetchQueries({ queryKey: queryKeys.currentUserProfile });
+        await queryClient.refetchQueries({ queryKey: queryKeys.currentUserProfile(userId) });
         router.replace(
           iosRoadmapFeatures.activation
             ? ('/activation' as never)

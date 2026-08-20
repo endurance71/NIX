@@ -14,6 +14,7 @@ import { useAppTheme } from './useAppTheme';
 import { notifyError } from '../lib/appNotify';
 import { resolveCapturePolicyForFriend } from '../lib/capturePolicy';
 import { runWithFinally } from '../lib/runWithFinally';
+import { useAuth } from './useAuth';
 import {
   acceptProfileFriendRequest,
   cancelProfileOutgoingRequest,
@@ -27,6 +28,7 @@ export function useFriendsScreen() {
   const { t } = useTranslation();
   const { colors, statusBarStyle } = useAppTheme();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [searchUsername, setSearchUsername] = useState('');
   const [inviteInputResetKey, setInviteInputResetKey] = useState(0);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -97,7 +99,7 @@ export function useFriendsScreen() {
       queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests }),
       queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests }),
       queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile(user?.id ?? null) }),
     ]);
   };
 
