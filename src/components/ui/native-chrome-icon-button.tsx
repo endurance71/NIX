@@ -65,7 +65,7 @@ export function NativeChromeIconButton({
   }
 
   return (
-    <Host matchContents>
+    <Host matchContents style={{ width: size, height: size }}>
       <Button
         onPress={disabled ? undefined : onPress}
         modifiers={[

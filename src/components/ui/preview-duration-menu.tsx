@@ -77,7 +77,7 @@ export default function PreviewDurationMenu({
   }
 
   return (
-    <Host matchContents>
+    <Host matchContents style={{ height: 48, minWidth: 76, alignSelf: 'flex-start' }}>
       <Menu
         modifiers={[buttonStyle('plain')]}
         label={

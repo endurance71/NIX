@@ -23,6 +23,7 @@ import { NativeChromeIconButton } from '../components/ui/native-chrome-icon-butt
 import { NativePreviewSendButton } from '../components/ui/native-preview-send-button';
 import PreviewDurationMenu from '../components/ui/preview-duration-menu';
 import { useScreenInsets } from '../hooks/useScreenInsets';
+import { MEDIA_CHROME_HORIZONTAL } from '../theme/safeArea';
 import { useVideoDraft, type VideoSegmentDraft } from '../context/videoDraft';
 import { usePhotoDraft } from '../context/photoDraft';
 import { configureForPlayback } from '../lib/audioSession';
@@ -352,12 +353,12 @@ function PreviewVideoContent({
   const [isSaving, setIsSaving] = useState(false);
   const segmentProgress = useSharedValue(1);
   const textClampTop =
-    insets.top
+    insets.topContentInset
     + VIDEO_PREVIEW_TIMER_HUD_TOP
     + previewTimerHudContentHeight()
     + VIDEO_PREVIEW_CLOSE_BELOW_TIMER_GAP
     + 56;
-  const textClampBottom = insets.bottom + 16 + 56;
+  const textClampBottom = insets.bottomContentInset + 56;
 
   const current = segments[videoState.clipIndex];
   const clipKey = `${videoState.clipIndex}:${current.uri}`;
@@ -535,12 +536,13 @@ function PreviewVideoContent({
               styles.overlayVideoChrome,
               {
                 paddingTop:
-                  insets.top +
+                  insets.topContentInset +
                   VIDEO_PREVIEW_TIMER_HUD_TOP +
                   previewTimerHudContentHeight() +
                   VIDEO_PREVIEW_CLOSE_BELOW_TIMER_GAP,
-                paddingBottom: insets.bottom + 16,
-                paddingHorizontal: 24,
+                paddingBottom: insets.bottomContentInset,
+                paddingLeft: MEDIA_CHROME_HORIZONTAL + insets.left,
+                paddingRight: MEDIA_CHROME_HORIZONTAL + insets.right,
               },
             ]}
             pointerEvents="box-none">
@@ -593,14 +595,16 @@ function PreviewVideoContent({
                   tintColor={colors.cameraControlTint}
                   chromeVariant="glass"
                 />
-                <NativePreviewSendButton
-                  label="Wyślij do"
-                  accessibilityLabel="Wyślij nagranie"
-                  onPress={openSendToVideo}
-                  backgroundColor={colors.cameraControlBackground}
-                  tintColor={colors.cameraControlTint}
-                  chromeVariant="glass"
-                />
+                <View style={styles.sendButtonSlot}>
+                  <NativePreviewSendButton
+                    label="Wyślij do"
+                    accessibilityLabel="Wyślij nagranie"
+                    onPress={openSendToVideo}
+                    backgroundColor={colors.cameraControlBackground}
+                    tintColor={colors.cameraControlTint}
+                    chromeVariant="glass"
+                  />
+                </View>
               </View>
             ) : (
               <View />
@@ -731,8 +735,8 @@ export default function PreviewScreen() {
     );
   }
 
-  const photoClampTop = insets.top + 12 + 56;
-  const photoClampBottom = insets.bottom + 16 + 56;
+  const photoClampTop = insets.topContentInset + 56;
+  const photoClampBottom = insets.bottomContentInset + 56;
 
   const setPhotoTextOverlay = (next: MediaTextOverlay | null) => {
     if (!draftPhoto && !photoUri) return;
@@ -793,9 +797,10 @@ export default function PreviewScreen() {
             style={[
               styles.overlay,
               {
-                paddingTop: insets.top + 12,
-                paddingBottom: insets.bottom + 16,
-                paddingHorizontal: 24,
+                paddingTop: insets.topContentInset,
+                paddingBottom: insets.bottomContentInset,
+                paddingLeft: MEDIA_CHROME_HORIZONTAL + insets.left,
+                paddingRight: MEDIA_CHROME_HORIZONTAL + insets.right,
               },
             ]}
             pointerEvents="box-none">
@@ -855,14 +860,16 @@ export default function PreviewScreen() {
                   tintColor={colors.cameraControlTint}
                   chromeVariant="glass"
                 />
-                <NativePreviewSendButton
-                  label="Wyślij do"
-                  accessibilityLabel="Wybierz odbiorców zdjęcia"
-                  onPress={() => openSendToPhoto(viewDurationSec)}
-                  backgroundColor={colors.cameraControlBackground}
-                  tintColor={colors.cameraControlTint}
-                  chromeVariant="glass"
-                />
+                <View style={styles.sendButtonSlot}>
+                  <NativePreviewSendButton
+                    label="Wyślij do"
+                    accessibilityLabel="Wybierz odbiorców zdjęcia"
+                    onPress={() => openSendToPhoto(viewDurationSec)}
+                    backgroundColor={colors.cameraControlBackground}
+                    tintColor={colors.cameraControlTint}
+                    chromeVariant="glass"
+                  />
+                </View>
               </View>
             ) : (
               <View />
@@ -931,6 +938,13 @@ const createStyles = (colors: ThemeColors) => {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
+      gap: 12,
+      width: '100%',
+    },
+    sendButtonSlot: {
+      flexShrink: 1,
+      maxWidth: '58%',
+      alignItems: 'flex-end',
     },
     timerHudShell: {
       position: 'absolute',

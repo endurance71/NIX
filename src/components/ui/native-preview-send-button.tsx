@@ -19,6 +19,10 @@ import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
 import { typography } from '../../theme/typography';
 import type { ChromeVariant } from './native-chrome-icon-button';
 
+const SEND_BUTTON_HEIGHT = 48;
+const SEND_BUTTON_MIN_WIDTH = 120;
+const SEND_BUTTON_MAX_WIDTH = 180;
+
 type NativePreviewSendButtonProps = {
   label: string;
   accessibilityLabel: string;
@@ -51,7 +55,14 @@ export function NativePreviewSendButton({
   }
 
   return (
-    <Host matchContents>
+    <Host
+      matchContents
+      style={{
+        height: SEND_BUTTON_HEIGHT,
+        minWidth: SEND_BUTTON_MIN_WIDTH,
+        maxWidth: SEND_BUTTON_MAX_WIDTH,
+        alignSelf: 'flex-end',
+      }}>
       <Button
         onPress={onPress}
         modifiers={[
@@ -62,8 +73,8 @@ export function NativePreviewSendButton({
           spacing={6}
           alignment="center"
           modifiers={[
-            frame({ minWidth: 136, height: 48 }),
-            padding({ leading: 18, trailing: 14 }),
+            frame({ minWidth: SEND_BUTTON_MIN_WIDTH, height: SEND_BUTTON_HEIGHT }),
+            padding({ leading: 16, trailing: 12 }),
             background(backgroundColor, shapes.capsule()),
             ...(chromeVariant === 'glass'
               ? [glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'capsule' as const })]
@@ -85,10 +96,12 @@ const styles = StyleSheet.create({
   fallbackButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 24,
     gap: 4,
+    minHeight: SEND_BUTTON_HEIGHT,
+    maxWidth: SEND_BUTTON_MAX_WIDTH,
   },
   fallbackText: {
     ...typography.callout,

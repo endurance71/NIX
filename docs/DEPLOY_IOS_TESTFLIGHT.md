@@ -70,7 +70,7 @@ Aktualne limity weryfikuj na [expo.dev/pricing](https://expo.dev/pricing).
 
 Dla hotfixów JS/assets na binarki już zainstalowane przez TestFlight, które mają:
 
-- ten sam `runtimeVersion` (obecnie **`1.0.9`**),
+- ten sam `runtimeVersion` (obecnie **`1.0.10`**),
 - kanał **`production`** (`expo-channel-name`),
 - `EXUpdatesURL` → `https://u.expo.dev/<projectId>`.
 
@@ -104,7 +104,7 @@ eas update --channel production --message "krótki opis zmiany"
 
 ### 4.3 Weryfikacja na urządzeniu
 
-1. Aplikacja TestFlight z binary o `runtimeVersion` `1.0.9` i kanale `production`.
+1. Aplikacja TestFlight z binary o `runtimeVersion` `1.0.10` i kanale `production`.
 2. Force quit → otwórz (pobranie update w tle) → force quit → otwórz ponownie (zastosowanie).
 3. Potwierdź, że zmiana JS jest widoczna.
 4. W razie braku update: sprawdź kanał, `runtimeVersion`, sieć, dashboard EAS Update dla projektu.
@@ -113,7 +113,7 @@ eas update --channel production --message "krótki opis zmiany"
 
 ```text
 [ ] Zmiana jest JS/assets only (brak native / plugins / runtimeVersion)
-[ ] runtimeVersion w app.json i Expo.plist = ten sam co na TF (obecnie 1.0.9)
+[ ] runtimeVersion w app.json i Expo.plist = ten sam co na TF (obecnie 1.0.10)
 [ ] Binary na TF ma expo-channel-name=production (po Archive z tą konfiguracją)
 [ ] npm run typecheck && npm run lint && npm test
 [ ] eas update --channel production --message "…"
@@ -126,8 +126,8 @@ eas update --channel production --message "krótki opis zmiany"
 
 | Plik | Klucz | Wartość (obecnie) |
 | --- | --- | --- |
-| `app.json` | `expo.runtimeVersion` | `1.0.9` |
-| `ios/NiX/Supporting/Expo.plist` | `EXUpdatesRuntimeVersion` | `1.0.9` |
+| `app.json` | `expo.runtimeVersion` | `1.0.10` |
+| `ios/NiX/Supporting/Expo.plist` | `EXUpdatesRuntimeVersion` | `1.0.10` |
 
 **Bumpuj** `runtimeVersion` (i zsynchronizuj oba pliki), gdy:
 
@@ -348,8 +348,8 @@ W repozytorium może być `development` (lokalne buildy). Przy uploadzie do App 
 
 | Pojęcie | Przykład | Gdzie w NiX |
 | --- | --- | --- |
-| Wersja marketingowa | `1.0.9` | **Źródło prawdy:** `app.json` → `expo.version`. Musi równać się: `package.json` `version`, `ios/NiX/Info.plist` `CFBundleShortVersionString`, `MARKETING_VERSION` w `project.pbxproj` |
-| `runtimeVersion` (OTA) | `1.0.9` | `app.json` + `Expo.plist` — bump tylko przy native (sekcja 5) |
+| Wersja marketingowa | `1.0.10` | **Źródło prawdy:** `app.json` → `expo.version`. Musi równać się: `package.json` `version`, `ios/NiX/Info.plist` `CFBundleShortVersionString`, `MARKETING_VERSION` w `project.pbxproj` |
+| `runtimeVersion` (OTA) | `1.0.10` | `app.json` + `Expo.plist` — bump tylko przy native (sekcja 5) |
 | Numer buildu | `1`, `2`, `3`… | Ustaw **jednocześnie**: `app.json` → `expo.ios.buildNumber`, oba `Info.plist` → `CFBundleVersion` oraz `project.pbxproj` → `CURRENT_PROJECT_VERSION`. **Nie** używaj EAS `autoIncrement` w lokalnej ścieżce Archive |
 
 Każdy upload do App Store Connect wymaga numeru buildu **wyższego** niż poprzedni build dla danej wersji marketingowej (reguła Apple).
@@ -652,6 +652,8 @@ Kopiuj wiersz po każdym uploadzie binary **lub** po OTA:
 
 | Data | Wersja | Build / Update | Commit | Ścieżka (A OTA / B Xcode) | Środowisko | Status | Uwagi |
 | ---- | ------ | -------------- | ------ | ------------------------ | ---------- | ------ | ----- |
+| 2026-08-20 | 1.0.10 | — | working tree (preview chrome hotfix) | A | production | OTA shipped | preview: mediaChrome gaps + horizontal gutters; NativePreviewSendButton Host maxWidth; duration menu Host frame |
+| 2026-08-20 | 1.0.10 | — | working tree (camera Liquid Glass hotfix) | A | production | OTA shipped | JS hotfix: icon-only NativeTabs, camera tab clearance 96, Host hit frames, lens spacing; ASC: keep 1.0.9 available, remove 1.0.10 from Internal if still assigned |
 | 2026-08-13 | 1.0.9 | 1 | `2da2247` | B | production | uploaded ASC, processing | native drawing and text overlays; runtime 1.0.9; React Doctor 100/100; production APNs; non-blocking missing-dSYM warnings for precompiled frameworks; Internal QA after Processing |
 | 2026-08-10 | 1.0.6 | 2 | `9ee78e6` | B | production | uploaded ASC, processing | React Doctor 100 + Expo Doctor 19/19; scheduleOnRN migration; Expo SDK 57 patch bump + regenerated patches; Internal QA po Processing |
 | 2026-07-28 | 1.0.5 | 5 | `11ad990` | B | production | uploaded ASC | foreground URLSession for image+finalize; JPEG fast-path; image retry; phase telemetry; dSYM warnings prebuilt frameworks; Internal QA po Processing |

@@ -1,5 +1,7 @@
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  MEDIA_CHROME_BOTTOM_GAP,
+  MEDIA_CHROME_TOP_GAP,
   NATIVE_TAB_BAR_CAMERA_OFFSET,
   NATIVE_TAB_BAR_CONTENT_OFFSET,
   SHEET_BOTTOM_MIN_PADDING,
@@ -78,8 +80,8 @@ export function useScreenInsets(policy: ScreenInsetPolicy): ScreenInsetsResult {
         bottom: insets.bottom,
         left: insets.left,
         right: insets.right,
-        topContentInset: insets.top,
-        bottomContentInset: insets.bottom,
+        topContentInset: insets.top + MEDIA_CHROME_TOP_GAP,
+        bottomContentInset: insets.bottom + MEDIA_CHROME_BOTTOM_GAP,
       };
 
     default: {

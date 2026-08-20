@@ -1,8 +1,15 @@
 export const SCREEN_HORIZONTAL_GUTTER = 20;
 export const SHEET_TOP_PADDING = 24;
 export const SHEET_BOTTOM_MIN_PADDING = 16;
-export const NATIVE_TAB_BAR_CAMERA_OFFSET = 24;
+/** Clears floating icon-only NativeTabs under camera chrome (gallery / flip / lens). */
+export const NATIVE_TAB_BAR_CAMERA_OFFSET = 52;
 export const NATIVE_TAB_BAR_CONTENT_OFFSET = 132;
+/** Gap below status bar / Dynamic Island for fullscreen media chrome (preview / viewer). */
+export const MEDIA_CHROME_TOP_GAP = 16;
+/** Gap above home indicator for fullscreen media chrome. */
+export const MEDIA_CHROME_BOTTOM_GAP = 20;
+/** Horizontal inset for fullscreen media chrome (plus safe-area left/right). */
+export const MEDIA_CHROME_HORIZONTAL = SCREEN_HORIZONTAL_GUTTER;
 /** iOS stack nav bar height (excluding status bar / safe area top). */
 export const STACK_NAV_BAR_HEIGHT = 44;
 

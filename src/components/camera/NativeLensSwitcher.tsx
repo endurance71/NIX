@@ -116,6 +116,7 @@ export function NativeLensSwitcher({
 
   const solidCapsuleFill = isDark ? colors.cameraControlBackground : '#FFFFFFB3';
   const solidSelectionFill = colors.accent;
+  const capsuleHeight = CHIP_HEIGHT + CAPSULE_PAD * 2;
   const capsuleWidth = options.length * CHIP_WIDTH + CAPSULE_PAD * 2;
 
   if (Platform.OS !== 'ios') {
@@ -230,7 +231,7 @@ export function NativeLensSwitcher({
   );
 
   return (
-    <Host matchContents style={styles.host}>
+    <Host matchContents style={[styles.host, { width: capsuleWidth, height: capsuleHeight }]}>
       <Namespace id={namespaceId}>
         {useGlass ? (
           <GlassEffectContainer

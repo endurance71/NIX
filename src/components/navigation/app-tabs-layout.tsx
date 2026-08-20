@@ -42,31 +42,36 @@ export default function AppTabsLayout() {
       backgroundColor={colors.background}
       blurEffect={isDark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}
       disableTransparentOnScrollEdge
-      iconColor={{ default: colors.label, selected: colors.accent }}
-      labelStyle={{
-        default: { color: colors.label },
-        selected: { color: colors.accent, fontWeight: '700' },
-      }}>
-      <NativeTabs.Trigger name="index" contentStyle={{ backgroundColor: '#000000' }}>
+      iconColor={{ default: colors.label, selected: colors.accent }}>
+      <NativeTabs.Trigger
+        name="index"
+        accessibilityLabel={t('tabs.camera')}
+        contentStyle={{ backgroundColor: '#000000' }}>
         <NativeTabs.Trigger.Icon sf={resolveAppIconName('camera')} />
-        <NativeTabs.Trigger.Label>{t('tabs.camera')}</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="inbox" contentStyle={{ backgroundColor: colors.systemBackground }}>
+      <NativeTabs.Trigger
+        name="inbox"
+        accessibilityLabel={t('tabs.inbox')}
+        contentStyle={{ backgroundColor: colors.systemBackground }}>
         <NativeTabs.Trigger.Icon sf={resolveAppIconName('inbox')} />
-        <NativeTabs.Trigger.Label>{t('tabs.inbox')}</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden />
         {count > 0 ? (
           <NativeTabs.Trigger.Badge>{count > 99 ? '99+' : String(count)}</NativeTabs.Trigger.Badge>
         ) : null}
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="profile" contentStyle={{ backgroundColor: colors.background }}>
+      <NativeTabs.Trigger
+        name="profile"
+        accessibilityLabel={t('tabs.profile')}
+        contentStyle={{ backgroundColor: colors.background }}>
         {tabAvatarIconSource ? (
           <NativeTabs.Trigger.Icon src={tabAvatarIconSource} renderingMode="original" />
         ) : (
           <NativeTabs.Trigger.Icon sf={resolveAppIconName('profile')} />
         )}
-        <NativeTabs.Trigger.Label>{t('tabs.profile')}</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

@@ -103,35 +103,38 @@ export function createCameraStyles(colors: ThemeColors) {
     bottomControls: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      alignItems: 'center',
+      alignItems: 'flex-end',
       paddingHorizontal: 32,
-      minHeight: 76,
+      minHeight: 130,
     },
     sideButtonContainer: {
       width: 60,
       height: 76,
       alignItems: 'center',
       justifyContent: 'center',
+      zIndex: 2,
     },
     shutterStack: {
       width: 220,
-      height: 76,
+      height: 130,
       alignItems: 'center',
-      justifyContent: 'center',
+      justifyContent: 'flex-end',
+      overflow: 'visible',
     },
     captureStatusSlot: {
       position: 'absolute',
-      bottom: 86,
+      bottom: 96,
       left: 0,
       right: 0,
       alignItems: 'center',
     },
     lensSwitcherSlot: {
       position: 'absolute',
-      bottom: 92,
+      bottom: 96,
       left: 0,
       right: 0,
       alignItems: 'center',
+      zIndex: 2,
     },
     captureError: {
       ...typography.footnote,
@@ -155,9 +158,12 @@ export function createCameraStyles(colors: ThemeColors) {
       alignItems: 'center',
     },
     shutterHitArea: {
-      padding: 15,
+      // Keep hit target on the shutter disk — large padding stole taps from the lens switcher above.
+      paddingHorizontal: 8,
+      paddingVertical: 4,
       justifyContent: 'center',
       alignItems: 'center',
+      zIndex: 1,
     },
     shutterRecording: {
       borderColor: colors.destructive,
