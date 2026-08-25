@@ -89,7 +89,7 @@ function OnlineInboxScreen() {
           headerSearchBarOptions: {
             placeholder: vm.t('inbox.searchPlaceholder'),
             hideWhenScrolling: false,
-            barTintColor: colors.systemBackground,
+            barTintColor: colors.secondarySystemGroupedBackground,
             textColor: colors.label,
             tintColor: colors.systemBlue,
             ...(Platform.OS === 'android'
