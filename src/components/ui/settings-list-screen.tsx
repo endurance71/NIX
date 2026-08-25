@@ -1,11 +1,12 @@
 import { PropsWithChildren } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { FieldGroup } from '@expo/ui';
+import { FieldGroup, RNHostView } from '@expo/ui';
 import { frame, refreshable } from '@expo/ui/swift-ui/modifiers';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { AppHost } from './app-host';
 import { OfflineStatusBanner } from '../auth/OfflineStatusBanner';
+import { useAuth } from '../../hooks/useAuth';
 
 type SettingsListScreenProps = PropsWithChildren<{
   loading?: boolean;
@@ -14,34 +15,41 @@ type SettingsListScreenProps = PropsWithChildren<{
 
 export function SettingsListScreen({ children, loading, onRefresh }: SettingsListScreenProps) {
   const { colors, statusBarStyle } = useAppTheme();
+  const { isOfflineAuthenticated } = useAuth();
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <OfflineStatusBanner />
-        <AppHost style={[styles.container, styles.centered]}>
-          <StatusBar style={statusBarStyle} />
-          <ActivityIndicator color={colors.label} />
-        </AppHost>
-      </View>
+      <AppHost
+        style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
+        <StatusBar style={statusBarStyle} />
+        <ActivityIndicator color={colors.label} />
+      </AppHost>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <OfflineStatusBanner />
-      <AppHost style={styles.container} useViewportSizeMeasurement>
-        <StatusBar style={statusBarStyle} />
-        <FieldGroup
-          style={{ backgroundColor: colors.background }}
-          modifiers={[
-            frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
-            ...(onRefresh ? [refreshable(onRefresh)] : []),
-          ]}>
-          {children}
-        </FieldGroup>
-      </AppHost>
-    </View>
+    <AppHost
+      style={[styles.container, { backgroundColor: colors.background }]}
+      useViewportSizeMeasurement>
+      <StatusBar style={statusBarStyle} />
+      <FieldGroup
+        style={{ backgroundColor: colors.background }}
+        modifiers={[
+          frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
+          ...(onRefresh ? [refreshable(onRefresh)] : []),
+        ]}>
+        {isOfflineAuthenticated ? (
+          <FieldGroup.Section>
+            <FieldGroup.SectionHeader>
+              <RNHostView matchContents>
+                <OfflineStatusBanner style={styles.offlineBanner} />
+              </RNHostView>
+            </FieldGroup.SectionHeader>
+          </FieldGroup.Section>
+        ) : null}
+        {children}
+      </FieldGroup>
+    </AppHost>
   );
 }
 
@@ -52,5 +60,9 @@ const styles = StyleSheet.create({
   centered: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  offlineBanner: {
+    marginHorizontal: 0,
+    marginVertical: 0,
   },
 });
