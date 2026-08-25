@@ -1,11 +1,12 @@
 import { Alert, Platform, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { InboxScreenSurface } from '../../../components/inbox/InboxScreenSurface';
-import { HeaderComposeButton } from '../../../components/navigation/header-compose-button';
 import { useAppTheme } from '../../../hooks/useAppTheme';
 import { useInboxScreen } from '../../../hooks/useInboxScreen';
 import type { InboxRowModel, UploadRowAction } from '../../../lib/inboxPresentation';
 import { OfflineStatusBanner } from '../../../components/auth/OfflineStatusBanner';
+import { resolveAppIconName } from '../../../theme/app-icons';
+import { tap } from '../../../lib/haptics';
 
 export default function InboxScreen() {
   return <OnlineInboxScreen />;
@@ -85,7 +86,6 @@ function OnlineInboxScreen() {
         options={{
           headerLargeTitle: true,
           headerTitle: vm.t('inbox.title'),
-          headerRight: () => <HeaderComposeButton />,
           headerSearchBarOptions: {
             placeholder: vm.t('inbox.searchPlaceholder'),
             hideWhenScrolling: false,
@@ -104,6 +104,16 @@ function OnlineInboxScreen() {
           },
         }}
       />
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          icon={resolveAppIconName('compose')}
+          accessibilityLabel={vm.t('inbox.composeChatA11y')}
+          onPress={() => {
+            tap('light');
+            router.push('/new-chat');
+          }}
+        />
+      </Stack.Toolbar>
       <View style={{ flex: 1 }}>
         <OfflineStatusBanner />
         <InboxScreenSurface

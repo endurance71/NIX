@@ -5,8 +5,6 @@ import { Stack, router } from 'expo-router';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useProfileScreen } from '../../hooks/useProfileScreen';
 import { registerTabScrollToTop } from '../../lib/tabBarScrollActions';
-import { HeaderQrButton } from '../navigation/header-qr-button';
-import { HeaderEditProfileButton } from '../navigation/header-edit-profile-button';
 import { AccentColorSwatch } from '../ui/accent-color-swatch';
 import {
   NativeSettingsCenteredFooter,
@@ -15,6 +13,8 @@ import {
 } from '../ui/native-settings';
 import { SettingsListScreen } from '../ui/settings-list-screen';
 import { iosRoadmapFeatures } from '../../config/iosRoadmapFeatures';
+import { resolveAppIconName } from '../../theme/app-icons';
+import { tap } from '../../lib/haptics';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
@@ -33,12 +33,26 @@ export default function ProfileScreenSurface() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerLeft: () => <HeaderQrButton />,
-          headerRight: () => <HeaderEditProfileButton />,
-        }}
-      />
+      <Stack.Toolbar placement="left">
+        <Stack.Toolbar.Button
+          icon={resolveAppIconName('qrcode')}
+          accessibilityLabel={vm.t('profile.myQrCode')}
+          onPress={() => {
+            tap('light');
+            router.push('/(tabs)/profile/my-code');
+          }}
+        />
+      </Stack.Toolbar>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          icon={resolveAppIconName('edit')}
+          accessibilityLabel={vm.t('profile.editProfileA11y')}
+          onPress={() => {
+            tap('light');
+            router.push('/(tabs)/profile/edit' as never);
+          }}
+        />
+      </Stack.Toolbar>
       <SettingsListScreen loading={vm.profilePending} onRefresh={vm.handleListRefresh}>
         {/* Top Section: Identity & QR Code */}
         <NativeSettingsSection>
