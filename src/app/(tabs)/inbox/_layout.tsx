@@ -20,7 +20,7 @@ export default function InboxTabLayout() {
         headerLargeStyle: { backgroundColor: isOfflineAuthenticated ? colors.background : 'transparent' },
         headerTitleStyle: { color: colors.label },
         headerLargeTitleStyle: { color: colors.label },
-        contentStyle: { backgroundColor: colors.systemBackground },
+        contentStyle: { backgroundColor: colors.background },
       }}>
       <Stack.Screen name="index" />
     </Stack>

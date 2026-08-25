@@ -232,7 +232,7 @@ function MessageRowContent({
   const baseModifiers = [
     frame({ maxWidth: Infinity, minHeight: 52, alignment: 'leading' }),
     listRowInsets({ top: 12, leading: 16, bottom: 12, trailing: 16 }),
-    listRowBackground(colors.systemBackground),
+    listRowBackground(colors.background),
     contentShape(shapes.rectangle()),
     accessibilityLabel(`@${row.username}, ${label}, ${row.timestampLabel}`),
   ];
@@ -439,11 +439,11 @@ function InviteRow({
 }) {
   const { colors } = useAppTheme();
   const avatarPath = request.requester.avatar_storage_path ?? null;
-  
+
   const baseModifiers = [
     frame({ maxWidth: Infinity, minHeight: 44, alignment: 'leading' }),
     listRowInsets({ top: 10, leading: 16, bottom: 10, trailing: 16 }),
-    listRowBackground(colors.systemBackground),
+    listRowBackground(colors.background),
     accessibilityLabel(
       `@${request.requester.username}, ${t('inbox.inviteDescription')}`
     ),
@@ -581,7 +581,7 @@ function InboxUnavailableState({
 
   return (
     <AppHost
-      style={[styles.container, { backgroundColor: colors.systemBackground }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
       useViewportSizeMeasurement>
       <StatusBar style={statusBarStyle} />
       <VStack
@@ -647,7 +647,7 @@ function InboxList({
 
   return (
     <AppHost
-      style={[styles.container, { backgroundColor: colors.systemBackground }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
       useViewportSizeMeasurement>
       <StatusBar style={statusBarStyle} />
       <List modifiers={listModifiers}>
@@ -687,7 +687,7 @@ export function InboxScreenSurface(props: InboxScreenSurfaceProps) {
 
   if (vm.loading) {
     return (
-      <AppHost style={[styles.container, { backgroundColor: colors.systemBackground }]}>
+      <AppHost style={[styles.container, { backgroundColor: colors.background }]}>
         <StatusBar style={statusBarStyle} />
         <VStack
           alignment="center"
