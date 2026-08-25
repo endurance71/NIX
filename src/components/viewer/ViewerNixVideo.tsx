@@ -3,6 +3,7 @@ import { type StyleProp, type ViewStyle } from 'react-native';
 import { useEventListener } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { trackEvent } from '../../lib/telemetry';
+import { videoContentFit } from '../../lib/mediaPresentation';
 
 const VIEWER_VIDEO_WATCHDOG_MS = 2500;
 
@@ -127,5 +128,12 @@ export function ViewerNixVideo({
     return () => clearTimeout(timer);
   }, [uri, player]);
 
-  return <VideoView style={style} player={player} contentFit="cover" nativeControls={false} />;
+  return (
+    <VideoView
+      style={style}
+      player={player}
+      contentFit={videoContentFit()}
+      nativeControls={false}
+    />
+  );
 }

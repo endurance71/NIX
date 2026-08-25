@@ -1,5 +1,5 @@
 import { type ReactNode, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import NixDrawingCanvas from '../../../modules/nix-media-overlay/NixDrawingCanvas.ios';
 import type { NixDrawingCanvasHandle } from '../../../modules/nix-media-overlay/NixDrawingCanvas.types';
@@ -25,6 +25,8 @@ type PreviewMarkupToolsProps = {
   onChangeDrawingOverlay: (next: MediaDrawingOverlay | null) => void;
   clampTopPx: number;
   clampBottomPx: number;
+  drawingViewportStyle?: StyleProp<ViewStyle>;
+  editingViewportHeight?: number;
   colors: ThemeColors;
   chromeVariant?: ChromeVariant;
   renderChrome: (slots: PreviewMarkupChromeSlots) => ReactNode;
@@ -37,6 +39,8 @@ export function PreviewMarkupTools({
   onChangeDrawingOverlay,
   clampTopPx,
   clampBottomPx,
+  drawingViewportStyle,
+  editingViewportHeight,
   colors,
   chromeVariant = 'glass',
   renderChrome,
@@ -142,7 +146,7 @@ export function PreviewMarkupTools({
           setCanUndo(nextUndo);
           setCanRedo(nextRedo);
         }}
-        style={styles.canvas}
+        style={[styles.canvas, drawingViewportStyle]}
       />
       <View style={styles.textLayer} pointerEvents="box-none">
         <PreviewTextTools
@@ -150,6 +154,8 @@ export function PreviewMarkupTools({
           onChangeOverlay={onChangeTextOverlay}
           clampTopPx={clampTopPx}
           clampBottomPx={clampBottomPx}
+          viewportHeight={editingViewportHeight}
+          stickerViewportStyle={drawingViewportStyle}
           colors={colors}
           chromeVariant={chromeVariant}
           stickerPointerEvents={isDrawing ? 'none' : 'box-none'}

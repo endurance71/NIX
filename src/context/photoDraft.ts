@@ -1,11 +1,13 @@
 import { createContext, use } from 'react';
 import type { MediaTextOverlay } from '../types/mediaTextOverlay';
 import type { MediaDrawingOverlay } from '../types/mediaDrawingOverlay';
+import type { CameraOrientation } from 'expo-camera';
 
 export type PhotoDraftData = {
   uri: string;
   width?: number;
   height?: number;
+  captureOrientation?: CameraOrientation;
   textOverlay?: MediaTextOverlay | null;
   drawingOverlay?: MediaDrawingOverlay | null;
 };

@@ -1,10 +1,14 @@
 import { createContext, use } from 'react';
 import type { MediaTextOverlay } from '../types/mediaTextOverlay';
 import type { MediaDrawingOverlay } from '../types/mediaDrawingOverlay';
+import type { CameraOrientation } from 'expo-camera';
 
 export type VideoSegmentDraft = {
   uri: string;
   durationMs: number;
+  width?: number;
+  height?: number;
+  captureOrientation?: CameraOrientation;
 };
 
 export type VideoDraftContextValue = {
@@ -12,6 +16,7 @@ export type VideoDraftContextValue = {
   textOverlay: MediaTextOverlay | null;
   drawingOverlay: MediaDrawingOverlay | null;
   setSegments: (segments: VideoSegmentDraft[]) => void;
+  updateSegmentDimensions: (index: number, width: number, height: number) => void;
   setTextOverlay: (overlay: MediaTextOverlay | null) => void;
   setDrawingOverlay: (overlay: MediaDrawingOverlay | null) => void;
   clearSegments: () => void;

@@ -58,6 +58,11 @@ import {
 
 /** Capsule fill — system gray pills. */
 const NOTES_CAPSULE_LIGHT = 'rgba(120,120,128,0.16)';
+const ALIGN_OPTIONS = [
+  ['left', 'textAlignLeft', 'preview.alignLeft'] as const,
+  ['center', 'textAlignCenter', 'preview.alignCenter'] as const,
+  ['right', 'textAlignRight', 'preview.alignRight'] as const,
+];
 const NOTES_CAPSULE_DARK = 'rgba(120,120,128,0.32)';
 const NOTES_DIVIDER_LIGHT = 'rgba(60,60,67,0.29)';
 const NOTES_DIVIDER_DARK = 'rgba(84,84,88,0.65)';
@@ -347,12 +352,7 @@ export function PreviewTextFormatSheet({
   const [presetLayouts, setPresetLayouts] = useState<PresetChipLayoutMap>({});
   const [alignCapsuleWidth, setAlignCapsuleWidth] = useState(0);
   const [fontCapsuleWidth, setFontCapsuleWidth] = useState(0);
-  const alignOptions = [
-    ['left', 'textAlignLeft', 'preview.alignLeft'] as const,
-    ['center', 'textAlignCenter', 'preview.alignCenter'] as const,
-    ['right', 'textAlignRight', 'preview.alignRight'] as const,
-  ];
-  const selectedAlignIndex = alignOptions.findIndex(([align]) => style.align === align);
+  const selectedAlignIndex = ALIGN_OPTIONS.findIndex(([align]) => style.align === align);
   const selectedFontIndex = MEDIA_TEXT_FONT_DESIGNS.findIndex(
     (design) => !style.monospace && style.fontDesign === design
   );
@@ -515,10 +515,10 @@ export function PreviewTextFormatSheet({
             <SlidingSegmentHighlight
               width={alignCapsuleWidth}
               selectedIndex={selectedAlignIndex}
-              segmentCount={alignOptions.length}
+              segmentCount={ALIGN_OPTIONS.length}
               accentColor={selectedCapsule}
             />
-            {alignOptions.map(([align, icon, labelKey], index, items) => {
+            {ALIGN_OPTIONS.map(([align, icon, labelKey], index, items) => {
               const selected = style.align === align;
               return (
                 <CapsuleSegment

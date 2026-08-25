@@ -1,5 +1,8 @@
 import {
+  useCallback,
   useEffect,
+  useEffectEvent,
+  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -170,16 +173,19 @@ export function PushNotificationsProvider({
   const handledResponses = useRef<Set<string>>(new Set());
   const pendingResponse = useRef<Notifications.NotificationResponse | null>(null);
 
-  const refresh = () => refreshPushNotificationState(userId, setState);
+  const refresh = useCallback(
+    () => refreshPushNotificationState(userId, setState),
+    [userId]
+  );
 
-  const showSettingsAlert = () => {
+  const showSettingsAlert = useCallback(() => {
     Alert.alert(t('push.permissionDeniedTitle'), t('push.permissionDeniedBody'), [
       { text: t('common.cancel'), style: 'cancel' },
       { text: t('push.openSettings'), onPress: () => void openSystemNotificationSettings() },
     ]);
-  };
+  }, [t]);
 
-  const enable = async () => {
+  const enable = useCallback(async () => {
     if (busy) return;
     await runWithBusyState(setBusy, async () => {
       try {
@@ -205,9 +211,9 @@ export function PushNotificationsProvider({
         await refresh();
       }
     });
-  };
+  }, [busy, refresh, showSettingsAlert, t, userId]);
 
-  const disable = async () => {
+  const disable = useCallback(async () => {
     if (busy) return;
     await runWithBusyState(setBusy, async () => {
       try {
@@ -220,9 +226,9 @@ export function PushNotificationsProvider({
         await refresh();
       }
     });
-  };
+  }, [busy, refresh, t, userId]);
 
-  const offerPushRationale = async () => {
+  const offerPushRationale = useCallback(async () => {
     if (state === 'enabled' || state === 'denied' || state === 'unavailable' || state === 'loading' || busy) {
       return;
     }
@@ -233,34 +239,35 @@ export function PushNotificationsProvider({
       { text: t('push.notNow'), style: 'cancel' },
       { text: t('push.enableAction'), onPress: () => void enable() },
     ]);
-  };
+  }, [busy, enable, state, t, userId]);
 
-  const offerAfterSuccessfulSend = async () => {
+  const offerAfterSuccessfulSend = useCallback(async () => {
     await offerPushRationale();
-  };
+  }, [offerPushRationale]);
+  const offerPushRationaleFromEffect = useEffectEvent(() => {
+    void offerPushRationale();
+  });
 
   useEffect(() => {
     const initialRefresh = setTimeout(
-      () => void refreshPushNotificationState(userId, setState),
+      () => void refresh(),
       0
     );
     const unsubscribe = subscribeToAppForeground(
-      () => void refreshPushNotificationState(userId, setState)
+      () => void refresh()
     );
     return () => {
       clearTimeout(initialRefresh);
       unsubscribe();
     };
-  }, [userId]);
+  }, [refresh]);
 
   // After onboarding, offer push once so receivers (not only senders) register a token.
   useEffect(() => {
     if (!canNavigate || state !== 'disabled' || busy) return;
-    const timer = setTimeout(() => void offerPushRationale(), 800);
+    const timer = setTimeout(offerPushRationaleFromEffect, 800);
     return () => clearTimeout(timer);
-    // Intentionally omit offerPushRationale: prompt once when state settles after onboarding.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canNavigate, state, busy, userId]);
+  }, [busy, canNavigate, state]);
 
   useEffect(() => {
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
@@ -309,7 +316,7 @@ export function PushNotificationsProvider({
     });
   }, [canNavigate, queryClient]);
 
-  const value = {
+  const value = useMemo(() => ({
     state,
     busy,
     enable,
@@ -317,7 +324,7 @@ export function PushNotificationsProvider({
     refresh,
     offerAfterSuccessfulSend,
     openSettings: openSystemNotificationSettings,
-  };
+  }), [busy, disable, enable, offerAfterSuccessfulSend, refresh, state]);
 
   return <PushNotificationsContext.Provider value={value}>{children}</PushNotificationsContext.Provider>;
 }

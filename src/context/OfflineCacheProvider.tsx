@@ -1,15 +1,16 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
+  useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { AppState } from 'react-native';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { offlineCacheStore } from '../lib/offlineCacheStore';
 import {
@@ -27,24 +28,81 @@ type OfflineCacheContextValue = {
 };
 
 const OfflineCacheContext = createContext<OfflineCacheContextValue | null>(null);
+const EMPTY_CATEGORIES: ReadonlySet<OfflineCacheCategory> = new Set();
+
+type OwnerCacheState = {
+  ownerId: string | null;
+  isHydrated: boolean;
+  lastSyncedAt: number | null;
+  availableCategories: ReadonlySet<OfflineCacheCategory>;
+};
+
+function subscribeToOfflineCacheWrites({
+  queryClient,
+  ownerId,
+  pendingWrites,
+  isOwnerActive,
+  onWritten,
+}: {
+  queryClient: QueryClient;
+  ownerId: string;
+  pendingWrites: Map<string, ReturnType<typeof setTimeout>>;
+  isOwnerActive: () => boolean;
+  onWritten: (category: OfflineCacheCategory) => void;
+}) {
+  const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+    const query = event.query;
+    const descriptor = describeOfflineCacheQuery(query.queryKey);
+    if (!descriptor || query.state.status !== 'success' || query.state.data === undefined) return;
+    const writeKey = JSON.stringify(query.queryKey);
+    const previousTimer = pendingWrites.get(writeKey);
+    if (previousTimer) clearTimeout(previousTimer);
+    const timer = setTimeout(() => {
+      pendingWrites.delete(writeKey);
+      void offlineCacheStore.write(
+        ownerId,
+        query.queryKey,
+        query.state.data,
+        query.state.dataUpdatedAt
+      ).then((written) => {
+        if (written && isOwnerActive()) onWritten(descriptor.category);
+      }).catch(() => {
+        trackEvent('offline_cache_write', { result: 'failed', category: descriptor.category });
+      });
+    }, 300);
+    pendingWrites.set(writeKey, timer);
+  });
+  return () => {
+    unsubscribe();
+    for (const timer of pendingWrites.values()) clearTimeout(timer);
+    pendingWrites.clear();
+  };
+}
 
 export function OfflineCacheProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const { user, canUseNetworkSession } = useAuth();
   const userId = user?.id ?? null;
-  const [hydratedOwnerId, setHydratedOwnerId] = useState<string | null>(null);
-  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
-  const [availableCategories, setAvailableCategories] = useState<ReadonlySet<OfflineCacheCategory>>(
-    () => new Set()
-  );
+  const [ownerCache, setOwnerCache] = useState<OwnerCacheState>(() => ({
+    ownerId: null,
+    isHydrated: true,
+    lastSyncedAt: null,
+    availableCategories: EMPTY_CATEGORIES,
+  }));
   const pendingWritesRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const activeOwnerIdRef = useRef<string | null>(userId);
   const hydrationGenerationRef = useRef(0);
-  // Identity changes must invalidate an in-flight decrypt before passive effects run.
-  // eslint-disable-next-line react-hooks/refs
-  activeOwnerIdRef.current = userId;
 
-  const hydrateOwner = useCallback(async (
+  useLayoutEffect(() => {
+    activeOwnerIdRef.current = userId;
+    hydrationGenerationRef.current += 1;
+    return () => {
+      if (activeOwnerIdRef.current === userId) activeOwnerIdRef.current = null;
+      hydrationGenerationRef.current += 1;
+    };
+  }, [userId]);
+
+  const hydrateOwner = useEffectEvent(async (
     ownerId: string,
     force = false,
     generation = hydrationGenerationRef.current
@@ -94,8 +152,12 @@ export function OfflineCacheProvider({ children }: { children: ReactNode }) {
         categories.add(entry.category);
         newestCachedAt = Math.max(newestCachedAt ?? 0, entry.cachedAt);
       }
-      setAvailableCategories(categories);
-      setLastSyncedAt(newestCachedAt);
+      setOwnerCache({
+        ownerId,
+        isHydrated: true,
+        lastSyncedAt: newestCachedAt,
+        availableCategories: categories,
+      });
       trackEvent('offline_cache_hydrated', {
         result: 'success',
         entry_count: entries.length,
@@ -106,57 +168,41 @@ export function OfflineCacheProvider({ children }: { children: ReactNode }) {
         activeOwnerIdRef.current !== ownerId
         || hydrationGenerationRef.current !== generation
       ) return;
-      setAvailableCategories(new Set());
-      setLastSyncedAt(null);
+      setOwnerCache({
+        ownerId,
+        isHydrated: true,
+        lastSyncedAt: null,
+        availableCategories: EMPTY_CATEGORIES,
+      });
       trackEvent('offline_cache_hydrated', { result: 'cache_reset' });
-    } finally {
-      if (
-        activeOwnerIdRef.current === ownerId
-        && hydrationGenerationRef.current === generation
-      ) setHydratedOwnerId(ownerId);
     }
-  }, [queryClient]);
+  });
 
   useEffect(() => {
-    hydrationGenerationRef.current += 1;
     const generation = hydrationGenerationRef.current;
     if (!userId) return;
     void hydrateOwner(userId, false, generation);
-  }, [hydrateOwner, userId]);
+  }, [userId]);
 
   useEffect(() => {
+    if (!userId || !canUseNetworkSession) return;
     const pendingWrites = pendingWritesRef.current;
-    const unsubscribe = !userId || !canUseNetworkSession
-      ? () => undefined
-      : queryClient.getQueryCache().subscribe((event) => {
-        const query = event.query;
-        const descriptor = describeOfflineCacheQuery(query.queryKey);
-        if (!descriptor || query.state.status !== 'success' || query.state.data === undefined) return;
-        const writeKey = JSON.stringify(query.queryKey);
-        const previousTimer = pendingWrites.get(writeKey);
-        if (previousTimer) clearTimeout(previousTimer);
-        const timer = setTimeout(() => {
-          pendingWrites.delete(writeKey);
-          void offlineCacheStore.write(
-            userId,
-            query.queryKey,
-            query.state.data,
-            query.state.dataUpdatedAt
-          ).then((written) => {
-            if (!written || activeOwnerIdRef.current !== userId) return;
-            setAvailableCategories((current) => new Set(current).add(descriptor.category));
-            setLastSyncedAt(Date.now());
-          }).catch(() => {
-            trackEvent('offline_cache_write', { result: 'failed', category: descriptor.category });
-          });
-        }, 300);
-        pendingWrites.set(writeKey, timer);
-      });
-    return () => {
-      unsubscribe();
-      for (const timer of pendingWrites.values()) clearTimeout(timer);
-      pendingWrites.clear();
-    };
+    return subscribeToOfflineCacheWrites({
+      queryClient,
+      ownerId: userId,
+      pendingWrites,
+      isOwnerActive: () => activeOwnerIdRef.current === userId,
+      onWritten: (category) => {
+        setOwnerCache((current) => ({
+          ownerId: userId,
+          isHydrated: current.ownerId === userId && current.isHydrated,
+          lastSyncedAt: Date.now(),
+          availableCategories: new Set(
+            current.ownerId === userId ? current.availableCategories : EMPTY_CATEGORIES
+          ).add(category),
+        }));
+      },
+    });
   }, [canUseNetworkSession, queryClient, userId]);
 
   useEffect(() => {
@@ -165,14 +211,17 @@ export function OfflineCacheProvider({ children }: { children: ReactNode }) {
       if (state === 'active') void hydrateOwner(userId, true);
     });
     return () => subscription.remove();
-  }, [canUseNetworkSession, hydrateOwner, userId]);
+  }, [canUseNetworkSession, userId]);
+
+  const visibleCache = ownerCache.ownerId === userId ? ownerCache : null;
+  const availableCategories = visibleCache?.availableCategories ?? EMPTY_CATEGORIES;
 
   const value = useMemo<OfflineCacheContextValue>(() => ({
-    isHydrated: !userId || hydratedOwnerId === userId,
-    lastSyncedAt,
+    isHydrated: !userId || visibleCache?.isHydrated === true,
+    lastSyncedAt: visibleCache?.lastSyncedAt ?? null,
     availableCategories,
     hasCachedData: (category) => availableCategories.has(category),
-  }), [availableCategories, hydratedOwnerId, lastSyncedAt, userId]);
+  }), [availableCategories, userId, visibleCache?.isHydrated, visibleCache?.lastSyncedAt]);
 
   return <OfflineCacheContext.Provider value={value}>{children}</OfflineCacheContext.Provider>;
 }

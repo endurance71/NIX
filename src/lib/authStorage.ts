@@ -124,13 +124,13 @@ export const authStorage = {
     };
 
     try {
-      for (let index = 0; index < chunks.length; index += 1) {
-        await SecureStore.setItemAsync(
+      await Promise.all(chunks.map((chunk, index) =>
+        SecureStore.setItemAsync(
           chunkKey(key, generation, index),
-          chunks[index],
+          chunk,
           SECURE_OPTIONS
-        );
-      }
+        )
+      ));
       await SecureStore.setItemAsync(
         manifestKey(key),
         JSON.stringify(nextManifest),

@@ -1,4 +1,4 @@
-import { type PropsWithChildren } from 'react';
+import { type PropsWithChildren, useMemo } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ScrollView, VStack } from '@expo/ui/swift-ui';
@@ -21,9 +21,10 @@ export function LoginAuthLayout({ children }: PropsWithChildren) {
   const { colors, statusBarStyle } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const contentWidth = getAuthContentWidth(windowWidth);
+  const contentWidthValue = useMemo(() => ({ contentWidth }), [contentWidth]);
 
   return (
-    <AuthContentWidthContext.Provider value={{ contentWidth }}>
+    <AuthContentWidthContext.Provider value={contentWidthValue}>
       <AppHost
         style={{ flex: 1, backgroundColor: colors.background }}
         safeAreaMode="respect"

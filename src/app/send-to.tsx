@@ -29,6 +29,7 @@ import { normalizeMediaTextOverlay } from '../types/mediaTextOverlay';
 import { normalizeMediaDrawingOverlay } from '../types/mediaDrawingOverlay';
 import { useAuth } from '../hooks/useAuth';
 import { OfflineStatusBanner } from '../components/auth/OfflineStatusBanner';
+import { mediaEditingViewport } from '../lib/mediaPresentation';
 
 function paramFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
@@ -195,13 +196,19 @@ export default function SendToSheet() {
         if (isVideo) {
           const bakedSegments = await Promise.all(
             segments!.map(async (segment) => {
+              const mediaViewport = mediaEditingViewport({
+                media: segment,
+                viewportWidth,
+                viewportHeight,
+                captureOrientation: segment.captureOrientation,
+              });
               const baked = await bakeMediaOverlays({
                 uri: segment.uri,
                 mediaType: 'video',
                 textOverlay,
                 drawingOverlay,
-                viewportWidth,
-                viewportHeight,
+                viewportWidth: mediaViewport.width,
+                viewportHeight: mediaViewport.height,
               });
               return { ...segment, uri: baked.uri };
             })
@@ -223,13 +230,19 @@ export default function SendToSheet() {
           );
           throwRejectedResult(failedResult);
         } else {
+          const mediaViewport = mediaEditingViewport({
+            media: draftPhoto ?? {},
+            viewportWidth,
+            viewportHeight,
+            captureOrientation: draftPhoto?.captureOrientation,
+          });
           const baked = await bakeMediaOverlays({
             uri: photoUri!,
             mediaType: 'image',
             textOverlay,
             drawingOverlay,
-            viewportWidth,
-            viewportHeight,
+            viewportWidth: mediaViewport.width,
+            viewportHeight: mediaViewport.height,
           });
           const result = await enqueueMediaBatch({
             fileUri: baked.uri,

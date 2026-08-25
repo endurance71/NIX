@@ -40,6 +40,8 @@ import { AppInstallationSync } from '../components/sync/AppInstallationSync';
 import { iosRoadmapFeatures } from '../config/iosRoadmapFeatures';
 import { trackEvent } from '../lib/telemetry';
 import { OfflineCacheProvider, useOfflineCache } from '../context/OfflineCacheProvider';
+import type { Session } from '@supabase/supabase-js';
+import type { TFunction } from 'i18next';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Catch and ignore in environments where splash screen autohide prevention is unavailable.
@@ -87,6 +89,177 @@ function RootLayout() {
 }
 
 export default RootLayout;
+
+type AppColors = ReturnType<typeof useAppTheme>['colors'];
+type AppStatusBarStyle = ReturnType<typeof useAppTheme>['statusBarStyle'];
+
+function BootstrapLoadingScreen({ statusBarStyle }: { statusBarStyle: AppStatusBarStyle }) {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }}>
+      <StatusBar style={statusBarStyle} hidden={false} />
+    </View>
+  );
+}
+
+function BootstrapMessageScreen({
+  colors,
+  statusBarStyle,
+  title,
+  hint,
+  retryLabel,
+  onRetry,
+  secondaryLabel,
+  onSecondary,
+}: {
+  colors: AppColors;
+  statusBarStyle: AppStatusBarStyle;
+  title: string;
+  hint: string;
+  retryLabel: string;
+  onRetry: () => void;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
+}) {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 28, backgroundColor: colors.background }}>
+      <StatusBar style={statusBarStyle} hidden={false} />
+      <Text style={{ color: colors.label, fontSize: 22, fontWeight: '700', textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
+        {title}
+      </Text>
+      <Text style={{ color: colors.textMuted, marginTop: 12, textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
+        {hint}
+      </Text>
+      <Pressable
+        style={{ marginTop: 24, backgroundColor: colors.buttonPrimaryBg, padding: 14, borderRadius: 12 }}
+        onPress={onRetry}
+      >
+        <Text style={{ color: colors.buttonPrimaryText, textAlign: 'center', fontWeight: '700', fontFamily: APP_FONT_FAMILY }}>
+          {retryLabel}
+        </Text>
+      </Pressable>
+      {secondaryLabel && onSecondary ? (
+        <Pressable style={{ marginTop: 12, padding: 14 }} onPress={onSecondary}>
+          <Text style={{ color: colors.accent, textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
+            {secondaryLabel}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function AppStack({
+  session,
+  canUseNetworkSession,
+  needsOnboarding,
+  colors,
+  statusBarStyle,
+  t,
+}: {
+  session: Session | null;
+  canUseNetworkSession: boolean;
+  needsOnboarding: boolean;
+  colors: AppColors;
+  statusBarStyle: AppStatusBarStyle;
+  t: TFunction;
+}) {
+  const content = (
+    <>
+      <StatusBar style={statusBarStyle} hidden={false} />
+      {session && canUseNetworkSession ? <AppRealtimeSync userId={session.user.id} /> : null}
+      {session && canUseNetworkSession ? <TextOutboxSync userId={session.user.id} /> : null}
+      {session && canUseNetworkSession && iosRoadmapFeatures.accountData ? <AppInstallationSync /> : null}
+      <Stack
+        initialRouteName={session && !needsOnboarding ? '(tabs)' : '(auth)'}
+        screenOptions={{
+          headerShown: false,
+          headerBackButtonDisplayMode: 'minimal',
+          headerTintColor: colors.accent,
+          headerTitleStyle: { fontFamily: APP_FONT_FAMILY, fontWeight: '700', color: colors.label },
+          headerLargeTitleStyle: { fontFamily: APP_FONT_FAMILY, fontWeight: '700', color: colors.label },
+          headerStyle: { backgroundColor: colors.background },
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="preview" options={{ presentation: 'card', headerShown: false, contentStyle: { backgroundColor: '#000000' } }} />
+        <Stack.Screen name="viewer" options={{ headerShown: false, contentStyle: { backgroundColor: '#000000' } }} />
+        <Stack.Screen
+          name="friend-my-code"
+          options={{
+            presentation: 'card',
+            headerShown: true,
+            title: t('profile.myQrCode'),
+            headerBackButtonDisplayMode: 'minimal',
+            headerTransparent: true,
+            headerShadowVisible: false,
+            headerStyle: { backgroundColor: 'transparent' },
+            headerTintColor: colors.accent,
+            headerTitleStyle: { fontFamily: APP_FONT_FAMILY, fontWeight: '700', color: colors.label },
+            contentStyle: { backgroundColor: colors.background },
+          }}
+        />
+        <Stack.Screen
+          name="friend-scan-qr"
+          options={{
+            presentation: 'card',
+            headerShown: true,
+            title: t('root.qrScan'),
+            headerBackButtonDisplayMode: 'minimal',
+            headerTransparent: true,
+            headerShadowVisible: false,
+            headerStyle: { backgroundColor: 'transparent' },
+            headerTintColor: colors.cameraControlTint,
+            headerTitleStyle: { fontFamily: APP_FONT_FAMILY, fontWeight: '700', color: colors.cameraControlTint },
+          }}
+        />
+        <Stack.Screen name="friend-invite" options={{ presentation: 'card', headerShown: true, title: t('root.invite') }} />
+        <Stack.Screen
+          name="chat/[peerId]"
+          options={{
+            presentation: 'card',
+            headerShown: true,
+            headerBackButtonDisplayMode: 'minimal',
+            headerTransparent: true,
+            headerShadowVisible: false,
+            headerStyle: { backgroundColor: 'transparent' },
+            headerBackground: () => null,
+            headerTintColor: colors.accent,
+            contentStyle: { backgroundColor: colors.systemBackground },
+          }}
+        />
+        <Stack.Screen
+          name="new-chat"
+          options={{
+            presentation: 'formSheet',
+            sheetGrabberVisible: true,
+            sheetInitialDetentIndex: 0,
+            sheetAllowedDetents: [0.55, 0.9],
+            contentStyle: { backgroundColor: 'transparent' },
+          }}
+        />
+        <Stack.Screen
+          name="send-to"
+          options={{
+            presentation: 'formSheet',
+            sheetGrabberVisible: true,
+            sheetInitialDetentIndex: 0,
+            sheetAllowedDetents: [0.55, 0.9],
+            contentStyle: { backgroundColor: 'transparent' },
+          }}
+        />
+      </Stack>
+    </>
+  );
+
+  if (!session || !canUseNetworkSession || Platform.OS !== 'ios') return content;
+  return (
+    <PushNotificationsProvider userId={session.user.id} canNavigate={!needsOnboarding}>
+      {content}
+    </PushNotificationsProvider>
+  );
+}
 
 function RootNavigator() {
   const queryClient = useQueryClient();
@@ -243,17 +416,7 @@ function RootNavigator() {
   }, [appReady, bootstrap.status, canUseNetworkSession, needsOnboarding, segments, session]);
 
   if (!appReady) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: '#000000',
-        }}>
-        <StatusBar style={statusBarStyle} hidden={false} />
-      </View>
-    );
+    return <BootstrapLoadingScreen statusBarStyle={statusBarStyle} />;
   }
 
   if (bootstrap.status === 'recoverableError') {
@@ -277,188 +440,46 @@ function RootNavigator() {
             ? 'root.ageVerificationHint'
             : 'root.accountVerificationHint';
     return (
-      <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 28, backgroundColor: colors.background }}>
-        <StatusBar style={statusBarStyle} hidden={false} />
-        <Text style={{ color: colors.label, fontSize: 22, fontWeight: '700', textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
-          {t(failureTitle)}
-        </Text>
-        <Text style={{ color: colors.textMuted, marginTop: 12, textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
-          {t(failureHint)}
-        </Text>
-        <Pressable
-          style={{ marginTop: 24, backgroundColor: colors.buttonPrimaryBg, padding: 14, borderRadius: 12 }}
-          onPress={() => void (async () => {
+      <BootstrapMessageScreen
+        colors={colors}
+        statusBarStyle={statusBarStyle}
+        title={t(failureTitle)}
+        hint={t(failureHint)}
+        retryLabel={t('common.retry')}
+        onRetry={() => void (async () => {
             const result = await retryBootstrap();
             if (result.category !== 'online') return;
             await Promise.all([refetchProfile(), refetchAgeAttestation(), refetchSnapshot()]);
           })()}
-        >
-          <Text style={{ color: colors.buttonPrimaryText, textAlign: 'center', fontWeight: '700', fontFamily: APP_FONT_FAMILY }}>{t('common.retry')}</Text>
-        </Pressable>
-        <Pressable
-          style={{ marginTop: 12, padding: 14 }}
-          onPress={async () => {
+        secondaryLabel={t('root.useAnotherAccount')}
+        onSecondary={() => void (async () => {
             await signOut();
             router.replace('/(auth)/login');
-          }}
-        >
-          <Text style={{ color: colors.accent, textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>{t('root.useAnotherAccount')}</Text>
-        </Pressable>
-      </View>
+          })()}
+      />
     );
   }
 
   if (bootstrap.status === 'offlineNeedsVerification') {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 28, backgroundColor: colors.background }}>
-        <StatusBar style={statusBarStyle} hidden={false} />
-        <Text style={{ color: colors.label, fontSize: 22, fontWeight: '700', textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
-          {t('root.offlineVerificationRequired')}
-        </Text>
-        <Text style={{ color: colors.textMuted, marginTop: 12, textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
-          {t('root.offlineVerificationHint')}
-        </Text>
-        <Pressable
-          style={{ marginTop: 24, backgroundColor: colors.buttonPrimaryBg, padding: 14, borderRadius: 12 }}
-          onPress={() => void retryBootstrap()}
-        >
-          <Text style={{ color: colors.buttonPrimaryText, textAlign: 'center', fontWeight: '700', fontFamily: APP_FONT_FAMILY }}>{t('common.retry')}</Text>
-        </Pressable>
-      </View>
+      <BootstrapMessageScreen
+        colors={colors}
+        statusBarStyle={statusBarStyle}
+        title={t('root.offlineVerificationRequired')}
+        hint={t('root.offlineVerificationHint')}
+        retryLabel={t('common.retry')}
+        onRetry={() => void retryBootstrap()}
+      />
     );
   }
-
-  const content = (
-    <>
-      <StatusBar style={statusBarStyle} hidden={false} />
-      {session && canUseNetworkSession ? <AppRealtimeSync userId={session.user.id} /> : null}
-      {session && canUseNetworkSession ? <TextOutboxSync userId={session.user.id} /> : null}
-      {session && canUseNetworkSession && iosRoadmapFeatures.accountData ? <AppInstallationSync /> : null}
-      <Stack
-        initialRouteName={session && !needsOnboarding ? '(tabs)' : '(auth)'}
-        screenOptions={{
-          headerShown: false,
-          headerBackButtonDisplayMode: 'minimal',
-          headerTintColor: colors.accent,
-          headerTitleStyle: {
-            fontFamily: APP_FONT_FAMILY,
-            fontWeight: '700',
-            color: colors.label,
-          },
-          headerLargeTitleStyle: {
-            fontFamily: APP_FONT_FAMILY,
-            fontWeight: '700',
-            color: colors.label,
-          },
-          headerStyle: {
-            backgroundColor: colors.background,
-          },
-          contentStyle: {
-            backgroundColor: colors.background,
-          },
-        }}
-      >
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen
-        name="preview"
-        options={{
-          presentation: 'card',
-          headerShown: false,
-          contentStyle: { backgroundColor: '#000000' },
-        }}
-      />
-      <Stack.Screen
-        name="viewer"
-        options={{
-          headerShown: false,
-          contentStyle: { backgroundColor: '#000000' },
-        }}
-      />
-      <Stack.Screen
-        name="friend-my-code"
-        options={{
-          presentation: 'card',
-          headerShown: true,
-          title: t('profile.myQrCode'),
-          headerBackButtonDisplayMode: 'minimal',
-          headerTransparent: true,
-          headerShadowVisible: false,
-          headerStyle: { backgroundColor: 'transparent' },
-          headerTintColor: colors.accent,
-          headerTitleStyle: {
-            fontFamily: APP_FONT_FAMILY,
-            fontWeight: '700',
-            color: colors.label,
-          },
-          contentStyle: { backgroundColor: colors.background },
-        }}
-      />
-      <Stack.Screen
-        name="friend-scan-qr"
-        options={{
-          presentation: 'card',
-          headerShown: true,
-          title: t('root.qrScan'),
-          headerBackButtonDisplayMode: 'minimal',
-          headerTransparent: true,
-          headerShadowVisible: false,
-          headerStyle: { backgroundColor: 'transparent' },
-          headerTintColor: colors.cameraControlTint,
-          headerTitleStyle: {
-            fontFamily: APP_FONT_FAMILY,
-            fontWeight: '700',
-            color: colors.cameraControlTint,
-          },
-        }}
-      />
-      <Stack.Screen
-        name="friend-invite"
-        options={{ presentation: 'card', headerShown: true, title: t('root.invite') }}
-      />
-      <Stack.Screen
-        name="chat/[peerId]"
-        options={{
-          presentation: 'card',
-          headerShown: true,
-          headerBackButtonDisplayMode: 'minimal',
-          headerTransparent: true,
-          headerShadowVisible: false,
-          headerStyle: { backgroundColor: 'transparent' },
-          headerBackground: () => null,
-          headerTintColor: colors.accent,
-          contentStyle: { backgroundColor: colors.systemBackground },
-        }}
-      />
-
-      <Stack.Screen
-        name="new-chat"
-        options={{
-          presentation: 'formSheet',
-          sheetGrabberVisible: true,
-          sheetInitialDetentIndex: 0,
-          sheetAllowedDetents: [0.55, 0.9],
-          contentStyle: { backgroundColor: 'transparent' },
-        }}
-      />
-      <Stack.Screen
-        name="send-to"
-        options={{
-          presentation: 'formSheet',
-          sheetGrabberVisible: true,
-          sheetInitialDetentIndex: 0,
-          sheetAllowedDetents: [0.55, 0.9],
-          contentStyle: { backgroundColor: 'transparent' },
-        }}
-      />
-      </Stack>
-    </>
-  );
-
-  if (!session || !canUseNetworkSession || Platform.OS !== 'ios') return content;
   return (
-    <PushNotificationsProvider userId={session.user.id} canNavigate={!needsOnboarding}>
-      {content}
-    </PushNotificationsProvider>
+    <AppStack
+      session={session}
+      canUseNetworkSession={canUseNetworkSession}
+      needsOnboarding={needsOnboarding}
+      colors={colors}
+      statusBarStyle={statusBarStyle}
+      t={t}
+    />
   );
 }

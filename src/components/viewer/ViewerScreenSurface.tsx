@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text, Pressable } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
@@ -7,11 +8,19 @@ import { useViewerScreen } from '../../hooks/useViewerScreen';
 import { ViewerNixVideo } from './ViewerNixVideo';
 import { ViewerSegmentTimerHud } from './ViewerSegmentTimerHud';
 import { NativeChromeIconButton } from '../ui/native-chrome-icon-button';
+import { mediaContentFit } from '../../lib/mediaPresentation';
 
 const NIX_IMAGE_PLACEHOLDER = 'L00000fQfQfQfQfQfQfQfQfQfQfQ';
 
 export function ViewerScreenSurface() {
   const vm = useViewerScreen();
+  const [measuredImage, setMeasuredImage] = useState<{
+    uri: string | null;
+    width?: number;
+    height?: number;
+  }>({ uri: null });
+  const imageDimensions = measuredImage.uri === vm.imageUrl ? measuredImage : {};
+  const imageFit = mediaContentFit(imageDimensions);
 
   if (vm.isBootLoading) {
     return (
@@ -75,12 +84,15 @@ export function ViewerScreenSurface() {
                 cacheKey: vm.displayedNix?.media_path ?? vm.imageUrl,
               }}
               placeholder={NIX_IMAGE_PLACEHOLDER}
-              placeholderContentFit="cover"
+              placeholderContentFit="contain"
               style={vm.styles.image}
-              contentFit="cover"
+              contentFit={imageFit}
               transition={380}
               cachePolicy="memory-disk"
-              onLoad={vm.onPrimaryImageLoad}
+              onLoad={(event) => {
+                setMeasuredImage({ uri: vm.imageUrl, ...event.source });
+                vm.onPrimaryImageLoad();
+              }}
               onError={vm.onPrimaryImageError}
             />
           ) : (
@@ -88,8 +100,11 @@ export function ViewerScreenSurface() {
               source={{ uri: vm.imageUrl }}
               cachePolicy="none"
               style={vm.styles.image}
-              contentFit="cover"
-              onLoad={vm.onFallbackImageLoad}
+              contentFit={imageFit}
+              onLoad={(event) => {
+                setMeasuredImage({ uri: vm.imageUrl, ...event.source });
+                vm.onFallbackImageLoad();
+              }}
               onError={vm.onFallbackImageError}
             />
           )}

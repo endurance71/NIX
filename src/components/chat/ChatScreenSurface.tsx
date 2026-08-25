@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionSheetIOS,
   ActivityIndicator,
@@ -1076,13 +1076,13 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
   const { top, bottomContentInset } = useScreenInsets('stackHeader');
   const { width: windowWidth } = useWindowDimensions();
   const bubbleMaxWidth = Math.round(windowWidth * BUBBLE_MAX_WIDTH_RATIO);
-  const timeline = buildUnifiedChatTimeline(
+  const timeline = useMemo(() => buildUnifiedChatTimeline(
     vm.messages,
     vm.nixes,
     vm.locale,
     new Date(),
     vm.chatUploadJobs
-  );
+  ), [vm.chatUploadJobs, vm.locale, vm.messages, vm.nixes]);
   const isEmpty =
     vm.messages.length === 0 && vm.nixes.length === 0 && vm.chatUploadJobs.length === 0;
   const listRef = useRef<FlashListRef<ChatTimelineItem<UnifiedChatTextMessage>>>(null);
@@ -1146,16 +1146,16 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
   };
 
-  const requestClosePicker = () => {
+  const requestClosePicker = useCallback(() => {
     setPickerOpen(false);
-  };
+  }, []);
 
   const finishClosePicker = () => {
     setPicker(null);
     setPickerOpen(false);
   };
 
-  const openPickerForMessage = (
+  const openPickerForMessage = useCallback((
     message: OptimisticTextMessage,
     isOwn: boolean,
     layout: BubbleWindowLayout
@@ -1173,9 +1173,9 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
       });
       setPickerOpen(true);
     });
-  };
+  }, []);
 
-  const openReportSheet = (message: OptimisticTextMessage) => {
+  const openReportSheet = useCallback((message: OptimisticTextMessage) => {
     const reasons = vm.reportReasons;
     const labels = reasons.map((r) => r.label);
     if (Platform.OS === 'ios') {
@@ -1199,7 +1199,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
         onPress: () => void vm.handleReportMessage(message, reason.id),
       })),
     ]);
-  };
+  }, [vm]);
 
   const pickerMessage = picker
     ? vm.messages.find((message) => message.id === picker.messageId) ?? null
@@ -1210,6 +1210,65 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
           (reaction) => reaction.user_id === vm.currentUserId
         )?.emoji ?? null
       : null;
+
+  const renderTimelineItem = useCallback(({ item }: {
+    item: ChatTimelineItem<UnifiedChatTextMessage>;
+  }) => {
+    if (item.type === 'separator') {
+      return <DateSeparator label={item.label} />;
+    }
+    if (item.type === 'nix') {
+      return (
+        <NixChip
+          nix={item.nix}
+          maxWidth={bubbleMaxWidth}
+          t={vm.t}
+          onOpen={() => {
+            requestClosePicker();
+            vm.handleOpenNix(item.nix);
+          }}
+        />
+      );
+    }
+    if (item.type === 'upload') {
+      return (
+        <UploadBubble
+          job={item.job}
+          busy={vm.busyUploadActions.has(item.job.id)}
+          retrying={vm.busyUploadActions.get(item.job.id) === 'retry'}
+          maxWidth={bubbleMaxWidth}
+          t={vm.t}
+          onLongPress={() => openChatUploadActions(vm, item.job)}
+          onRetry={() => {
+            selection();
+            requestChatUploadAction(vm, item.job, 'retry');
+          }}
+        />
+      );
+    }
+    if (item.message.is_system) {
+      return <SystemMessageItem message={item.message} />;
+    }
+    const isOwn = item.message.sender_id === vm.currentUserId;
+    const canReact = vm.canPerformNetworkAction
+      && !item.message.id.startsWith('temp-')
+      && !item.message.isSending;
+    return (
+      <MessageBubble
+        message={item.message}
+        isOwn={isOwn}
+        maxWidth={bubbleMaxWidth}
+        reactions={vm.reactionsByMessageId.get(item.message.id) ?? []}
+        currentUserId={vm.currentUserId}
+        canReact={canReact}
+        isFocused={pickerOpen && picker?.messageId === item.message.id}
+        onOpenPicker={(layout) => openPickerForMessage(item.message, isOwn, layout)}
+        onReport={() => openReportSheet(item.message)}
+        onRetry={() => void vm.handleRetryTextMessage(item.message)}
+        onDeleteFailed={() => void vm.handleDeleteFailedTextMessage(item.message)}
+      />
+    );
+  }, [bubbleMaxWidth, openPickerForMessage, openReportSheet, picker?.messageId, pickerOpen, requestClosePicker, vm]);
 
   return (
     <View
@@ -1250,62 +1309,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
             onScroll={onListScroll}
             scrollEventThrottle={16}
             onScrollBeginDrag={requestClosePicker}
-            renderItem={({ item }) => {
-              if (item.type === 'separator') {
-                return <DateSeparator label={item.label} />;
-              }
-              if (item.type === 'nix') {
-                return (
-                  <NixChip
-                    nix={item.nix}
-                    maxWidth={bubbleMaxWidth}
-                    t={vm.t}
-                    onOpen={() => {
-                      requestClosePicker();
-                      vm.handleOpenNix(item.nix);
-                    }}
-                  />
-                );
-              }
-              if (item.type === 'upload') {
-                return (
-                  <UploadBubble
-                    job={item.job}
-                    busy={vm.busyUploadActions.has(item.job.id)}
-                    retrying={vm.busyUploadActions.get(item.job.id) === 'retry'}
-                    maxWidth={bubbleMaxWidth}
-                    t={vm.t}
-                    onLongPress={() => openChatUploadActions(vm, item.job)}
-                    onRetry={() => {
-                      selection();
-                      requestChatUploadAction(vm, item.job, 'retry');
-                    }}
-                  />
-                );
-              }
-              if (item.message.is_system) {
-                return <SystemMessageItem message={item.message} />;
-              }
-              const isOwn = item.message.sender_id === vm.currentUserId;
-              const canReact = vm.canPerformNetworkAction
-                && !item.message.id.startsWith('temp-')
-                && !item.message.isSending;
-              return (
-                <MessageBubble
-                  message={item.message}
-                  isOwn={isOwn}
-                  maxWidth={bubbleMaxWidth}
-                  reactions={vm.reactionsByMessageId.get(item.message.id) ?? []}
-                  currentUserId={vm.currentUserId}
-                  canReact={canReact}
-                  isFocused={pickerOpen && picker?.messageId === item.message.id}
-                  onOpenPicker={(layout) => openPickerForMessage(item.message, isOwn, layout)}
-                  onReport={() => openReportSheet(item.message)}
-                  onRetry={() => void vm.handleRetryTextMessage(item.message)}
-                  onDeleteFailed={() => void vm.handleDeleteFailedTextMessage(item.message)}
-                />
-              );
-            }}
+            renderItem={renderTimelineItem}
           />
         )}
         <ChatComposer vm={vm} keyboardHeight={keyboard.height} restingPad={restingPad} />

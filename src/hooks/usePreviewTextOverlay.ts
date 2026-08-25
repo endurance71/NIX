@@ -47,6 +47,8 @@ type UsePreviewTextOverlayArgs = {
   clampTopPx: number;
   /** Bottom inset in points reserved for chrome (save / send). */
   clampBottomPx: number;
+  /** Height of the media stage when it differs from the locked screen viewport. */
+  viewportHeight?: number;
 };
 
 function applyPreviewTextStylePatch(
@@ -110,11 +112,13 @@ export function usePreviewTextOverlay({
   onChangeOverlay,
   clampTopPx,
   clampBottomPx,
+  viewportHeight,
 }: UsePreviewTextOverlayArgs) {
   const { height: windowHeight } = useWindowDimensions();
   const [editor, setEditor] = useState<PreviewTextEditorState | null>(null);
 
-  const usableHeight = Math.max(1, windowHeight - clampTopPx - clampBottomPx);
+  const editingHeight = viewportHeight ?? windowHeight;
+  const usableHeight = Math.max(1, editingHeight - clampTopPx - clampBottomPx);
 
   const yToTopPx = (y: number) => clampTopPx + clampOverlayY(y) * usableHeight;
 

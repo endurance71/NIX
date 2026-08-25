@@ -1,4 +1,4 @@
-import { PropsWithChildren, useEffect, useState } from 'react';
+import { PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import { loadAccentPresetId, saveAccentPresetId } from '../lib/accentPreference';
@@ -27,30 +27,30 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  const setAccentPresetId = (id: AccentPresetId) => {
+  const setAccentPresetId = useCallback((id: AccentPresetId) => {
     setAccentPresetIdState(id);
     void saveAccentPresetId(id);
-  };
+  }, []);
 
   const accent = resolveAccentColor(accentPresetId, colorScheme);
   const base = isDark ? darkColors : lightColors;
-  const colors = {
+  const colors = useMemo(() => ({
     ...base,
     accent,
     systemBlue: accent,
     info: accent,
-  };
+  }), [accent, base]);
 
-  const value: AppTheme = {
+  const value = useMemo<AppTheme>(() => ({
     colorScheme,
     isDark,
     colors,
     statusBarStyle: isDark ? 'light' : 'dark',
     accentPresetId,
     setAccentPresetId,
-  };
+  }), [accentPresetId, colorScheme, colors, isDark, setAccentPresetId]);
 
-  const navigationTheme = {
+  const navigationTheme = useMemo(() => ({
     ...(isDark ? DarkTheme : DefaultTheme),
     colors: {
       ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
@@ -61,7 +61,7 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
       border: colors.separator,
       notification: colors.error,
     },
-  };
+  }), [accent, colors.background, colors.error, colors.label, colors.secondarySystemGroupedBackground, colors.separator, isDark]);
 
   return (
     <ThemeContext.Provider value={value}>

@@ -5,7 +5,10 @@ import { CameraView } from 'expo-camera';
 import Animated from 'react-native-reanimated';
 import { GestureDetector } from 'react-native-gesture-handler';
 import type { CameraScreenViewModel } from '../../hooks/useCameraScreen';
-import { VIDEO_RECORDING_BITRATE } from '../../hooks/useCameraScreen';
+import {
+  CAMERA_CAPTURE_PROFILE,
+  VIDEO_RECORDING_BITRATE,
+} from '../../lib/cameraCaptureProfile';
 import { NativeChromeIconButton } from '../ui/native-chrome-icon-button';
 import { VIDEO_TOTAL_MAX_DURATION_MS } from '../../lib/videoRecordingLimits';
 import { getCameraLightProps } from '../../lib/cameraLightProps';
@@ -48,6 +51,7 @@ export function CameraCaptureSurface({ vm }: Props) {
     shutterGesture,
     onCameraReady,
     onAvailableLensesChanged,
+    onResponsiveOrientationChanged,
     selectLens,
     animatedShutterStyle,
     animatedFlashStyle,
@@ -157,12 +161,15 @@ export function CameraCaptureSurface({ vm }: Props) {
           enableTorch={cameraLightProps.enableTorch}
           onCameraReady={onCameraReady}
           onAvailableLensesChanged={onAvailableLensesChanged}
+          responsiveOrientationWhenOrientationLocked
+          onResponsiveOrientationChanged={onResponsiveOrientationChanged}
           selectedLens={selectedLens ?? undefined}
           active={cameraActive}
           zoom={zoom}
-          videoQuality="720p"
+          pictureSize={CAMERA_CAPTURE_PROFILE.pictureSize}
+          videoQuality={CAMERA_CAPTURE_PROFILE.videoQuality}
           videoBitrate={VIDEO_RECORDING_BITRATE}
-          videoStabilizationMode="auto"
+          videoStabilizationMode={CAMERA_CAPTURE_PROFILE.videoStabilizationMode}
         />
       </GestureDetector>
       <View style={styles.cameraOverlay}>

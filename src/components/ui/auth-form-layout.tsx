@@ -5,6 +5,7 @@ import React, {
   type PropsWithChildren,
   type ReactNode,
   useEffect,
+  useMemo,
 } from 'react';
 import { AccessibilityInfo, PixelRatio, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -135,9 +136,10 @@ export function AuthFormLayout({ children, description }: AuthFormLayoutProps) {
   const { colors, statusBarStyle } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const contentWidth = getAuthContentWidth(windowWidth);
+  const contentWidthValue = useMemo(() => ({ contentWidth }), [contentWidth]);
 
   return (
-    <AuthContentWidthContext.Provider value={{ contentWidth }}>
+    <AuthContentWidthContext.Provider value={contentWidthValue}>
       <AppHost
         style={{ flex: 1, backgroundColor: colors.background }}
         safeAreaMode="respect"

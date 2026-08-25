@@ -1,5 +1,15 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { View, StyleSheet, Pressable, Text, ActivityIndicator, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Pressable,
+  Text,
+  ActivityIndicator,
+  useWindowDimensions,
+  type ImageStyle,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Image } from 'expo-image';
 import { useEventListener } from 'expo';
@@ -44,6 +54,12 @@ import type { MediaTextOverlay } from '../types/mediaTextOverlay';
 import { normalizeMediaTextOverlay } from '../types/mediaTextOverlay';
 import type { MediaDrawingOverlay } from '../types/mediaDrawingOverlay';
 import { normalizeMediaDrawingOverlay } from '../types/mediaDrawingOverlay';
+import {
+  mediaContentFit,
+  mediaEditingViewport,
+  videoContentFit,
+  type MediaViewport,
+} from '../lib/mediaPresentation';
 
 const TIMER_TRACK_HEIGHT = 8;
 /** Maks. czas oczekiwania na `readyToPlay` zanim wymusimy `play()` + `onReady()`. */
@@ -57,6 +73,21 @@ const VIDEO_PREVIEW_TIMER_HUD_PADDING_V = 8;
 /** Odstęp między dolną krawędzią pill a przyciskiem zamknięcia. */
 const VIDEO_PREVIEW_CLOSE_BELOW_TIMER_GAP = 12;
 const MEDIA_PREVIEW_BACKGROUND = '#000000';
+
+function mediaStageStyle(viewport: MediaViewport): ImageStyle {
+  return {
+    position: 'absolute',
+    left: viewport.left,
+    top: viewport.top,
+    right: undefined,
+    bottom: undefined,
+    width: viewport.width,
+    height: viewport.height,
+    transform: viewport.rotationDegrees
+      ? [{ rotate: `${viewport.rotationDegrees}deg` }]
+      : undefined,
+  };
+}
 
 function previewTimerHudContentHeight() {
   return VIDEO_PREVIEW_TIMER_HUD_PADDING_V * 2 + TIMER_TRACK_HEIGHT;
@@ -170,6 +201,8 @@ function PreviewSegmentVideo({
   onReady,
   onFirstFrameRender,
   onPlaybackError,
+  onDimensions,
+  contentFit,
   style,
 }: {
   uri: string;
@@ -178,6 +211,8 @@ function PreviewSegmentVideo({
   onReady: () => void;
   onFirstFrameRender: () => void;
   onPlaybackError: () => void;
+  onDimensions: (width: number, height: number) => void;
+  contentFit: 'contain' | 'cover';
   style: StyleProp<ViewStyle>;
 }) {
   const player = useVideoPlayer({ uri }, (p) => {
@@ -260,6 +295,11 @@ function PreviewSegmentVideo({
     });
   });
 
+  useEventListener(player, 'sourceLoad', ({ availableVideoTracks }) => {
+    const size = availableVideoTracks[0]?.size;
+    if (size?.width && size?.height) onDimensions(size.width, size.height);
+  });
+
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
     if (currentTime > 0 && !playingRef.current) {
       playingRef.current = true;
@@ -318,7 +358,7 @@ function PreviewSegmentVideo({
     <VideoView
       style={style}
       player={player}
-      contentFit="cover"
+      contentFit={contentFit}
       nativeControls={false}
       onFirstFrameRender={() => {
         onFirstFrameRender();
@@ -329,6 +369,67 @@ function PreviewSegmentVideo({
   );
 }
 
+function PreviewVideoTimerHud({
+  styles,
+  top,
+  isDark,
+  segmentCount,
+  clipIndex,
+  activeSegmentMaskStyle,
+}: {
+  styles: ReturnType<typeof createStyles>;
+  top: number;
+  isDark: boolean;
+  segmentCount: number;
+  clipIndex: number;
+  activeSegmentMaskStyle: ReturnType<typeof useAnimatedStyle<ViewStyle>>;
+}) {
+  return (
+    <View style={[styles.timerHudShell, { top }]}>
+      <BlurView intensity={isDark ? 72 : 58} tint={isDark ? 'dark' : 'light'} style={styles.timerBlur} />
+      <View style={styles.timerHudInner}>
+        <View style={styles.segmentsRow}>
+          {Array.from({ length: segmentCount }, (_, segIndex) => (
+            <View key={`seg-${segIndex}`} style={styles.segmentCell}>
+              <View style={styles.timerTrack}>
+                {segIndex < clipIndex ? <View style={styles.segmentFillDone} /> : null}
+                {segIndex === clipIndex ? (
+                  <>
+                    <View style={styles.segmentFill} />
+                    <Animated.View
+                      style={[styles.segmentProgressMask, activeSegmentMaskStyle]}
+                      pointerEvents="none"
+                    />
+                  </>
+                ) : null}
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function PreviewMediaError({
+  message,
+  onBack,
+  styles,
+}: {
+  message: string;
+  onBack: () => void;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.errorText}>{message}</Text>
+      <Pressable style={styles.backButton} onPress={onBack}>
+        <Text style={styles.backButtonText}>Wróć</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function PreviewVideoContent({
   segments,
   clearDraft,
@@ -336,6 +437,7 @@ function PreviewVideoContent({
   onChangeTextOverlay,
   drawingOverlay,
   onChangeDrawingOverlay,
+  onSegmentDimensions,
 }: {
   segments: VideoSegmentDraft[];
   clearDraft: () => void;
@@ -343,6 +445,7 @@ function PreviewVideoContent({
   onChangeTextOverlay: (next: MediaTextOverlay | null) => void;
   drawingOverlay: MediaDrawingOverlay | null;
   onChangeDrawingOverlay: (next: MediaDrawingOverlay | null) => void;
+  onSegmentDimensions: (index: number, width: number, height: number) => void;
 }) {
   const { t } = useTranslation();
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
@@ -352,15 +455,32 @@ function PreviewVideoContent({
   const [videoState, dispatchVideoState] = useReducer(previewVideoReducer, initialPreviewVideoState);
   const [isSaving, setIsSaving] = useState(false);
   const segmentProgress = useSharedValue(1);
-  const textClampTop =
+  const chromeClampTop =
     insets.topContentInset
     + VIDEO_PREVIEW_TIMER_HUD_TOP
     + previewTimerHudContentHeight()
     + VIDEO_PREVIEW_CLOSE_BELOW_TIMER_GAP
     + 56;
-  const textClampBottom = insets.bottomContentInset + 56;
+  const chromeClampBottom = insets.bottomContentInset + 56;
 
   const current = segments[videoState.clipIndex];
+  const mediaViewport = mediaEditingViewport({
+    media: current,
+    viewportWidth,
+    viewportHeight,
+    captureOrientation: current.captureOrientation,
+  });
+  const rotatedStage = Boolean(mediaViewport.rotationDegrees);
+  const textClampTop = rotatedStage
+    ? 48
+    : Math.max(chromeClampTop, mediaViewport.top);
+  const textClampBottom = rotatedStage
+    ? 48
+    : Math.max(
+        chromeClampBottom,
+        viewportHeight - mediaViewport.top - mediaViewport.height
+      );
+  const stageStyle = mediaStageStyle(mediaViewport);
   const clipKey = `${videoState.clipIndex}:${current.uri}`;
   const videoReady = videoState.readyClipKey === clipKey;
   const videoError = videoState.errorClipKey === clipKey ? videoState.errorMessage : null;
@@ -450,34 +570,14 @@ function PreviewVideoContent({
     <View style={styles.container}>
       <StatusBar style={statusBarStyle} hidden={false} />
 
-      <View style={[styles.timerHudShell, { top: insets.top + VIDEO_PREVIEW_TIMER_HUD_TOP }]}>
-        <BlurView intensity={isDark ? 72 : 58} tint={isDark ? 'dark' : 'light'} style={styles.timerBlur} />
-        <View style={styles.timerHudInner}>
-          <View style={styles.segmentsRow}>
-            {segments.map((_, segIndex) => {
-              const isDone = segIndex < videoState.clipIndex;
-              const isActive = segIndex === videoState.clipIndex;
-              return (
-                <View key={`seg-${segIndex}`} style={styles.segmentCell}>
-                  <View style={styles.timerTrack}>
-                    {isDone ? (
-                      <View style={styles.segmentFillDone} />
-                    ) : isActive ? (
-                      <>
-                        <View style={styles.segmentFill} />
-                        <Animated.View
-                          style={[styles.segmentProgressMask, activeSegmentMaskStyle]}
-                          pointerEvents="none"
-                        />
-                      </>
-                    ) : null}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-      </View>
+      <PreviewVideoTimerHud
+        styles={styles}
+        top={insets.top + VIDEO_PREVIEW_TIMER_HUD_TOP}
+        isDark={isDark}
+        segmentCount={segments.length}
+        clipIndex={videoState.clipIndex}
+        activeSegmentMaskStyle={activeSegmentMaskStyle}
+      />
 
       {videoState.audioReady ? (
         <PreviewSegmentVideo
@@ -488,12 +588,20 @@ function PreviewVideoContent({
           onReady={handleVideoReady}
           onFirstFrameRender={handleFirstFrameRender}
           onPlaybackError={handleVideoPlaybackError}
-          style={styles.image}
+          onDimensions={(width, height) =>
+            onSegmentDimensions(videoState.clipIndex, width, height)
+          }
+          contentFit={videoContentFit(current)}
+          style={[styles.image, rotatedStage ? stageStyle : undefined]}
         />
       ) : null}
 
       {!firstFrameRendered && poster ? (
-        <Image source={poster} style={styles.videoPoster} contentFit="cover" />
+        <Image
+          source={poster}
+          style={[styles.videoPoster, rotatedStage ? stageStyle : undefined]}
+          contentFit={videoContentFit(current)}
+        />
       ) : null}
 
       {videoReady && !videoError ? (
@@ -527,6 +635,8 @@ function PreviewVideoContent({
         onChangeDrawingOverlay={onChangeDrawingOverlay}
         clampTopPx={textClampTop}
         clampBottomPx={textClampBottom}
+        drawingViewportStyle={stageStyle}
+        editingViewportHeight={rotatedStage ? mediaViewport.height : undefined}
         colors={colors}
         chromeVariant="glass"
         renderChrome={({ normalTools, drawingHeader, isTextEditing, isDrawing }) => (
@@ -584,8 +694,8 @@ function PreviewVideoContent({
                           segmentCount: segments.length,
                           textOverlay: normalizeMediaTextOverlay(textOverlay),
                           drawingOverlay: normalizeMediaDrawingOverlay(drawingOverlay),
-                          viewportWidth,
-                          viewportHeight,
+                          viewportWidth: mediaViewport.width,
+                          viewportHeight: mediaViewport.height,
                         }),
                       () => setIsSaving(false)
                     );
@@ -635,6 +745,7 @@ export default function PreviewScreen() {
   const {
     segments,
     setSegments,
+    updateSegmentDimensions,
     clearSegments,
     textOverlay: videoTextOverlay,
     setTextOverlay,
@@ -683,17 +794,14 @@ export default function PreviewScreen() {
   if (mode === 'video') {
     if (!previewVideoSegments?.length) {
       return (
-        <View style={styles.container}>
-          <Text style={styles.errorText}>Brak nagrań do podglądu</Text>
-          <Pressable
-            style={styles.backButton}
-            onPress={() => {
-              clearSegments();
-              router.back();
-            }}>
-            <Text style={styles.backButtonText}>Wróć</Text>
-          </Pressable>
-        </View>
+        <PreviewMediaError
+          message="Brak nagrań do podglądu"
+          styles={styles}
+          onBack={() => {
+            clearSegments();
+            router.back();
+          }}
+        />
       );
     }
     return (
@@ -704,39 +812,51 @@ export default function PreviewScreen() {
         onChangeTextOverlay={setTextOverlay}
         drawingOverlay={videoDrawingOverlay}
         onChangeDrawingOverlay={setDrawingOverlay}
+        onSegmentDimensions={updateSegmentDimensions}
       />
     );
   }
 
   if (!photoUri) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Nie przechwycono zdjęcia</Text>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Wróć</Text>
-        </Pressable>
-      </View>
+      <PreviewMediaError
+        message="Nie przechwycono zdjęcia"
+        styles={styles}
+        onBack={() => router.back()}
+      />
     );
   }
 
   if (imageLoadError) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Nie udało się wczytać zdjęcia</Text>
-        <Pressable
-          style={styles.backButton}
-          onPress={() => {
-            clearPhotoDraft();
-            router.back();
-          }}>
-          <Text style={styles.backButtonText}>Wróć</Text>
-        </Pressable>
-      </View>
+      <PreviewMediaError
+        message="Nie udało się wczytać zdjęcia"
+        styles={styles}
+        onBack={() => {
+          clearPhotoDraft();
+          router.back();
+        }}
+      />
     );
   }
 
-  const photoClampTop = insets.topContentInset + 56;
-  const photoClampBottom = insets.bottomContentInset + 56;
+  const photoViewport = mediaEditingViewport({
+    media: draftPhoto ?? {},
+    viewportWidth,
+    viewportHeight,
+    captureOrientation: draftPhoto?.captureOrientation,
+  });
+  const photoRotatedStage = Boolean(photoViewport.rotationDegrees);
+  const photoClampTop = photoRotatedStage
+    ? 48
+    : Math.max(insets.topContentInset + 56, photoViewport.top);
+  const photoClampBottom = photoRotatedStage
+    ? 48
+    : Math.max(
+        insets.bottomContentInset + 56,
+        viewportHeight - photoViewport.top - photoViewport.height
+      );
+  const photoStageStyle = mediaStageStyle(photoViewport);
 
   const setPhotoTextOverlay = (next: MediaTextOverlay | null) => {
     if (!draftPhoto && !photoUri) return;
@@ -744,6 +864,7 @@ export default function PreviewScreen() {
       uri: photoUri!,
       width: draftPhoto?.width,
       height: draftPhoto?.height,
+      captureOrientation: draftPhoto?.captureOrientation,
       textOverlay: next,
       drawingOverlay: draftPhoto?.drawingOverlay ?? null,
     });
@@ -755,6 +876,7 @@ export default function PreviewScreen() {
       uri: photoUri!,
       width: draftPhoto?.width,
       height: draftPhoto?.height,
+      captureOrientation: draftPhoto?.captureOrientation,
       textOverlay: draftPhoto?.textOverlay ?? null,
       drawingOverlay: next,
     });
@@ -766,10 +888,26 @@ export default function PreviewScreen() {
 
       <Image
         source={{ uri: photoUri }}
-        style={styles.image}
-        contentFit="cover"
+        style={[styles.image, photoRotatedStage ? photoStageStyle : undefined]}
+        contentFit={mediaContentFit(draftPhoto ?? {})}
         cachePolicy="none"
-        onLoad={() => setImageLoading(false)}
+        onLoad={({ source }) => {
+          setImageLoading(false);
+          if (
+            source.width > 0
+            && source.height > 0
+            && (draftPhoto?.width !== source.width || draftPhoto?.height !== source.height)
+          ) {
+            setPhotoDraft({
+              uri: photoUri,
+              width: source.width,
+              height: source.height,
+              captureOrientation: draftPhoto?.captureOrientation,
+              textOverlay: draftPhoto?.textOverlay ?? null,
+              drawingOverlay: draftPhoto?.drawingOverlay ?? null,
+            });
+          }
+        }}
         onError={() => {
           console.warn('[PreviewPhoto] expo-image failed to load', { uri: photoUri });
           setImageLoading(false);
@@ -790,6 +928,8 @@ export default function PreviewScreen() {
         onChangeDrawingOverlay={setPhotoDrawingOverlay}
         clampTopPx={photoClampTop}
         clampBottomPx={photoClampBottom}
+        drawingViewportStyle={photoStageStyle}
+        editingViewportHeight={photoRotatedStage ? photoViewport.height : undefined}
         colors={colors}
         chromeVariant="glass"
         renderChrome={({ normalTools, drawingHeader, isTextEditing, isDrawing }) => (
@@ -849,8 +989,8 @@ export default function PreviewScreen() {
                           mediaType: 'image',
                           textOverlay: normalizeMediaTextOverlay(photoTextOverlay),
                           drawingOverlay: normalizeMediaDrawingOverlay(photoDrawingOverlay),
-                          viewportWidth,
-                          viewportHeight,
+                          viewportWidth: photoViewport.width,
+                          viewportHeight: photoViewport.height,
                         }),
                       () => setIsSavingPhoto(false)
                     );

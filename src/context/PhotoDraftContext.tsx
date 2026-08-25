@@ -1,18 +1,18 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { PhotoDraftContext, type PhotoDraftData } from './photoDraft';
 
 export function PhotoDraftProvider({ children }: { children: ReactNode }) {
   const [draft, setDraftState] = useState<PhotoDraftData | null>(null);
 
-  const setDraft = (next: PhotoDraftData) => {
+  const setDraft = useCallback((next: PhotoDraftData) => {
     setDraftState(next);
-  };
+  }, []);
 
-  const clearDraft = () => {
+  const clearDraft = useCallback(() => {
     setDraftState(null);
-  };
+  }, []);
 
-  const value = { draft, setDraft, clearDraft };
+  const value = useMemo(() => ({ draft, setDraft, clearDraft }), [clearDraft, draft, setDraft]);
 
   return <PhotoDraftContext.Provider value={value}>{children}</PhotoDraftContext.Provider>;
 }

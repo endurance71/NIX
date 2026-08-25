@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from 'react';
 import type { ViewStyle } from 'react-native';
-import { CameraView, useCameraPermissions, useMicrophonePermissions, type AvailableLenses } from 'expo-camera';
+import {
+  CameraView,
+  useCameraPermissions,
+  useMicrophonePermissions,
+  type AvailableLenses,
+  type CameraOrientation,
+  type ResponsiveOrientationChanged,
+} from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
 import { tap, notify as hapticNotify } from '../lib/haptics';
@@ -42,8 +49,11 @@ import { HOLD_ZOOM_GAIN } from '../lib/cameraHoldZoom';
 import { getBackLensPresetsAsync } from '../../modules/nix-camera-torch';
 import { duration as motionDuration } from '../theme/motion';
 import { uploadFeatures } from '../config/uploadFeatures';
+import {
+  CAMERA_CAPTURE_PROFILE,
+  VIDEO_RECORDING_BITRATE,
+} from '../lib/cameraCaptureProfile';
 
-export const VIDEO_RECORDING_BITRATE = 1_800_000;
 const VIDEO_RECORDING_MAX_FILE_SIZE_BYTES = 90 * 1024 * 1024;
 const STILL_FLASH_ARM_DELAY_MS = 80;
 const VIDEO_TORCH_PROP_COMMIT_DELAY_MS = 50;
@@ -85,6 +95,7 @@ export type CameraScreenViewModel = {
   shutterGesture: ReturnType<typeof Gesture.Pan>;
   onCameraReady: () => void;
   onAvailableLensesChanged: (event: AvailableLenses) => void;
+  onResponsiveOrientationChanged: (event: ResponsiveOrientationChanged) => void;
   selectLens: (lensOptionId: string) => void;
   animatedShutterStyle: AnimatedStyle<ViewStyle>;
   animatedFlashStyle: AnimatedStyle<ViewStyle>;
@@ -162,6 +173,8 @@ export function useCameraScreen(): CameraScreenViewModel {
   const switchRecoveryUsedRef = useRef(false);
   const safeStopRecordingRef = useRef<() => void>(() => {});
   const disableNativeVideoTorchRef = useRef<() => void>(() => {});
+  const cameraOrientationRef = useRef<CameraOrientation | null>(null);
+  const orientationWaitersRef = useRef<Set<() => void>>(new Set());
 
   const shutterScale = useSharedValue(1);
   const recordingPulseScale = useSharedValue(1);
@@ -497,6 +510,29 @@ export function useCameraScreen(): CameraScreenViewModel {
     [applyAvailableLenses]
   );
 
+  const onResponsiveOrientationChanged = useCallback((event: ResponsiveOrientationChanged) => {
+    cameraOrientationRef.current = event.orientation;
+    for (const resolve of orientationWaitersRef.current) resolve();
+    orientationWaitersRef.current.clear();
+  }, []);
+
+  const waitForResponsiveOrientation = async (): Promise<CameraOrientation | null> => {
+    if (process.env.EXPO_OS !== 'ios' || cameraOrientationRef.current) {
+      return cameraOrientationRef.current;
+    }
+
+    await new Promise<void>((resolve) => {
+      const finish = () => {
+        clearTimeout(timeout);
+        orientationWaitersRef.current.delete(finish);
+        resolve();
+      };
+      const timeout = setTimeout(finish, 180);
+      orientationWaitersRef.current.add(finish);
+    });
+    return cameraOrientationRef.current;
+  };
+
   const selectLens = useCallback(
     (nextLensOptionId: string) => {
       const option = findLensOptionById(lensOptions, nextLensOptionId);
@@ -592,6 +628,7 @@ export function useCameraScreen(): CameraScreenViewModel {
       async () => {
         let result: { uri?: string } | undefined;
         let recordingCodec: 'avc1' | 'hvc1' = 'avc1';
+        let captureOrientation: CameraOrientation | null = null;
         let attemptedRecord = false;
         const sessionStartedAt = nowMs();
         recordingStartedRef.current = false;
@@ -621,6 +658,8 @@ export function useCameraScreen(): CameraScreenViewModel {
           dispatchCameraUi({ type: 'SET_CAPTURE_ERROR', captureError: 'Kamera nie jest dostępna.' });
           return;
         }
+
+        captureOrientation = await waitForResponsiveOrientation();
 
         const maxDurSec = Math.max(1, Math.ceil(VIDEO_TOTAL_MAX_DURATION_MS / 1000));
         attemptedRecord = true;
@@ -695,8 +734,16 @@ export function useCameraScreen(): CameraScreenViewModel {
             duration_recorded_ms: durationMs,
             codec: recordingCodec,
             bitrate: VIDEO_RECORDING_BITRATE,
+            capture_orientation: captureOrientation ?? 'unknown',
+            picture_size: CAMERA_CAPTURE_PROFILE.pictureSize,
+            video_quality: CAMERA_CAPTURE_PROFILE.videoQuality,
+            video_stabilization_mode: CAMERA_CAPTURE_PROFILE.videoStabilizationMode,
           });
-          setSegments([{ uri: result.uri, durationMs }]);
+          setSegments([{
+            uri: result.uri,
+            durationMs,
+            captureOrientation: captureOrientation ?? undefined,
+          }]);
           router.push({
             pathname: '/preview',
             params: {
@@ -885,6 +932,7 @@ export function useCameraScreen(): CameraScreenViewModel {
               logVideoTorchEvent('still-flash-arm-delay-end');
             }
             logVideoTorchEvent('before-takePictureAsync', {}, { facing });
+            const captureOrientation = await waitForResponsiveOrientation();
             const photo = await camera.takePictureAsync({
               quality: 0.8,
               base64: false,
@@ -903,9 +951,15 @@ export function useCameraScreen(): CameraScreenViewModel {
                 status: 'success',
                 width: photo.width,
                 height: photo.height,
+                capture_orientation: captureOrientation ?? 'unknown',
               });
               // Navigate immediately — bake/compress happens at send in mediaService.
-              setPhotoDraft({ uri: photo.uri, width: photo.width, height: photo.height });
+              setPhotoDraft({
+                uri: photo.uri,
+                width: photo.width,
+                height: photo.height,
+                captureOrientation: captureOrientation ?? undefined,
+              });
               trackDuration('photo_preview_nav_ms', captureStartedAt, {
                 status: 'success',
                 facing,
@@ -1094,7 +1148,7 @@ export function useCameraScreen(): CameraScreenViewModel {
 
       if (asset.type === 'video') {
         const durationMs = Math.round(Math.min(asset.duration ?? 0, VIDEO_TOTAL_MAX_DURATION_MS));
-        setSegments([{ uri: asset.uri, durationMs }]);
+        setSegments([{ uri: asset.uri, durationMs, width: asset.width, height: asset.height }]);
         router.push({ pathname: '/preview', params: { mode: 'video' } });
       } else {
         setPhotoDraft({ uri: asset.uri, width: asset.width, height: asset.height });
@@ -1218,6 +1272,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     shutterGesture,
     onCameraReady,
     onAvailableLensesChanged,
+    onResponsiveOrientationChanged,
     selectLens,
     animatedShutterStyle,
     animatedFlashStyle,

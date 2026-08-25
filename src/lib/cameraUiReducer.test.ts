@@ -84,6 +84,31 @@ describe('cameraUiReducer', () => {
     expect(state.recordingVideo).toBe(false);
   });
 
+  it('preserves the selected lens and zoom through the whole recording session', () => {
+    const selected = {
+      ...initialCameraUiState,
+      cameraReady: true,
+      zoom: 0.25,
+      selectedLens: 'Back Telephoto Camera',
+      lensOptionId: '2x',
+    };
+    const preparing = cameraUiReducer(selected, {
+      type: 'VIDEO_PREPARE_BEGIN',
+      resetCameraReady: false,
+    });
+    const recording = cameraUiReducer(preparing, { type: 'VIDEO_RECORDING_BEGIN' });
+    const ended = cameraUiReducer(recording, {
+      type: 'VIDEO_SESSION_END',
+      resetCameraReady: false,
+    });
+
+    for (const state of [preparing, recording, ended]) {
+      expect(state.zoom).toBe(0.25);
+      expect(state.selectedLens).toBe('Back Telephoto Camera');
+      expect(state.lensOptionId).toBe('2x');
+    }
+  });
+
   it('CLEAR_VIDEO_TORCH clears pending video torch request', () => {
     const requested = cameraUiReducer(
       { ...initialCameraUiState, flash: 'on' },

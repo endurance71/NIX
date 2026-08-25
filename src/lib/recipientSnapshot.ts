@@ -37,23 +37,6 @@ export async function readRecipientSnapshot(userId: string): Promise<RecipientSn
   }
 }
 
-export async function writeRecipientSnapshot(userId: string, recipients: FriendProfile[]) {
-  const snapshot: RecipientSnapshot = {
-    version: 1,
-    userId,
-    writtenAt: new Date().toISOString(),
-    recipients: recipients.map((recipient) => ({
-      id: recipient.id,
-      username: recipient.username,
-      display_name: recipient.display_name ?? null,
-      avatar_storage_path: recipient.avatar_storage_path ?? null,
-      avatar_emoji: recipient.avatar_emoji ?? null,
-    })),
-  };
-  await AsyncStorage.setItem(keyFor(userId), JSON.stringify(snapshot));
-  return snapshot;
-}
-
 export async function clearRecipientSnapshot(userId: string) {
   await AsyncStorage.removeItem(keyFor(userId));
 }

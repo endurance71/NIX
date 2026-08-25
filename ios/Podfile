@@ -74,6 +74,9 @@ end
 require File.join(File.dirname(`node --print "require.resolve('expo-widgets/package.json')"`), "scripts/autolinking")
 target "ExpoWidgetsTarget" do
     use_expo_modules_widgets!
+    # ExpoAdapterGoogleSignIn is linked transitively by Expo in this extension.
+    # Its Swift pod requires a module map when CocoaPods builds static libraries.
+    pod 'GoogleUtilities', :modular_headers => true
 
     if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
       config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];

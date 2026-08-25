@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -32,6 +32,8 @@ type PreviewTextToolsProps = {
   onChangeOverlay: (next: MediaTextOverlay | null) => void;
   clampTopPx: number;
   clampBottomPx: number;
+  viewportHeight?: number;
+  stickerViewportStyle?: StyleProp<ViewStyle>;
   colors: ThemeColors;
   chromeVariant?: ChromeVariant;
   /** Renders chrome; Text button is placed top-right by the parent. */
@@ -45,6 +47,8 @@ export function PreviewTextTools({
   onChangeOverlay,
   clampTopPx,
   clampBottomPx,
+  viewportHeight,
+  stickerViewportStyle,
   colors,
   chromeVariant = 'glass',
   renderChrome,
@@ -58,6 +62,7 @@ export function PreviewTextTools({
     onChangeOverlay,
     clampTopPx,
     clampBottomPx,
+    viewportHeight,
   });
   const [stickerExiting, setStickerExiting] = useState(false);
   const stickerExitActionRef = useRef<'confirm' | 'delete' | null>(null);
@@ -160,7 +165,9 @@ export function PreviewTextTools({
 
   return (
     <>
-      <View style={StyleSheet.absoluteFill} pointerEvents={stickerPointerEvents}>
+      <View
+        style={[StyleSheet.absoluteFill, stickerViewportStyle]}
+        pointerEvents={stickerPointerEvents}>
         {showSticker ? (
           <PreviewTextSticker
             mode={mode}
