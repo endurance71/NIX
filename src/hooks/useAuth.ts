@@ -19,10 +19,7 @@ import {
   reauthenticatePasswordChange as requestPasswordReauthenticate,
   signOut as requestSignOut,
 } from '../services/authService';
-import {
-  signInWithApple as requestAppleSignIn,
-  signInWithGoogle as requestGoogleSignIn,
-} from '../services/socialAuthService';
+import { signInWithApple as requestAppleSignIn } from '../services/socialAuthService';
 import { getCurrentLocale } from '../lib/i18n';
 import { disableCurrentPushDeviceBeforeSignOut } from '../services/pushNotificationService';
 import { clearTextOutbox } from '../services/textOutboxService';
@@ -45,11 +42,6 @@ type AuthState = {
 
 async function signIn(email: string, password: string) {
   const { data, error } = await requestPasswordSignIn(email, password);
-  return { data, error };
-}
-
-async function signInWithGoogle() {
-  const { data, error } = await requestGoogleSignIn();
   return { data, error };
 }
 
@@ -107,7 +99,6 @@ async function cleanupBeforeLogout(user: User | null) {
 
 type AuthContextValue = AuthState & {
   signIn: typeof signIn;
-  signInWithGoogle: typeof signInWithGoogle;
   signInWithApple: typeof signInWithApple;
   signUp: typeof signUp;
   verifyOTP: typeof verifyOTP;
@@ -383,7 +374,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(() => ({
     ...state,
     signIn,
-    signInWithGoogle,
     signInWithApple,
     signUp,
     verifyOTP,

@@ -44,7 +44,6 @@ Domykać pętlę zaufania i UX efemeryczny bez rozcieńczania prywatności:
 - Streaki, stories, grupy, sync kontaktów
 - Powiadomienie „opened” dla nadawcy (osobny feature)
 - App lock / Face ID
-- Google Sign-In
 - Zmiana limitów nagrywania wideo
 - Włączanie Sentry
 

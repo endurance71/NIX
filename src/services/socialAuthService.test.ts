@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  APPLE_SIGN_IN_ERROR_CODES,
-  signInWithApple,
-  signInWithGoogle,
-} from './socialAuthService';
+import { APPLE_SIGN_IN_ERROR_CODES, signInWithApple } from './socialAuthService';
 
 const {
   mockAuth,
@@ -75,11 +71,6 @@ describe('socialAuthService', () => {
       insert: mockLegalAcceptanceInsert,
     }));
     mockSaveAppleId.mockResolvedValue(undefined);
-  });
-
-  it('signInWithGoogle pozostaje stubem', async () => {
-    const { error } = await signInWithGoogle();
-    expect(error?.message).toBe('SOCIAL_AUTH_NOT_CONFIGURED');
   });
 
   it('loguje przez Apple i zapisuje apple_id oraz metadata', async () => {

@@ -34,7 +34,7 @@ protection is best-effort and depends on iOS.
 - Password / one-time-code procedure: `[store in App Store Connect, never here]`
 - Reviewer account 2: `[create dedicated email account]`
 - Username 1 / 2: `[fill after seeding]`
-- Apple login may be tested on-device; Google Sign-In is not active. Email must allow full testing without private credentials.
+- Apple login may be tested on-device. Email must allow full testing without private credentials.
 
 ## Contact — MANUAL GATE
 
@@ -46,7 +46,7 @@ protection is best-effort and depends on iOS.
 
 - Privacy Policy URL is public over HTTPS and opens without authentication.
 - App Privacy answers cover account identifiers, user content, diagnostics,
-  Supabase, Apple, and Expo/EAS. Google Sign-In is inactive. The bundled Sentry SDK is hard-disabled.
+  Supabase, Apple, and Expo/EAS. The bundled Sentry SDK is hard-disabled.
 - Age rating is consistent with the enforced minimum age of 16 and UGC/messaging.
 - Export compliance is set consistently with `ITSAppUsesNonExemptEncryption=false`.
 - TestFlight beta description, feedback email, reviewer contact and credentials are saved.

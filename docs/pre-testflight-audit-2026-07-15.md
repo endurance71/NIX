@@ -224,7 +224,7 @@ Bramka wieku wymaga deklaracji 16+ podczas rejestracji/onboardingu, zapisuje wy�
 
 ### 5.2 Dokumenty prawne i App Privacy
 
-Dokumenty w [`src/lib/legalDocuments.ts`](../src/lib/legalDocuments.ts) i `docs/legal/` mają wersję 15 lipca 2026. Opisują retencję danych, proces moderacji i odwołania, próg 16+, odbiorców i dostawców. Nie zawierają placeholderów. Przed review trzeba uzyskać akceptację prawną, opublikować dokumenty pod publicznym HTTPS URL i sprawdzić, że formularz App Privacy odzwierciedla finalny build, Supabase, Apple i Expo/EAS. Google Sign-In pozostaje nieaktywnym stubem. Sentry SDK jest obecne w binarium, lecz nie przetwarza danych.
+Dokumenty w [`src/lib/legalDocuments.ts`](../src/lib/legalDocuments.ts) i `docs/legal/` mają wersję 15 lipca 2026. Opisują retencję danych, proces moderacji i odwołania, próg 16+, odbiorców i dostawców. Nie zawierają placeholderów. Przed review trzeba uzyskać akceptację prawną, opublikować dokumenty pod publicznym HTTPS URL i sprawdzić, że formularz App Privacy odzwierciedla finalny build, Supabase, Apple i Expo/EAS. Sentry SDK jest obecne w binarium, lecz nie przetwarza danych.
 
 ### 5.3 Informacje dla testera i reviewera
 

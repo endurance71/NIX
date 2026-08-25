@@ -41,8 +41,7 @@ absolute technical guarantee on every device.
 
 We use Supabase (authentication, database, Storage and server functions; EU
 region), Apple (Sign in with Apple and App Store), and Expo/EAS (app builds,
-distribution, and relaying push notifications to Apple APNs). Google Sign-In is
-not active in this version and Google receives no sign-in data. The installed Sentry SDK is currently hard-disabled
+distribution, and relaying push notifications to Apple APNs). The installed Sentry SDK is currently hard-disabled
 and receives no data. Transfers outside the EEA use an adequacy decision, standard contractual
 clauses, or another GDPR Chapter V mechanism.
 

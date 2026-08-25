@@ -4,8 +4,6 @@ import { supabase } from '../lib/supabase';
 import { saveAppleIdForCurrentUser } from './profileService';
 import { recordCurrentLegalAcceptance } from './authService';
 
-export type SocialAuthProvider = 'google' | 'apple';
-
 const NOT_CONFIGURED = 'SOCIAL_AUTH_NOT_CONFIGURED' as const;
 
 export const APPLE_SIGN_IN_ERROR_CODES = {
@@ -88,13 +86,6 @@ async function signInWithAppleIdToken(identityToken: string, rawNonce: string) {
   }
 
   return { data, error };
-}
-
-export async function signInWithGoogle() {
-  return {
-    data: { session: null, user: null },
-    error: { message: NOT_CONFIGURED, name: 'AuthError', status: 501 },
-  };
 }
 
 export async function signInWithApple() {
