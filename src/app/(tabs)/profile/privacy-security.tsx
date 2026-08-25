@@ -28,6 +28,7 @@ export default function PrivacySecurityScreen() {
             iconColor={colors.accent}
             switchValue={vm.profileRow?.is_private ?? false}
             onSwitchValueChange={(value) => void vm.handleTogglePrivacy(value)}
+            disabled={!vm.canPerformNetworkAction}
             testID="profile-private-account"
           />
           {iosRoadmapFeatures.analytics ? (
@@ -37,7 +38,7 @@ export default function PrivacySecurityScreen() {
               iconColor={colors.accent}
               switchValue={vm.analyticsEnabled}
               onSwitchValueChange={(enabled) => void vm.handleAnalyticsToggle(enabled)}
-              disabled={vm.analyticsPending}
+              disabled={!vm.canPerformNetworkAction || vm.analyticsPending}
               testID="profile-product-analytics"
             />
           ) : null}
@@ -50,6 +51,7 @@ export default function PrivacySecurityScreen() {
               icon="key"
               iconColor={colors.accent}
               showsChevron
+              disabled={!vm.canPerformNetworkAction}
               onPress={() => router.push('/(tabs)/profile/change-password')}
               testID="profile-change-password"
             />

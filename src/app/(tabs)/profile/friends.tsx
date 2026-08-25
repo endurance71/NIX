@@ -5,6 +5,7 @@ import {
   buttonBorderShape,
   buttonStyle,
   controlSize,
+  disabled as disabledModifier,
   fixedSize,
   padding,
   tint,
@@ -81,7 +82,7 @@ export default function FriendsScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="send"
-            editable={!inviteBusy}
+            editable={!inviteBusy && vm.canPerformNetworkAction}
             onChangeText={vm.setSearchUsername}
             onSubmitEditing={() => {
               if (vm.searchUsername.trim() && !inviteBusy) void vm.handleSendInvite();
@@ -90,7 +91,7 @@ export default function FriendsScreen() {
           />
           <NativeSettingsActionRow
             title={inviteBusy ? vm.t('profile.sendInviteLoading') : vm.t('profile.sendInvite')}
-            disabled={inviteBusy || !vm.searchUsername.trim()}
+            disabled={!vm.canPerformNetworkAction || inviteBusy || !vm.searchUsername.trim()}
             onPress={() => void vm.handleSendInvite()}
           />
         </NativeSettingsSection>
@@ -138,6 +139,7 @@ export default function FriendsScreen() {
                           label={vm.t('profile.rejectInvite')}
                           onPress={() => void vm.handleReject(request.id)}
                           modifiers={[
+                            disabledModifier(!vm.canPerformNetworkAction),
                             buttonStyle('bordered'),
                             buttonBorderShape('capsule'),
                             controlSize('small'),
@@ -149,6 +151,7 @@ export default function FriendsScreen() {
                           label={vm.t('profile.acceptInvite')}
                           onPress={() => void vm.handleAccept(request.id)}
                           modifiers={[
+                            disabledModifier(!vm.canPerformNetworkAction),
                             buttonStyle('borderedProminent'),
                             buttonBorderShape('capsule'),
                             controlSize('small'),
@@ -175,7 +178,7 @@ export default function FriendsScreen() {
                 <NativeSettingsSwipeActions
                   key={request.id}
                   actionLabel={vm.t('profile.cancelInvite')}
-                  disabled={loading}
+                  disabled={loading || !vm.canPerformNetworkAction}
                   onAction={() => confirmCancelInvite(request.id, request.recipient.username)}>
                   <NativeSettingsRow
                     title={request.recipient.display_name || `@${request.recipient.username}`}
@@ -208,7 +211,7 @@ export default function FriendsScreen() {
               <NativeSettingsSwipeActions
                 key={friend.id}
                 actionLabel={vm.t('profile.removeFriend')}
-                disabled={disabled}
+                disabled={disabled || !vm.canPerformNetworkAction}
                 onAction={() => confirmRemoveFriend(friend.id, friend.username)}>
                 <NativeSettingsRow
                   title={friend.display_name || `@${friend.username}`}
@@ -232,7 +235,9 @@ export default function FriendsScreen() {
                     })
                   }
                   switchValue={vm.resolveFriendCapturePolicy(friend.id) === 'allow'}
-                  onSwitchValueChange={(allowed) => void vm.handleToggleFriendCapture(friend.id, allowed)}
+                  onSwitchValueChange={vm.canPerformNetworkAction
+                    ? (allowed) => void vm.handleToggleFriendCapture(friend.id, allowed)
+                    : undefined}
                   testID={`friend-${friend.id}`}
                 />
               </NativeSettingsSwipeActions>

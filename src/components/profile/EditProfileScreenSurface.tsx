@@ -37,7 +37,7 @@ import {
   pickProfileAvatarPhoto,
   type AvatarPhotoSource,
 } from '../../lib/profileScreenActions';
-import { notifyError, notifySuccess } from '../../lib/appNotify';
+import { notifyError, notifyInfo, notifySuccess } from '../../lib/appNotify';
 import { runWithFinally } from '../../lib/runWithFinally';
 import { APP_ICON_SIZE } from '../../theme/app-icons';
 import { APP_FONT_FAMILY } from '../../theme/typography';
@@ -175,7 +175,7 @@ function ProfileFieldEditorSheet({
 export default function EditProfileScreenSurface() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
-  const { user } = useAuth();
+  const { user, canUseNetworkSession } = useAuth();
   const queryClient = useQueryClient();
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [fieldBusy, setFieldBusy] = useState(false);
@@ -184,13 +184,14 @@ export default function EditProfileScreenSurface() {
   const { data: profileRow = null, isPending: profilePending } = useQuery({
     queryKey: queryKeys.currentUserProfile(user?.id ?? null),
     queryFn: getCurrentUserProfile,
+    enabled: canUseNetworkSession,
     staleTime: 1000 * 60 * 5,
   });
   const avatarPaths = profileRow?.avatar_storage_path ? [profileRow.avatar_storage_path] : [];
   const { data: avatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(avatarPaths),
     queryFn: () => createSignedAvatarUrls(avatarPaths),
-    enabled: avatarPaths.length > 0,
+    enabled: canUseNetworkSession && avatarPaths.length > 0,
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
   const avatarUrl = profileRow?.avatar_storage_path
@@ -216,6 +217,10 @@ export default function EditProfileScreenSurface() {
   };
 
   const saveField = async (value: string) => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     if (!editor || fieldBusy) return;
     const field = editor.field;
     setFieldBusy(true);
@@ -239,6 +244,10 @@ export default function EditProfileScreenSurface() {
   };
 
   const chooseAvatar = async (source: AvatarPhotoSource) => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     if (avatarBusy) return;
     setAvatarBusy(true);
     await runWithFinally(
@@ -248,6 +257,10 @@ export default function EditProfileScreenSurface() {
   };
 
   const confirmRemoveAvatar = () => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     Alert.alert(t('profile.removeAvatarConfirmTitle'), t('profile.removeAvatarConfirmMessage'), [
       { text: t('common.cancel'), style: 'cancel' },
       {
@@ -308,7 +321,7 @@ export default function EditProfileScreenSurface() {
 
   return (
     <>
-      <SettingsListScreen loading={profilePending}>
+      <SettingsListScreen loading={canUseNetworkSession && profilePending}>
         <FieldGroup.Section>
           <FieldGroup.SectionHeader>
             <RNHostView matchContents>
@@ -316,7 +329,7 @@ export default function EditProfileScreenSurface() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t('profile.editPhoto')}
-                  disabled={avatarBusy}
+                  disabled={avatarBusy || !canUseNetworkSession}
                   onPress={openAvatarMenu}
                   style={({ pressed }) => [
                     styles.avatarButton,
@@ -347,7 +360,7 @@ export default function EditProfileScreenSurface() {
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
-                  disabled={avatarBusy}
+                  disabled={avatarBusy || !canUseNetworkSession}
                   hitSlop={8}
                   onPress={openAvatarMenu}
                   style={({ pressed }) => pressed && styles.pressed}>
@@ -368,6 +381,7 @@ export default function EditProfileScreenSurface() {
               />
             }
             showsChevron
+            disabled={!canUseNetworkSession}
             onPress={() =>
               setEditor({ field: 'display_name', initialValue: profileRow?.display_name ?? '' })
             }
@@ -382,6 +396,7 @@ export default function EditProfileScreenSurface() {
               />
             }
             showsChevron
+            disabled={!canUseNetworkSession}
             onPress={() => setEditor({ field: 'bio', initialValue: profileRow?.bio ?? '' })}
             testID="edit-profile-bio"
           />

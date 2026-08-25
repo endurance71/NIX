@@ -1,7 +1,7 @@
 import './installUrlPolyfill';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
-import { createClient } from '@supabase/supabase-js';
+import { AppState, Platform } from 'react-native';
+import { createClient, processLock } from '@supabase/supabase-js';
+import { authStorage } from './authStorage';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -12,21 +12,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-const authStorage = {
-  async getItem(key: string) {
-    const secureValue = await SecureStore.getItemAsync(key);
-    if (secureValue !== null) return secureValue;
-    return AsyncStorage.getItem(key);
-  },
-  async setItem(key: string, value: string) {
-    await SecureStore.setItemAsync(key, value);
-    await AsyncStorage.removeItem(key);
-  },
-  async removeItem(key: string) {
-    await SecureStore.deleteItemAsync(key);
-    await AsyncStorage.removeItem(key);
-  },
-};
+function getSupabaseProjectRef(url: string): string {
+  try {
+    const projectRef = new URL(url).hostname.split('.')[0];
+    if (!projectRef) throw new Error('Missing Supabase project reference');
+    return projectRef;
+  } catch {
+    throw new Error('EXPO_PUBLIC_SUPABASE_URL nie jest prawidłowym adresem URL.');
+  }
+}
+
+export const SUPABASE_AUTH_STORAGE_KEY = `sb-${getSupabaseProjectRef(supabaseUrl)}-auth-token`;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -34,5 +30,25 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    storageKey: SUPABASE_AUTH_STORAGE_KEY,
+    lock: processLock,
   },
 });
+
+let authLifecycleBound = false;
+
+export function bindSupabaseAuthLifecycle(): () => void {
+  if (authLifecycleBound || Platform.OS === 'web') return () => {};
+  authLifecycleBound = true;
+
+  const syncRefresh = (state: string) => {
+    if (state === 'active') void supabase.auth.startAutoRefresh();
+    else void supabase.auth.stopAutoRefresh();
+  };
+  syncRefresh(AppState.currentState);
+  const subscription = AppState.addEventListener('change', syncRefresh);
+  return () => {
+    subscription.remove();
+    authLifecycleBound = false;
+  };
+}

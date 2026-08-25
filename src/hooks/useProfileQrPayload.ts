@@ -1,9 +1,9 @@
-import { useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { buildFriendInviteTokenLink } from '../lib/friendInvite';
 import { createFriendInviteQrToken } from '../services/friendService';
 
-export function useProfileQrPayload() {
+export function useProfileQrPayload(enabled = true) {
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadTokenRef = useRef<() => Promise<void>>(async () => {});
   const [state, dispatch] = useReducer(
@@ -63,10 +63,12 @@ export function useProfileQrPayload() {
     loadTokenRef.current = loadToken;
   });
 
-  useFocusEffect(() => {
-    void loadToken();
-    return clearRefreshTimeout;
-  });
+  useFocusEffect(
+    useCallback(() => {
+      if (enabled) void loadTokenRef.current();
+      return clearRefreshTimeout;
+    }, [enabled])
+  );
 
   useEffect(() => {
     return () => clearRefreshTimeout();

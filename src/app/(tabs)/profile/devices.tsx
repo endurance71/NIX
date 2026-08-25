@@ -16,19 +16,23 @@ import {
   signOutOtherInstallations,
 } from '../../../services/appInstallationService';
 import { notifyDomainError, notifySuccess } from '../../../lib/appNotify';
+import { useAuth } from '../../../hooks/useAuth';
 
 export default function DevicesScreen() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const queryClient = useQueryClient();
+  const { canUseNetworkSession } = useAuth();
   const query = useQuery({
     queryKey: queryKeys.appInstallations,
     queryFn: listAppInstallations,
+    enabled: canUseNetworkSession,
   });
   const rows = (query.data ?? []) as Awaited<ReturnType<typeof listAppInstallations>>;
   const otherActive = rows.filter((row) => !row.is_current && !row.revoked_at);
 
   const signOutOthers = () => {
+    if (!canUseNetworkSession) return;
     Alert.alert(t('devices.signOutTitle'), t('devices.signOutMessage'), [
       { text: t('common.cancel'), style: 'cancel' },
       {
@@ -49,9 +53,9 @@ export default function DevicesScreen() {
   return (
     <>
       <SettingsListScreen
-        loading={query.isPending}
+        loading={canUseNetworkSession && query.isPending}
         onRefresh={async () => {
-          await query.refetch();
+          if (canUseNetworkSession) await query.refetch();
         }}
       >
         <NativeSettingsSection title={t('devices.active')}>
@@ -76,6 +80,7 @@ export default function DevicesScreen() {
             <NativeSettingsActionRow
               title={t('devices.signOutOthers')}
               destructive
+              disabled={!canUseNetworkSession}
               onPress={signOutOthers}
             />
           ) : null}

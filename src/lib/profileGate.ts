@@ -1,4 +1,5 @@
 import type { CurrentUserProfileRow } from '../services/profileService';
+import type { AuthStatus } from './authBootstrap';
 
 export type BootstrapResolution =
   | { status: 'loading' }
@@ -6,11 +7,11 @@ export type BootstrapResolution =
   | { status: 'readyOnline' }
   | { status: 'readyFromSnapshot' }
   | { status: 'needsOnboarding' }
+  | { status: 'offlineNeedsVerification' }
   | { status: 'recoverableError' };
 
 export function resolveBootstrapState(input: {
-  authLoading: boolean;
-  authError: boolean;
+  authStatus: AuthStatus;
   hasSession: boolean;
   profile: CurrentUserProfileRow | null | undefined;
   profilePending: boolean;
@@ -19,12 +20,18 @@ export function resolveBootstrapState(input: {
   agePending: boolean;
   ageError: boolean;
   snapshotPending: boolean;
+  snapshotError: boolean;
   hasValidSnapshot: boolean;
 }): BootstrapResolution {
-  if (input.authLoading) return { status: 'loading' };
-  if (input.authError) return { status: 'recoverableError' };
-  if (!input.hasSession) return { status: 'anonymous' };
-  if (input.snapshotPending || input.profilePending || input.agePending) return { status: 'loading' };
+  if (input.authStatus === 'initializing') return { status: 'loading' };
+  if (input.authStatus === 'recoverableError') return { status: 'recoverableError' };
+  if (input.authStatus === 'anonymous' || !input.hasSession) return { status: 'anonymous' };
+  if (input.snapshotPending) return { status: 'loading' };
+  if (input.snapshotError) return { status: 'recoverableError' };
+  if (input.authStatus === 'authenticatedOffline') {
+    return { status: input.hasValidSnapshot ? 'readyFromSnapshot' : 'offlineNeedsVerification' };
+  }
+  if (input.profilePending || input.agePending) return { status: 'loading' };
   if (input.profileError || input.ageError) {
     return { status: input.hasValidSnapshot ? 'readyFromSnapshot' : 'recoverableError' };
   }

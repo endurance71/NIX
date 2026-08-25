@@ -27,6 +27,8 @@ import { useTranslation } from 'react-i18next';
 import { bakeMediaOverlays } from '../lib/bakeMediaTextOverlay';
 import { normalizeMediaTextOverlay } from '../types/mediaTextOverlay';
 import { normalizeMediaDrawingOverlay } from '../types/mediaDrawingOverlay';
+import { useAuth } from '../hooks/useAuth';
+import { OfflineStatusBanner } from '../components/auth/OfflineStatusBanner';
 
 function paramFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
@@ -115,9 +117,10 @@ export default function SendToSheet() {
     drawingOverlay: videoDrawingOverlay,
   } = useVideoDraft();
   const { enqueueMediaBatch, cancelUpload } = useUploadQueue();
+  const { user, isOfflineAuthenticated, canUseNetworkSession } = useAuth();
   const { offerAfterSuccessfulSend } = usePushNotifications();
   const {
-    data: profiles = [],
+    data: profilesData,
     isLoading,
     isError,
     isFetching,
@@ -125,22 +128,28 @@ export default function SendToSheet() {
   } = useQuery({
     queryKey: queryKeys.acceptedFriends,
     queryFn: () => listAcceptedFriends({ limit: 50 }),
+    enabled: Boolean(user) && canUseNetworkSession,
     staleTime: 1000 * 60 * 2,
   });
+
+  const profiles = profilesData ?? [];
+  const isOfflineRecipientSnapshotMissing = isOfflineAuthenticated
+    && profilesData === undefined;
 
   // Only refetch when stale — formSheet can re-fire focus during presentation;
   // invalidateQueries would cancel in-flight fetches and leave isPending spinning.
   useFocusEffect(
     useCallback(() => {
+      if (!canUseNetworkSession) return;
       void queryClient.refetchQueries({
         queryKey: queryKeys.acceptedFriends,
         type: 'active',
         stale: true,
       });
-    }, [queryClient])
+    }, [canUseNetworkSession, queryClient])
   );
 
-  const showInitialLoader = isLoading && profiles.length === 0;
+  const showInitialLoader = canUseNetworkSession && isLoading && profiles.length === 0;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [isSending, setIsSending] = useState(false);
@@ -155,7 +164,7 @@ export default function SendToSheet() {
   const { data: avatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(sortedFriendAvatarPaths),
     queryFn: () => createSignedAvatarUrls(sortedFriendAvatarPaths),
-    enabled: sortedFriendAvatarPaths.length > 0,
+    enabled: canUseNetworkSession && sortedFriendAvatarPaths.length > 0,
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
 
@@ -270,10 +279,11 @@ export default function SendToSheet() {
     <View style={stylesForTheme.container}>
       <Text style={stylesForTheme.title}>{t('sendTo.title')}</Text>
       <Text style={stylesForTheme.subtitle}>{t('sendTo.subtitle')}</Text>
+      <OfflineStatusBanner />
 
       {showInitialLoader ? (
         <ActivityIndicator color={colors.label} style={styles.loading} />
-      ) : isError ? (
+      ) : canUseNetworkSession && isError ? (
         <View style={stylesForTheme.emptyState}>
           <Text style={stylesForTheme.emptyStateText}>{t('sendTo.loadFailure')}</Text>
           <Pressable
@@ -303,7 +313,9 @@ export default function SendToSheet() {
             contentContainerStyle={stylesForTheme.listContent}
             ListEmptyComponent={
               <View style={stylesForTheme.emptyState}>
-                <Text style={stylesForTheme.emptyStateText}>{t('sendTo.empty')}</Text>
+                <Text style={stylesForTheme.emptyStateText}>
+                  {t(isOfflineRecipientSnapshotMissing ? 'sendTo.offlineCacheMissing' : 'sendTo.empty')}
+                </Text>
               </View>
             }
           />

@@ -14,10 +14,11 @@ export default function AppTabsLayout() {
   const { colors, isDark } = useAppTheme();
   const { count } = useInboxBadgeCount();
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, canUseNetworkSession } = useAuth();
   const { data: profileRow = null } = useQuery({
     queryKey: queryKeys.currentUserProfile(user?.id ?? null),
     queryFn: getCurrentUserProfile,
+    enabled: canUseNetworkSession,
     staleTime: 1000 * 60 * 5,
   });
   const avatarPath = profileRow?.avatar_storage_path ?? null;
@@ -25,14 +26,14 @@ export default function AppTabsLayout() {
   const { data: avatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(avatarPaths),
     queryFn: () => createSignedAvatarUrls(avatarPaths),
-    enabled: avatarPaths.length > 0,
+    enabled: canUseNetworkSession && avatarPaths.length > 0,
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
   const avatarUrl = avatarPath ? avatarUrls[avatarPath] ?? null : null;
   const { data: tabAvatarIconSource = null } = useQuery({
     queryKey: ['nativeTabAvatarIcon', avatarPath, avatarUrl] as const,
     queryFn: () => createNativeTabAvatarIconSource(avatarUrl ?? '', avatarPath ?? 'current'),
-    enabled: Boolean(avatarPath && avatarUrl),
+    enabled: canUseNetworkSession && Boolean(avatarPath && avatarUrl),
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
 

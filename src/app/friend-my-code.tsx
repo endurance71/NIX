@@ -42,19 +42,20 @@ export default function FriendMyCodeScreen() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
-  const { user } = useAuth();
-  const qrPayload = useProfileQrPayload();
+  const { user, canUseNetworkSession } = useAuth();
+  const qrPayload = useProfileQrPayload(canUseNetworkSession);
   const [shareBusy, setShareBusy] = useState(false);
   const { data: profileRow = null, isPending: profilePending } = useQuery({
     queryKey: queryKeys.currentUserProfile(user?.id ?? null),
     queryFn: getCurrentUserProfile,
+    enabled: canUseNetworkSession,
     staleTime: 1000 * 60 * 5,
   });
   const avatarPaths = profileRow?.avatar_storage_path ? [profileRow.avatar_storage_path] : [];
   const { data: avatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(avatarPaths),
     queryFn: () => createSignedAvatarUrls(avatarPaths),
-    enabled: avatarPaths.length > 0,
+    enabled: canUseNetworkSession && avatarPaths.length > 0,
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
   const avatarUrl = profileRow?.avatar_storage_path
@@ -67,7 +68,7 @@ export default function FriendMyCodeScreen() {
   const qrSize = Math.max(180, Math.min(236, width - 112));
 
   const handleShareInvite = async () => {
-    if (shareBusy) return;
+    if (shareBusy || !canUseNetworkSession) return;
     setShareBusy(true);
     const result = await shareFriendInvite(
       t('profile.shareInviteTitle'),
@@ -83,7 +84,7 @@ export default function FriendMyCodeScreen() {
 
   return (
     <>
-      <SettingsListScreen loading={profilePending}>
+      <SettingsListScreen loading={canUseNetworkSession && profilePending}>
         <FieldGroup.Section>
           <FieldGroup.SectionHeader>
             <RNHostView matchContents>
@@ -92,7 +93,7 @@ export default function FriendMyCodeScreen() {
                   {t('profile.qrDescription')}
                 </Text>
                 <View style={styles.qrSlot}>
-                  {qrPayload.loading ? (
+                  {canUseNetworkSession && qrPayload.loading ? (
                     <View style={styles.loading}>
                       <ActivityIndicator color={colors.label} />
                       <Text style={[styles.loadingText, { color: colors.secondaryLabel }]}>
@@ -103,7 +104,9 @@ export default function FriendMyCodeScreen() {
                     <MyProfileQrCard
                       payload={qrPayload.payload}
                       colors={colors}
-                      error={qrPayload.error}
+                      error={canUseNetworkSession
+                        ? qrPayload.error
+                        : t('root.offlineActionUnavailable')}
                       size={qrSize}
                       centerOverlayRatio={0.28}
                       avatarUrl={avatarUrl}
@@ -120,7 +123,7 @@ export default function FriendMyCodeScreen() {
             <NativeSettingsRow
               title={shareBusy ? t('profile.shareInviteLoading') : t('profile.shareInvite')}
               icon="share"
-              disabled={shareBusy}
+              disabled={shareBusy || !canUseNetworkSession}
               onPress={() => void handleShareInvite()}
               testID="my-code-share"
             />

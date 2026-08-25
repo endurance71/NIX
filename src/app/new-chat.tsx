@@ -13,6 +13,8 @@ import { typography } from '../theme/typography';
 import { AvatarCircle } from '../components/ui/avatar-circle';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { tap } from '../lib/haptics';
+import { useAuth } from '../hooks/useAuth';
+import { OfflineStatusBanner } from '../components/auth/OfflineStatusBanner';
 
 type FriendRowProps = {
   avatarUrl: string | null;
@@ -67,10 +69,11 @@ export default function NewChatSheet() {
   const queryClient = useQueryClient();
   const { topContentInset, bottomContentInset } = useScreenInsets('sheet');
   const { colors } = useAppTheme();
+  const { canUseNetworkSession } = useAuth();
   const stylesForTheme = createStyles(colors, topContentInset, bottomContentInset);
 
   const {
-    data: profiles = [],
+    data: profilesData,
     isLoading,
     isError,
     isFetching,
@@ -78,27 +81,30 @@ export default function NewChatSheet() {
   } = useQuery({
     queryKey: queryKeys.acceptedFriends,
     queryFn: () => listAcceptedFriends({ limit: 50 }),
+    enabled: canUseNetworkSession,
     staleTime: 1000 * 60 * 2,
   });
+  const profiles = profilesData ?? [];
 
   useFocusEffect(
     useCallback(() => {
+      if (!canUseNetworkSession) return;
       void queryClient.refetchQueries({
         queryKey: queryKeys.acceptedFriends,
         type: 'active',
         stale: true,
       });
-    }, [queryClient])
+    }, [canUseNetworkSession, queryClient])
   );
 
-  const showInitialLoader = isLoading && profiles.length === 0;
+  const showInitialLoader = canUseNetworkSession && isLoading && profiles.length === 0;
   const paths = profiles.flatMap((p) => (p.avatar_storage_path ? [p.avatar_storage_path] : []));
   const sortedFriendAvatarPaths = Array.from(new Set(paths)).sort();
 
   const { data: avatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(sortedFriendAvatarPaths),
     queryFn: () => createSignedAvatarUrls(sortedFriendAvatarPaths),
-    enabled: sortedFriendAvatarPaths.length > 0,
+    enabled: canUseNetworkSession && sortedFriendAvatarPaths.length > 0,
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
 
@@ -114,6 +120,7 @@ export default function NewChatSheet() {
     <View style={stylesForTheme.container}>
       <Text style={stylesForTheme.title}>{t('inbox.newChatTitle')}</Text>
       <Text style={stylesForTheme.subtitle}>{t('inbox.newChatSubtitle')}</Text>
+      <OfflineStatusBanner />
 
       {showInitialLoader ? (
         <ActivityIndicator color={colors.label} style={styles.loading} />
@@ -149,7 +156,11 @@ export default function NewChatSheet() {
             contentContainerStyle={stylesForTheme.listContent}
             ListEmptyComponent={
               <View style={stylesForTheme.emptyState}>
-                <Text style={stylesForTheme.emptyStateText}>{t('inbox.newChatEmpty')}</Text>
+                <Text style={stylesForTheme.emptyStateText}>
+                  {t(!canUseNetworkSession && profilesData === undefined
+                    ? 'root.offlineCacheMissing'
+                    : 'inbox.newChatEmpty')}
+                </Text>
               </View>
             }
           />

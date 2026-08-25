@@ -14,25 +14,34 @@ import { buildFriendInviteShareLink } from '../lib/friendInvite';
 import { recordProductEvent } from '../services/productAnalyticsService';
 import { APP_FONT_FAMILY } from '../theme/typography';
 import { iosRoadmapFeatures } from '../config/iosRoadmapFeatures';
+import { useAuth } from '../hooks/useAuth';
+import { notifyInfo } from '../lib/appNotify';
+import { OfflineStatusBanner } from '../components/auth/OfflineStatusBanner';
 
 export default function ActivationScreen() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const queryClient = useQueryClient();
+  const { canUseNetworkSession } = useAuth();
   const { data, isPending } = useQuery({
     queryKey: queryKeys.activationState,
     queryFn: getActivationState,
+    enabled: canUseNetworkSession,
   });
 
   useEffect(() => {
-    void updateActivationState('shown');
-  }, []);
+    if (canUseNetworkSession) void updateActivationState('shown');
+  }, [canUseNetworkSession]);
 
   useEffect(() => {
     if (data?.completed_at) router.replace('/(tabs)');
   }, [data?.completed_at]);
 
   const shareInvite = async () => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     const { token } = await createFriendInviteShareToken();
     const url = buildFriendInviteShareLink(token);
     const result = await Share.share({
@@ -46,12 +55,20 @@ export default function ActivationScreen() {
   };
 
   const skip = async () => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     await updateActivationState('skip');
     await queryClient.invalidateQueries({ queryKey: queryKeys.activationState });
     router.replace('/(tabs)');
   };
 
   const dismissChecklist = async () => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     await updateActivationState('dismiss');
     await queryClient.invalidateQueries({ queryKey: queryKeys.activationState });
     router.replace('/(tabs)/profile');
@@ -65,6 +82,7 @@ export default function ActivationScreen() {
 
   return (
     <NativeScreen scroll>
+      <OfflineStatusBanner />
       <NativeSectionCard
         title={t('activation.title')}
         subtitle={t('activation.subtitle')}>
@@ -80,7 +98,7 @@ export default function ActivationScreen() {
         {!data?.has_friend ? (
           <>
             {iosRoadmapFeatures.shareInvites ? (
-              <NativeButton label={t('activation.shareInvite')} onPress={() => void shareInvite()} />
+              <NativeButton label={t('activation.shareInvite')} disabled={!canUseNetworkSession} onPress={() => void shareInvite()} />
             ) : null}
             <NativeButton
               label={t('activation.addByUsername')}
@@ -97,13 +115,14 @@ export default function ActivationScreen() {
         <NativeButton
           label={t('activation.skip')}
           variant="secondary"
-          disabled={isPending}
+          disabled={!canUseNetworkSession || isPending}
           onPress={() => void skip()}
         />
         {data?.skipped_at ? (
           <NativeButton
             label={t('activation.dismissChecklist')}
             variant="secondary"
+            disabled={!canUseNetworkSession}
             onPress={() => void dismissChecklist()}
           />
         ) : null}

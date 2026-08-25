@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const storage = new Map<string, string>();
+const completeProfile = {
+  id: 'user-a', username: 'nix', display_name: 'NiX', bio: null, is_private: false,
+  avatar_storage_path: null, avatar_emoji: null,
+};
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
     getItem: vi.fn(async (key: string) => storage.get(key) ?? null),
@@ -16,23 +20,35 @@ import {
   readProfileBootstrapSnapshot,
   writeProfileBootstrapSnapshot,
 } from './profileBootstrapSnapshot';
+// eslint-disable-next-line import/first
+import { AGE_POLICY_VERSION } from './ageGate';
 
 describe('profile bootstrap snapshot', () => {
   beforeEach(() => storage.clear());
 
   it('jest ściśle przypisany do konta', async () => {
-    await writeProfileBootstrapSnapshot('user-a');
+    await writeProfileBootstrapSnapshot('user-a', completeProfile);
     expect(await readProfileBootstrapSnapshot('user-a')).toMatchObject({ userId: 'user-a', profileComplete: true });
     expect(await readProfileBootstrapSnapshot('user-b')).toBeNull();
   });
 
   it('odrzuca inną wersję polityki i daje się jawnie usunąć', async () => {
-    storage.set('nix.profile-bootstrap.v1.user-a', JSON.stringify({
+    storage.set('nix.profile-bootstrap.v2.user-a', JSON.stringify({
       userId: 'user-a', profileComplete: true, agePolicyVersion: 'old', verifiedAt: new Date().toISOString(),
+      profile: completeProfile,
     }));
     expect(await readProfileBootstrapSnapshot('user-a')).toBeNull();
-    await writeProfileBootstrapSnapshot('user-a');
+    await writeProfileBootstrapSnapshot('user-a', completeProfile);
     await clearProfileBootstrapSnapshot('user-a');
     expect(await readProfileBootstrapSnapshot('user-a')).toBeNull();
+  });
+
+  it('migruje istniejący snapshot v1 bez wymagania sieci', async () => {
+    storage.set('nix.profile-bootstrap.v1.user-a', JSON.stringify({
+      userId: 'user-a', profileComplete: true, agePolicyVersion: AGE_POLICY_VERSION, verifiedAt: new Date().toISOString(),
+    }));
+    expect(await readProfileBootstrapSnapshot('user-a')).toMatchObject({
+      userId: 'user-a', profileComplete: true, profile: { username: null },
+    });
   });
 });

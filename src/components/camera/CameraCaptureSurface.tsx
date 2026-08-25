@@ -10,6 +10,7 @@ import { NativeChromeIconButton } from '../ui/native-chrome-icon-button';
 import { VIDEO_TOTAL_MAX_DURATION_MS } from '../../lib/videoRecordingLimits';
 import { getCameraLightProps } from '../../lib/cameraLightProps';
 import { NativeLensSwitcher } from './NativeLensSwitcher';
+import { OfflineStatusBanner } from '../auth/OfflineStatusBanner';
 
 type Props = {
   vm: CameraScreenViewModel;
@@ -139,6 +140,10 @@ export function CameraCaptureSurface({ vm }: Props) {
   return (
     <View style={styles.container}>
       <StatusBar style={statusBarStyle} hidden={false} />
+      <OfflineStatusBanner
+        compact
+        style={{ position: 'absolute', top: insets.top + 8, zIndex: 30 }}
+      />
       <GestureDetector gesture={pinchGesture}>
         <CameraView
           key={cameraViewKey}

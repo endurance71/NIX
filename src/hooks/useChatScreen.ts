@@ -23,7 +23,7 @@ import {
 } from '../services/nixService';
 import { createSignedAvatarUrls } from '../services/avatarService';
 import { blockUser, reportContent, type ReportReason } from '../services/safetyService';
-import { notifyDomainError, notifyError, notifySuccess } from '../lib/appNotify';
+import { notifyDomainError, notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
 import { selection } from '../lib/haptics';
 import { isNixFirstOpenAvailable, isNixReplayAvailable } from '../lib/nixReplay';
 import type { MessageReaction, MessageReactionEmoji, TextMessage } from '../types/database.types';
@@ -80,7 +80,7 @@ async function withMinimumDuration<T>(promise: Promise<T>, minimumMs: number): P
 
 export function useChatScreen(peerId: string) {
   const { t, i18n } = useTranslation();
-  const { session } = useAuth();
+  const { session, canUseNetworkSession, isOfflineAuthenticated } = useAuth();
   const currentUserId = session?.user?.id ?? '';
   const queryClient = useQueryClient();
   const {
@@ -121,7 +121,7 @@ export function useChatScreen(peerId: string) {
       return map.get(peerId) ?? null;
     },
     staleTime: 60_000,
-    enabled: Boolean(peerId),
+    enabled: canUseNetworkSession && Boolean(peerId),
   });
 
   const peerAvatarPath = peerProfileQuery.data?.avatar_storage_path ?? null;
@@ -129,14 +129,14 @@ export function useChatScreen(peerId: string) {
     queryKey: avatarSignedUrlsQueryKey(peerAvatarPath ? [peerAvatarPath] : []),
     queryFn: () => createSignedAvatarUrls(peerAvatarPath ? [peerAvatarPath] : []),
     staleTime: 5 * 60_000,
-    enabled: Boolean(peerAvatarPath),
+    enabled: canUseNetworkSession && Boolean(peerAvatarPath),
   });
 
   const messagesQuery = useQuery({
     queryKey: queryKeys.textMessagesWithPeer(peerId),
     queryFn: () => fetchTextMessagesWithPeer({ peerId, limit: 50 }),
     staleTime: CHAT_STALE_TIME_MS,
-    enabled: Boolean(peerId),
+    enabled: canUseNetworkSession && Boolean(peerId),
     refetchOnWindowFocus: true,
     select: (rows) => sortMessagesAscending(rows),
   });
@@ -144,6 +144,7 @@ export function useChatScreen(peerId: string) {
     queryKey: ['textOutbox', currentUserId, peerId] as const,
     queryFn: () => listTextOutbox(currentUserId, peerId),
     enabled: Boolean(currentUserId && peerId),
+    networkMode: 'always',
     staleTime: 0,
   });
 
@@ -151,7 +152,7 @@ export function useChatScreen(peerId: string) {
     queryKey: queryKeys.messageReactionsWithPeer(peerId),
     queryFn: () => fetchMessageReactionsWithPeer(peerId),
     staleTime: CHAT_STALE_TIME_MS,
-    enabled: Boolean(peerId),
+    enabled: canUseNetworkSession && Boolean(peerId),
     refetchOnWindowFocus: true,
   });
 
@@ -159,14 +160,14 @@ export function useChatScreen(peerId: string) {
     queryKey: ['chatNixesWithPeer', peerId] as const,
     queryFn: () => fetchChatNixesWithPeer(peerId, 50, currentUserId || undefined),
     staleTime: CHAT_STALE_TIME_MS,
-    enabled: Boolean(peerId),
+    enabled: canUseNetworkSession && Boolean(peerId),
     refetchOnWindowFocus: true,
     placeholderData: EMPTY_CHAT_NIXES,
   });
   const muteQuery = useQuery({
     queryKey: queryKeys.conversationMute(peerId),
     queryFn: () => getConversationMute(peerId),
-    enabled: Boolean(peerId),
+    enabled: canUseNetworkSession && Boolean(peerId),
     staleTime: 30_000,
   });
 
@@ -201,7 +202,7 @@ export function useChatScreen(peerId: string) {
   const reactionsByMessageId = groupReactionsByMessageId(reactionsQuery.data ?? []);
 
   useEffect(() => {
-    if (!currentUserId || !peerId || messagesQuery.isPending || messages.length === 0) return;
+    if (!canUseNetworkSession || !currentUserId || !peerId || messagesQuery.isPending || messages.length === 0) return;
     const lastReceived = [...messages]
       .reverse()
       .find((message) => message.sender_id === peerId && !message.id.startsWith('temp-'));
@@ -217,7 +218,7 @@ export function useChatScreen(peerId: string) {
         });
     }, 350);
     return () => clearTimeout(timer);
-  }, [currentUserId, messages, messagesQuery.isPending, peerId, queryClient]);
+  }, [canUseNetworkSession, currentUserId, messages, messagesQuery.isPending, peerId, queryClient]);
 
   useEffect(() => {
     const completionTimes = uploadJobs.flatMap((job) => {
@@ -256,9 +257,12 @@ export function useChatScreen(peerId: string) {
         try {
           await enqueueTextOutbox(currentUserId, peerId, trimmed, clientMessageId);
           await outboxQuery.refetch();
-          await flushTextOutbox(currentUserId);
-          await Promise.all([outboxQuery.refetch(), messagesQuery.refetch()]);
-          refreshInboxInBackground();
+          await queryClient.invalidateQueries({ queryKey: ['textOutbox'] });
+          if (canUseNetworkSession) {
+            await flushTextOutbox(currentUserId);
+            await Promise.all([outboxQuery.refetch(), messagesQuery.refetch()]);
+            refreshInboxInBackground();
+          }
         } catch (error) {
           notifyDomainError(error, t('chat.sendFailure'));
         }
@@ -271,8 +275,10 @@ export function useChatScreen(peerId: string) {
     if (!message.outboxId) return;
     await retryTextOutboxJob(message.outboxId);
     await outboxQuery.refetch();
-    await flushTextOutbox(currentUserId);
-    await Promise.all([outboxQuery.refetch(), messagesQuery.refetch()]);
+    if (canUseNetworkSession) {
+      await flushTextOutbox(currentUserId);
+      await Promise.all([outboxQuery.refetch(), messagesQuery.refetch()]);
+    }
   };
 
   const handleDeleteFailedTextMessage = async (message: OptimisticTextMessage) => {
@@ -284,6 +290,10 @@ export function useChatScreen(peerId: string) {
   const peerUsername = peerProfileQuery.data?.username ?? 'user';
 
   const handleReportMessage = async (message: TextMessage, reason: ReportReason) => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     try {
       await reportContent({
         reportedUserId: message.sender_id,
@@ -298,6 +308,10 @@ export function useChatScreen(peerId: string) {
   };
 
   const handleReportPeer = async (reason: ReportReason) => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     if (!peerId || peerActionBusyRef.current) return;
     peerActionBusyRef.current = true;
     await runWithFinally(
@@ -320,6 +334,10 @@ export function useChatScreen(peerId: string) {
   };
 
   const handleBlockPeer = async () => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     if (!peerId || peerActionBusyRef.current) return;
     peerActionBusyRef.current = true;
     await runWithFinally(
@@ -345,6 +363,10 @@ export function useChatScreen(peerId: string) {
   };
 
   const handleDeleteConversation = async () => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     if (!peerId || peerActionBusyRef.current) return;
     peerActionBusyRef.current = true;
     await runWithFinally(
@@ -370,6 +392,10 @@ export function useChatScreen(peerId: string) {
   };
 
   const handleSetReaction = async (message: TextMessage, emoji: MessageReactionEmoji) => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     if (!currentUserId || message.id.startsWith('temp-')) return;
 
     const existing = (reactionsQuery.data ?? []).find(
@@ -417,6 +443,10 @@ export function useChatScreen(peerId: string) {
   };
 
   const handleRemoveReaction = async (message: TextMessage) => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     if (!currentUserId || message.id.startsWith('temp-')) return;
 
     const existing = (reactionsQuery.data ?? []).find(
@@ -448,6 +478,10 @@ export function useChatScreen(peerId: string) {
   };
 
   const handleOpenNix = (nix: ChatNixEvent) => {
+    if (isOfflineAuthenticated) {
+      notifyInfo(t('root.offlineMediaUnavailable'));
+      return;
+    }
     const canFirstOpen = isNixFirstOpenAvailable(nix);
     const canReplay = isNixReplayAvailable(nix);
     if (!canFirstOpen && !canReplay) return;
@@ -502,6 +536,10 @@ export function useChatScreen(peerId: string) {
   };
 
   const handleSetMute = async (duration: '1h' | '24h' | 'forever' | 'off') => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     try {
       await setConversationMute(peerId, duration);
       await queryClient.invalidateQueries({ queryKey: queryKeys.conversationMute(peerId) });
@@ -513,7 +551,9 @@ export function useChatScreen(peerId: string) {
 
   const peerAvatarUrl = peerAvatarPath ? peerAvatarQuery.data?.[peerAvatarPath] ?? null : null;
   // Full-screen loader only on cold messages — nixes stream into the timeline.
-  const messagesLoading = messagesQuery.isPending && messagesQuery.data === undefined;
+  const messagesLoading = canUseNetworkSession
+    && messagesQuery.isPending
+    && messagesQuery.data === undefined;
 
   return {
     t,
@@ -523,14 +563,14 @@ export function useChatScreen(peerId: string) {
     peerProfile: peerProfileQuery.data,
     peerAvatarUrl,
     peerAvatarPath,
-    peerLoading: peerProfileQuery.isPending,
+    peerLoading: canUseNetworkSession && peerProfileQuery.isPending,
     messages,
     nixes,
     chatUploadJobs,
     busyUploadActions,
     reactionsByMessageId,
     messagesLoading,
-    messagesError: messagesQuery.isError || nixesQuery.isError,
+    messagesError: canUseNetworkSession && (messagesQuery.isError || nixesQuery.isError),
     inputBody,
     setInputBody,
     composerKey,
@@ -549,7 +589,13 @@ export function useChatScreen(peerId: string) {
     handleUploadAction,
     isMuted: Boolean(muteQuery.data),
     handleSetMute,
+    canPerformNetworkAction: canUseNetworkSession,
+    isOfflineAuthenticated,
     refetchMessages: async () => {
+      if (!canUseNetworkSession) {
+        notifyInfo(t('root.offlineActionUnavailable'));
+        return;
+      }
       await Promise.all([
         messagesQuery.refetch(),
         reactionsQuery.refetch(),

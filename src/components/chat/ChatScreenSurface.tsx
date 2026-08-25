@@ -1287,7 +1287,9 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
                 return <SystemMessageItem message={item.message} />;
               }
               const isOwn = item.message.sender_id === vm.currentUserId;
-              const canReact = !item.message.id.startsWith('temp-') && !item.message.isSending;
+              const canReact = vm.canPerformNetworkAction
+                && !item.message.id.startsWith('temp-')
+                && !item.message.isSending;
               return (
                 <MessageBubble
                   message={item.message}

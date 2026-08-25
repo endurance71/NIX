@@ -16,7 +16,7 @@ import {
 import { getCurrentUserProfile, updateCurrentUserProfile } from '../services/profileService';
 import { useAppTheme } from './useAppTheme';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
-import { notifyError, notifySuccess } from '../lib/appNotify';
+import { notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
 import { getPendingInviteCount } from '../lib/profileFriendsPresentation';
 import { userHasEmailPasswordIdentity } from '../lib/authProviders';
 import { usePushNotifications } from '../context/pushNotifications';
@@ -30,37 +30,43 @@ export function useProfileScreen() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { colors, statusBarStyle } = useAppTheme();
-  const { user, signOut } = useAuth();
+  const { user, signOut, canUseNetworkSession, isOfflineAuthenticated } = useAuth();
   const pushNotifications = usePushNotifications();
   const { data: analyticsEnabled = false, isPending: analyticsPending } = useQuery({
     queryKey: queryKeys.productAnalyticsConsent,
     queryFn: getProductAnalyticsConsent,
+    enabled: canUseNetworkSession,
     staleTime: 1000 * 60 * 5,
   });
   const { data: activationState } = useQuery({
     queryKey: queryKeys.activationState,
     queryFn: getActivationState,
+    enabled: canUseNetworkSession,
     staleTime: 30_000,
   });
 
   const { data: profileRow = null, isPending: profilePending } = useQuery({
     queryKey: queryKeys.currentUserProfile(user?.id ?? null),
     queryFn: getCurrentUserProfile,
+    enabled: canUseNetworkSession,
     staleTime: 1000 * 60 * 5,
   });
   const { data: requests = [] } = useQuery({
     queryKey: queryKeys.incomingFriendRequests,
     queryFn: listIncomingFriendRequests,
+    enabled: canUseNetworkSession,
     staleTime: 1000 * 60,
   });
   const { data: outgoingRequests = [] } = useQuery({
     queryKey: queryKeys.outgoingFriendRequests,
     queryFn: listOutgoingFriendRequests,
+    enabled: canUseNetworkSession,
     staleTime: 1000 * 60,
   });
   const { data: friends = [] } = useQuery({
     queryKey: queryKeys.acceptedFriends,
     queryFn: () => listAcceptedFriends({ limit: 50 }),
+    enabled: canUseNetworkSession,
     staleTime: 1000 * 60 * 2,
   });
 
@@ -69,7 +75,7 @@ export function useProfileScreen() {
   const { data: avatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(avatarPaths),
     queryFn: () => createSignedAvatarUrls(avatarPaths),
-    enabled: avatarPaths.length > 0,
+    enabled: canUseNetworkSession && avatarPaths.length > 0,
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
   const avatarSignedUrl = profileRow?.avatar_storage_path
@@ -77,6 +83,10 @@ export function useProfileScreen() {
     : null;
 
   const handleListRefresh = async () => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     try {
       await Promise.all([
         queryClient.refetchQueries({ queryKey: queryKeys.currentUserProfile(user?.id ?? null), type: 'active' }),
@@ -91,6 +101,7 @@ export function useProfileScreen() {
   };
 
   useFocusEffect(() => {
+    if (!canUseNetworkSession) return;
     void queryClient.refetchQueries({
       type: 'active',
       predicate: (query) => {
@@ -115,6 +126,10 @@ export function useProfileScreen() {
   };
 
   const handleTogglePrivacy = async (isPrivate: boolean) => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     try {
       await updateCurrentUserProfile({ is_private: isPrivate });
       await queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile(user?.id ?? null) });
@@ -146,11 +161,19 @@ export function useProfileScreen() {
   const pushSupportingText = t(`push.state.${pushNotifications.state}`);
 
   const handlePushToggle = async (enabled: boolean) => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     if (enabled) await pushNotifications.enable();
     else await pushNotifications.disable();
   };
 
   const handleAnalyticsToggle = async (enabled: boolean) => {
+    if (!canUseNetworkSession) {
+      notifyInfo(t('root.offlineActionUnavailable'));
+      return;
+    }
     try {
       await setProductAnalyticsConsent(enabled);
       queryClient.setQueryData(queryKeys.productAnalyticsConsent, enabled);
@@ -161,7 +184,7 @@ export function useProfileScreen() {
   };
 
   return {
-    profilePending,
+    profilePending: canUseNetworkSession && profilePending,
     colors,
     statusBarStyle,
     t,
@@ -186,5 +209,7 @@ export function useProfileScreen() {
     analyticsPending,
     handleAnalyticsToggle,
     activationState,
+    canPerformNetworkAction: canUseNetworkSession,
+    isOfflineAuthenticated,
   };
 }

@@ -13,6 +13,7 @@ import { AppThemeProvider } from '../theme/theme-context';
 import { APP_FONT_FAMILY } from '../theme/typography';
 import { createAppQueryClient } from '../lib/queryClient';
 import { bindReactQueryAppLifecycle } from '../lib/reactQueryNetwork';
+import { bindSupabaseAuthLifecycle } from '../lib/supabase';
 import { ToastProvider } from 'react-native-pretty-toast';
 import { VideoDraftProvider } from '../context/VideoDraftContext';
 import { PhotoDraftProvider } from '../context/PhotoDraftContext';
@@ -38,6 +39,7 @@ import { TextOutboxSync } from '../components/sync/TextOutboxSync';
 import { AppInstallationSync } from '../components/sync/AppInstallationSync';
 import { iosRoadmapFeatures } from '../config/iosRoadmapFeatures';
 import { trackEvent } from '../lib/telemetry';
+import { OfflineCacheProvider, useOfflineCache } from '../context/OfflineCacheProvider';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Catch and ignore in environments where splash screen autohide prevention is unavailable.
@@ -50,6 +52,7 @@ function RootLayout() {
   const [queryClient] = useState(() => createAppQueryClient());
 
   useEffect(() => bindReactQueryAppLifecycle(), []);
+  useEffect(() => bindSupabaseAuthLifecycle(), []);
   useEffect(() => configureMediaCache(), []);
   useEffect(() => {
     void configureForPlayback().catch((error) => {
@@ -64,14 +67,16 @@ function RootLayout() {
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
               <AppThemeProvider>
-                <VideoDraftProvider>
-                  <PhotoDraftProvider>
-                    <UploadQueueProvider>
-                      <DeepLinkHandler />
-                      <RootNavigator />
-                    </UploadQueueProvider>
-                  </PhotoDraftProvider>
-                </VideoDraftProvider>
+                <OfflineCacheProvider>
+                  <VideoDraftProvider>
+                    <PhotoDraftProvider>
+                      <UploadQueueProvider>
+                        <DeepLinkHandler />
+                        <RootNavigator />
+                      </UploadQueueProvider>
+                    </PhotoDraftProvider>
+                  </VideoDraftProvider>
+                </OfflineCacheProvider>
               </AppThemeProvider>
             </AuthProvider>
           </QueryClientProvider>
@@ -87,7 +92,15 @@ function RootNavigator() {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   const { colors, statusBarStyle } = useAppTheme();
-  const { session, loading, error: authError, signOut, retryBootstrap } = useAuth();
+  const {
+    session,
+    status: authStatus,
+    lastBootstrapResult,
+    canUseNetworkSession,
+    signOut,
+    retryBootstrap,
+  } = useAuth();
+  const { isHydrated: offlineCacheHydrated } = useOfflineCache();
   const userId = session?.user.id ?? null;
   const segments = useSegments() as string[];
   const {
@@ -99,7 +112,7 @@ function RootNavigator() {
   } = useQuery({
     queryKey: queryKeys.currentUserProfile(userId),
     queryFn: getCurrentUserProfile,
-    enabled: !!session,
+    enabled: canUseNetworkSession,
     retry: 2,
   });
   const {
@@ -111,12 +124,13 @@ function RootNavigator() {
   } = useQuery({
     queryKey: queryKeys.currentAgeAttestation(userId, AGE_POLICY_VERSION),
     queryFn: hasCurrentAgeAttestation,
-    enabled: !!session,
+    enabled: canUseNetworkSession,
     retry: 2,
   });
   const {
     data: bootstrapSnapshot,
     isPending: snapshotPending,
+    isError: snapshotError,
     refetch: refetchSnapshot,
   } = useQuery({
     queryKey: ['profileBootstrapSnapshot', userId],
@@ -124,30 +138,45 @@ function RootNavigator() {
     enabled: !!userId,
     staleTime: Infinity,
     retry: false,
+    networkMode: 'always',
   });
   const bootstrap = resolveBootstrapState({
-    authLoading: loading,
-    authError: Boolean(authError),
+    authStatus,
     hasSession: !!session,
     profile,
-    profilePending: Boolean(session && profilePending),
+    profilePending: Boolean(canUseNetworkSession && profilePending),
     profileError,
     ageAttested,
-    agePending: Boolean(session && ageAttestationPending),
+    agePending: Boolean(canUseNetworkSession && ageAttestationPending),
     ageError: ageAttestationError,
     snapshotPending: Boolean(session && snapshotPending),
+    snapshotError,
     hasValidSnapshot: bootstrapSnapshot?.userId === userId,
   });
+  const bootstrapFailureStage = lastBootstrapResult === 'storage_error'
+    ? 'auth_storage'
+    : snapshotError
+      ? 'profile_snapshot'
+      : profileError
+        ? 'profile'
+        : ageAttestationError
+          ? 'age_attestation'
+          : bootstrap.status === 'recoverableError'
+            ? 'auth_session'
+            : null;
   const needsOnboarding = bootstrap.status === 'needsOnboarding';
-  const appReady = bootstrap.status !== 'loading';
+  const appReady = bootstrap.status !== 'loading' && (!session || offlineCacheHydrated);
   const inAuthGroup = segments[0] === '(auth)';
   const onResetPasswordScreen = segments[1] === 'reset-password';
 
   useEffect(() => {
     if (bootstrap.status !== 'loading') {
-      trackEvent('bootstrap_resolution', { resolution: bootstrap.status });
+      trackEvent('bootstrap_resolution', {
+        resolution: bootstrap.status,
+        failure_stage: bootstrapFailureStage,
+      });
     }
-  }, [bootstrap.status]);
+  }, [bootstrap.status, bootstrapFailureStage]);
 
   useEffect(() => {
     if (appReady) {
@@ -158,7 +187,7 @@ function RootNavigator() {
   useEffect(() => {
     if (!userId || !profileSuccess || !ageAttestationSuccess) return;
     if (profile?.username && ageAttested === true) {
-      void writeProfileBootstrapSnapshot(userId).then((snapshot) => {
+      void writeProfileBootstrapSnapshot(userId, profile).then((snapshot) => {
         queryClient.setQueryData(['profileBootstrapSnapshot', userId], snapshot);
       });
     } else {
@@ -167,6 +196,14 @@ function RootNavigator() {
       });
     }
   }, [ageAttestationSuccess, ageAttested, profile, profileSuccess, queryClient, userId]);
+
+  useEffect(() => {
+    if (!userId || canUseNetworkSession || !bootstrapSnapshot?.profile) return;
+    const profileKey = queryKeys.currentUserProfile(userId);
+    if (queryClient.getQueryData(profileKey) === undefined) {
+      queryClient.setQueryData(profileKey, bootstrapSnapshot.profile);
+    }
+  }, [bootstrapSnapshot, canUseNetworkSession, queryClient, userId]);
 
   useEffect(() => {
     if (!appReady || bootstrap.status === 'recoverableError') return;
@@ -192,7 +229,7 @@ function RootNavigator() {
     if (
       !iosRoadmapFeatures.shareInvites ||
       !appReady || bootstrap.status === 'recoverableError' ||
-      !session ||
+      !session || !canUseNetworkSession ||
       needsOnboarding
     ) return;
     let cancelled = false;
@@ -203,7 +240,7 @@ function RootNavigator() {
     return () => {
       cancelled = true;
     };
-  }, [appReady, bootstrap.status, needsOnboarding, segments, session]);
+  }, [appReady, bootstrap.status, canUseNetworkSession, needsOnboarding, segments, session]);
 
   if (!appReady) {
     return (
@@ -220,18 +257,41 @@ function RootNavigator() {
   }
 
   if (bootstrap.status === 'recoverableError') {
+    const storageFailure = lastBootstrapResult === 'storage_error';
+    const failureTitle = storageFailure
+      ? 'root.sessionStorageFailed'
+      : snapshotError
+        ? 'root.snapshotReadFailed'
+        : profileError
+          ? 'root.profileVerificationFailed'
+          : ageAttestationError
+            ? 'root.ageVerificationFailed'
+            : 'root.accountVerificationFailed';
+    const failureHint = storageFailure
+      ? 'root.sessionStorageHint'
+      : snapshotError
+        ? 'root.snapshotReadHint'
+        : profileError
+          ? 'root.profileVerificationHint'
+          : ageAttestationError
+            ? 'root.ageVerificationHint'
+            : 'root.accountVerificationHint';
     return (
       <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 28, backgroundColor: colors.background }}>
         <StatusBar style={statusBarStyle} hidden={false} />
         <Text style={{ color: colors.label, fontSize: 22, fontWeight: '700', textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
-          {t('root.accountVerificationFailed')}
+          {t(failureTitle)}
         </Text>
         <Text style={{ color: colors.textMuted, marginTop: 12, textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
-          {t('root.accountVerificationHint')}
+          {t(failureHint)}
         </Text>
         <Pressable
           style={{ marginTop: 24, backgroundColor: colors.buttonPrimaryBg, padding: 14, borderRadius: 12 }}
-          onPress={() => void Promise.all([retryBootstrap(), refetchProfile(), refetchAgeAttestation(), refetchSnapshot()])}
+          onPress={() => void (async () => {
+            const result = await retryBootstrap();
+            if (result.category !== 'online') return;
+            await Promise.all([refetchProfile(), refetchAgeAttestation(), refetchSnapshot()]);
+          })()}
         >
           <Text style={{ color: colors.buttonPrimaryText, textAlign: 'center', fontWeight: '700', fontFamily: APP_FONT_FAMILY }}>{t('common.retry')}</Text>
         </Pressable>
@@ -248,12 +308,32 @@ function RootNavigator() {
     );
   }
 
+  if (bootstrap.status === 'offlineNeedsVerification') {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 28, backgroundColor: colors.background }}>
+        <StatusBar style={statusBarStyle} hidden={false} />
+        <Text style={{ color: colors.label, fontSize: 22, fontWeight: '700', textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
+          {t('root.offlineVerificationRequired')}
+        </Text>
+        <Text style={{ color: colors.textMuted, marginTop: 12, textAlign: 'center', fontFamily: APP_FONT_FAMILY }}>
+          {t('root.offlineVerificationHint')}
+        </Text>
+        <Pressable
+          style={{ marginTop: 24, backgroundColor: colors.buttonPrimaryBg, padding: 14, borderRadius: 12 }}
+          onPress={() => void retryBootstrap()}
+        >
+          <Text style={{ color: colors.buttonPrimaryText, textAlign: 'center', fontWeight: '700', fontFamily: APP_FONT_FAMILY }}>{t('common.retry')}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   const content = (
     <>
       <StatusBar style={statusBarStyle} hidden={false} />
-      {session ? <AppRealtimeSync userId={session.user.id} /> : null}
-      {session ? <TextOutboxSync userId={session.user.id} /> : null}
-      {session && iosRoadmapFeatures.accountData ? <AppInstallationSync /> : null}
+      {session && canUseNetworkSession ? <AppRealtimeSync userId={session.user.id} /> : null}
+      {session && canUseNetworkSession ? <TextOutboxSync userId={session.user.id} /> : null}
+      {session && canUseNetworkSession && iosRoadmapFeatures.accountData ? <AppInstallationSync /> : null}
       <Stack
         initialRouteName={session && !needsOnboarding ? '(tabs)' : '(auth)'}
         screenOptions={{
@@ -375,7 +455,7 @@ function RootNavigator() {
     </>
   );
 
-  if (!session || Platform.OS !== 'ios') return content;
+  if (!session || !canUseNetworkSession || Platform.OS !== 'ios') return content;
   return (
     <PushNotificationsProvider userId={session.user.id} canNavigate={!needsOnboarding}>
       {content}

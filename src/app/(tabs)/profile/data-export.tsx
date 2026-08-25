@@ -17,16 +17,19 @@ import {
   requestDataExport,
 } from '../../../services/dataExportService';
 import { notifyDomainError, notifySuccess } from '../../../lib/appNotify';
+import { useAuth } from '../../../hooks/useAuth';
 
 export default function DataExportScreen() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const queryClient = useQueryClient();
+  const { canUseNetworkSession } = useAuth();
   const query = useQuery({
     queryKey: queryKeys.dataExportJobs,
     queryFn: listDataExportJobs,
+    enabled: canUseNetworkSession,
     refetchInterval: (state) =>
-      state.state.data?.some((job) => job.status === 'queued' || job.status === 'processing')
+      canUseNetworkSession && state.state.data?.some((job) => job.status === 'queued' || job.status === 'processing')
         ? 10_000
         : false,
   });
@@ -39,6 +42,7 @@ export default function DataExportScreen() {
   );
 
   const requestExport = () => {
+    if (!canUseNetworkSession) return;
     Alert.alert(t('dataExport.requestTitle'), t('dataExport.requestMessage'), [
       { text: t('common.cancel'), style: 'cancel' },
       {
@@ -56,6 +60,7 @@ export default function DataExportScreen() {
   };
 
   const download = (jobId: string) => {
+    if (!canUseNetworkSession) return;
     void createDataExportDownloadUrl(jobId)
       .then((url) => Linking.openURL(url))
       .catch((error) => notifyDomainError(error, t('dataExport.downloadFailure')));
@@ -64,9 +69,9 @@ export default function DataExportScreen() {
   return (
     <>
       <SettingsListScreen
-        loading={query.isPending}
+        loading={canUseNetworkSession && query.isPending}
         onRefresh={async () => {
-          await query.refetch();
+          if (canUseNetworkSession) await query.refetch();
         }}
       >
         <NativeSettingsSection title={t('dataExport.title')}>
@@ -77,7 +82,7 @@ export default function DataExportScreen() {
           />
           <NativeSettingsActionRow
             title={t('dataExport.requestAction')}
-            disabled={hasRecentOrActive}
+            disabled={!canUseNetworkSession || hasRecentOrActive}
             onPress={requestExport}
           />
         </NativeSettingsSection>
@@ -91,8 +96,8 @@ export default function DataExportScreen() {
                 title={t(`dataExport.status.${job.status}`)}
                 supportingText={new Date(job.requested_at).toLocaleString()}
                 icon="download"
-                showsChevron={job.status === 'ready'}
-                onPress={job.status === 'ready' ? () => download(job.id) : undefined}
+                showsChevron={canUseNetworkSession && job.status === 'ready'}
+                onPress={canUseNetworkSession && job.status === 'ready' ? () => download(job.id) : undefined}
               />
             ))
           )}

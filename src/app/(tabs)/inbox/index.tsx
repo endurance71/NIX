@@ -1,12 +1,17 @@
-import { Alert, Platform } from 'react-native';
+import { Alert, Platform, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { InboxScreenSurface } from '../../../components/inbox/InboxScreenSurface';
 import { HeaderComposeButton } from '../../../components/navigation/header-compose-button';
 import { useAppTheme } from '../../../hooks/useAppTheme';
 import { useInboxScreen } from '../../../hooks/useInboxScreen';
 import type { InboxRowModel, UploadRowAction } from '../../../lib/inboxPresentation';
+import { OfflineStatusBanner } from '../../../components/auth/OfflineStatusBanner';
 
 export default function InboxScreen() {
+  return <OnlineInboxScreen />;
+}
+
+function OnlineInboxScreen() {
   const vm = useInboxScreen();
   const { colors } = useAppTheme();
 
@@ -99,12 +104,15 @@ export default function InboxScreen() {
           },
         }}
       />
-      <InboxScreenSurface
-        vm={vm}
-        onRequestDelete={requestDelete}
-        onRequestBlock={requestBlock}
-        onRequestUploadAction={requestUploadAction}
-      />
+      <View style={{ flex: 1 }}>
+        <OfflineStatusBanner />
+        <InboxScreenSurface
+          vm={vm}
+          onRequestDelete={requestDelete}
+          onRequestBlock={requestBlock}
+          onRequestUploadAction={requestUploadAction}
+        />
+      </View>
     </>
   );
 }

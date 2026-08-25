@@ -5,6 +5,7 @@ import {
   UPLOAD_RETRY_DELAYS_MS,
   buildUploadQueueSummary,
   isAllowedUploadTransition,
+  initialDurableUploadState,
   isMissingStagedUploadError,
   isPermanentUploadError,
   mapNativeUploadState,
@@ -58,10 +59,17 @@ function job(state: UploadJobState, progress = 0): DurableUploadJob {
 describe('durable upload state policy', () => {
   it('allows recovery transitions but never revives completed jobs', () => {
     expect(isAllowedUploadTransition('staging', 'queued')).toBe(true);
+    expect(isAllowedUploadTransition('staging', 'waiting_network')).toBe(true);
     expect(isAllowedUploadTransition('uploading', 'waiting_network')).toBe(true);
     expect(isAllowedUploadTransition('failed', 'queued')).toBe(true);
     expect(isAllowedUploadTransition('completed', 'queued')).toBe(false);
     expect(isAllowedUploadTransition('cancelled', 'uploading')).toBe(false);
+  });
+
+  it('queues offline captures without making them processable', () => {
+    expect(initialDurableUploadState(false, true)).toBe('waiting_network');
+    expect(initialDurableUploadState(true, false)).toBe('waiting_network');
+    expect(initialDurableUploadState(true, true)).toBe('queued');
   });
 
   it('aggregates active progress and exposes failures first', () => {

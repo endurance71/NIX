@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FieldGroup, Text, TextInput } from '@expo/ui';
 import { Stack, router } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAppTheme } from '../../../hooks/useAppTheme';
@@ -10,33 +10,36 @@ import { reauthenticateForAccountDeletion } from '../../../lib/accountDeletionRe
 import { clearMediaMemoryCache } from '../../../lib/mediaCache';
 import { clearUploadQueueNixeshot } from '../../../lib/uploadQueuePersistence';
 import { clearPendingViewedAcks } from '../../../lib/viewedAckQueue';
-import { getCurrentUserProfile } from '../../../services/profileService';
+import { getCurrentUserProfile, type CurrentUserProfileRow } from '../../../services/profileService';
 import { deleteCurrentAccount } from '../../../services/accountService';
 import { NativeSettingsActionRow } from '../../../components/ui/native-settings';
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
 import { runWithFinally } from '../../../lib/runWithFinally';
+import { queryKeys } from '../../../lib/queryKeys';
 
 export default function DeleteAccountScreen() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const queryClient = useQueryClient();
-  const { user, loading: authLoading, signIn, signInWithApple, signOut } = useAuth();
-  const [username, setUsername] = useState('');
+  const { user, loading: authLoading, signIn, signInWithApple, signOut, canUseNetworkSession } = useAuth();
   const [confirmation, setConfirmation] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasPassword = userHasEmailPasswordIdentity(user);
 
-  useEffect(() => {
-    void getCurrentUserProfile().then((profile) => setUsername(profile?.username ?? ''));
-  }, []);
+  const { data: profile = null } = useQuery<CurrentUserProfileRow | null>({
+    queryKey: queryKeys.currentUserProfile(user?.id ?? null),
+    queryFn: getCurrentUserProfile,
+    enabled: canUseNetworkSession,
+  });
+  const username = profile?.username ?? '';
   useEffect(() => {
     if (!authLoading && !user) router.replace('/(auth)/login');
   }, [authLoading, user]);
 
   const confirmationMatches = Boolean(username) && confirmation.trim().replace(/^@/, '') === username;
-  const disabled = loading || !confirmationMatches || (hasPassword && !password);
+  const disabled = !canUseNetworkSession || loading || !confirmationMatches || (hasPassword && !password);
 
   const removeAccount = async () => {
     if (!confirmationMatches) return setError(t('profile.deleteAccountConfirmationError'));
@@ -85,7 +88,7 @@ export default function DeleteAccountScreen() {
           <TextInput
             placeholder={t('profile.deleteAccountConfirmLabel')}
             autoCapitalize="none"
-            editable={!loading}
+            editable={canUseNetworkSession && !loading}
             onChangeText={(value) => {
               setConfirmation(value);
               setError(null);
@@ -97,7 +100,7 @@ export default function DeleteAccountScreen() {
               placeholder={t('profile.deleteAccountPasswordLabel')}
               secureTextEntry
               autoComplete="current-password"
-              editable={!loading}
+              editable={canUseNetworkSession && !loading}
               onChangeText={(value) => {
                 setPassword(value);
                 setError(null);

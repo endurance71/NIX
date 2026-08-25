@@ -34,7 +34,7 @@ const TERMINAL_STATES = new Set<UploadJobState>([
 ]);
 
 const STATE_TRANSITIONS: Record<UploadJobState, ReadonlySet<UploadJobState>> = {
-  staging: new Set(['queued', 'failed', 'cancelled', 'expired']),
+  staging: new Set(['queued', 'waiting_network', 'failed', 'cancelled', 'expired']),
   queued: new Set(['preparing', 'requesting_target', 'uploading', 'waiting_network', 'paused', 'failed', 'cancelled', 'expired']),
   preparing: new Set(['requesting_target', 'retry_scheduled', 'waiting_network', 'failed', 'paused', 'cancelled', 'expired']),
   requesting_target: new Set(['uploading', 'retry_scheduled', 'waiting_network', 'waiting_for_auth', 'failed', 'paused', 'cancelled', 'expired']),
@@ -57,6 +57,10 @@ export function isTerminalUploadState(state: UploadJobState) {
 
 export function isAllowedUploadTransition(from: UploadJobState, to: UploadJobState) {
   return from === to || STATE_TRANSITIONS[from].has(to);
+}
+
+export function initialDurableUploadState(physicalOnline: boolean, hasNetworkSession: boolean): UploadJobState {
+  return physicalOnline && hasNetworkSession ? 'queued' : 'waiting_network';
 }
 
 export function mapNativeUploadState(state: string): UploadJobState {

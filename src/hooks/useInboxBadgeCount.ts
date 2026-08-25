@@ -5,9 +5,14 @@ import {
   subscribeToAppForeground,
   syncAppIconBadge,
 } from '../services/pushNotificationService';
+import { useAuth } from './useAuth';
 
 export function useInboxBadgeCount() {
-  const query = useQuery(inboxNixesBundleQueryOptions());
+  const { canUseNetworkSession } = useAuth();
+  const query = useQuery({
+    ...inboxNixesBundleQueryOptions(),
+    enabled: canUseNetworkSession,
+  });
   const count = countUnreadInboxNixes(query.data);
 
   useEffect(() => {

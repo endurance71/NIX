@@ -12,20 +12,24 @@ import { useAppTheme } from '../../../hooks/useAppTheme';
 import { notifyDomainError, notifySuccess } from '../../../lib/appNotify';
 import { queryKeys } from '../../../lib/queryKeys';
 import { listBlockedUsers, listMyContentReports, unblockUser } from '../../../services/safetyService';
+import { useAuth } from '../../../hooks/useAuth';
 
 export default function SafetyScreen() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const queryClient = useQueryClient();
-  const blockedQuery = useQuery({ queryKey: queryKeys.blockedUsers, queryFn: listBlockedUsers });
-  const reportsQuery = useQuery({ queryKey: queryKeys.contentReports, queryFn: listMyContentReports });
-  const loading = blockedQuery.isPending || reportsQuery.isPending;
+  const { canUseNetworkSession } = useAuth();
+  const blockedQuery = useQuery({ queryKey: queryKeys.blockedUsers, queryFn: listBlockedUsers, enabled: canUseNetworkSession });
+  const reportsQuery = useQuery({ queryKey: queryKeys.contentReports, queryFn: listMyContentReports, enabled: canUseNetworkSession });
+  const loading = canUseNetworkSession && (blockedQuery.isPending || reportsQuery.isPending);
 
   const refresh = async () => {
+    if (!canUseNetworkSession) return;
     await Promise.all([blockedQuery.refetch(), reportsQuery.refetch()]);
   };
 
   const confirmUnblock = (userId: string, username: string | null) => {
+    if (!canUseNetworkSession) return;
     Alert.alert(t('profile.unblockConfirmTitle'), t('profile.unblockConfirmMessage', { username: username ?? 'NiX' }), [
       { text: t('common.cancel'), style: 'cancel' },
       {
@@ -59,6 +63,7 @@ export default function SafetyScreen() {
                   fallbackInitial: blocked.username ?? '?',
                 }}
                 onPress={() => confirmUnblock(blocked.blocked_user_id, blocked.username)}
+                disabled={!canUseNetworkSession}
               />
             ))
           ) : (

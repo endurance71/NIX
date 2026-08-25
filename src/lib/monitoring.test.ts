@@ -2,14 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initMonitoring } from './monitoring';
 import { trackEvent } from './telemetry';
 
-const { sentryInit, sentryBreadcrumb } = vi.hoisted(() => ({
+const { sentryInit, sentryBreadcrumb, sentryCaptureMessage } = vi.hoisted(() => ({
   sentryInit: vi.fn(),
   sentryBreadcrumb: vi.fn(),
+  sentryCaptureMessage: vi.fn(),
 }));
 
 vi.mock('@sentry/react-native', () => ({
   init: sentryInit,
   addBreadcrumb: sentryBreadcrumb,
+  captureMessage: sentryCaptureMessage,
 }));
 
 describe('monitoring hard-off', () => {

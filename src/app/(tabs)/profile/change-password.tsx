@@ -78,7 +78,13 @@ function changePasswordFormReducer(
 export default function ChangePasswordScreen() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
-  const { session, loading: authLoading, updatePassword, reauthenticatePasswordChange } = useAuth();
+  const {
+    session,
+    loading: authLoading,
+    updatePassword,
+    reauthenticatePasswordChange,
+    canUseNetworkSession,
+  } = useAuth();
   const [form, dispatchForm] = useReducer(changePasswordFormReducer, initialChangePasswordFormState);
   const { currentPassword, newPassword, confirmPassword, nonce, requiresNonce, loading, error } = form;
 
@@ -98,6 +104,7 @@ export default function ChangePasswordScreen() {
     match: confirmPassword.length > 0 && newPassword === confirmPassword,
   };
   const isSubmitDisabled =
+    !canUseNetworkSession ||
     loading ||
     !currentPassword ||
     !checks.length ||
@@ -165,7 +172,7 @@ export default function ChangePasswordScreen() {
             placeholder={t('profile.currentPassword')}
             secureTextEntry
             autoComplete="current-password"
-            editable={!loading}
+            editable={canUseNetworkSession && !loading}
             onChangeText={(value) => dispatchForm({ type: 'field', field: 'currentPassword', value })}
             testID="current-password"
           />
@@ -173,7 +180,7 @@ export default function ChangePasswordScreen() {
             placeholder={t('profile.newPassword')}
             secureTextEntry
             autoComplete="new-password"
-            editable={!loading}
+            editable={canUseNetworkSession && !loading}
             onChangeText={(value) => dispatchForm({ type: 'field', field: 'newPassword', value })}
             testID="new-password"
           />
@@ -181,7 +188,7 @@ export default function ChangePasswordScreen() {
             placeholder={t('profile.confirmPassword')}
             secureTextEntry
             autoComplete="new-password"
-            editable={!loading}
+            editable={canUseNetworkSession && !loading}
             onChangeText={(value) => dispatchForm({ type: 'field', field: 'confirmPassword', value })}
             testID="confirm-password"
           />
@@ -191,7 +198,7 @@ export default function ChangePasswordScreen() {
               secureTextEntry
               autoComplete="one-time-code"
               keyboardType="number-pad"
-              editable={!loading}
+              editable={canUseNetworkSession && !loading}
               onChangeText={(value) => dispatchForm({ type: 'field', field: 'nonce', value })}
               testID="verification-code"
             />

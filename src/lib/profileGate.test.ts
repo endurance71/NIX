@@ -6,16 +6,16 @@ const completeProfile = {
   is_private: false, avatar_storage_path: null, avatar_emoji: null,
 };
 const base = {
-  authLoading: false, authError: false, hasSession: true, profile: completeProfile,
+  authStatus: 'authenticatedOnline' as const, hasSession: true, profile: completeProfile,
   profilePending: false, profileError: false, ageAttested: true,
-  agePending: false, ageError: false, snapshotPending: false, hasValidSnapshot: false,
+  agePending: false, ageError: false, snapshotPending: false, snapshotError: false, hasValidSnapshot: false,
 };
 
 describe('resolveBootstrapState', () => {
   it('rozróżnia ładowanie i anonimową sesję', () => {
-    expect(resolveBootstrapState({ ...base, authLoading: true }).status).toBe('loading');
-    expect(resolveBootstrapState({ ...base, authError: true }).status).toBe('recoverableError');
-    expect(resolveBootstrapState({ ...base, hasSession: false }).status).toBe('anonymous');
+    expect(resolveBootstrapState({ ...base, authStatus: 'initializing' }).status).toBe('loading');
+    expect(resolveBootstrapState({ ...base, authStatus: 'recoverableError' }).status).toBe('recoverableError');
+    expect(resolveBootstrapState({ ...base, authStatus: 'anonymous', hasSession: false }).status).toBe('anonymous');
   });
   it('otwiera aplikację po pełnej weryfikacji online', () => {
     expect(resolveBootstrapState(base).status).toBe('readyOnline');
@@ -30,5 +30,12 @@ describe('resolveBootstrapState', () => {
   });
   it('przy błędzie otwiera offline wyłącznie z prawidłowym snapshotem', () => {
     expect(resolveBootstrapState({ ...base, profileError: true, hasValidSnapshot: true }).status).toBe('readyFromSnapshot');
+  });
+  it('przy offline wymaga przypisanego snapshotu zamiast pokazywać logowanie', () => {
+    expect(resolveBootstrapState({ ...base, authStatus: 'authenticatedOffline', hasValidSnapshot: true }).status).toBe('readyFromSnapshot');
+    expect(resolveBootstrapState({ ...base, authStatus: 'authenticatedOffline', hasValidSnapshot: false }).status).toBe('offlineNeedsVerification');
+  });
+  it('rozróżnia błąd odczytu snapshotu od jego braku', () => {
+    expect(resolveBootstrapState({ ...base, authStatus: 'authenticatedOffline', snapshotError: true }).status).toBe('recoverableError');
   });
 });

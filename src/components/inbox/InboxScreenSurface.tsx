@@ -21,6 +21,7 @@ import {
   buttonStyle,
   contentShape,
   controlSize,
+  disabled as disabledModifier,
   font,
   foregroundStyle,
   frame,
@@ -341,6 +342,7 @@ function MessageRow({
   onDelete,
   onBlock,
   onUploadAction,
+  networkActionsEnabled,
   t,
 }: {
   row: InboxRowModel;
@@ -351,6 +353,7 @@ function MessageRow({
   onDelete: () => void;
   onBlock: () => void;
   onUploadAction: (action: UploadRowAction) => void;
+  networkActionsEnabled: boolean;
   t: Translate;
 }) {
   const { colors } = useAppTheme();
@@ -396,19 +399,21 @@ function MessageRow({
           ) : null}
         </SwipeActions.Actions>
       ) : null}
-      <SwipeActions.Actions edge="trailing" allowsFullSwipe={false}>
-        {/* Bez role=destructive: SwiftUI List od razu animuje wiersz poza listę przed Alertem. */}
-        <Button
-          label={t('inbox.delete')}
-          onPress={onDelete}
-          modifiers={[tint(colors.destructive)]}
-        />
-        <Button
-          label={t('inbox.block')}
-          onPress={onBlock}
-          modifiers={[tint(colors.destructive)]}
-        />
-      </SwipeActions.Actions>
+      {networkActionsEnabled ? (
+        <SwipeActions.Actions edge="trailing" allowsFullSwipe={false}>
+          {/* Bez role=destructive: SwiftUI List od razu animuje wiersz poza listę przed Alertem. */}
+          <Button
+            label={t('inbox.delete')}
+            onPress={onDelete}
+            modifiers={[tint(colors.destructive)]}
+          />
+          <Button
+            label={t('inbox.block')}
+            onPress={onBlock}
+            modifiers={[tint(colors.destructive)]}
+          />
+        </SwipeActions.Actions>
+      ) : null}
     </SwipeActions>
   );
 }
@@ -420,6 +425,7 @@ function InviteRow({
   isFirst,
   onAccept,
   onReject,
+  networkActionsEnabled,
   t,
 }: {
   request: IncomingFriendRequest;
@@ -428,6 +434,7 @@ function InviteRow({
   isFirst: boolean;
   onAccept: () => void;
   onReject: () => void;
+  networkActionsEnabled: boolean;
   t: Translate;
 }) {
   const { colors } = useAppTheme();
@@ -486,6 +493,7 @@ function InviteRow({
           label={t('inbox.accept')}
           onPress={onAccept}
           modifiers={[
+            disabledModifier(!networkActionsEnabled),
             buttonStyle('borderedProminent'),
             controlSize('small'),
             tint(colors.systemBlue),
@@ -495,7 +503,7 @@ function InviteRow({
     </HStack>
   );
 
-  if (busy) return content;
+  if (busy || !networkActionsEnabled) return content;
 
   return (
     <SwipeActions>
@@ -629,6 +637,7 @@ function InboxList({
         onDelete={() => onRequestDelete(row)}
         onBlock={() => onRequestBlock(row)}
         onUploadAction={(action) => onRequestUploadAction(row, action)}
+        networkActionsEnabled={vm.canPerformNetworkAction}
         t={vm.t}
       />
     );
@@ -655,6 +664,7 @@ function InboxList({
                   isFirst={index === 0}
                   onAccept={() => void vm.handleAccept(request.id)}
                   onReject={() => void vm.handleReject(request.id)}
+                  networkActionsEnabled={vm.canPerformNetworkAction}
                   t={vm.t}
                 />
               );
@@ -706,7 +716,7 @@ export function InboxScreenSurface(props: InboxScreenSurfaceProps) {
       <InboxUnavailableState
         kind="empty"
         title={vm.t('inbox.emptyTitle')}
-        description={vm.t('inbox.emptyDescription')}
+        description={vm.t(vm.showOfflineCacheMissing ? 'root.offlineCacheMissing' : 'inbox.emptyDescription')}
         onRefresh={vm.handleRefresh}
       />
     );

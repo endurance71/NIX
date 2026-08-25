@@ -93,6 +93,12 @@ export function initMonitoring() {
           data: sanitizeTelemetryData(payload),
           level: 'info',
         });
+        if (event === 'auth_bootstrap_failure') {
+          Sentry.captureMessage('auth_bootstrap_failure', {
+            level: 'warning',
+            extra: sanitizeTelemetryData(payload),
+          });
+        }
       });
     })
     .catch((error) => {

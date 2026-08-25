@@ -357,10 +357,11 @@ export async function listAcceptedFriends(options: FriendListOptions = {}): Prom
 
   if (profilesError) throw toFriendlyError(profilesError);
 
-  return ((profiles ?? []) as AcceptedFriendRpcRow[]).flatMap((row) => {
+  const friends = ((profiles ?? []) as AcceptedFriendRpcRow[]).flatMap((row) => {
     const mapped = mapPublicProfileRow(row);
     return mapped ? [{ ...mapped, bio: row.bio ?? null }] : [];
   });
+  return friends;
 }
 
 export async function removeFriend(friendId: string) {

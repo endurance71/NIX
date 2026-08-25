@@ -16,15 +16,18 @@ import {
 import { notifyDomainError } from '../../../lib/appNotify';
 import { recordProductEvent } from '../../../services/productAnalyticsService';
 import { usePushNotifications } from '../../../context/pushNotifications';
+import { useAuth } from '../../../hooks/useAuth';
 
 export default function NotificationPreferencesScreen() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const queryClient = useQueryClient();
   const push = usePushNotifications();
+  const { canUseNetworkSession } = useAuth();
   const query = useQuery({
     queryKey: queryKeys.notificationPreferences,
     queryFn: getNotificationPreferences,
+    enabled: canUseNetworkSession,
   });
   const value = query.data ?? DEFAULT_NOTIFICATION_PREFERENCES;
 
@@ -32,6 +35,7 @@ export default function NotificationPreferencesScreen() {
     key: keyof typeof DEFAULT_NOTIFICATION_PREFERENCES,
     enabled: boolean
   ) => {
+    if (!canUseNetworkSession) return;
     const previous = value;
     const next = { ...value, [key]: enabled };
     queryClient.setQueryData(queryKeys.notificationPreferences, next);
@@ -47,9 +51,9 @@ export default function NotificationPreferencesScreen() {
   return (
     <>
       <SettingsListScreen
-        loading={query.isPending}
+        loading={canUseNetworkSession && query.isPending}
         onRefresh={async () => {
-          await query.refetch();
+          if (canUseNetworkSession) await query.refetch();
         }}
       >
         <NativeSettingsSection title={t('notifications.device')}>
@@ -61,7 +65,7 @@ export default function NotificationPreferencesScreen() {
             onSwitchValueChange={(enabled) => {
               void (enabled ? push.enable() : push.disable());
             }}
-            disabled={push.busy || push.state === 'loading' || push.state === 'unavailable'}
+            disabled={!canUseNetworkSession || push.busy || push.state === 'loading' || push.state === 'unavailable'}
           />
         </NativeSettingsSection>
         <NativeSettingsSection
@@ -73,18 +77,21 @@ export default function NotificationPreferencesScreen() {
             icon="message"
             switchValue={value.messages_enabled}
             onSwitchValueChange={(enabled) => void update('messages_enabled', enabled)}
+            disabled={!canUseNetworkSession}
           />
           <NativeSettingsRow
             title={t('notifications.reactions')}
             icon="reaction"
             switchValue={value.reactions_enabled}
             onSwitchValueChange={(enabled) => void update('reactions_enabled', enabled)}
+            disabled={!canUseNetworkSession}
           />
           <NativeSettingsRow
             title={t('notifications.friends')}
             icon="friends"
             switchValue={value.friends_enabled}
             onSwitchValueChange={(enabled) => void update('friends_enabled', enabled)}
+            disabled={!canUseNetworkSession}
           />
         </NativeSettingsSection>
       </SettingsListScreen>

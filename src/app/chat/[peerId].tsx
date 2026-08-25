@@ -9,6 +9,8 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
 import { APP_FONT_FAMILY } from '../../theme/typography';
 import { iosRoadmapFeatures } from '../../config/iosRoadmapFeatures';
+import { useAuth } from '../../hooks/useAuth';
+import { OfflineStatusBanner } from '../../components/auth/OfflineStatusBanner';
 
 /** Matches iOS liquid-glass back control diameter in the nav bar. */
 const HEADER_AVATAR_SIZE = 36;
@@ -60,6 +62,7 @@ export default function ChatScreen() {
   const { peerId } = useLocalSearchParams<{ peerId: string }>();
   const vm = useChatScreen(peerId ?? '');
   const { colors } = useAppTheme();
+  const { isOfflineAuthenticated } = useAuth();
 
   const displayName = vm.peerProfile?.display_name?.trim() || null;
   const username = vm.peerProfile?.username ? `@${vm.peerProfile.username}` : null;
@@ -138,10 +141,10 @@ export default function ChatScreen() {
         options={{
           headerBackButtonDisplayMode: 'minimal',
           headerTintColor: colors.accent,
-          headerTransparent: true,
+          headerTransparent: !isOfflineAuthenticated,
           headerShadowVisible: false,
-          headerStyle: { backgroundColor: 'transparent' },
-          headerBackground: () => null,
+          headerStyle: { backgroundColor: isOfflineAuthenticated ? colors.systemBackground : 'transparent' },
+          headerBackground: isOfflineAuthenticated ? undefined : () => null,
           headerTitleAlign: 'left',
           headerTitle: () => (
             <ChatHeaderTitle
@@ -194,7 +197,10 @@ export default function ChatScreen() {
           </Stack.Toolbar.Menu>
         </Stack.Toolbar>
       ) : null}
-      <ChatScreenSurface vm={vm} />
+      <View style={{ flex: 1, backgroundColor: colors.systemBackground }}>
+        <OfflineStatusBanner />
+        <ChatScreenSurface vm={vm} />
+      </View>
     </>
   );
 }

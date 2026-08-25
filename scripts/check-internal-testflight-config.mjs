@@ -17,6 +17,7 @@ if (eas.build?.preview?.channel !== 'preview') failures.push('preview build must
 if (eas.build?.development?.channel !== 'development') failures.push('development build must use the development OTA channel');
 if (production?.env?.SENTRY_DISABLE_AUTO_UPLOAD !== 'true') failures.push('Sentry source-map upload must be disabled');
 if (production?.env?.SENTRY_DISABLE_XCODE_DEBUG_UPLOAD !== 'true') failures.push('Sentry dSYM upload must be disabled');
+if (production?.env?.EXPO_PUBLIC_SENTRY_ENABLED !== 'true') failures.push('Internal TestFlight runtime diagnostics must be explicitly enabled');
 if ('SENTRY_DSN' in (production?.env ?? {})) failures.push('SENTRY_DSN must not be present');
 if (!/^\d{7,}$/.test(submit?.ascAppId ?? '')) failures.push('set the real numeric submit.production.ios.ascAppId before running the workflow');
 if (pkg.version !== '1.0.10') failures.push('package.json version must be 1.0.10');
@@ -39,6 +40,9 @@ for (const marker of [
 if (/external_groups:/i.test(workflow)) failures.push('internal workflow must not contain external groups');
 if (!/^EXPO_PUBLIC_SHARE_INVITES_ENABLED=false$/m.test(productionEnv)) {
   failures.push('shared invite links must remain explicitly disabled for the current internal build');
+}
+if (!/^EXPO_PUBLIC_SENTRY_ENABLED=true$/m.test(productionEnv)) {
+  failures.push('Internal TestFlight runtime diagnostics opt-in must be present in .env.production');
 }
 
 if (failures.length) {

@@ -1,10 +1,12 @@
 import Stack from 'expo-router/stack';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../../hooks/useAppTheme';
+import { useAuth } from '../../../hooks/useAuth';
 
 export default function ProfileTabLayout() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
+  const { isOfflineAuthenticated } = useAuth();
 
   return (
     <Stack
@@ -13,11 +15,11 @@ export default function ProfileTabLayout() {
         headerBackButtonDisplayMode: 'minimal',
         headerLargeTitle: true,
         headerTintColor: colors.accent,
-        headerTransparent: true,
+        headerTransparent: !isOfflineAuthenticated,
         headerShadowVisible: false,
         headerLargeTitleShadowVisible: false,
-        headerStyle: { backgroundColor: 'transparent' },
-        headerLargeStyle: { backgroundColor: 'transparent' },
+        headerStyle: { backgroundColor: isOfflineAuthenticated ? colors.background : 'transparent' },
+        headerLargeStyle: { backgroundColor: isOfflineAuthenticated ? colors.background : 'transparent' },
         headerTitleStyle: {
           color: colors.label,
         },

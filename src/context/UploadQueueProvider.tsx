@@ -32,6 +32,7 @@ import {
   UPLOAD_RETENTION_MS,
   buildUploadQueueSummary,
   isAllowedUploadTransition,
+  initialDurableUploadState,
   isMissingStagedUploadError,
   isPermanentUploadError,
   mapNativeUploadState,
@@ -66,6 +67,7 @@ import type {
   EnqueueMediaBatchInput,
 } from '../types/uploadQueue';
 import { UploadQueueContext, type UploadQueueContextValue } from './uploadQueue';
+import { useAuth } from '../hooks/useAuth';
 
 const RECOVERY_TASK_NAME = 'nix-upload-queue-recovery';
 const PREPARE_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -168,6 +170,8 @@ function useLatestCallback<TArgs extends unknown[], TResult>(
 async function stageAndInsertUpload(
   input: EnqueueMediaBatchInput,
   currentOwnerId: string,
+  physicalOnline: boolean,
+  hasNetworkSession: boolean,
   forcedId?: string
 ) {
   const now = Date.now();
@@ -229,7 +233,7 @@ async function stageAndInsertUpload(
       originalSizeBytes: staged.sizeBytes,
       bytesTotal: staged.sizeBytes,
       fileExtension: staged.extension,
-      state: 'queued',
+      state: initialDurableUploadState(physicalOnline, hasNetworkSession),
     });
     trackEvent('durable_upload_enqueued', {
       task_id: jobId,
@@ -264,7 +268,8 @@ if (!TaskManager.isTaskDefined(RECOVERY_TASK_NAME)) {
 
 function useUploadQueueController(): UploadQueueContextValue {
   const queryClient = useQueryClient();
-  const [ownerId, setOwnerId] = useState<string | null>(null);
+  const { user, canUseNetworkSession } = useAuth();
+  const ownerId = user?.id ?? null;
   const [ready, setReady] = useState(false);
   const [jobs, setJobs] = useState<DurableUploadJob[]>([]);
   const [stagingCount, setStagingCount] = useState(0);
@@ -287,12 +292,12 @@ function useUploadQueueController(): UploadQueueContextValue {
   });
 
   const enqueueMediaBatch = async (input: EnqueueMediaBatchInput) => {
-    const currentOwnerId = ownerIdRef.current;
+    const currentOwnerId = ownerIdRef.current ?? ownerId;
     if (!currentOwnerId) throw new Error('Zaloguj się ponownie przed wysłaniem NiX.');
     if (input.recipients.length === 0) throw new Error('Wybierz co najmniej jednego odbiorcę.');
     setStagingCount((count) => count + 1);
     return runWithFinally(async () => {
-      const result = await stageAndInsertUpload(input, currentOwnerId);
+      const result = await stageAndInsertUpload(input, currentOwnerId, online, canUseNetworkSession);
       await refresh();
       return result;
     }, () => {
@@ -660,7 +665,7 @@ function useUploadQueueController(): UploadQueueContextValue {
   const resumeUpload = async (jobId: string) => {
     const job = await getDurableUploadJob(jobId);
     if (!job) return;
-    const nextState = online ? 'queued' : 'waiting_network';
+    const nextState = online && canUseNetworkSession ? 'queued' : 'waiting_network';
     if (!isAllowedUploadTransition(job.state, nextState)) return;
     await backgroundUploader.resume(jobId);
     await patchDurableUploadJob(jobId, {
@@ -676,7 +681,7 @@ function useUploadQueueController(): UploadQueueContextValue {
     const job = await getDurableUploadJob(jobId);
     if (!job || job.errorCode === 'FILE_TOO_LARGE_PERMANENT') return;
     const retryAfterTooLarge = job.errorCode === 'FILE_TOO_LARGE';
-    const nextState = online ? 'queued' : 'waiting_network';
+    const nextState = online && canUseNetworkSession ? 'queued' : 'waiting_network';
     if (!isAllowedUploadTransition(job.state, nextState)) return;
     if (retryAfterTooLarge) {
       await backgroundUploader.cancel(jobId).catch(() => undefined);
@@ -728,34 +733,24 @@ function useUploadQueueController(): UploadQueueContextValue {
   }, [jobs]);
 
   useEffect(() => {
-    let mounted = true;
-    void supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      const nextOwner = data.session?.user.id ?? null;
-      ownerIdRef.current = nextOwner;
-      setOwnerId(nextOwner);
-    });
-    const { data: authSubscription } = supabase.auth.onAuthStateChange((event, session) => {
-      const previousOwner = ownerIdRef.current;
-      const nextOwner = session?.user.id ?? null;
-      ownerIdRef.current = nextOwner;
-      setOwnerId(nextOwner);
-      if (event === 'SIGNED_OUT' && previousOwner) {
-        void (async () => {
-          const ids = await purgeOwnerDurableUploadJobs(previousOwner);
-          await Promise.all(ids.map(async (id) => {
-            await backgroundUploader.cancel(id).catch(() => undefined);
-            await deleteStagedUploadJob(id).catch(() => undefined);
-          }));
-          if (ownerIdRef.current === null) setJobs([]);
-        })();
-      }
-    });
+    let cancelled = false;
+    const previousOwner = ownerIdRef.current;
+    const nextOwner = ownerId;
+    ownerIdRef.current = nextOwner;
+    if (previousOwner && previousOwner !== nextOwner) {
+      void (async () => {
+        const ids = await purgeOwnerDurableUploadJobs(previousOwner);
+        await Promise.all(ids.map(async (id) => {
+          await backgroundUploader.cancel(id).catch(() => undefined);
+          await deleteStagedUploadJob(id).catch(() => undefined);
+        }));
+        if (!cancelled && ownerIdRef.current === null) setJobs([]);
+      })();
+    }
     return () => {
-      mounted = false;
-      authSubscription.subscription.unsubscribe();
+      cancelled = true;
     };
-  }, []);
+  }, [ownerId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -858,7 +853,7 @@ function useUploadQueueController(): UploadQueueContextValue {
               playbackDurationMs: task.segmentDurationMs,
               sourceWidth: task.sourceWidth,
               sourceHeight: task.sourceHeight,
-            }, ownerId, task.id);
+            }, ownerId, false, false, task.id);
             return true;
           } catch {
             // stageAndInsert normally persists an actionable failed row. Keep
@@ -906,7 +901,7 @@ function useUploadQueueController(): UploadQueueContextValue {
     const unsubscribe = subscribeToNetworkChanges((state) => {
       const connected = state.isConnected !== false && state.isInternetReachable !== false;
       setOnline(connected);
-      if (connected) {
+      if (connected && canUseNetworkSession) {
         void (async () => {
           const currentJobs = jobsRef.current.filter((job) => job.state === 'waiting_network');
           await Promise.all(currentJobs.map((job) =>
@@ -918,7 +913,7 @@ function useUploadQueueController(): UploadQueueContextValue {
       }
     });
     return () => unsubscribe();
-  }, [refresh]);
+  }, [canUseNetworkSession, refresh]);
 
   useEffect(() => {
     const handleSnapshot = (snapshot: Awaited<ReturnType<typeof backgroundUploader.listTasks>>[number]) => {
@@ -1044,7 +1039,7 @@ function useUploadQueueController(): UploadQueueContextValue {
   }, [queryClient, refresh]);
 
   useEffect(() => {
-    if (!ready || processingRef.current || !ownerId) return;
+    if (!ready || processingRef.current || !ownerId || !canUseNetworkSession || !online) return;
     const now = Date.now();
     const next = jobs.find((job) =>
       job.ownerId === ownerId
@@ -1061,7 +1056,7 @@ function useUploadQueueController(): UploadQueueContextValue {
       processingRef.current = false;
       await refresh();
     });
-  }, [jobs, online, ownerId, processJob, ready, refresh]);
+  }, [canUseNetworkSession, jobs, online, ownerId, processJob, ready, refresh]);
 
   useEffect(() => {
     if (!ready || !ownerId) return;

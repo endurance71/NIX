@@ -28,7 +28,7 @@ export function useFriendsScreen() {
   const { t } = useTranslation();
   const { colors, statusBarStyle } = useAppTheme();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, canUseNetworkSession, isOfflineAuthenticated } = useAuth();
   const [searchUsername, setSearchUsername] = useState('');
   const [inviteInputResetKey, setInviteInputResetKey] = useState(0);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -36,16 +36,19 @@ export function useFriendsScreen() {
   const { data: requests = [], isPending: requestsPending } = useQuery({
     queryKey: queryKeys.incomingFriendRequests,
     queryFn: listIncomingFriendRequests,
+    enabled: canUseNetworkSession,
     staleTime: 1000 * 60,
   });
   const { data: outgoingRequests = [], isPending: outgoingPending } = useQuery({
     queryKey: queryKeys.outgoingFriendRequests,
     queryFn: listOutgoingFriendRequests,
+    enabled: canUseNetworkSession,
     staleTime: 1000 * 60,
   });
   const { data: friends = [], isPending: friendsPending } = useQuery({
     queryKey: queryKeys.acceptedFriends,
     queryFn: () => listAcceptedFriends({ limit: 50 }),
+    enabled: canUseNetworkSession,
     staleTime: 1000 * 60 * 2,
   });
 
@@ -69,19 +72,19 @@ export function useFriendsScreen() {
   const { data: incomingAvatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(incomingAvatarPaths),
     queryFn: () => createSignedAvatarUrls(incomingAvatarPaths),
-    enabled: incomingAvatarPaths.length > 0,
+    enabled: canUseNetworkSession && incomingAvatarPaths.length > 0,
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
   const { data: outgoingAvatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(outgoingAvatarPaths),
     queryFn: () => createSignedAvatarUrls(outgoingAvatarPaths),
-    enabled: outgoingAvatarPaths.length > 0,
+    enabled: canUseNetworkSession && outgoingAvatarPaths.length > 0,
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
   const { data: friendAvatarUrls = {} } = useQuery({
     queryKey: avatarSignedUrlsQueryKey(friendAvatarPaths),
     queryFn: () => createSignedAvatarUrls(friendAvatarPaths),
-    enabled: friendAvatarPaths.length > 0,
+    enabled: canUseNetworkSession && friendAvatarPaths.length > 0,
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
 
@@ -90,7 +93,7 @@ export function useFriendsScreen() {
   const { data: friendCapturePolicies = {} } = useQuery({
     queryKey: friendCapturePoliciesQueryKey,
     queryFn: () => listCapturePoliciesForFriends(friendIds),
-    enabled: friendIds.length > 0,
+    enabled: canUseNetworkSession && friendIds.length > 0,
     staleTime: 60_000,
   });
 
@@ -104,6 +107,10 @@ export function useFriendsScreen() {
   };
 
   const handleListRefresh = async () => {
+    if (!canUseNetworkSession) {
+      notifyError(t('root.offlineActionUnavailable'));
+      return;
+    }
     try {
       await Promise.all([
         queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
@@ -117,6 +124,7 @@ export function useFriendsScreen() {
   };
 
   useFocusEffect(() => {
+    if (!canUseNetworkSession) return;
     void queryClient.refetchQueries({
       type: 'active',
       predicate: (query) => {
@@ -134,6 +142,10 @@ export function useFriendsScreen() {
   });
 
   const handleSendInvite = async () => {
+    if (!canUseNetworkSession) {
+      notifyError(t('root.offlineActionUnavailable'));
+      return;
+    }
     if (actionLoadingId === 'invite') return;
     setActionLoadingId('invite');
     await runWithFinally(
@@ -149,6 +161,10 @@ export function useFriendsScreen() {
   };
 
   const handleAccept = async (requestId: string) => {
+    if (!canUseNetworkSession) {
+      notifyError(t('root.offlineActionUnavailable'));
+      return;
+    }
     if (actionLoadingId === requestId) return;
     setActionLoadingId(requestId);
     await runWithFinally(
@@ -160,6 +176,10 @@ export function useFriendsScreen() {
   };
 
   const handleReject = async (requestId: string) => {
+    if (!canUseNetworkSession) {
+      notifyError(t('root.offlineActionUnavailable'));
+      return;
+    }
     if (actionLoadingId === requestId) return;
     setActionLoadingId(requestId);
     await runWithFinally(
@@ -171,6 +191,10 @@ export function useFriendsScreen() {
   };
 
   const handleCancelOutgoing = async (requestId: string) => {
+    if (!canUseNetworkSession) {
+      notifyError(t('root.offlineActionUnavailable'));
+      return;
+    }
     const loadingId = `outgoing-${requestId}`;
     if (actionLoadingId === loadingId) return;
     setActionLoadingId(loadingId);
@@ -183,6 +207,10 @@ export function useFriendsScreen() {
   };
 
   const handleRemoveFriend = async (friendId: string, username: string) => {
+    if (!canUseNetworkSession) {
+      notifyError(t('root.offlineActionUnavailable'));
+      return;
+    }
     const loadingId = `friend-${friendId}`;
     if (actionLoadingId === loadingId) return;
     setActionLoadingId(loadingId);
@@ -198,6 +226,10 @@ export function useFriendsScreen() {
     resolveCapturePolicyForFriend(friendCapturePolicies, friendId);
 
   const handleToggleFriendCapture = async (friendId: string, nextAllowed: boolean) => {
+    if (!canUseNetworkSession) {
+      notifyError(t('root.offlineActionUnavailable'));
+      return;
+    }
     const nextPolicy: CapturePolicy = nextAllowed ? 'allow' : 'deny';
     const loadingId = `capture-${friendId}`;
     if (actionLoadingId === loadingId) return;
@@ -212,7 +244,7 @@ export function useFriendsScreen() {
     t,
     colors,
     statusBarStyle,
-    loading: requestsPending || outgoingPending || friendsPending,
+    loading: canUseNetworkSession && (requestsPending || outgoingPending || friendsPending),
     searchUsername,
     setSearchUsername,
     inviteInputResetKey,
@@ -231,5 +263,7 @@ export function useFriendsScreen() {
     handleRemoveFriend,
     resolveFriendCapturePolicy,
     handleToggleFriendCapture,
+    canPerformNetworkAction: canUseNetworkSession,
+    isOfflineAuthenticated,
   };
 }

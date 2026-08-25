@@ -15,7 +15,8 @@ NiX to aplikacja Expo przeznaczona wyłącznie na iPhone/iOS, z efemerycznym prz
 2. Ustaw zmienne środowiskowe w `.env`:
    - `EXPO_PUBLIC_SUPABASE_URL=...`
    - `EXPO_PUBLIC_SUPABASE_ANON_KEY=...`
-   - `EXPO_PUBLIC_SENTRY_DSN` jest obecnie ignorowane — Sentry pozostaje twardo wyłączone
+   - Internal TestFlight może wysyłać bezpieczne zdarzenia diagnostyczne, gdy jednocześnie ustawiono
+     `EXPO_PUBLIC_SENTRY_ENABLED=true` i `EXPO_PUBLIC_SENTRY_DSN`; payload nie zawiera PII ani tokenów
    - wewnętrzny TestFlight roadmapy: `EXPO_PUBLIC_INTERNAL_TESTFLIGHT_ROADMAP_ENABLED=true`
    - produkcyjnie można włączać powierzchnie osobno: `EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED`,
      `EXPO_PUBLIC_SHARE_INVITES_ENABLED`, `EXPO_PUBLIC_COMMUNICATION_CONTROLS_ENABLED`,

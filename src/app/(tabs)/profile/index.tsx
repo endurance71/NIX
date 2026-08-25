@@ -1,1 +1,5 @@
-export { default } from '../../../components/profile/ProfileScreenSurface';
+import ProfileScreenSurface from '../../../components/profile/ProfileScreenSurface';
+
+export default function ProfileRoute() {
+  return <ProfileScreenSurface />;
+}
