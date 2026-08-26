@@ -96,11 +96,10 @@ o dowody bez terminu zwraca zero.
 ### P0-1/P0-2 code ready / production verification pending (2026-08-26)
 
 Kod w gałęzi `codex/fix-report-security-retention` naprawia logikę P0-1 i P0-2,
-ale **nie** zamyka formalnie blockerów: brakuje jeszcze `supabase db reset` +
-pgTAP na tym środowisku albo równoważnego stagingu, deployu expand→Edge,
-smoke A/B/C, dry-run cleanupu i osobnego PR contract (CHECK + drop v1).
-Werdykt aplikacji pozostaje **NO-GO** (P0-3, P0-4, P0-5 otwarte; P0-1/P0-2
-operacyjnie pending).
+ale **nie** zamyka formalnie blockerów. pgTAP lokalnie PASS; staging/produkcja
+pending (deploy expand→Edge, smoke A/B/C, dry-run cleanupu i osobny PR contract
+CHECK + drop v1). Werdykt aplikacji pozostaje **NO-GO** (P0-3, P0-4, P0-5
+otwarte; P0-1/P0-2 operacyjnie pending).
 
 | Pole | Wartość |
 | --- | --- |
@@ -368,7 +367,7 @@ autoryzacji `report-content` na trzech użytkownikach ani testu retencji JSON ev
 ### Kod i backend — obowiązkowe
 
 - [ ] Naprawiono autoryzację raportów tekstowych i XOR targetów (kod gotowy; weryfikacja produkcji pending).
-- [ ] Dodano testy A/B/C dla zgłoszeń i prób podmiany UUID (pgTAP w repo; wymagany lokalny `test:supabase-db` / staging).
+- [ ] Dodano testy A/B/C dla zgłoszeń i prób podmiany UUID (pgTAP lokalnie PASS; staging/produkcja pending).
 - [ ] Wszystkie dowody mają 30-dniowe `evidence_expires_at`; backfill w expand, CHECK+drop v1 w follow-up PR; cleanup sierot po dry-run (produkcja: MANUAL).
 - [ ] Wdrożono skuteczny mechanizm filtrowania tekstu i mediów zgodny z 1.2.
 - [ ] Moderator może usunąć treść, zablokować konto, rozpatrzyć appeal i zachować audyt.
