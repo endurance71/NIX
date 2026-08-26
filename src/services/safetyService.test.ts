@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { toReportContentBody, type ReportContentParams } from './safetyService';
+
+vi.mock('../lib/supabase', () => ({
+  supabase: {
+    functions: { invoke: vi.fn() },
+    from: vi.fn(),
+    rpc: vi.fn(),
+  },
+}));
 
 describe('toReportContentBody', () => {
   it('sends only nixId for a NiX report', () => {

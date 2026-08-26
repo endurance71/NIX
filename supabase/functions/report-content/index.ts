@@ -15,10 +15,7 @@ type ReportRow = {
   text_message_id?: string | null;
 };
 
-async function markEvidenceFailed(
-  serviceClient: ReturnType<typeof createClient>,
-  reportId: string
-) {
+async function markEvidenceFailed(serviceClient: { from: (table: string) => any }, reportId: string) {
   await serviceClient.from('content_reports').update({ status: 'evidence_failed' }).eq('id', reportId);
   await notifySentry('moderation.evidence.failed', { report_id: reportId }, 'error');
 }
