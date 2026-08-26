@@ -34,6 +34,7 @@ for (const marker of [
   'submit_beta_review: false',
   'npm run check:sentry-disabled',
   'npm run check:supabase-migrations',
+  'npm run check:report-content-contract',
 ]) {
   if (!workflow.includes(marker)) failures.push(`internal workflow is missing: ${marker}`);
 }

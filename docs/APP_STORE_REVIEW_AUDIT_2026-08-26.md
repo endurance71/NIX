@@ -93,6 +93,24 @@ oraz monitoring `evidence_path IS NOT NULL AND evidence_expires_at IS NULL`.
 **Kryterium zamknięcia:** zaplanowany cleanup usuwa testowy JSON i zeruje ścieżkę, a zapytanie
 o dowody bez terminu zwraca zero.
 
+### P0-1/P0-2 resolved (kod, 2026-08-26)
+
+Kod i testy zamykają oba blokery w gałęzi `codex/fix-report-security-retention`.
+Werdykt aplikacji pozostaje **NO-GO** (P0-3, P0-4, P0-5 otwarte).
+
+| Pole | Wartość |
+| --- | --- |
+| Data | 2026-08-26 |
+| Gałąź | `codex/fix-report-security-retention` |
+| Expand | `20260826120000_content_report_text_target_and_evidence_retention.sql` |
+| Contract | `20260827120000_drop_create_content_report_v1.sql` (produkcja: po smoke) |
+| RPC | `create_content_report_v2`; Edge `report-content` nie czyta `text_messages` przed RPC |
+| Testy | pgTAP A/B/C w `supabase/tests/content_report_v2_test.sql`; Deno `contract_test.ts`; Vitest `safetyService.test.ts` |
+| Commit | uzupełnić SHA po merge |
+
+Produkcyjny dry-run, `db push` expand, deploy funkcji, smoke A/B/C, contract i
+cleanup pozostają bramką operatora (`MANUAL`). Nie przywracać v1.
+
 ### P0-3. Niepełna ochrona UGC względem Guideline 1.2
 
 **Reguła:** 1.2 User-Generated Content.
@@ -343,9 +361,9 @@ autoryzacji `report-content` na trzech użytkownikach ani testu retencji JSON ev
 
 ### Kod i backend — obowiązkowe
 
-- [ ] Naprawiono autoryzację raportów tekstowych i XOR targetów.
-- [ ] Dodano testy A/B/C dla zgłoszeń i prób podmiany UUID.
-- [ ] Wszystkie dowody mają 30-dniowe `evidence_expires_at`; wykonano backfill i cleanup sierot.
+- [x] Naprawiono autoryzację raportów tekstowych i XOR targetów.
+- [x] Dodano testy A/B/C dla zgłoszeń i prób podmiany UUID.
+- [x] Wszystkie dowody mają 30-dniowe `evidence_expires_at`; backfill i cleanup sierot są w migracji/funkcji (produkcja: MANUAL).
 - [ ] Wdrożono skuteczny mechanizm filtrowania tekstu i mediów zgodny z 1.2.
 - [ ] Moderator może usunąć treść, zablokować konto, rozpatrzyć appeal i zachować audyt.
 - [ ] Sign in with Apple revoke działa przed zakończeniem usuwania konta.

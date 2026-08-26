@@ -54,25 +54,27 @@ async function invokeSafetyFunction(name: 'report-content' | 'block-user', body:
   return data;
 }
 
-export async function reportNix(nixId: string, reason: ReportReason, details?: string): Promise<string> {
-  const data = await invokeSafetyFunction('report-content', { nixId, reason, details });
-  return String(data.reportId);
+export type ReportContentParams =
+  | { reason: ReportReason; nixId: string; details?: string }
+  | { reason: ReportReason; textMessageId: string; details?: string }
+  | { reason: ReportReason; reportedUserId: string; details?: string };
+
+export function toReportContentBody(params: ReportContentParams): Record<string, string | undefined> {
+  if ('nixId' in params) {
+    return { reason: params.reason, nixId: params.nixId, details: params.details };
+  }
+  if ('textMessageId' in params) {
+    return { reason: params.reason, textMessageId: params.textMessageId, details: params.details };
+  }
+  return { reason: params.reason, reportedUserId: params.reportedUserId, details: params.details };
 }
 
-export async function reportContent(params: {
-  reason: ReportReason;
-  nixId?: string;
-  textMessageId?: string;
-  reportedUserId?: string;
-  details?: string;
-}): Promise<string> {
-  const data = await invokeSafetyFunction('report-content', {
-    reason: params.reason,
-    nixId: params.nixId,
-    textMessageId: params.textMessageId,
-    reportedUserId: params.reportedUserId,
-    details: params.details,
-  });
+export async function reportNix(nixId: string, reason: ReportReason, details?: string): Promise<string> {
+  return reportContent({ nixId, reason, details });
+}
+
+export async function reportContent(params: ReportContentParams): Promise<string> {
+  const data = await invokeSafetyFunction('report-content', toReportContentBody(params));
   return String(data.reportId);
 }
 

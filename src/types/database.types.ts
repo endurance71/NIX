@@ -36,6 +36,7 @@ export interface Database {
           reporter_id: string | null;
           reported_user_id: string | null;
           nix_id: string | null;
+          text_message_id: string | null;
           reason: string;
           details: string | null;
           status: string;
@@ -52,6 +53,7 @@ export interface Database {
           reporter_id?: string | null;
           reported_user_id?: string | null;
           nix_id?: string | null;
+          text_message_id?: string | null;
           reason: string;
           details?: string | null;
           status?: string;
@@ -68,6 +70,7 @@ export interface Database {
           reporter_id?: string | null;
           reported_user_id?: string | null;
           nix_id?: string | null;
+          text_message_id?: string | null;
           reason?: string;
           details?: string | null;
           status?: string;
@@ -697,6 +700,27 @@ export interface Database {
       mark_nix_unplayable: {
         Args: { p_nix_id: string };
         Returns: void;
+      };
+      create_content_report_v2: {
+        Args: {
+          p_reason: string;
+          p_nix_id?: string | null;
+          p_text_message_id?: string | null;
+          p_reported_user_id?: string | null;
+          p_details?: string | null;
+        };
+        Returns: {
+          report_id: string;
+          media_path: string | null;
+          media_type: string | null;
+          reported_user_id: string | null;
+          evidence_expires_at: string | null;
+          text_message_id: string | null;
+        }[];
+      };
+      list_moderation_evidence_orphans: {
+        Args: Record<string, never>;
+        Returns: { object_name: string; created_at: string; eligible: boolean }[];
       };
     };
   };

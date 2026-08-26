@@ -40,6 +40,8 @@ jobs:
         run: npm run check:sentry-disabled
       - name: Supabase migration safety
         run: npm run check:supabase-migrations
+      - name: Report-content authorization contract
+        run: npm run check:report-content-contract
       - name: Edge Functions typecheck
         run: npm run deno:check
       - name: Edge Functions tests

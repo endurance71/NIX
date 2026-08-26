@@ -33,6 +33,8 @@ const expected = [
   '20260810190000_stable_push_device_registration.sql',
   '20260810194500_mark_nix_unplayable.sql',
   '20260820080300_repair_missing_shared_media_references.sql',
+  '20260826120000_content_report_text_target_and_evidence_retention.sql',
+  '20260827120000_drop_create_content_report_v1.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
@@ -165,6 +167,39 @@ for (const marker of [
 ]) {
   if (!analyticsHardening.includes(marker)) {
     failures.push(`analytics hardening migration is missing ${marker}`);
+  }
+}
+
+const reportV2 = await readFile(
+  path.join(migrationsDir, '20260826120000_content_report_text_target_and_evidence_retention.sql'),
+  'utf8'
+);
+for (const marker of [
+  'ADD COLUMN IF NOT EXISTS text_message_id',
+  'REFERENCES public.text_messages(id) ON DELETE SET NULL',
+  'idx_content_reports_reporter_text_message_unique',
+  'content_reports_single_content_target',
+  'content_reports_evidence_requires_expiry',
+  'CREATE OR REPLACE FUNCTION public.create_content_report_v2',
+  'Invalid legacy reported user',
+  'CREATE OR REPLACE FUNCTION public.list_moderation_evidence_orphans',
+  "evidence_expires_at = created_at + INTERVAL '30 days'",
+]) {
+  if (!reportV2.includes(marker)) {
+    failures.push(`content report v2 migration is missing ${marker}`);
+  }
+}
+
+const reportV1Drop = await readFile(
+  path.join(migrationsDir, '20260827120000_drop_create_content_report_v1.sql'),
+  'utf8'
+);
+for (const marker of [
+  'REVOKE ALL ON FUNCTION public.create_content_report(TEXT, UUID, UUID, TEXT)',
+  'DROP FUNCTION IF EXISTS public.create_content_report(TEXT, UUID, UUID, TEXT)',
+]) {
+  if (!reportV1Drop.includes(marker)) {
+    failures.push(`content report v1 drop migration is missing ${marker}`);
   }
 }
 

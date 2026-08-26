@@ -1,23 +1,26 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.5';
 import { corsHeaders, getBearerToken, json, notifySentry } from '../_shared/http.ts';
-
-const REPORT_REASONS = new Set([
-  'sexual_content',
-  'violence',
-  'self_harm',
-  'harassment',
-  'hate',
-  'impersonation',
-  'spam',
-  'privacy',
-  'illegal_content',
-  'other',
-]);
+import { statusForRpcError, validateReportPayload } from './contract.ts';
 
 function extensionFor(mediaPath: string, mediaType: string) {
   const raw = mediaPath.split('?')[0].split('.').pop()?.toLowerCase();
   if (raw && /^[a-z0-9]{2,5}$/.test(raw)) return raw;
   return mediaType === 'video' ? 'mp4' : 'jpg';
+}
+
+type ReportRow = {
+  report_id?: string;
+  media_path?: string | null;
+  media_type?: string | null;
+  text_message_id?: string | null;
+};
+
+async function markEvidenceFailed(
+  serviceClient: ReturnType<typeof createClient>,
+  reportId: string
+) {
+  await serviceClient.from('content_reports').update({ status: 'evidence_failed' }).eq('id', reportId);
+  await notifySentry('moderation.evidence.failed', { report_id: reportId }, 'error');
 }
 
 Deno.serve(async (req) => {
@@ -31,15 +34,21 @@ Deno.serve(async (req) => {
   if (!supabaseUrl || !anonKey || !serviceRoleKey) return json({ error: 'Server is not configured' }, 500);
   if (!token) return json({ error: 'Missing bearer token' }, 401);
 
-  let payload: { reason?: string; nixId?: string; textMessageId?: string; reportedUserId?: string; details?: string };
+  let payload: {
+    reason?: string;
+    nixId?: string;
+    textMessageId?: string;
+    reportedUserId?: string;
+    details?: string;
+  };
   try {
     payload = await req.json();
   } catch {
     return json({ error: 'Invalid JSON payload' }, 400);
   }
-  if (!payload.reason || !REPORT_REASONS.has(payload.reason)) return json({ error: 'Invalid report reason' }, 400);
-  if (!payload.nixId && !payload.textMessageId && !payload.reportedUserId) return json({ error: 'A message or user is required' }, 400);
-  if (payload.details && payload.details.length > 500) return json({ error: 'Details are too long' }, 400);
+
+  const validated = validateReportPayload(payload);
+  if (!validated.ok) return json({ error: validated.error }, validated.status);
 
   const authClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
@@ -47,42 +56,41 @@ Deno.serve(async (req) => {
   const { data: userData, error: userError } = await authClient.auth.getUser();
   if (userError || !userData.user) return json({ error: 'Unauthorized' }, 401);
 
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
-  let reportedUserId = payload.reportedUserId ?? null;
-
-  if (payload.textMessageId && !reportedUserId) {
-    const { data: textMsg } = await serviceClient
-      .from('text_messages')
-      .select('sender_id')
-      .eq('id', payload.textMessageId)
-      .maybeSingle();
-    if (textMsg?.sender_id) {
-      reportedUserId = textMsg.sender_id;
-    }
-  }
-
-  const { data, error } = await authClient.rpc('create_content_report', {
-    p_reason: payload.reason,
-    p_nix_id: payload.nixId ?? null,
-    p_reported_user_id: reportedUserId,
-    p_details: payload.details?.trim() || null,
+  const { data, error } = await authClient.rpc('create_content_report_v2', {
+    p_reason: validated.value.reason,
+    p_nix_id: validated.value.nixId,
+    p_text_message_id: validated.value.textMessageId,
+    p_reported_user_id: validated.value.reportedUserId,
+    p_details: validated.value.details,
   });
   if (error) {
-    const status = error.message.includes('rate limit') ? 429 : 400;
-    return json({ error: error.message }, status);
+    return json({ error: error.message }, statusForRpcError(error.message));
   }
 
-  const report = Array.isArray(data) ? data[0] : data;
+  const report = (Array.isArray(data) ? data[0] : data) as ReportRow | null;
   if (!report?.report_id) return json({ error: 'Report was not created' }, 500);
 
-  if (payload.textMessageId) {
-    const { data: textMsg } = await serviceClient
-      .from('text_messages')
-      .select('id, sender_id, receiver_id, body, created_at')
-      .eq('id', payload.textMessageId)
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+
+  if (report.text_message_id) {
+    const { data: existing } = await serviceClient
+      .from('content_reports')
+      .select('evidence_path')
+      .eq('id', report.report_id)
       .maybeSingle();
 
-    if (textMsg) {
+    if (!existing?.evidence_path) {
+      const { data: textMsg } = await serviceClient
+        .from('text_messages')
+        .select('id, sender_id, receiver_id, body, created_at')
+        .eq('id', report.text_message_id)
+        .maybeSingle();
+
+      if (!textMsg) {
+        await markEvidenceFailed(serviceClient, report.report_id);
+        return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
+      }
+
       const evidenceJson = JSON.stringify({
         textMessageId: textMsg.id,
         senderId: textMsg.sender_id,
@@ -99,12 +107,16 @@ Deno.serve(async (req) => {
           upsert: true,
         });
 
-      if (!uploadError) {
-        await serviceClient
-          .from('content_reports')
-          .update({ evidence_path: evidencePath, status: 'open' })
-          .eq('id', report.report_id);
+      if (uploadError) {
+        await markEvidenceFailed(serviceClient, report.report_id);
+        return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
       }
+
+      const { error: updateError } = await serviceClient
+        .from('content_reports')
+        .update({ evidence_path: evidencePath, status: 'open' })
+        .eq('id', report.report_id);
+      if (updateError) return json({ error: 'Evidence state could not be saved' }, 500);
     }
   }
 
@@ -120,11 +132,7 @@ Deno.serve(async (req) => {
         .from('media-vault')
         .download(report.media_path);
       if (downloadError || !media) {
-        await serviceClient
-          .from('content_reports')
-          .update({ status: 'evidence_failed' })
-          .eq('id', report.report_id);
-        await notifySentry('moderation.evidence.failed', { report_id: report.report_id }, 'error');
+        await markEvidenceFailed(serviceClient, report.report_id);
         return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
       }
 
@@ -137,11 +145,7 @@ Deno.serve(async (req) => {
           upsert: true,
         });
       if (uploadError) {
-        await serviceClient
-          .from('content_reports')
-          .update({ status: 'evidence_failed' })
-          .eq('id', report.report_id);
-        await notifySentry('moderation.evidence.failed', { report_id: report.report_id }, 'error');
+        await markEvidenceFailed(serviceClient, report.report_id);
         return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
       }
 
@@ -157,10 +161,19 @@ Deno.serve(async (req) => {
     'moderation.report.created',
     {
       report_id: report.report_id,
-      reason: payload.reason,
-      priority: payload.reason === 'violence' || payload.reason === 'self_harm' || payload.reason === 'illegal_content' ? 'critical' : 'normal',
+      reason: validated.value.reason,
+      priority:
+        validated.value.reason === 'violence' ||
+        validated.value.reason === 'self_harm' ||
+        validated.value.reason === 'illegal_content'
+          ? 'critical'
+          : 'normal',
     },
-    payload.reason === 'violence' || payload.reason === 'self_harm' || payload.reason === 'illegal_content' ? 'warning' : 'info'
+    validated.value.reason === 'violence' ||
+      validated.value.reason === 'self_harm' ||
+      validated.value.reason === 'illegal_content'
+      ? 'warning'
+      : 'info'
   );
   return json({ ok: true, reportId: report.report_id });
 });

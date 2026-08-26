@@ -57,7 +57,9 @@ The destructive archived reset must never be applied. After the backup and local
 3. Generate two independent random secrets of at least 32 bytes and set
    `MODERATOR_API_SECRET` and `MODERATION_CLEANUP_SECRET`. Do not set `SENTRY_DSN`.
 4. Deploy `delete-account`, `report-content`, `block-user`, `moderation-admin` and
-   `cleanup-moderation-evidence` with JWT verification enabled.
+   `cleanup-moderation-evidence` with JWT verification enabled. Apply
+   `20260826120000_content_report_text_target_and_evidence_retention.sql` first;
+   drop v1 only after A/B/C smoke. See `docs/moderation-runbook.md`.
 5. For admin calls use both `Authorization: Bearer <service-role key>` and the
    matching `x-moderator-secret` or `x-cleanup-secret` header.
 6. Run cleanup manually for the internal window; Cron/Vault remains an external-beta P1.
