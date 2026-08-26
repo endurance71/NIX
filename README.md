@@ -36,6 +36,7 @@ NiX to aplikacja Expo przeznaczona wyłącznie na iPhone/iOS, z efemerycznym prz
 ## Dokumentacja
 
 - **Deploy iOS (cost-first):** [`docs/DEPLOY_IOS_TESTFLIGHT.md`](docs/DEPLOY_IOS_TESTFLIGHT.md) — hotfix JS → `eas update`; nowy binary → lokalny Xcode Archive → TestFlight; **bez** domyślnego `eas build`
+- **App Store Review audit (2026-08-26):** [`docs/APP_STORE_REVIEW_AUDIT_2026-08-26.md`](docs/APP_STORE_REVIEW_AUDIT_2026-08-26.md) — werdykt, blokery 1.2/1.6/5.1 i checklista GO/NO-GO
 - **Rollout roadmapy iOS:** [`docs/ios-roadmap-rollout.md`](docs/ios-roadmap-rollout.md)
 - **Wytyczne native-first dla iOS:** [`docs/native-platform-guidelines.md`](docs/native-platform-guidelines.md)
 - **Design Apple (referencja HIG, nie dev):** [`docs/Design by apple/README.md`](docs/Design%20by%20apple/README.md)
