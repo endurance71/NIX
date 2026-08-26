@@ -106,7 +106,7 @@ Werdykt aplikacji pozostaje **NO-GO** (P0-3, P0-4, P0-5 otwarte).
 | Contract | `20260827120000_drop_create_content_report_v1.sql` (produkcja: po smoke) |
 | RPC | `create_content_report_v2`; Edge `report-content` nie czyta `text_messages` przed RPC |
 | Testy | pgTAP A/B/C w `supabase/tests/content_report_v2_test.sql`; Deno `contract_test.ts`; Vitest `safetyService.test.ts` |
-| Commit | uzupełnić SHA po merge |
+| Commit | `838509e1b1ed634b794c67f33854d2ef0fb5d2fd` |
 
 Produkcyjny dry-run, `db push` expand, deploy funkcji, smoke A/B/C, contract i
 cleanup pozostają bramką operatora (`MANUAL`). Nie przywracać v1.
