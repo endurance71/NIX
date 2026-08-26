@@ -43,22 +43,25 @@ usługą ratunkową.
 1. W sekretach funkcji ustaw silne, niezależne wartości `MODERATOR_API_SECRET`
    i `MODERATION_CLEANUP_SECRET`; ogranicz dostęp do dwóch upoważnionych osób.
 2. Wdróż migrację `20260715095155_add_safety_moderation_and_age_gate.sql`.
-3. Wdróż expand `20260826120000_content_report_text_target_and_evidence_retention.sql`
-   **zanim** wdróżysz Edge Function v2. Nie aplikuj jeszcze
-   `20260827120000_drop_create_content_report_v1.sql`.
+3. Wdróż **tylko** expand
+   `20260826120000_content_report_text_target_and_evidence_retention.sql`.
+   Expand **nie** zawiera CHECK `evidence_path ⇒ evidence_expires_at` ani dropu
+   v1 — dzięki temu stary `report-content` w oknie expand→Edge nie zostawia
+   sierot Storage.
 4. Wdróż funkcje `report-content`, `block-user`, `moderation-admin` oraz
    `cleanup-moderation-evidence`. Nie ustawiaj `SENTRY_DSN`, dopóki obowiązuje hard-off.
-5. Smoke A/B/C (sekcja poniżej), potem dry-run cleanupu.
-6. Dopiero wtedy aplikuj contract `20260827120000_drop_create_content_report_v1.sql`.
+5. Smoke A/B/C (sekcja poniżej), potem dry-run cleanupu
+   (`{"dryRun":true}` / `x-dry-run: true`). Cleanup kasuje max 200 sierot
+   na przebieg (najstarsze pierwsze).
+6. **Osobny PR / osobna migracja contract** dopiero po powyższych krokach —
+   szkic: [docs/plans/2026-08-26-content-report-contract-followup.md](./plans/2026-08-26-content-report-contract-followup.md)
+   (re-backfill → CHECK → drop v1). Nie trzymać pliku contract w tym samym
+   `db push` co expand.
 7. Zaplanuj codziennie `cleanup-moderation-evidence` przez Supabase Cron/Vault.
    Wywołanie musi zawierać `x-cleanup-secret`; sekretu nie umieszczaj w SQL ani repo.
    Produkcyjny cleanup z kasowaniem uruchamiaj dopiero po pozytywnym dry-run.
 8. Przed TestFlight wykonaj zgłoszenie testowe i potwierdź, że klient nie może
    odczytać bucketu dowodowego bez funkcji administracyjnej.
-
-`supabase db push --linked` aplikuje **wszystkie** oczekujące pliki. Na produkcji
-nie wolno wypchnąć expand i contract w jednym kroku przed deployem funkcji.
-Zastosuj expand SQL osobno, wdróż funkcje, zrób smoke, potem contract.
 
 Lista kolejki jest dostępna przez POST do `moderation-admin` z nagłówkiem
 `x-moderator-secret` i body `{"action":"list"}`. Zwracany link do dowodu wygasa

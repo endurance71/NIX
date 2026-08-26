@@ -93,23 +93,29 @@ oraz monitoring `evidence_path IS NOT NULL AND evidence_expires_at IS NULL`.
 **Kryterium zamknięcia:** zaplanowany cleanup usuwa testowy JSON i zeruje ścieżkę, a zapytanie
 o dowody bez terminu zwraca zero.
 
-### P0-1/P0-2 resolved (kod, 2026-08-26)
+### P0-1/P0-2 code ready / production verification pending (2026-08-26)
 
-Kod i testy zamykają oba blokery w gałęzi `codex/fix-report-security-retention`.
-Werdykt aplikacji pozostaje **NO-GO** (P0-3, P0-4, P0-5 otwarte).
+Kod w gałęzi `codex/fix-report-security-retention` naprawia logikę P0-1 i P0-2,
+ale **nie** zamyka formalnie blockerów: brakuje jeszcze `supabase db reset` +
+pgTAP na tym środowisku albo równoważnego stagingu, deployu expand→Edge,
+smoke A/B/C, dry-run cleanupu i osobnego PR contract (CHECK + drop v1).
+Werdykt aplikacji pozostaje **NO-GO** (P0-3, P0-4, P0-5 otwarte; P0-1/P0-2
+operacyjnie pending).
 
 | Pole | Wartość |
 | --- | --- |
+| Status | code ready / production verification pending |
 | Data | 2026-08-26 |
 | Gałąź | `codex/fix-report-security-retention` |
 | Expand | `20260826120000_content_report_text_target_and_evidence_retention.sql` |
-| Contract | `20260827120000_drop_create_content_report_v1.sql` (produkcja: po smoke) |
+| Contract | osobny follow-up PR po smoke — [docs/plans/2026-08-26-content-report-contract-followup.md](./plans/2026-08-26-content-report-contract-followup.md) |
 | RPC | `create_content_report_v2`; Edge `report-content` nie czyta `text_messages` przed RPC |
-| Testy | pgTAP A/B/C w `supabase/tests/content_report_v2_test.sql`; Deno 13/13; Vitest 71 plików / 387 testów (w tym `safetyService.test.ts`) |
-| Commit | `3538f25e7805876a5514e38d83aee1b0835a2121` |
+| Testy lokalne | Deno 13/13; Vitest 71/387; typecheck/lint/Knip/migracje |
+| pgTAP | `npm run test:supabase-db` — 16/16 w `content_report_v2_test.sql` (+ pozostałe pliki) PASS |
+| DB lint | `npm run check:supabase-db-lint` — zero findings |
 
-Produkcyjny dry-run, `db push` expand, deploy funkcji, smoke A/B/C, contract i
-cleanup pozostają bramką operatora (`MANUAL`). Nie przywracać v1.
+Produkcyjny dry-run, deploy expand, Edge v2, smoke A/B/C, contract i cleanup
+pozostają bramką operatora (`MANUAL`). Nie przywracać v1.
 
 ### P0-3. Niepełna ochrona UGC względem Guideline 1.2
 
@@ -361,9 +367,9 @@ autoryzacji `report-content` na trzech użytkownikach ani testu retencji JSON ev
 
 ### Kod i backend — obowiązkowe
 
-- [x] Naprawiono autoryzację raportów tekstowych i XOR targetów.
-- [x] Dodano testy A/B/C dla zgłoszeń i prób podmiany UUID.
-- [x] Wszystkie dowody mają 30-dniowe `evidence_expires_at`; backfill i cleanup sierot są w migracji/funkcji (produkcja: MANUAL).
+- [ ] Naprawiono autoryzację raportów tekstowych i XOR targetów (kod gotowy; weryfikacja produkcji pending).
+- [ ] Dodano testy A/B/C dla zgłoszeń i prób podmiany UUID (pgTAP w repo; wymagany lokalny `test:supabase-db` / staging).
+- [ ] Wszystkie dowody mają 30-dniowe `evidence_expires_at`; backfill w expand, CHECK+drop v1 w follow-up PR; cleanup sierot po dry-run (produkcja: MANUAL).
 - [ ] Wdrożono skuteczny mechanizm filtrowania tekstu i mediów zgodny z 1.2.
 - [ ] Moderator może usunąć treść, zablokować konto, rozpatrzyć appeal i zachować audyt.
 - [ ] Sign in with Apple revoke działa przed zakończeniem usuwania konta.

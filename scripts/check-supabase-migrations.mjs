@@ -34,7 +34,6 @@ const expected = [
   '20260810194500_mark_nix_unplayable.sql',
   '20260820080300_repair_missing_shared_media_references.sql',
   '20260826120000_content_report_text_target_and_evidence_retention.sql',
-  '20260827120000_drop_create_content_report_v1.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
@@ -179,28 +178,27 @@ for (const marker of [
   'REFERENCES public.text_messages(id) ON DELETE SET NULL',
   'idx_content_reports_reporter_text_message_unique',
   'content_reports_single_content_target',
-  'content_reports_evidence_requires_expiry',
   'CREATE OR REPLACE FUNCTION public.create_content_report_v2',
   'Invalid legacy reported user',
   'CREATE OR REPLACE FUNCTION public.list_moderation_evidence_orphans',
   "evidence_expires_at = created_at + INTERVAL '30 days'",
+  'ORDER BY o.created_at ASC',
+  'LIMIT 200',
 ]) {
   if (!reportV2.includes(marker)) {
     failures.push(`content report v2 migration is missing ${marker}`);
   }
 }
-
-const reportV1Drop = await readFile(
-  path.join(migrationsDir, '20260827120000_drop_create_content_report_v1.sql'),
-  'utf8'
-);
-for (const marker of [
-  'REVOKE ALL ON FUNCTION public.create_content_report(TEXT, UUID, UUID, TEXT)',
-  'DROP FUNCTION IF EXISTS public.create_content_report(TEXT, UUID, UUID, TEXT)',
-]) {
-  if (!reportV1Drop.includes(marker)) {
-    failures.push(`content report v1 drop migration is missing ${marker}`);
-  }
+if (/ADD CONSTRAINT\s+content_reports_evidence_requires_expiry/i.test(reportV2)) {
+  failures.push(
+    'expand must not add content_reports_evidence_requires_expiry (ships in follow-up contract PR)'
+  );
+}
+if (
+  actual.includes('20260827120000_drop_create_content_report_v1.sql') ||
+  actual.some((name) => /drop_create_content_report_v1/i.test(name))
+) {
+  failures.push('v1 drop/contract migration must not ship in the expand PR');
 }
 
 const seed = await readFile(path.join(root, 'supabase', 'seed.sql'), 'utf8');

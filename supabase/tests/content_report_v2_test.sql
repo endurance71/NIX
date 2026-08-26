@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(17);
+SELECT plan(16);
 
 INSERT INTO auth.users(
   id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -255,20 +255,6 @@ SELECT is(
 
 RESET ROLE;
 
-SELECT throws_ok(
-  $$INSERT INTO public.content_reports(
-      reporter_id, reported_user_id, reason, evidence_path
-    ) VALUES (
-      'a1000000-0000-0000-0000-000000000002',
-      'a1000000-0000-0000-0000-000000000001',
-      'spam',
-      'missing-expiry/evidence.json'
-    )$$,
-  '23514',
-  NULL,
-  'evidence_path without evidence_expires_at is rejected'
-);
-
 SELECT is(
   (
     SELECT COUNT(*)::INT
@@ -305,8 +291,8 @@ SELECT results_eq(
 );
 
 SELECT ok(
-  to_regprocedure('public.create_content_report(text, uuid, uuid, text)') IS NULL,
-  'v1 create_content_report is dropped after the contract migration'
+  to_regprocedure('public.create_content_report(text, uuid, uuid, text)') IS NOT NULL,
+  'v1 create_content_report remains until a follow-up contract PR'
 );
 
 SELECT * FROM finish();

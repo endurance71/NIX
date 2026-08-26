@@ -1,7 +1,9 @@
--- Expand: text messages as a first-class report target, 30-day evidence expiry
--- for every stored proof, and create_content_report_v2. The v1 RPC remains
--- granted until 20260827120000_drop_create_content_report_v1.sql so production
--- can deploy this migration, then the Edge Function, then drop v1.
+-- Expand only: text message report target, backfill evidence expiry, RPC v2,
+-- and orphan inventory. Do NOT add content_reports_evidence_requires_expiry
+-- here — a live report-content v1 would upload evidence then fail the path
+-- update, leaving Storage orphans. CHECK + drop v1 ship in a separate
+-- follow-up PR after Edge Function v2 is deployed and smoke-tested.
+-- See docs/plans/2026-08-26-content-report-contract-followup.md.
 
 ALTER TABLE public.content_reports
   ADD COLUMN IF NOT EXISTS text_message_id UUID REFERENCES public.text_messages(id) ON DELETE SET NULL;
@@ -29,21 +31,6 @@ UPDATE public.content_reports
 SET evidence_expires_at = created_at + INTERVAL '30 days'
 WHERE evidence_path IS NOT NULL
   AND evidence_expires_at IS NULL;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
-    WHERE conname = 'content_reports_evidence_requires_expiry'
-      AND conrelid = 'public.content_reports'::regclass
-  ) THEN
-    ALTER TABLE public.content_reports
-      ADD CONSTRAINT content_reports_evidence_requires_expiry
-      CHECK (evidence_path IS NULL OR evidence_expires_at IS NOT NULL);
-  END IF;
-END
-$$;
 
 CREATE OR REPLACE FUNCTION public.create_content_report_v2(
   p_reason TEXT,
@@ -240,7 +227,9 @@ AS $$
       SELECT 1
       FROM public.content_reports r
       WHERE r.evidence_path = o.name
-    );
+    )
+  ORDER BY o.created_at ASC
+  LIMIT 200;
 $$;
 
 REVOKE ALL ON FUNCTION public.create_content_report_v2(TEXT, UUID, UUID, UUID, TEXT) FROM PUBLIC, anon;
