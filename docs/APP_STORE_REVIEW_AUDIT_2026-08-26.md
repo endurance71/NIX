@@ -21,10 +21,12 @@ retencja dowodów). Wysłanie kandydata do review jest nadal zbyt ryzykowne. Poz
    moderacja nie zastępują tego osobnego wymagania (P0-3);
 2. usunięcie konta Apple usuwa użytkownika z Supabase, ale nie ma implementacji odwołania
    tokenów Sign in with Apple przez Apple REST API (P0-4);
-3. nierozliczone bramki App Review i środowiska: konta demo, ASC, cron cleanupu,
+3. nierozliczone bramki App Review i środowiska: konta demo, ASC,
    podpisany Archive, smoke na urządzeniu (P0-5).
 
 Dopóki P0-3, P0-4 i P0-5 nie zostaną zamknięte, status pozostaje **NO-GO**.
+Sprint 2: wdrożony; final acceptance po kontroli T+24
+([issue #6](https://github.com/endurance71/NIX/issues/6), 2026-08-28 10:41 CEST).
 
 ## 2. Skala priorytetów
 
@@ -90,23 +92,30 @@ oraz monitoring `evidence_path IS NOT NULL AND evidence_expires_at IS NULL`.
 **Kryterium zamknięcia:** zaplanowany cleanup usuwa testowy JSON i zeruje ścieżkę, a zapytanie
 o dowody bez terminu zwraca zero.
 
-**Status 2026-08-27:** zamknięte na produkcji (CHECK retencji, `missing_expiry = 0`,
-sieroty = 0). Dowody poniżej. Cron codziennego `cleanup-moderation-evidence` nadal
-nie istnieje — to bramka P0-5 / operacyjna, nie blocker P0-2 (expiry i CHECK żyją).
+**Status 2026-08-27:** **CLOSED** na produkcji (CHECK retencji, `missing_expiry = 0`,
+sieroty = 0). Cron codziennego `cleanup-moderation-evidence` jest follow-upem
+operacyjnym P0-2 (egzekucja retencji), nie blocker autoryzacji.
 
-### P0-1/P0-2 zamknięte na produkcji (2026-08-27)
+### P0-1 CLOSED / P0-2 CODE+PRODUCTION CLOSED (2026-08-27)
 
-Werdykt aplikacji pozostaje **NO-GO** wyłącznie z powodu P0-3, P0-4 i P0-5.
+| Werdykt | Stan |
+| --- | --- |
+| P0-1 | **CLOSED** |
+| P0-2 | **CODE/PRODUCTION CLOSED**, operational follow-up: cron cleanup (poniżej) |
+| Sprint 2 | wdrożony; **final acceptance pending T+24** ([issue #6](https://github.com/endurance71/NIX/issues/6), po 2026-08-28 10:41 CEST) |
+| Aplikacja | **NO-GO** — P0-3, P0-4, P0-5 |
 
 | Pole | Wartość |
 | --- | --- |
-| Status | closed on production |
+| Status | P0-1 closed; P0-2 code/production closed |
 | Data | 2026-08-27 |
 | Expand merge SHA | `ba776f3a86ff9d4a818dba86d645fb9a4218bfc7` (PR #3) |
 | MIME hotfix SHA | `504a02334f6668e30dc1d0ff707ad61389d6394a` (PR #4, `application/json` w `moderation-evidence`) |
 | Contract merge SHA | `18830720f3419c8abbe9326ffab9bc1fcb15bf27` (PR #5) |
+| Audyt na `main` | `127b111562b1a8948206e8b3f96e24a901bf1f24` |
 | Expand | `20260826120000_content_report_text_target_and_evidence_retention.sql` |
 | Contract | `20260827120000_content_report_evidence_expiry_check_and_drop_v1.sql` |
+| Cron | `20260827125000_schedule_cleanup_moderation_evidence.sql` — job `cleanup-moderation-evidence`, `27 4 * * *` UTC; Vault `moderation_cleanup_secret` (wartość poza repo) |
 | RPC | wyłącznie `create_content_report_v2`; v1 `create_content_report` **nie istnieje** |
 | CHECK | `content_reports_evidence_requires_expiry` — `evidence_path IS NULL OR evidence_expires_at IS NOT NULL` |
 | Edge | `report-content` v4 `verify_jwt=true`; `cleanup-moderation-evidence` v3 `verify_jwt=true` |
@@ -115,8 +124,9 @@ Werdykt aplikacji pozostaje **NO-GO** wyłącznie z powodu P0-3, P0-4 i P0-5.
 | Cleanup | dry-run 0 sierot; live 0 usuniętych rekordów/obiektów (brak sierot; aktywny dowód zachowany) |
 | Integrity | `missing_expiry=0` `expired_with_file=0` `evidence_failed=0` `old_orphans=0` `duplicate_reports=0` |
 | Obserwacja | okno `2026-08-27T08:41:31Z` → `2026-08-28T08:41:31Z`; T0: 1×500 (MIME przed PR #4, wyjaśnione), potem 2×200 / 2×400 / 2×403; Sentry funkcji hard-off |
+| T+24 | [issue #6](https://github.com/endurance71/NIX/issues/6) — nie zamykać Sprint 2 acceptance przed tą kontrolą |
 | Rollback | `TEXT_REPORTS_ENABLED=false` w `supabase/functions/report-content/contract.ts`. **Nie** przywracać v1. |
-| Obserwacja poza zakresem | `push-dispatch` prod `verify_jwt=false` (v11) vs `config.toml` `true`; auth w `hasServiceRoleBearer` — nie zmieniane w tym sprincie |
+| Osobne zadanie | `push-dispatch` prod `verify_jwt=false` (v11) — [issue #7](https://github.com/endurance71/NIX/issues/7). **Nie** zmieniać bez sprawdzenia autoryzacji wywołań (`hasServiceRoleBearer` + Vault JWT). |
 
 `npx supabase migration list --linked` jest zgodny lokalnie i zdalnie do
 `20260827120000`. Nie wołano `migration repair`. Kill-switch v1 nie został użyty.
@@ -173,8 +183,9 @@ starego tokenu nie działa, a awaria revoke ma kontrolowaną, ponawialną ście�
 nazwiska kontaktowego i screenshotów. Stan produkcji po Sprincie 2 (2026-08-27):
 
 - migracje i `report-content` / `cleanup-moderation-evidence` są wdrożone (zob. P0-1/P0-2);
-- cron `cleanup-moderation-evidence` **nie** istnieje; `push-dispatch` ma `verify_jwt=false`;
-- nadal niepotwierdzone z repozytorium: kolejka moderatora, App Privacy/rating w ASC,
+- cron `cleanup-moderation-evidence` jest w migracji `20260827125000` (`27 4 * * *` UTC);
+- `push-dispatch` ma `verify_jwt=false` — osobne zadanie [issue #7](https://github.com/endurance71/NIX/issues/7);
+- nadal niepotwierdzone: kolejka moderatora, App Privacy/rating w ASC,
   `aps-environment=production` na Archive, dostępność backendu przez review,
   smoke na fizycznym iPhonie i iPad compatibility.
 
@@ -383,9 +394,9 @@ pgTAP 17/17 po contract oraz smoke A/B/C na produkcji (2026-08-27).
 
 ### Produkcja i operacje — obowiązkowe
 
-- [x] `supabase migration list --linked` zgadza się z repozytorium (do `20260827120000`).
-- [ ] Wszystkie Edge Functions wdrożono z właściwą weryfikacją JWT/sekretów.
-- [ ] Cron cleanupu i alert na dowody bez expiry są aktywne.
+- [x] `supabase migration list --linked` zgadza się z repozytorium (do `20260827125000` po cronie).
+- [ ] Wszystkie Edge Functions wdrożono z właściwą weryfikacją JWT/sekretów (`push-dispatch` prod `verify_jwt=false` — [issue #7](https://github.com/endurance71/NIX/issues/7)).
+- [x] Cron `cleanup-moderation-evidence` zaplanowany (`27 4 * * *` UTC, Vault `moderation_cleanup_secret`). Alert missing_expiry: Sentry hard-off; kontrola SQL / `check:moderation-evidence-integrity`.
 - [ ] Wykonano `check:media-storage-integrity` na produkcji i DB lint.
 - [ ] Przeprowadzono smoke report/block/decision/removal/appeal/cleanup.
 - [ ] Wyznaczono właściciela moderacji i dyżur zgodny z deklarowanym SLA.

@@ -57,9 +57,12 @@ usługą ratunkową.
    szkic: [docs/plans/2026-08-26-content-report-contract-followup.md](./plans/2026-08-26-content-report-contract-followup.md)
    (re-backfill → CHECK → drop v1). Nie trzymać pliku contract w tym samym
    `db push` co expand.
-7. Zaplanuj codziennie `cleanup-moderation-evidence` przez Supabase Cron/Vault.
-   Wywołanie musi zawierać `x-cleanup-secret`; sekretu nie umieszczaj w SQL ani repo.
-   Produkcyjny cleanup z kasowaniem uruchamiaj dopiero po pozytywnym dry-run.
+7. Codzienny cron `cleanup-moderation-evidence` (`27 4 * * *` UTC) woła Edge
+   przez `private.invoke_cleanup_moderation_evidence`. Nagłówek
+   `x-cleanup-secret` pochodzi z Vault `moderation_cleanup_secret` i musi
+   pokrywać się z sekretem funkcji `MODERATION_CLEANUP_SECRET`. Wartości nie
+   umieszczaj w SQL ani w repo. Produkcyjny cleanup z kasowaniem uruchamiaj
+   dopiero po pozytywnym dry-run.
 8. Przed TestFlight wykonaj zgłoszenie testowe i potwierdź, że klient nie może
    odczytać bucketu dowodowego bez funkcji administracyjnej.
 

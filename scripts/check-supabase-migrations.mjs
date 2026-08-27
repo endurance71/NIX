@@ -37,6 +37,7 @@ const expected = [
   '20260826120000_content_report_text_target_and_evidence_retention.sql',
   '20260827104500_moderation_evidence_allow_json.sql',
   '20260827120000_content_report_evidence_expiry_check_and_drop_v1.sql',
+  '20260827125000_schedule_cleanup_moderation_evidence.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
@@ -211,6 +212,29 @@ if (/ADD CONSTRAINT\s+content_reports_evidence_requires_expiry/i.test(reportV2))
   failures.push(
     'expand must not add content_reports_evidence_requires_expiry (ships in follow-up contract PR)'
   );
+}
+
+const moderationCleanupCron = await readFile(
+  path.join(migrationsDir, '20260827125000_schedule_cleanup_moderation_evidence.sql'),
+  'utf8'
+);
+for (const marker of [
+  'CREATE OR REPLACE FUNCTION private.moderation_cleanup_auth_headers',
+  'CREATE OR REPLACE FUNCTION private.invoke_cleanup_moderation_evidence',
+  "WHERE ds.name = 'moderation_cleanup_secret'",
+  'x-cleanup-secret',
+  "jobname = 'cleanup-moderation-evidence'",
+  "'27 4 * * *'",
+]) {
+  if (!moderationCleanupCron.includes(marker)) {
+    failures.push(`moderation cleanup cron migration is missing ${marker}`);
+  }
+}
+if (
+  /vault\.create_secret/i.test(moderationCleanupCron) ||
+  /MODERATION_CLEANUP_SECRET\s*=/i.test(moderationCleanupCron)
+) {
+  failures.push('moderation cleanup cron must not embed Vault or Edge secret values');
 }
 
 const evidenceJsonMime = await readFile(
