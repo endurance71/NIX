@@ -1,6 +1,6 @@
 # NiX — kompleksowy audyt App Store Review
 
-**Data audytu:** 2026-08-26
+**Data audytu:** 2026-08-26; reaudyt produkcyjny P0-1/P0-2: 2026-08-27
 **Zakres:** aktualny kod aplikacji iOS `1.0.11`, build `3`, backend Supabase, publiczne strony prawne i lokalne materiały App Store Connect
 **Podstawa:** Apple App Review Guidelines po aktualizacji z 8 czerwca 2026 r.
 **Werdykt:** **NO-GO do App Review**
@@ -13,23 +13,18 @@ między zaakceptowanymi znajomymi, blokowanie, zgłoszenia, publiczny kontakt, b
 brak trackingu i brak IAP w aktualnym binary. Automatyczne testy oraz większość kontroli
 release przeszły pomyślnie.
 
-Wysłanie obecnego kandydata do review jest jednak zbyt ryzykowne. Audyt wykrył cztery
-blokery produktowo-techniczne oraz nierozliczone bramki operacyjne:
+Sprint 2 (2026-08-27) zamknął na produkcji P0-1 i P0-2 (auth zgłoszeń tekstu + 30-dniowa
+retencja dowodów). Wysłanie kandydata do review jest nadal zbyt ryzykowne. Pozostają:
 
-1. endpoint zgłoszeń tekstu może pobrać treść dowolnej wiadomości wskazanej UUID-em,
-   ponieważ używa `service_role` bez sprawdzenia, czy zgłaszający jest uczestnikiem rozmowy;
-2. dowody tekstowe nie dostają `evidence_expires_at`, więc deklarowane 30 dni retencji
-   nie jest egzekwowane i pliki mogą pozostać w Storage bezterminowo;
-3. media UGC nie mają żadnej metody filtrowania przed wysłaniem, podczas gdy Guideline
+1. media UGC nie mają żadnej metody filtrowania przed wysłaniem, podczas gdy Guideline
    1.2 wymaga metody filtrowania objectionable material; istniejące report/block i ręczna
-   moderacja nie zastępują tego osobnego wymagania;
-4. usunięcie konta Apple usuwa użytkownika z Supabase, ale nie ma implementacji odwołania
-   tokenów Sign in with Apple przez Apple REST API.
+   moderacja nie zastępują tego osobnego wymagania (P0-3);
+2. usunięcie konta Apple usuwa użytkownika z Supabase, ale nie ma implementacji odwołania
+   tokenów Sign in with Apple przez Apple REST API (P0-4);
+3. nierozliczone bramki App Review i środowiska: konta demo, ASC, cron cleanupu,
+   podpisany Archive, smoke na urządzeniu (P0-5).
 
-Dodatkowo nie ma dowodu, że produkcyjny backend i cron moderacji odpowiadają dokładnie
-audytowanemu kodowi, a dane demo, kontakt telefoniczny, screenshoty i smoke testy pozostają
-oznaczone jako `MANUAL GATE`. Dopóki wszystkie blokery i bramki P0 nie zostaną zamknięte,
-status pozostaje **NO-GO**.
+Dopóki P0-3, P0-4 i P0-5 nie zostaną zamknięte, status pozostaje **NO-GO**.
 
 ## 2. Skala priorytetów
 
@@ -72,6 +67,8 @@ dostępu. Atak działa również przy łączeniu własnego poprawnego `nixId` z 
 **Kryterium zamknięcia:** test integracyjny na trzech kontach zwraca 403/bez dowodu dla C,
 a prawidłowy odbiorca B tworzy dokładnie jeden raport i jedną kopię dowodu.
 
+**Status 2026-08-27:** zamknięte na produkcji. Dowody w sekcji P0-1/P0-2 poniżej.
+
 ### P0-2. Dowody tekstowe nie podlegają deklarowanemu 30-dniowemu cleanupowi
 
 **Reguły:** 5.1.1 Privacy Policy, 1.6 Data Security.
@@ -93,28 +90,36 @@ oraz monitoring `evidence_path IS NOT NULL AND evidence_expires_at IS NULL`.
 **Kryterium zamknięcia:** zaplanowany cleanup usuwa testowy JSON i zeruje ścieżkę, a zapytanie
 o dowody bez terminu zwraca zero.
 
-### P0-1/P0-2 code ready / production verification pending (2026-08-26)
+**Status 2026-08-27:** zamknięte na produkcji (CHECK retencji, `missing_expiry = 0`,
+sieroty = 0). Dowody poniżej. Cron codziennego `cleanup-moderation-evidence` nadal
+nie istnieje — to bramka P0-5 / operacyjna, nie blocker P0-2 (expiry i CHECK żyją).
 
-Kod w gałęzi `codex/fix-report-security-retention` naprawia logikę P0-1 i P0-2,
-ale **nie** zamyka formalnie blockerów. pgTAP lokalnie PASS; staging/produkcja
-pending (deploy expand→Edge, smoke A/B/C, dry-run cleanupu i osobny PR contract
-CHECK + drop v1). Werdykt aplikacji pozostaje **NO-GO** (P0-3, P0-4, P0-5
-otwarte; P0-1/P0-2 operacyjnie pending).
+### P0-1/P0-2 zamknięte na produkcji (2026-08-27)
+
+Werdykt aplikacji pozostaje **NO-GO** wyłącznie z powodu P0-3, P0-4 i P0-5.
 
 | Pole | Wartość |
 | --- | --- |
-| Status | code ready / production verification pending |
-| Data | 2026-08-26 |
-| Gałąź | `codex/fix-report-security-retention` |
+| Status | closed on production |
+| Data | 2026-08-27 |
+| Expand merge SHA | `ba776f3a86ff9d4a818dba86d645fb9a4218bfc7` (PR #3) |
+| MIME hotfix SHA | `504a02334f6668e30dc1d0ff707ad61389d6394a` (PR #4, `application/json` w `moderation-evidence`) |
+| Contract merge SHA | `18830720f3419c8abbe9326ffab9bc1fcb15bf27` (PR #5) |
 | Expand | `20260826120000_content_report_text_target_and_evidence_retention.sql` |
-| Contract | osobny follow-up PR po smoke — [docs/plans/2026-08-26-content-report-contract-followup.md](./plans/2026-08-26-content-report-contract-followup.md) |
-| RPC | `create_content_report_v2`; Edge `report-content` nie czyta `text_messages` przed RPC |
-| Testy lokalne | Deno 13/13; Vitest 71/387; typecheck/lint/Knip/migracje |
-| pgTAP | `npm run test:supabase-db` — 16/16 w `content_report_v2_test.sql` (+ pozostałe pliki) PASS |
-| DB lint | `npm run check:supabase-db-lint` — zero findings |
+| Contract | `20260827120000_content_report_evidence_expiry_check_and_drop_v1.sql` |
+| RPC | wyłącznie `create_content_report_v2`; v1 `create_content_report` **nie istnieje** |
+| CHECK | `content_reports_evidence_requires_expiry` — `evidence_path IS NULL OR evidence_expires_at IS NOT NULL` |
+| Edge | `report-content` v4 `verify_jwt=true`; `cleanup-moderation-evidence` v3 `verify_jwt=true` |
+| Baseline (przed expand) | reports 0, evidence 0, missing_expiry 0, sieroty 0 |
+| Smoke A/B/C | B→200 jeden raport `f283869e-…` + `evidence.json` + expiry 30d + `reported_user_id=A`; retry ten sam `reportId`; A 403; C 403; XOR 400; fałszywy nadawca 400 |
+| Cleanup | dry-run 0 sierot; live 0 usuniętych rekordów/obiektów (brak sierot; aktywny dowód zachowany) |
+| Integrity | `missing_expiry=0` `expired_with_file=0` `evidence_failed=0` `old_orphans=0` `duplicate_reports=0` |
+| Obserwacja | okno `2026-08-27T08:41:31Z` → `2026-08-28T08:41:31Z`; T0: 1×500 (MIME przed PR #4, wyjaśnione), potem 2×200 / 2×400 / 2×403; Sentry funkcji hard-off |
+| Rollback | `TEXT_REPORTS_ENABLED=false` w `supabase/functions/report-content/contract.ts`. **Nie** przywracać v1. |
+| Obserwacja poza zakresem | `push-dispatch` prod `verify_jwt=false` (v11) vs `config.toml` `true`; auth w `hasServiceRoleBearer` — nie zmieniane w tym sprincie |
 
-Produkcyjny dry-run, deploy expand, Edge v2, smoke A/B/C, contract i cleanup
-pozostają bramką operatora (`MANUAL`). Nie przywracać v1.
+`npx supabase migration list --linked` jest zgodny lokalnie i zdalnie do
+`20260827120000`. Nie wołano `migration repair`. Kill-switch v1 nie został użyty.
 
 ### P0-3. Niepełna ochrona UGC względem Guideline 1.2
 
@@ -165,14 +170,13 @@ starego tokenu nie działa, a awaria revoke ma kontrolowaną, ponawialną ście�
 **Reguły:** Before You Submit, 2.1 App Completeness, 2.3 Accurate Metadata.
 
 `docs/testflight-test-information.md` nadal zawiera placeholdery dwóch kont demo, telefonu,
-nazwiska kontaktowego i screenshotów. Nie da się też potwierdzić z repozytorium:
+nazwiska kontaktowego i screenshotów. Stan produkcji po Sprincie 2 (2026-08-27):
 
-- czy audytowane migracje i funkcje są wdrożone w produkcyjnym Supabase;
-- czy cron cleanupu i kolejka moderatora są aktywne;
-- czy App Privacy oraz rating 16+ zostały opublikowane w ASC;
-- czy podpisany Archive ma `aps-environment=production`;
-- czy backend pozostanie dostępny przez cały review;
-- czy build przeszedł smoke na fizycznym iPhonie i w iPhone compatibility mode na iPadzie.
+- migracje i `report-content` / `cleanup-moderation-evidence` są wdrożone (zob. P0-1/P0-2);
+- cron `cleanup-moderation-evidence` **nie** istnieje; `push-dispatch` ma `verify_jwt=false`;
+- nadal niepotwierdzone z repozytorium: kolejka moderatora, App Privacy/rating w ASC,
+  `aps-environment=production` na Archive, dostępność backendu przez review,
+  smoke na fizycznym iPhonie i iPad compatibility.
 
 **Kryterium zamknięcia:** komplet dowodów z checklisty w sekcji 11, dwa działające konta
 reviewera i pełna ścieżka A↔B wykonana na czystej instalacji bez dostępu do prywatnej skrzynki.
@@ -296,7 +300,7 @@ nie może jeszcze promować subskrypcji, triala ani limitu Free.
 | Wymóg Apple | Stan | Ocena |
 | --- | --- | --- |
 | filtrowanie objectionable material przed posted | ograniczone frazy tekstowe; brak mediów | **P0 niespełnione** |
-| report offensive content | viewer i chat, raport konkretnej treści | UX spełniony; backend ma P0 auth |
+| report offensive content | viewer i chat, raport konkretnej treści | UX + backend P0-1 zamknięte na prod (smoke A/B/C) |
 | timely response | runbook: critical 2 h/12 h, normal 24 h/72 h | MANUAL — brak dowodu dyżuru i metryk |
 | block abusive users | viewer/chat/inbox + lista unblock | spełnione statycznie |
 | published contact | app + support URL + email | spełnione |
@@ -359,16 +363,16 @@ Przy przyszłym releasie NiX Circle trzeba ponownie wykonać pełny audyt sekcji
 | pełny signed Archive + upload validation | MANUAL |
 | fizyczny iPhone/iPad/VoiceOver/IPv6 smoke | MANUAL |
 
-Uwaga: przejście istniejących testów nie obejmuje wykrytych P0. W szczególności nie ma testu
-autoryzacji `report-content` na trzech użytkownikach ani testu retencji JSON evidence.
+Uwaga: przejście istniejących testów nie obejmuje P0-3 (media 1.2). P0-1/P0-2 mają
+pgTAP 17/17 po contract oraz smoke A/B/C na produkcji (2026-08-27).
 
 ## 11. Checklista naprawcza przed ponowną decyzją GO
 
 ### Kod i backend — obowiązkowe
 
-- [ ] Naprawiono autoryzację raportów tekstowych i XOR targetów (kod gotowy; weryfikacja produkcji pending).
-- [ ] Dodano testy A/B/C dla zgłoszeń i prób podmiany UUID (pgTAP lokalnie PASS; staging/produkcja pending).
-- [ ] Wszystkie dowody mają 30-dniowe `evidence_expires_at`; backfill w expand, CHECK+drop v1 w follow-up PR; cleanup sierot po dry-run (produkcja: MANUAL).
+- [x] Naprawiono autoryzację raportów tekstowych i XOR targetów (PR #3 + smoke A/B/C 2026-08-27).
+- [x] Dodano testy A/B/C dla zgłoszeń i prób podmiany UUID (pgTAP 17/17; produkcja: B 200, A/C 403, XOR 400).
+- [x] Wszystkie dowody mają 30-dniowe `evidence_expires_at`; CHECK `content_reports_evidence_requires_expiry`; v1 dropnięte (PR #5 `1883072`); `missing_expiry=0`; sieroty 0.
 - [ ] Wdrożono skuteczny mechanizm filtrowania tekstu i mediów zgodny z 1.2.
 - [ ] Moderator może usunąć treść, zablokować konto, rozpatrzyć appeal i zachować audyt.
 - [ ] Sign in with Apple revoke działa przed zakończeniem usuwania konta.
@@ -379,7 +383,7 @@ autoryzacji `report-content` na trzech użytkownikach ani testu retencji JSON ev
 
 ### Produkcja i operacje — obowiązkowe
 
-- [ ] `supabase migration list --linked` zgadza się z repozytorium.
+- [x] `supabase migration list --linked` zgadza się z repozytorium (do `20260827120000`).
 - [ ] Wszystkie Edge Functions wdrożono z właściwą weryfikacją JWT/sekretów.
 - [ ] Cron cleanupu i alert na dowody bez expiry są aktywne.
 - [ ] Wykonano `check:media-storage-integrity` na produkcji i DB lint.
