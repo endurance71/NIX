@@ -139,6 +139,32 @@
         ]
       }
     },
+    "install": {
+      "exclude": [
+        "@expo/ui",
+        "eslint-config-expo",
+        "expo",
+        "expo-asset",
+        "expo-background-task",
+        "expo-build-properties",
+        "expo-constants",
+        "expo-dev-client",
+        "expo-file-system",
+        "expo-haptics",
+        "expo-image-manipulator",
+        "expo-image-picker",
+        "expo-linking",
+        "expo-notifications",
+        "expo-router",
+        "expo-secure-store",
+        "expo-sqlite",
+        "expo-task-manager",
+        "expo-updates",
+        "expo-video",
+        "expo-widgets",
+        "react-native"
+      ]
+    },
     "doctor": {
       "appConfigFieldsNotSyncedCheck": {
         "enabled": false
