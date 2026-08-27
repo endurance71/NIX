@@ -33,6 +33,7 @@ const expected = [
   '20260810190000_stable_push_device_registration.sql',
   '20260810194500_mark_nix_unplayable.sql',
   '20260820080300_repair_missing_shared_media_references.sql',
+  '20260825195500_text_message_safety_filter.sql',
   '20260826120000_content_report_text_target_and_evidence_retention.sql',
 ];
 
@@ -166,6 +167,21 @@ for (const marker of [
 ]) {
   if (!analyticsHardening.includes(marker)) {
     failures.push(`analytics hardening migration is missing ${marker}`);
+  }
+}
+
+const textSafetyFilter = await readFile(
+  path.join(migrationsDir, '20260825195500_text_message_safety_filter.sql'),
+  'utf8'
+);
+for (const marker of [
+  'CREATE OR REPLACE FUNCTION private.text_message_passes_safety_filter',
+  'text_messages_safety_filter_chk',
+  'CHECK (private.text_message_passes_safety_filter(body))',
+  "COMMENT ON FUNCTION private.text_message_passes_safety_filter(text) IS",
+]) {
+  if (!textSafetyFilter.includes(marker)) {
+    failures.push(`text message safety filter migration is missing ${marker}`);
   }
 }
 
