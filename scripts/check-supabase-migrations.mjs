@@ -35,6 +35,7 @@ const expected = [
   '20260820080300_repair_missing_shared_media_references.sql',
   '20260825195500_text_message_safety_filter.sql',
   '20260826120000_content_report_text_target_and_evidence_retention.sql',
+  '20260827104500_moderation_evidence_allow_json.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
@@ -209,6 +210,19 @@ if (/ADD CONSTRAINT\s+content_reports_evidence_requires_expiry/i.test(reportV2))
   failures.push(
     'expand must not add content_reports_evidence_requires_expiry (ships in follow-up contract PR)'
   );
+}
+
+const evidenceJsonMime = await readFile(
+  path.join(migrationsDir, '20260827104500_moderation_evidence_allow_json.sql'),
+  'utf8'
+);
+for (const marker of [
+  "WHERE id = 'moderation-evidence'",
+  "'application/json'",
+]) {
+  if (!evidenceJsonMime.includes(marker)) {
+    failures.push(`moderation-evidence JSON mime migration is missing ${marker}`);
+  }
 }
 if (
   actual.includes('20260827120000_drop_create_content_report_v1.sql') ||
