@@ -36,6 +36,7 @@ const expected = [
   '20260825195500_text_message_safety_filter.sql',
   '20260826120000_content_report_text_target_and_evidence_retention.sql',
   '20260827104500_moderation_evidence_allow_json.sql',
+  '20260827120000_content_report_evidence_expiry_check_and_drop_v1.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
@@ -224,11 +225,22 @@ for (const marker of [
     failures.push(`moderation-evidence JSON mime migration is missing ${marker}`);
   }
 }
-if (
-  actual.includes('20260827120000_drop_create_content_report_v1.sql') ||
-  actual.some((name) => /drop_create_content_report_v1/i.test(name))
-) {
-  failures.push('v1 drop/contract migration must not ship in the expand PR');
+if (evidenceJsonMime.includes('application/json') === false) {
+  failures.push('moderation-evidence JSON mime migration is missing application/json');
+}
+
+const contract = await readFile(
+  path.join(migrationsDir, '20260827120000_content_report_evidence_expiry_check_and_drop_v1.sql'),
+  'utf8'
+);
+for (const marker of [
+  'content_reports_evidence_requires_expiry',
+  'CHECK (evidence_path IS NULL OR evidence_expires_at IS NOT NULL)',
+  'DROP FUNCTION IF EXISTS public.create_content_report(TEXT, UUID, UUID, TEXT)',
+]) {
+  if (!contract.includes(marker)) {
+    failures.push(`content report contract migration is missing ${marker}`);
+  }
 }
 
 const seed = await readFile(path.join(root, 'supabase', 'seed.sql'), 'utf8');

@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(16);
+SELECT plan(17);
 
 INSERT INTO auth.users(
   id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -291,8 +291,18 @@ SELECT results_eq(
 );
 
 SELECT ok(
-  to_regprocedure('public.create_content_report(text, uuid, uuid, text)') IS NOT NULL,
-  'v1 create_content_report remains until a follow-up contract PR'
+  to_regprocedure('public.create_content_report(text, uuid, uuid, text)') IS NULL,
+  'v1 create_content_report is removed after the contract migration'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'content_reports_evidence_requires_expiry'
+      AND conrelid = 'public.content_reports'::regclass
+  ),
+  'evidence_path requires evidence_expires_at'
 );
 
 SELECT * FROM finish();
