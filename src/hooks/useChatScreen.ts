@@ -296,7 +296,6 @@ export function useChatScreen(peerId: string) {
     }
     try {
       await reportContent({
-        reportedUserId: message.sender_id,
         textMessageId: message.id,
         reason,
         details: 'User reported text message in chat screen.',
