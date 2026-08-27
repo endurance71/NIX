@@ -1,10 +1,14 @@
 # Polityka moderacji pre-delivery (wersja `2026.08.27-p0`)
 
 **Status:** Proposed — wiąże się z [ADR-001](./adr/ADR-001-pre-delivery-content-moderation-provider.md).
-Nie włączać enforcement na produkcji, dopóki ADR nie jest Accepted i spike JPEG/MP4 nie przejdzie.
+Nie włączać enforcement na produkcji, dopóki ADR nie jest Accepted i spike 3A
+(tekst/JPEG/MP4 15/60/180) nie przejdzie na Azure F0.
 
 Źródło progów: serwer (ten dokument + kod `moderation-policy.ts`). Klient nie zna
 progów i nie może ich nadpisać.
+
+Human review jest **wyłączone** w 3A i 3B. Kolumna `review_required` poniżej to
+przyszła możliwość, nie ścieżka produkcyjna.
 
 ## Kategorie wysokiego ryzyka
 
@@ -15,13 +19,14 @@ CHECK. Sam CHECK **nie** zamyka 1.2 dla mediów.
 
 ## Macierz decyzji
 
-`maxSeverity` = maksimum po wszystkich kategoriach (dla wideo: maksimum po klatkach
-i transkrypcie).
+`maxSeverity` = maksimum po wszystkich kategoriach (dla wideo: maksimum po
+zaksięgowanych klatkach wybranej strategii). Kilka klatek **nie** jest pełnym
+skanem pliku, chyba że strategia to baseline 1 fps na całej osi.
 
-| maxSeverity | Human review włączony | Human review wyłączony (domyślnie, brak właściciela SLA) |
+| maxSeverity | Pierwszy rollout (human review wyłączony) | Przyszłość, tylko z właścicielem SLA |
 | --- | --- | --- |
 | 0 lub 2 | `approved` | `approved` |
-| 4 | `review_required` — brak doręczenia | `rejected` (`CONTENT_NOT_ALLOWED`) |
+| 4 | `rejected` (`CONTENT_NOT_ALLOWED`) | `review_required` — brak doręczenia |
 | 6 | `rejected` | `rejected` |
 
 Timeout, 429, 5xx, brak sekretu, zły podpis callbacku, niepełna odpowiedź:
@@ -40,7 +45,7 @@ Zakaz dostarczania bez decyzji `approved`.
 | `synthetic-review-violence-4` | Zsyntetyzowana odpowiedź API | fixture JSON w repo | `rejected` gdy review off; `review_required` gdy on |
 | `synthetic-provider-500` | Błąd dostawcy | fixture | nie `approved` |
 | `spike-safe-jpeg` | Sandbox, prawdziwy plik | operator, poza Git | `approved` |
-| `spike-safe-mp4` | Sandbox, np. krótki klip licencjonowany | operator, poza Git | `approved` po klatkach |
+| `spike-safe-mp4-15-60-180` | Sandbox, klipy 15/60/180 s | operator, poza Git | start/środek/koniec pokryte; decyzja po wybranej strategii |
 | `spike-high-risk` | Licencjonowany zestaw testowy dostawcy / Studio | **nie commitujemy** | `rejected` przed `nixes` |
 
 ## Przykładowe odpowiedzi dostawcy (Azure `2024-09-01`)

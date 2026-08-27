@@ -14,106 +14,124 @@ MIME/rozmiaru tworzy NiXy bez skanu. Publiczna polityka wprost mówi, że
 prywatnych wiadomości nie skanujemy automatycznie — to trzeba zmienić dopiero
 po realnym wdrożeniu, nie wcześniej.
 
-Sprint 3 wymaga backendowego skanu **tekstu, JPEG i pełnego pliku wideo**
-(nie samej miniatury), trybu async, fail-closed, retencji wyniku bez surowej
-odpowiedzi dostawcy, regionu/DPA dla prywatnych 1:1 oraz kill switch, który
-**nie** przełącza na bypass.
+Cel kosztowy Sprintu 3: **0 USD miesięcznie**. Płatny tier (Azure S0 lub inny)
+wymaga późniejszej, osobnej decyzji opartej na rzeczywistym użyciu i przychodzie.
+Sprint 3A (10 h) nie zmienia bazy, finalizacji, insertu tekstu, klienta ani
+Privacy Policy. Sprint 3B jest warunkowy i **nie** startuje, dopóki A0–A6 nie
+są zamknięte.
 
-Do końca dnia 2 (2026-08-28) muszą być: konto sandbox, credentials i
-właściciel billingowy. Bez tego sprint **nie** zobowiązuje się do produkcyjnego
-CLOSED P0-3. Atrapa i filtr wyłącznie na urządzeniu są zakazane.
+Azure Content Safety **nie ma Video API**. Kilka klatek **nie** wolno opisywać
+jako pełnego skanu pliku. Baseline jakości to 1 klatka/s na całej osi, maksymalnie
+180 klatek dla klipu 180 s. Strategie 12/24/60, scene detection i contact sheets
+są testami kosztu — produkcja może je przyjąć tylko bez regresji względem baseline.
 
-T+24 Sprintu 2 ([issue #6](https://github.com/endurance71/NIX/issues/6)) jest
-carry-overem i nie blokuje tej decyzji, ale blokuje historię 3 (expand) w DoR.
+T+24 Sprintu 2 ([issue #6](https://github.com/endurance71/NIX/issues/6)) **blokuje
+zakończenie 3A**. Expand bazy jest zakazany do zamknięcia całego DoR 3A.
+
+Atrapa i filtr wyłącznie na urządzeniu są zakazane.
 
 ## Decision
 
-**Proponowany dostawca: Azure AI Content Safety**, zasób w **Sweden Central**
-(zapas: West Europe), API `2024-09-01`.
+**Proponowany dostawca (do potwierdzenia w A6): Azure AI Content Safety, wyłącznie
+tier F0**, zasób w **Sweden Central** (zapas: West Europe), API `2024-09-01`.
+**Zakaz tworzenia S0** w 3A i 3B, dopóki osobna decyzja kosztowa tego nie otworzy.
 
 Powód nadrzędny: prywatne wiadomości 1:1 nie mogą iść na domyślny endpoint USA
 bez rezydencji i DPA w dniu startu. Microsoft DPA jest częścią Azure Online
 Services; dane nie są używane do trenowania modeli i pozostają w wybranym
 regionie ([data privacy](https://learn.microsoft.com/azure/ai-services/content-safety/concepts/data-privacy)).
+F0 daje 5000 transakcji/mies. przy 0 USD.
 
 Mapowanie mediów:
 
 | Wejście | Mechanizm |
 | --- | --- |
 | Tekst | `text:analyze` (Hate, SelfHarm, Sexual, Violence) + istniejący CHECK fraz jako warstwa 2, nie zamiennik |
-| Zdjęcie | `image:analyze`, body base64 albo krótki signed URL; max 4 MB / 7200 px |
-| Wideo | **nie ma natywnego Video API**. Worker pobiera MP4 z kwarantanny, próbuje klatki (1 fps, cap 60 s / 60 klatek) + opcjonalnie transkrypt audio w tym samym regionie, potem te same progi. To jest skan pełnego pliku, nie jednej miniatury uploadu. |
+| Zdjęcie | `image:analyze`, body base64 albo krótki signed URL; max 4 MB / 7200 px; 1 transakcja |
+| Wideo | **brak natywnego Video API**. Worker / spike próbuje klatki lokalnie (ffmpeg), potem `image:analyze`. Baseline: 1 fps, max 180 klatek. Inne strategie nie są pełnym skanem, dopóki A5 nie pokaże braku regresji. |
 
 Hive Moderation ma lepsze natywne async wideo w jednym API, ale self-serve
 przetwarza w USA ([Hive Privacy](https://thehive.ai/privacy)). Rezydencja UE
-jest ścieżką enterprise/sales — nie mieści się w bramce dnia 2 bez podpisanego
-kontraktu.
+jest ścieżką enterprise/sales — nie mieści się w bramce 3A bez podpisanego
+kontraktu i psuje cel 0 USD.
 
 AWS Rekognition Video skanuje pełny plik async, ale wymaga kopii prywatnego
-obiektu do S3 i osobnego Comprehend dla tekstu — za duży blast radius na 1
-dewelopera.
+obiektu do S3, osobnego Comprehend i płatnego użycia — poza celem kosztowym.
 
-OpenAI omni-moderation: tekst+obraz, brak pełnego wideo — odrzucone jako
+Open-source / lokalny model: bramka B po 3A, osobny spike, **bez expand**.
+
+OpenAI omni-moderation: tekst+obraz, brak pełnego wideo, płatne — odrzucone jako
 primary.
 
-Sekrety tylko w Edge/Vault. Logi: kategorie, severity, decyzja, `operation_id`,
-liczba prób — bez body, miniaturek, ścieżek, signed URL i raw JSON dostawcy.
+Sekrety tylko poza Git (ops / Vault / Edge). Logi: kategorie, severity, decyzja,
+`operation_id`, liczba transakcji F0 — bez body, miniaturek, ścieżek, signed URL
+i raw JSON dostawcy.
 
 Kill switch: nowe wysyłki `fail-closed` (pending/odrzuć intake). **Zakaz**
 flagi „dostarczaj bez skanu”.
+
+Pierwszy rollout: **severity 4 = `rejected`**. Human review jest **wyłączone**.
+`review_required` nie wolno włączyć bez właściciela i realnego SLA.
 
 ## Alternatives Considered
 
 | Option | Pros | Cons | Effort |
 | --- | --- | --- | --- |
-| Azure AI Content Safety (Sweden/WE) | Region UE, DPA od ręki, tekst+obraz, F0 sandbox 5k/mies., znane 0/2/4/6 | Brak Video API — nasz sampler; taksonomia 4 kategorie (bez osobnego CSAM label) | M |
-| Hive Moderation | Jeden async API na obraz/wideo/audio/tekst, gęstsza taksonomia UGC | Domyślnie USA; EU residency = enterprise; 100 req/dzień na Developer | S integracja / L prawnie |
-| AWS Rekognition + Comprehend | Native `StartContentModeration` na pełnym wideo, eu-central-1, DPA | Kopia do S3, dwa/trzy serwisy, więcej IAM | L |
-| Tylko filtr na urządzeniu / atrapa | Zero kosztu | Zakazane przez sprint i niewystarczające dla 1.2 | — |
-| OpenAI Moderation | Szybki tekst | Brak pełnego wideo | S (odrzucone) |
+| Azure AI Content Safety F0 (Sweden/WE) | Region UE, DPA od ręki, tekst+obraz, 5k txn/mies. za 0 USD, znane 0/2/4/6 | Brak Video API — nasz sampler; 4 kategorie; F0 może nie zmieścić wideo 1 fps | M |
+| Azure S0 | Wyższy limit txn | Łamie cel 0 USD; wymaga osobnej decyzji po pomiarze | — (zakazane teraz) |
+| Lokalny / OSS | Potencjalnie 0 USD bez limitu 5k | Osobny spike; jakość nieznana; nie zaczynać expand | Spike po bramce B |
+| Hive Moderation | Jeden async API na obraz/wideo/audio/tekst | Domyślnie USA; EU = enterprise; Developer 100 req/dzień | S integracja / L prawnie |
+| AWS Rekognition + Comprehend | Native `StartContentModeration` | Kopia do S3, płatne, dwa/trzy serwisy | L |
+| Tylko filtr na urządzeniu / atrapa | Zero kosztu | Zakazane i niewystarczające dla 1.2 | — |
+| OpenAI Moderation | Szybki tekst | Brak pełnego wideo, płatne | S (odrzucone) |
 
 ## Consequences
 
 ### Positive
 
-- Da się otworzyć sandbox dziś (konto Azure + F0), bez czekania na sales Hive.
-- Jedna taksonomia i progi dla tekstu, klatek i transkryptu.
-- Expand/worker mogą iść na stabilnym kontrakcie JSON (`categoriesAnalysis`).
+- 3A da się wykonać na F0 bez płatnego zasobu.
+- Jedna taksonomia i progi dla tekstu i klatek.
+- Bramka A/B/C po pomiarze jakości i liczby transakcji, zanim powstanie expand.
 
 ### Negative
 
-- Wideo to nasza robota (ffmpeg/kontener albo Edge z limitem czasu). To jest
-  główne zużycie bufora 20 h.
-- 4 kategorie Azure są węższe niż Hive (brak osobnej klasy CSAM). Polityka
-  fail-closed na Sexual/SelfHarm severity ≥ 4 częściowo to pokrywa; nie wolno
+- Wideo to nasza robota (ffmpeg). Baseline 180 klatek zużywa 180 txn F0 na jeden
+  klip 180 s — prognoza ruchu może nie zmieścić się w 5000/mies.
+- 4 kategorie Azure są węższe niż Hive (brak osobnej klasy CSAM). Nie wolno
   twierdzić w Review Notes, że skanujemy „wszystkie taksonomie UGC”.
+- Human review wyłączony: legalne treści severity 4 są odrzucane.
 
 ### Risks
 
-- Sampler klatek w Edge Functions może nie zmieścić się w limicie CPU/czasu —
-  wtedy osobny worker (Cloud Run / VM) albo eskalacja do Hive Enterprise UE
-  **zanim** historia 4 wejdzie na produkcję. Bramka ADR: jeśli spike MP4 nie
-  zwróci decyzji z ≥1 klatki/s na klipie testowym, nie wdrażamy enforcement.
+- Jeśli spike MP4 nie wykryje high-risk na początku, środku i końcu, strategia
+  odpada — nie wdrażamy enforcement.
+- Jeśli F0 nie mieści prognozy i OSS nie rokuje: P0-3 zostaje NO-GO, **bez**
+  uruchamiania płatnych usług.
 - Shadow na prawdziwych prywatnych treściach bez podstawy i nowej Privacy
   Policy jest zakazane.
-- `review_required` na produkcji bez właściciela SLA jest zakazane — do tego
-  czasu severity 4 mapujemy na `rejected` (fail-closed).
 
-## Bramka dnia 2 (DoR historii 3)
+## Bramka 3A (DoR historii B / expand)
 
-- [ ] Konto Azure, zasób Content Safety w Sweden Central, klucz w Vault/Edge
-      (`AZURE_CONTENT_SAFETY_ENDPOINT`, `AZURE_CONTENT_SAFETY_KEY`)
-- [ ] Właściciel billingowy i budżet Cost Management (proponowane $50/mies. +
-      alert 80%)
-- [ ] Spike JPEG + MP4: `scripts/moderation-provider-spike.mjs` exit 0
-- [ ] Akceptacja tego ADR (status → Accepted) albo ADR superseding
-- [ ] Właściciel kolejki human review i SLA albo świadome `review_required=off`
-- [ ] T+24 issue #6 zapisane
+Status tego ADR zostaje **Proposed**, dopóki A3–A5 nie zwrócą rzeczywistych
+decyzji i liczby transakcji. A6 ustawia `Accepted`, `Superseded` albo `Rejected`.
+
+- [ ] Issue #6 T+24 wykonane nie wcześniej niż 2026-08-28 10:41 CEST
+- [ ] PR #9 zielony; jedna strategia i te same limity w ADR, spike i planie;
+      brak twierdzenia „full video scan” dla strategii innych niż baseline 1 fps
+- [ ] Zasób Content Safety Sweden Central, **sku F0**, sekrety poza Git, brak S0
+- [ ] Spike tekst PL/EN + JPEG na prawdziwym API (`scripts/moderation-provider-spike.ts`)
+- [ ] Spike MP4 15/60/180 s: start/środek/koniec; porównanie baseline / uniform /
+      scene / contact sheet; zapis txn vs cap 5000
+- [ ] A6: Accepted tylko gdy jakość przechodzi **i** prognoza mieści się w F0
+      (bramka A). Bramka B = osobny spike OSS, bez expand. Bramka C = NO-GO.
+- [ ] Świadome `severity 4 = rejected`; human review wyłączone
+- [ ] Właściciel billingu F0 (nawet przy 0 USD)
 
 ## Related Decisions
 
 - [docs/plans/2026-08-27-sprint-3-pre-delivery-content-moderation.md](../plans/2026-08-27-sprint-3-pre-delivery-content-moderation.md)
-- [docs/moderation-policy.md](../moderation-policy.md) — macierz `allow / review / reject`
+- [docs/moderation-policy.md](../moderation-policy.md) — macierz `allow / reject`
 - Audyt P0-3: [docs/APP_STORE_REVIEW_AUDIT_2026-08-26.md](../APP_STORE_REVIEW_AUDIT_2026-08-26.md)
 - DoR: [issue #8](https://github.com/endurance71/NIX/issues/8)
 - T+24 Sprint 2: [issue #6](https://github.com/endurance71/NIX/issues/6)
+- CI/ADR PR: [pull/9](https://github.com/endurance71/NIX/pull/9)

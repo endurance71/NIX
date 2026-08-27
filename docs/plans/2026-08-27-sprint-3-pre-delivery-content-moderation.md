@@ -1,25 +1,48 @@
 # Sprint 3 — filtrowanie treści przed doręczeniem (P0-3)
 
+> **Rewizja cost-first, 2026-08-27.** Ten dokument rozdziela Sprint 3A
+> (walidacja bez zmian bazy) od warunkowego Sprintu 3B (implementacja). Do czasu
+> zamknięcia wszystkich bramek 3A zabronione są: expand SQL, zmiana finalizacji,
+> odebranie insertu tekstu, klient, Privacy Policy i enforcement.
+
 ## Cel sprintu
 
 Zablokować niedozwolony tekst, zdjęcia i wideo przed utworzeniem NiXa lub
 wiadomości u odbiorcy, zapewnić bezpieczną kolejkę wyjątków do ręcznej oceny i
 zamknąć P0-3 z audytu App Store Guideline 1.2 dowodem testowym i produkcyjnym.
 
-## Założenia i pojemność
+## Zasada kosztowa
+
+- cel na start: **0 USD miesięcznie**;
+- najpierw open source i lokalne przetwarzanie, potem bezpłatny Azure F0;
+- płatny tier jest osobną decyzją po pomiarze jakości, wolumenu i przychodu;
+- żadnego zasobu płatnego bez właściciela billingowego, limitu i alertu;
+- skan jednego assetu wykonujemy raz, niezależnie od liczby odbiorców;
+- optymalizacja liczby wywołań nie może tworzyć fałszywej deklaracji „pełnego
+  skanu wideo” ani obniżać pokrycia poniżej przyjętego testu bezpieczeństwa;
+- wyczerpanie limitu lub awaria dostawcy zatrzymuje doręczenie fail-closed.
+
+## Etapy i pojemność
+
+### Sprint 3A — darmowa walidacja i decyzja
+
+- czas: do 2 dni roboczych, kończony dopiero po bramce T+24;
+- zespół: 1 deweloper + właściciel konta/billingu;
+- commitment: 10 godzin;
+- rezultat: zaakceptowany albo odrzucony ADR, bez zmian produkcyjnego schematu.
+
+### Sprint 3B — implementacja warunkowa
 
 - czas: 2 tygodnie;
 - zespół: 1 deweloper;
 - dostępność: 80 godzin idealnych;
-- commitment: maksymalnie 60 godzin;
-- bufor: 20 godzin (25%) na integrację dostawcy, asynchroniczne wideo i rollout;
-- carry-over: kontrola T+24 Sprintu 2 z issue #6 (do 1 godziny);
+- commitment: maksymalnie 58 godzin;
+- bufor: 22 godziny (27,5%) na worker, jakość wideo i rollout;
 - priorytet: P0-3; P0-4, P0-5, RevenueCat i issue #7 pozostają poza zakresem.
 
-Jeżeli do końca drugiego dnia nie ma wybranego dostawcy, aktywnego środowiska
-sandbox i testowych credentials, sprint nie może zobowiązać się do produkcyjnego
-zamknięcia P0-3. Nie wolno zastąpić skanowania atrapą ani filtrem wyłącznie na
-urządzeniu.
+Sprint 3B nie jest committed, dopóki 3A nie spełni całego Definition of Ready.
+Brak darmowego lub wystarczająco taniego rozwiązania kończy się decyzją
+`NO-GO / replan`, a nie uruchomieniem płatnej usługi z założenia.
 
 ## Decyzje architektoniczne
 
@@ -28,14 +51,15 @@ urządzeniu.
 2. `finalize-media-upload` sprawdza rozmiar i MIME, zleca moderację i zwraca stan
    `moderation_pending`. Nie tworzy NiXów przed decyzją `approved`.
 3. Jeden asset współdzielony dla wielu odbiorców jest skanowany dokładnie raz.
-4. Osobny worker obsługuje synchroniczne zdjęcia i asynchroniczne wideo.
-   Callback, polling i retry muszą być idempotentne i odporne na zdarzenia poza
-   kolejnością.
+4. Osobny worker obsługuje synchroniczne zdjęcia i wideo próbkowane przez ffmpeg
+   na całej osi czasu. Azure Content Safety nie ma natywnego Video API. Nie wolno
+   opisywać kilku klatek jako pełnego skanu pliku. Retry muszą być idempotentne.
 5. `approved` uruchamia atomowe utworzenie NiXów. `rejected` nie tworzy żadnego
    NiXa, usuwa plik i zwraca klientowi stabilny kod `CONTENT_NOT_ALLOWED`.
-6. Wynik niejednoznaczny trafia do `review_required`; do czasu decyzji człowieka
-   treść nie jest doręczana. Awaria lub timeout dostawcy nie może powodować
-   automatycznego dopuszczenia treści.
+6. W pierwszym rolloucie wynik severity 4 jest odrzucany. Stan
+   `review_required` pozostaje przyszłą możliwością i nie może zostać włączony
+   bez właściciela oraz realnego SLA. Awaria lub timeout dostawcy nie może
+   powodować automatycznego dopuszczenia treści.
 7. Tekst przestaje korzystać z bezpośredniego klientowego `INSERT`. Nowe
    idempotentne RPC/Edge Function moderuje tekst i dopiero po `approved` zapisuje
    `text_messages`, co zapobiega ominięciu filtra przez własnego klienta API.
@@ -48,40 +72,77 @@ urządzeniu.
 10. Kill switch zatrzymuje nowe wysyłki fail-closed. Nie może przełączać systemu
     na dostarczanie bez moderacji.
 
-## Backlog i estymacja
+## Sprint 3A — plan najbliższych kroków
+
+| # | Historia | Kryterium akceptacji | Estymacja | Właściciel |
+| --- | --- | --- | ---: | --- |
+| A0 | T+24 Sprintu 2 | Issue #6 wykonane nie wcześniej niż 2026-08-28 10:41 CEST; zapisane liczby i logi, audyt zaktualizowany | 1 h | deweloper |
+| A1 | Naprawa PR #9 | CI zielone; ADR, spike i plan używają jednej strategii i tych samych limitów; brak twierdzenia „full video scan” | 2 h | deweloper |
+| A2 | Azure F0 | Content Safety w Sweden Central, tier F0, właściciel, sekrety poza Git, brak aktywnego płatnego S0 | 1 h | właściciel konta |
+| A3 | Spike tekst/obraz | Rzeczywiste API: bezpieczny JPEG oraz tekst PL/EN; przypadki Unicode, odstępy i prosta obfuskacja; brak atrapy | 1,5 h | deweloper |
+| A4 | Spike wideo na całej osi | MP4 15/60/180 s; próbki obejmują początek, środek i koniec; wysokie ryzyko w każdym z tych miejsc zostaje wykryte | 2,5 h | deweloper |
+| A5 | Test optymalizacji kosztu | Porównać baseline, równomierne próbki, detekcję zmian sceny i contact sheets; zapisać recall, liczbę transakcji, czas i jakość | 1 h | deweloper |
+| A6 | Decyzja ADR | `Accepted`, `Superseded` albo `Rejected`; koszt 1 zdjęcia oraz wideo 15/60/180 s; świadome `severity 4 = rejected` | 1 h | właściciel produktu |
+
+Łącznie Sprint 3A: 10 godzin. **Żaden punkt 3B nie rozpoczyna się równolegle z
+otwartym A0–A6.**
+
+### Strategie testowane w A4–A5
+
+1. Baseline jakości: 1 klatka/s na całej długości, czyli maksymalnie 180 klatek.
+2. Równomierne próbkowanie całej osi, np. 12/24/60 klatek zależnie od długości.
+3. Klatki ze zmian sceny plus obowiązkowe próbki początku, środka i końca.
+4. Contact sheets grupujące kilka czytelnych klatek w jednym obrazie Azure.
+
+Strategia 2–4 może wejść do produkcji wyłącznie wtedy, gdy kontrolowany zestaw
+testowy nie pokazuje regresji względem baseline. Contact sheet musi spełniać limit
+Azure 4 MB oraz zachować rozdzielczość pozwalającą modelowi ocenić każdą klatkę.
+
+### Bramki decyzji po 3A
+
+- **A — Azure F0 wystarcza:** jakość przechodzi, prognoza mieści się w 5000
+  darmowych transakcji miesięcznie → rozpocząć 3B bez S0.
+- **B — F0 za małe, ale tani worker/open source rokuje:** wykonać osobny ADR/spike
+  dla lokalnego modelu; nie zaczynać expand.
+- **C — brak wystarczającego rozwiązania za akceptowalny koszt:** zatrzymać P0-3,
+  utrzymać App Store `NO-GO` i nie generować kosztów.
+
+## Sprint 3B — backlog warunkowy
 
 | # | Historia | Zakres i kryterium akceptacji | Estymacja | Zależności |
 | --- | --- | --- | ---: | --- |
-| 0 | Domknięcie Sprintu 2 | Wykonać T+24 z issue #6 i zaktualizować werdykt bez rozszerzania zakresu | 1 h | czas bramki |
-| 1 | ADR i wybór dostawcy | Porównać obsługę obrazu/wideo/tekstu, taksonomię, tryb async, region danych, DPA, koszt, limity, SLA i możliwość kasowania; wykonać sandbox spike dla JPEG i MP4 | 5 h | konto dostawcy |
-| 2 | Polityka i fixtures | Zdefiniować wersjonowaną macierz `allow / review / reject`, kategorie wysokiego ryzyka, progi, zachowanie przy timeout i bezpieczny zestaw syntetycznych/licencjonowanych prób bez nielegalnych materiałów w Git | 4 h | historia 1 |
-| 3 | Expand bazy | Dodać stany moderacji assetu/batcha, tabelę prób i decyzji, indeks kolejki, ograniczone RPC claim/complete oraz TTL kwarantanny; zachować kompatybilność starego binary | 7 h | historia 2 |
-| 4 | Adapter i worker moderacji | Dodać interfejs dostawcy, skan obrazu, pełnego wideo i tekstu, timeouty, retry z backoffem, idempotencję, deduplikację i weryfikację callbacku | 11 h | historie 1–3 |
-| 5 | Bezpieczna finalizacja mediów | Rozdzielić walidację uploadu od doręczenia; `finalize` zwraca pending, a approve tworzy wszystkich NiXów atomowo; reject usuwa asset i nigdy nie wysyła push | 8 h | historie 3–4 |
-| 6 | Backendowa wysyłka tekstu | Zastąpić bezpośredni insert autoryzowanym, idempotentnym kontraktem pre-delivery; normalizacja Unicode/obfuskacji i wielojęzyczny skan; stary insert odebrać dopiero w contract | 7 h | historie 1–4 |
-| 7 | Klient i trwała kolejka | Obsłużyć `moderation_pending`, `review_required`, `rejected`, retry i restart aplikacji; komunikat ma być neutralny, dostępny PL/EN i nie ujawniać progów filtra | 6 h | historie 5–6 |
-| 8 | Ręczna ocena i removal | Rozszerzyć istniejący panel/API moderatora o kolejkę pre-delivery, approve/reject, usunięcie treści i sankcję; wszystkie decyzje mają audyt i SLA | 4 h | historie 3–5 |
-| 9 | Testy bezpieczeństwa | Unit/Deno/pgTAP dla bypassów, duplikatów, callback replay, out-of-order, timeout, wielu odbiorców, blokady, braku push i braku odczytu kwarantanny | 4 h | historie 3–8 |
-| 10 | Rollout i dowody | Expand → deploy → smoke → obserwacja → contract; uaktualnić runbook, Privacy Policy, review notes i audyt wyłącznie zgodnie z rzeczywistym wdrożeniem | 3 h | historie 1–9 |
+| B1 | Polityka i fixtures | Zatwierdzić progi z 3A, wersję polityki i bezpieczny zestaw prób | 3 h | A0–A6 |
+| B2 | Expand bazy | Stany moderacji, próby/decyzje, indeks kolejki, ograniczone RPC i TTL; kompatybilność starego binary | 7 h | B1 |
+| B3 | Adapter i worker | Tekst, obraz i zatwierdzona strategia ffmpeg; timeout, retry/backoff, idempotencja, deduplikacja, limit F0 | 11 h | B2 |
+| B4 | Bezpieczna finalizacja | `finalize` zwraca pending; tylko approve tworzy NiXy; reject usuwa asset i nie wysyła push | 8 h | B2–B3 |
+| B5 | Backendowa wysyłka tekstu | Idempotentny kontrakt pre-delivery, normalizacja Unicode; bezpośredni insert odebrany dopiero w contract | 7 h | B2–B3 |
+| B6 | Klient i trwała kolejka | Pending/rejected/error, retry i restart; neutralne komunikaty PL/EN | 6 h | B4–B5 |
+| B7 | Operacje moderacji | Removal, sankcja i audyt; severity 4 pozostaje reject, dopóki nie ma właściciela human review | 4 h | B2–B4 |
+| B8 | Testy bezpieczeństwa | Bypass, duplikaty, out-of-order, limit F0, awaria dostawcy, wielu odbiorców, kwarantanna | 6 h | B2–B7 |
+| B9 | Rollout i contract | Expand → deploy → test accounts → enforcement → obserwacja → osobny contract; aktualizacja prawna dopiero po enforcement | 6 h | B1–B8 |
 
-Łącznie: 60 godzin. Bufor: 20 godzin.
+Łącznie Sprint 3B: 58 godzin. Bufor: 22 godziny.
 
 ## Definition of Ready
 
-Przed rozpoczęciem historii 3 muszą istnieć:
+Przed rozpoczęciem Sprintu 3B muszą istnieć:
 
-- konto sandbox i przypisany właściciel billingowy dostawcy;
+- pozytywny T+24 Sprintu 2 i zamknięte issue #6;
+- zielony, przejrzany PR #9 bez sprzeczności 3/60/180 klatek;
+- konto Azure F0 i przypisany właściciel billingowy dostawcy;
 - zaakceptowana decyzja ADR oraz DPA/warunki przetwarzania prywatnych treści;
-- potwierdzona obsługa pełnego pliku wideo, a nie tylko miniatury;
-- limity kosztowe i alarm kosztowy;
+- potwierdzone próbkowanie całej osi wideo oraz test początku/środka/końca;
+- prognoza mieści się w F0 albo istnieje osobno zaakceptowany budżet produkcyjny;
 - przykładowe odpowiedzi API dla allow/review/reject/error;
-- ustalony właściciel ręcznej kolejki oraz realne SLA;
-- wynik T+24 Sprintu 2 zapisany w issue #6.
+- test PL/EN i obfuskacji;
+- potwierdzone `severity 4 = rejected`; human review pozostaje wyłączony.
 
 ## Krytyczna ścieżka
 
 ```text
-ADR + sandbox
+T+24 + zielony PR #9 + Azure F0
+  → spike jakości i kosztu
+  → Accepted ADR
   → polityka progów
   → expand bazy
   → adapter/worker
@@ -135,7 +196,7 @@ prywatności i podstawy przetwarzania.
 | Bezpieczne zdjęcie | approve, dokładnie jeden scan, NiX doręczony |
 | Bezpieczne krótkie wideo | approve po wyniku async, NiX doręczony raz |
 | Materiał testowy wysokiego ryzyka | reject przed `nixes`, brak push, obiekt usunięty |
-| Wynik graniczny | `review_required`, brak dostępu odbiorcy |
+| Wynik severity 4 | `rejected`, brak dostępu odbiorcy; `review_required` wyłączone |
 | Bezpieczny tekst PL/EN | wiadomość doręczona raz |
 | Tekst wysokiego ryzyka z wariantem Unicode/spacjami | reject przed insertem |
 | Wielu odbiorców | jeden scan assetu, atomowe/idempotentne doręczenie |
@@ -176,7 +237,7 @@ Bramka produkcyjna:
 
 | Ryzyko | Mitigacja |
 | --- | --- |
-| Dostawca nie analizuje pełnego wideo lub ma zbyt ubogą taksonomię | twarda bramka ADR; odrzucić dostawcę przed implementacją |
+| Strategia nie obejmuje całej osi wideo lub ma zbyt ubogą taksonomię | twarda bramka ADR; odrzucić strategię przed implementacją |
 | Wideo trwa dłużej niż obecny synchroniczny finalize | stan pending, worker async, polling/realtime i trwała kolejka klienta |
 | Fałszywe pozytywy blokują prywatne, legalne treści | strefa review, wersjonowane progi, kalibracja na licencjonowanych próbach |
 | Awaria dostawcy zatrzymuje wysyłkę | retry/backoff, komunikat pending, alert; nigdy fail-open |
@@ -190,7 +251,8 @@ Bramka produkcyjna:
 
 P0-3 można oznaczyć jako `CLOSED` dopiero, gdy:
 
-- tekst, zdjęcia i pełne wideo są filtrowane po stronie backendu przed doręczeniem;
+- tekst, zdjęcia i cała oś czasu wideo są filtrowane po stronie backendu przed
+  doręczeniem zgodnie ze strategią zatwierdzoną w spike;
 - własny klient Supabase nie potrafi ominąć moderacji;
 - treści wysokiego ryzyka oraz błędy dostawcy nie tworzą `nixes` ani
   `text_messages` i nie generują push;

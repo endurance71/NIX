@@ -32,6 +32,7 @@ export function decideFromProviderAnalysis(
   analysis: ProviderAnalysis | null | undefined,
   options: { humanReviewEnabled?: boolean } = {}
 ): { decision: ModerationDecision; maxSeverity: number | null; policyVersion: typeof POLICY_VERSION } {
+  // Sprint 3A/3B: human review stays off. Severity 4 is rejected until an SLA owner exists.
   const severity = maxSeverity(analysis);
   if (severity === null) {
     return { decision: 'error', maxSeverity: null, policyVersion: POLICY_VERSION };
