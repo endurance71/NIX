@@ -101,7 +101,7 @@ operacyjnym P0-2 (egzekucja retencji), nie blocker autoryzacji.
 | Werdykt | Stan |
 | --- | --- |
 | P0-1 | **CLOSED** |
-| P0-2 | **CODE/PRODUCTION CLOSED**, operational follow-up: cron cleanup (poniżej) |
+| P0-2 | **CODE/PRODUCTION CLOSED**; cron codzienny aktywny (jobid 15, invoke 200) |
 | Sprint 2 | wdrożony; **final acceptance pending T+24** ([issue #6](https://github.com/endurance71/NIX/issues/6), po 2026-08-28 10:41 CEST) |
 | Aplikacja | **NO-GO** — P0-3, P0-4, P0-5 |
 
@@ -115,7 +115,7 @@ operacyjnym P0-2 (egzekucja retencji), nie blocker autoryzacji.
 | Audyt na `main` | `127b111562b1a8948206e8b3f96e24a901bf1f24` |
 | Expand | `20260826120000_content_report_text_target_and_evidence_retention.sql` |
 | Contract | `20260827120000_content_report_evidence_expiry_check_and_drop_v1.sql` |
-| Cron | `20260827125000_schedule_cleanup_moderation_evidence.sql` — job `cleanup-moderation-evidence`, `27 4 * * *` UTC; Vault `moderation_cleanup_secret` (wartość poza repo) |
+| Cron | `20260827125000` na prod; jobid 15, `27 4 * * *` UTC, `active=true`; smoke `invoke` request 95212 → **200**; aktywny dowód zachowany (1 obiekt) |
 | RPC | wyłącznie `create_content_report_v2`; v1 `create_content_report` **nie istnieje** |
 | CHECK | `content_reports_evidence_requires_expiry` — `evidence_path IS NULL OR evidence_expires_at IS NOT NULL` |
 | Edge | `report-content` v4 `verify_jwt=true`; `cleanup-moderation-evidence` v3 `verify_jwt=true` |
