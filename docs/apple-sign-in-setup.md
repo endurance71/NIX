@@ -11,7 +11,7 @@ Checklista konfiguracji Apple Developer Portal i Supabase Dashboard dla natywneg
    - `host.exp.Exponent` — testy przez Expo Go (opcjonalnie)
    - warianty EAS (`.dev`, `.preview`) jeśli istnieją
 
-Native-only **nie wymaga** Services ID ani klucza `.p8` (rotacja co 6 miesięcy dotyczy OAuth web).
+Native-only logowanie **nie wymaga** Services ID. Klucz `.p8` jest potrzebny wyłącznie po stronie Edge Function `delete-account` do wymiany authorization code i revoke (nie w kliencie, nie w `EXPO_PUBLIC_*`).
 
 ## Supabase Dashboard (produkcja)
 
@@ -44,6 +44,21 @@ client_id = "com.damianmotylinski.nixapp,host.exp.Exponent"
 - [ ] Nowy użytkownik Apple → onboarding username → `(tabs)`
 - [ ] Powtórny login Apple → `(tabs)` bez utraty danych
 - [ ] Profil Apple-only **bez** wiersza „Zmień hasło”
+
+## Sekrety serwerowe (delete-account)
+
+Ustaw wyłącznie w Supabase Secrets funkcji, nigdy w Git, logach ani `EXPO_PUBLIC_*`:
+
+- `APPLE_TEAM_ID` — 10-znakowy Team ID
+- `APPLE_KEY_ID` — 10-znakowy Key ID klucza Sign in with Apple
+- `APPLE_CLIENT_ID` — dokładnie bundle ID iOS (`com.damianmotylinski.nixapp`), bez listy przecinkowej
+- `APPLE_PRIVATE_KEY` — zawartość pliku `.p8` w formacie PKCS#8 (`BEGIN PRIVATE KEY`)
+
+Client secret JWT jest generowany per request (ES256, TTL 5 minut). Authorization code jest jednorazowy i ważny pięć minut; backend go nie zapisuje.
+
+Brak któregokolwiek sekretu **blokuje** usunięcie konta Apple (fail-closed). Konta e-mail+hasło nie używają tych sekretów.
+
+Nie wdrażaj funkcji z tymi sekretami, dopóki S4 nie przejdzie review i testu sandbox.
 
 ## Zmienne środowiskowe aplikacji
 

@@ -17,7 +17,9 @@ Jeśli nie możesz zalogować się do aplikacji, napisz na
 1. Zastosuj obie migracje `20260714220500_*` i `20260714221000_*`.
 2. Wdróż `supabase/functions/delete-account` z `SUPABASE_URL`,
    `SUPABASE_ANON_KEY` i `SUPABASE_SERVICE_ROLE_KEY` dostępnymi wyłącznie po
-   stronie funkcji.
+   stronie funkcji. Dla usuwania kont Apple ustaw także `APPLE_TEAM_ID`,
+   `APPLE_KEY_ID`, `APPLE_CLIENT_ID` i `APPLE_PRIVATE_KEY` wyłącznie w sekretach
+   Supabase. Nie wdrażaj S4, dopóki nie przejdzie review.
 3. Utwórz konto testowe z mediami jako nadawca i odbiorca, usuń je oraz potwierdź
    brak `auth.users`, rekordów aplikacyjnych i obiektów w bucketach `avatars` oraz
    `media-vault`.
