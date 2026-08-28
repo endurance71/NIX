@@ -26,19 +26,8 @@ export function uniqueStoragePaths(paths: Array<string | null | undefined>): str
   return unique;
 }
 
-export async function collectPagedRows<T>(
-  fetchPage: (offset: number, limit: number) => Promise<T[]>,
-  pageSize = STORAGE_LIST_PAGE_SIZE
-): Promise<T[]> {
-  const rows: T[] = [];
-  let offset = 0;
-  while (true) {
-    const page = await fetchPage(offset, pageSize);
-    rows.push(...page);
-    if (page.length < pageSize) break;
-    offset += page.length;
-  }
-  return rows;
+export function ownedMediaPrefix(userId: string): string {
+  return `nixes/${userId}`;
 }
 
 export async function removeStoragePaths(
@@ -87,10 +76,10 @@ export async function emptyStoragePrefix(
 export async function cleanupUserStorage(
   storage: StoragePort,
   userId: string,
-  paths: { mediaPaths: string[]; avatarPaths: string[] }
+  _untrustedPaths: { mediaPaths: string[]; avatarPaths: string[] } = { mediaPaths: [], avatarPaths: [] }
 ): Promise<void> {
-  await emptyStoragePrefix(storage, 'media-vault', `nixes/${userId}`);
+  // Ignore DB media_path / avatar_storage_path: a legacy INSERT can point at
+  // another user's object. Physical deletes come only from listing owned prefixes.
+  await emptyStoragePrefix(storage, 'media-vault', ownedMediaPrefix(userId));
   await emptyStoragePrefix(storage, 'avatars', userId);
-  await removeStoragePaths(storage, 'media-vault', paths.mediaPaths);
-  await removeStoragePaths(storage, 'avatars', paths.avatarPaths);
 }
