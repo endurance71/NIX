@@ -25,8 +25,9 @@ retencja dowodów). Wysłanie kandydata do review jest nadal zbyt ryzykowne. Poz
    podpisany Archive, smoke na urządzeniu (P0-5).
 
 Dopóki P0-3, P0-4 i P0-5 nie zostaną zamknięte, status pozostaje **NO-GO**.
-Sprint 2: wdrożony; final acceptance po kontroli T+24
-([issue #6](https://github.com/endurance71/NIX/issues/6), 2026-08-28 10:41 CEST).
+Sprint 2: wdrożony. Pełne T+24 ([issue #6](https://github.com/endurance71/NIX/issues/6))
+**nie zostało wykonane** — okno 24 h nie dobiegło końca; 2026-08-28 ok. 10:19 CEST
+zapisano snapshot i świadomie pominięto/zaakceptowano oczekiwanie.
 
 ## 2. Skala priorytetów
 
@@ -102,7 +103,7 @@ operacyjnym P0-2 (egzekucja retencji), nie blocker autoryzacji.
 | --- | --- |
 | P0-1 | **CLOSED** |
 | P0-2 | **CODE/PRODUCTION CLOSED**; cron codzienny aktywny (jobid 15, invoke 200) |
-| Sprint 2 | wdrożony; **final acceptance pending T+24** ([issue #6](https://github.com/endurance71/NIX/issues/6), po 2026-08-28 10:41 CEST) |
+| Sprint 2 | wdrożony; **pełne T+24 nie wykonane** — snapshot 2026-08-28 10:19 CEST, oczekiwanie świadomie pominięte ([issue #6](https://github.com/endurance71/NIX/issues/6)) |
 | Aplikacja | **NO-GO** — P0-3, P0-4, P0-5 |
 
 | Pole | Wartość |
@@ -124,7 +125,7 @@ operacyjnym P0-2 (egzekucja retencji), nie blocker autoryzacji.
 | Cleanup | dry-run 0 sierot; live 0 usuniętych rekordów/obiektów (brak sierot; aktywny dowód zachowany) |
 | Integrity | `missing_expiry=0` `expired_with_file=0` `evidence_failed=0` `old_orphans=0` `duplicate_reports=0` |
 | Obserwacja | okno `2026-08-27T08:41:31Z` → `2026-08-28T08:41:31Z`; T0: 1×500 (MIME przed PR #4, wyjaśnione), potem 2×200 / 2×400 / 2×403; Sentry funkcji hard-off |
-| T+24 | [issue #6](https://github.com/endurance71/NIX/issues/6) — nie zamykać Sprint 2 acceptance przed tą kontrolą |
+| T+24 | **nie wykonane.** Snapshot 2026-08-28T08:19:29Z (ok. 22 min przed końcem okna `08:41:31Z`): `missing_expiry=0` `expired_with_file=0` `evidence_failed=0` `duplicate_reporter_text=0` `old_orphans=0`; smoke `f283869e-…` i 1 obiekt evidence obecne; cron jobid 15 `active=true`, 2× HTTP 200 na `cleanup-moderation-evidence`, 0×401. W oknie po T0 brak wywołań `report-content` (brak nowych 500). To **nie** jest T+24 PASS. |
 | Rollback | `TEXT_REPORTS_ENABLED=false` w `supabase/functions/report-content/contract.ts`. **Nie** przywracać v1. |
 | Osobne zadanie | `push-dispatch` prod `verify_jwt=false` (v11) — [issue #7](https://github.com/endurance71/NIX/issues/7). **Nie** zmieniać bez sprawdzenia autoryzacji wywołań (`hasServiceRoleBearer` + Vault JWT). |
 
