@@ -703,6 +703,7 @@ export const resources = {
         CLEANUP_FAILED: 'Nie udało się wyczyścić wiadomości.',
         CANCELLED: 'Operacja została anulowana.',
         NOT_FOUND: 'Nie znaleziono.',
+        CONTENT_NOT_ALLOWED: 'Ta wiadomość nie może zostać wysłana.',
         UNKNOWN: 'Wystąpił nieoczekiwany błąd.',
       },
       sentStatus: {
@@ -1400,6 +1401,7 @@ export const resources = {
         CLEANUP_FAILED: 'Failed to clean up message.',
         CANCELLED: 'Operation was cancelled.',
         NOT_FOUND: 'Not found.',
+        CONTENT_NOT_ALLOWED: 'This message cannot be sent.',
         UNKNOWN: 'Unexpected error occurred.',
       },
       sentStatus: {

@@ -38,6 +38,7 @@ const expected = [
   '20260827104500_moderation_evidence_allow_json.sql',
   '20260827120000_content_report_evidence_expiry_check_and_drop_v1.sql',
   '20260827125000_schedule_cleanup_moderation_evidence.sql',
+  '20260828100000_strengthen_text_message_safety_filter.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
@@ -265,6 +266,29 @@ for (const marker of [
   if (!contract.includes(marker)) {
     failures.push(`content report contract migration is missing ${marker}`);
   }
+}
+
+const textSafetyFilterV2 = await readFile(
+  path.join(migrationsDir, '20260828100000_strengthen_text_message_safety_filter.sql'),
+  'utf8'
+);
+for (const marker of [
+  'CREATE OR REPLACE FUNCTION private.text_message_safety_normalized',
+  'CREATE OR REPLACE FUNCTION private.text_message_safety_folded',
+  'CREATE OR REPLACE FUNCTION private.text_message_passes_safety_filter',
+  "normalize(coalesce(body, ''), NFKC)",
+  "'013457@$!'",
+  'Never log the body',
+]) {
+  if (!textSafetyFilterV2.includes(marker)) {
+    failures.push(`strengthened text safety filter migration is missing ${marker}`);
+  }
+}
+if (/DROP CONSTRAINT\s+text_messages_safety_filter_chk/i.test(textSafetyFilterV2)) {
+  failures.push('strengthened text safety filter must not drop text_messages_safety_filter_chk');
+}
+if (/folded\s*~\s*'zabijecie'/.test(textSafetyFilterV2)) {
+  failures.push('text safety filter must not match folded zabijecie (false positive on 2nd-person plural)');
 }
 
 const seed = await readFile(path.join(root, 'supabase', 'seed.sql'), 'utf8');

@@ -64,30 +64,6 @@ async function persistAppleProfileMetadata(
   }
 }
 
-function isNonceMismatchError(message: string) {
-  const normalized = message.toLowerCase();
-  return normalized.includes('nonce') && normalized.includes('mismatch');
-}
-
-async function signInWithAppleIdToken(identityToken: string, rawNonce: string) {
-  const { data, error } = await supabase.auth.signInWithIdToken({
-    provider: 'apple',
-    token: identityToken,
-    nonce: rawNonce,
-  });
-
-  if (!error) return { data, error };
-
-  if (isNonceMismatchError(error.message)) {
-    return supabase.auth.signInWithIdToken({
-      provider: 'apple',
-      token: identityToken,
-    });
-  }
-
-  return { data, error };
-}
-
 export async function signInWithApple() {
   if (process.env.EXPO_OS !== 'ios') {
     return {
@@ -135,7 +111,11 @@ export async function signInWithApple() {
       };
     }
 
-    const { data, error } = await signInWithAppleIdToken(credential.identityToken, rawNonce);
+    const { data, error } = await supabase.auth.signInWithIdToken({
+      provider: 'apple',
+      token: credential.identityToken,
+      nonce: rawNonce,
+    });
     if (error) {
       return { data: { session: null, user: null }, error };
     }

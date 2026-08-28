@@ -6,7 +6,7 @@
 
 - **Rejestracja:** `supabase.auth.signUp({ email, password })` — Supabase wysyła link potwierdzający (konfiguracja projektu Supabase Auth).
 - **Logowanie:** `signInWithPassword({ email, password })`.
-- **Logowanie Apple (iOS):** `expo-apple-authentication` → `supabase.auth.signInWithIdToken({ provider: 'apple', token, nonce })` — implementacja w [`src/services/socialAuthService.ts`](../src/services/socialAuthService.ts).
+- **Logowanie Apple (iOS):** `expo-apple-authentication` → `supabase.auth.signInWithIdToken({ provider: 'apple', token, nonce })` — implementacja w [`src/services/socialAuthService.ts`](../src/services/socialAuthService.ts). `nonce` jest obowiązkowy; mismatch jest błędem i nie powoduje ponowienia bez nonce.
 - **Wylogowanie:** `signOut()`.
 - **Reset hasła:** `resetPasswordForEmail(email, { redirectTo })` → ekran `reset-password` wywołuje `updatePassword(newPassword)`.
 - **Zmiana hasła (zalogowany, tylko e-mail+hasło):** ekran `change-password`; ukryty dla kont Apple-only (`userHasEmailPasswordIdentity`).

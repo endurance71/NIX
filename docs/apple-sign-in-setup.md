@@ -21,8 +21,10 @@ Native-only **nie wymaga** Services ID ani klucza `.p8` (rotacja co 6 miesięcy 
    com.damianmotylinski.nixapp,host.exp.Exponent
    ```
 3. **Redirect URLs:** zachowaj `nix://auth/callback` (spójność z e-mail auth)
-4. Jeśli wystąpi błąd **Nonces mismatch** mimo retry w aplikacji:
-   - w hosted Supabase włącz `GOTRUE_APPLE_SKIP_NONCE_CHECK=true` (tylko jako fallback)
+4. **Nonces mismatch** to błąd konfiguracji (Client ID / bundle / nonce SHA-256),
+   nie sygnał do wyłączenia weryfikacji. Nie ustawiaj
+   `GOTRUE_APPLE_SKIP_NONCE_CHECK`. Klient nigdy nie ponawia `signInWithIdToken`
+   bez nonce.
 
 ## Lokalny Supabase
 

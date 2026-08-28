@@ -130,30 +130,26 @@ describe('socialAuthService', () => {
     expect(error?.message).toBe(APPLE_SIGN_IN_ERROR_CODES.NO_IDENTITY_TOKEN);
   });
 
-  it('ponawia signInWithIdToken bez nonce przy Nonces mismatch', async () => {
+  it('nie ponawia signInWithIdToken bez nonce przy Nonces mismatch', async () => {
     mockAppleAuth.signInAsync.mockResolvedValue({
       identityToken: 'identity-token',
       user: 'apple-user-123',
       fullName: null,
     });
-    mockAuth.signInWithIdToken
-      .mockResolvedValueOnce({
-        data: { session: null, user: null },
-        error: { message: 'Nonces mismatch' },
-      })
-      .mockResolvedValueOnce({
-        data: { session: { access_token: 'token' }, user: { id: 'user-1' } },
-        error: null,
-      });
+    mockAuth.signInWithIdToken.mockResolvedValue({
+      data: { session: null, user: null },
+      error: { message: 'Nonces mismatch' },
+    });
 
     const { data, error } = await signInWithApple();
 
-    expect(error).toBeNull();
-    expect(data?.session).toBeTruthy();
-    expect(mockAuth.signInWithIdToken).toHaveBeenCalledTimes(2);
-    expect(mockAuth.signInWithIdToken).toHaveBeenLastCalledWith({
+    expect(error?.message).toBe('Nonces mismatch');
+    expect(data?.session).toBeNull();
+    expect(mockAuth.signInWithIdToken).toHaveBeenCalledTimes(1);
+    expect(mockAuth.signInWithIdToken).toHaveBeenCalledWith({
       provider: 'apple',
       token: 'identity-token',
+      nonce: 'raw-nonce-123',
     });
   });
 
