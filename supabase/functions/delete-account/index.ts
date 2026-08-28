@@ -2,7 +2,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, getBearerToken, json } from '../_shared/http.ts';
 import { handleDeleteAccount, productionApple } from './handler.ts';
 import type { AuthUser } from './identity.ts';
-import { emptyStoragePrefix, type StoragePort } from './storage.ts';
+import {
+  STORAGE_LIST_PAGE_SIZE,
+  cleanupUserStorage,
+  collectPagedRows,
+  uniqueStoragePaths,
+  type StoragePort,
+} from './storage.ts';
 
 function logDeletionError(category: string) {
   console.error('Account deletion failed', { category });
@@ -56,29 +62,43 @@ Deno.serve(async (req) => {
     verifyIdToken: productionApple.verifyIdToken,
     revokeToken: productionApple.revokeToken,
     cleanupDatabase: async (userId) => {
+      const nixRows = await collectPagedRows(async (offset, limit) => {
+        const { data, error } = await serviceClient
+          .from('nixes')
+          .select('media_path')
+          .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+          .order('id', { ascending: true })
+          .range(offset, offset + limit - 1);
+        if (error) throw error;
+        return (data ?? []) as Array<{ media_path?: string | null }>;
+      }, STORAGE_LIST_PAGE_SIZE);
+
+      const { data: profile, error: profileError } = await serviceClient
+        .from('profiles')
+        .select('avatar_storage_path')
+        .eq('id', userId)
+        .maybeSingle();
+      if (profileError) throw profileError;
+
       const { data: paths, error: pathsError } = await serviceClient.rpc('delete_my_account_data', {
         p_user_id: userId,
       });
       if (pathsError) throw pathsError;
-      const mediaPaths: string[] = [];
-      const avatarPaths: string[] = [];
-      for (const row of (paths ?? []) as Array<{ media_path?: string | null; avatar_path?: string | null }>) {
-        if (row.media_path) mediaPaths.push(row.media_path);
-        if (row.avatar_path) avatarPaths.push(row.avatar_path);
-      }
-      return { mediaPaths, avatarPaths };
+
+      const rpcRows = (paths ?? []) as Array<{ media_path?: string | null; avatar_path?: string | null }>;
+      return {
+        mediaPaths: uniqueStoragePaths([
+          ...nixRows.map((row) => row.media_path),
+          ...rpcRows.map((row) => row.media_path),
+        ]),
+        avatarPaths: uniqueStoragePaths([
+          (profile as { avatar_storage_path?: string | null } | null)?.avatar_storage_path,
+          ...rpcRows.map((row) => row.avatar_path),
+        ]),
+      };
     },
     cleanupStorage: async (userId, paths) => {
-      await emptyStoragePrefix(storage, 'media-vault', `nixes/${userId}`);
-      await emptyStoragePrefix(storage, 'avatars', userId);
-      if (paths.mediaPaths.length) {
-        const { error } = await serviceClient.storage.from('media-vault').remove(paths.mediaPaths);
-        if (error) throw error;
-      }
-      if (paths.avatarPaths.length) {
-        const { error } = await serviceClient.storage.from('avatars').remove(paths.avatarPaths);
-        if (error) throw error;
-      }
+      await cleanupUserStorage(storage, userId, paths);
     },
     deleteAuthUser: async (userId) => {
       const { error } = await serviceClient.auth.admin.deleteUser(userId);

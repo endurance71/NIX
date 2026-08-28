@@ -14,6 +14,44 @@ export type StoragePort = {
   remove(bucket: string, paths: string[]): Promise<void>;
 };
 
+export function uniqueStoragePaths(paths: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const path of paths) {
+    const trimmed = typeof path === 'string' ? path.trim() : '';
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    unique.push(trimmed);
+  }
+  return unique;
+}
+
+export async function collectPagedRows<T>(
+  fetchPage: (offset: number, limit: number) => Promise<T[]>,
+  pageSize = STORAGE_LIST_PAGE_SIZE
+): Promise<T[]> {
+  const rows: T[] = [];
+  let offset = 0;
+  while (true) {
+    const page = await fetchPage(offset, pageSize);
+    rows.push(...page);
+    if (page.length < pageSize) break;
+    offset += page.length;
+  }
+  return rows;
+}
+
+export async function removeStoragePaths(
+  storage: StoragePort,
+  bucket: string,
+  paths: Array<string | null | undefined>
+): Promise<void> {
+  const unique = uniqueStoragePaths(paths);
+  for (let index = 0; index < unique.length; index += STORAGE_LIST_PAGE_SIZE) {
+    await storage.remove(bucket, unique.slice(index, index + STORAGE_LIST_PAGE_SIZE));
+  }
+}
+
 export async function emptyStoragePrefix(
   storage: StoragePort,
   bucket: string,
@@ -40,10 +78,19 @@ export async function emptyStoragePrefix(
     offset += page.length;
   }
 
-  for (let index = 0; index < files.length; index += STORAGE_LIST_PAGE_SIZE) {
-    await storage.remove(bucket, files.slice(index, index + STORAGE_LIST_PAGE_SIZE));
-  }
+  await removeStoragePaths(storage, bucket, files);
   for (const directory of directories) {
     await emptyStoragePrefix(storage, bucket, directory);
   }
+}
+
+export async function cleanupUserStorage(
+  storage: StoragePort,
+  userId: string,
+  paths: { mediaPaths: string[]; avatarPaths: string[] }
+): Promise<void> {
+  await emptyStoragePrefix(storage, 'media-vault', `nixes/${userId}`);
+  await emptyStoragePrefix(storage, 'avatars', userId);
+  await removeStoragePaths(storage, 'media-vault', paths.mediaPaths);
+  await removeStoragePaths(storage, 'avatars', paths.avatarPaths);
 }
