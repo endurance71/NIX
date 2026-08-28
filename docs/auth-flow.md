@@ -7,6 +7,8 @@
 - **Rejestracja:** `supabase.auth.signUp({ email, password })` — Supabase wysyła link potwierdzający (konfiguracja projektu Supabase Auth).
 - **Logowanie:** `signInWithPassword({ email, password })`.
 - **Logowanie Apple (iOS):** `expo-apple-authentication` → `supabase.auth.signInWithIdToken({ provider: 'apple', token, nonce })` — implementacja w [`src/services/socialAuthService.ts`](../src/services/socialAuthService.ts). `nonce` jest obowiązkowy; mismatch jest błędem i nie powoduje ponowienia bez nonce.
+- **Usuwanie konta Apple:** natywna autoryzacja zwraca świeży `authorizationCode`. Klient **nie** wywołuje `signInWithIdToken`, nie zmienia sesji i nie loguje kodu. Kod idzie wyłącznie w body `delete-account`.
+- **S4 (backend, niezaimplementowane):** wymiana kodu po stronie serwera; odczyt `sub` z odpowiedzi Apple; porównanie z Apple ID użytkownika z bieżącego Bearer tokenu; mismatch → brak revoke i brak usunięcia; dopiero revoke → cleanup → delete user.
 - **Wylogowanie:** `signOut()`.
 - **Reset hasła:** `resetPasswordForEmail(email, { redirectTo })` → ekran `reset-password` wywołuje `updatePassword(newPassword)`.
 - **Zmiana hasła (zalogowany, tylko e-mail+hasło):** ekran `change-password`; ukryty dla kont Apple-only (`userHasEmailPasswordIdentity`).

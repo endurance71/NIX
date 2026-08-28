@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { User, UserIdentity } from '@supabase/supabase-js';
-import { userHasEmailPasswordIdentity } from '../lib/authProviders';
+import { userHasAppleIdentity, userHasEmailPasswordIdentity } from '../lib/authProviders';
 
 function makeUser(identities: UserIdentity[]): User {
   return {
@@ -48,5 +48,21 @@ describe('userHasEmailPasswordIdentity', () => {
   it('zwraca false dla braku użytkownika', () => {
     expect(userHasEmailPasswordIdentity(null)).toBe(false);
     expect(userHasEmailPasswordIdentity(undefined)).toBe(false);
+  });
+});
+
+describe('userHasAppleIdentity', () => {
+  it('zwraca true gdy użytkownik ma provider apple', () => {
+    const user = makeUser([{ provider: 'apple', id: '1' } as UserIdentity]);
+    expect(userHasAppleIdentity(user)).toBe(true);
+  });
+
+  it('zwraca false gdy użytkownik ma tylko provider email', () => {
+    const user = makeUser([{ provider: 'email', id: '1' } as UserIdentity]);
+    expect(userHasAppleIdentity(user)).toBe(false);
+  });
+
+  it('zwraca false dla braku użytkownika', () => {
+    expect(userHasAppleIdentity(null)).toBe(false);
   });
 });

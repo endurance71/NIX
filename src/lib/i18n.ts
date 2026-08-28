@@ -599,6 +599,7 @@ export const resources = {
         deleteAccountProcessing: 'Usuwanie konta…',
         deleteAccountConfirmationError: 'Wpisz swoją nazwę użytkownika, aby potwierdzić.',
         deleteAccountPasswordError: 'Wpisz aktualne hasło.',
+        deleteAccountAppleCodeError: 'Potwierdzenie Apple nie zwróciło kodu. Spróbuj ponownie.',
         deleteAccountFailed: 'Nie udało się usunąć konta. Spróbuj ponownie.',
       },
       push: {
@@ -1297,6 +1298,7 @@ export const resources = {
         deleteAccountProcessing: 'Deleting account…',
         deleteAccountConfirmationError: 'Enter your username to confirm.',
         deleteAccountPasswordError: 'Enter your current password.',
+        deleteAccountAppleCodeError: 'Apple confirmation did not return a code. Try again.',
         deleteAccountFailed: 'We could not delete your account. Please try again.',
       },
       push: {

@@ -15,3 +15,13 @@ export function userHasEmailPasswordIdentity(user: User | null | undefined): boo
   }
   return false;
 }
+
+export function userHasAppleIdentity(user: User | null | undefined): boolean {
+  if (!user) return false;
+  if (user.identities && user.identities.length > 0) {
+    return user.identities.some((identity) => identity.provider === 'apple');
+  }
+  const appProvider = user.app_metadata?.provider;
+  const providers = user.app_metadata?.providers as string[] | undefined;
+  return appProvider === 'apple' || (Array.isArray(providers) && providers.includes('apple'));
+}
