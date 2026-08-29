@@ -4,6 +4,9 @@
 **Zakres:** aktualny kod aplikacji iOS `1.0.11`, build `3`, backend Supabase, publiczne strony prawne i lokalne materiały App Store Connect
 **Podstawa:** Apple App Review Guidelines po aktualizacji z 8 czerwca 2026 r.
 **Werdykt:** **NO-GO do App Review**
+**Binary:** **ARCHIVE RECORDED / NOT UPLOADED** — IPA `1.0.11` (3) ze źródła `858d5b1`
+(xcarchive build 2 → eksport build 3). Kolejny binary: `CFBundleVersion` **minimum 4**.
+Migration head: `20260829170422`. P0-4 = **DEVICE TEST DEFERRED**. **Nie** `IN REVIEW`.
 
 ## 1. Podsumowanie zarządcze
 
@@ -19,12 +22,13 @@ retencja dowodów). Wysłanie kandydata do review jest nadal zbyt ryzykowne. Poz
 1. media UGC nie mają żadnej metody filtrowania przed wysłaniem, podczas gdy Guideline
    1.2 wymaga metody filtrowania objectionable material; istniejące report/block i ręczna
    moderacja nie zastępują tego osobnego wymagania (P0-3);
-2. nierozliczone bramki App Review i środowiska: wklejenie pakietu ASC,
-   podpisany Archive z czystego `ios/` i smoke na urządzeniu (P0-5).
+2. nierozliczone bramki App Review i środowiska: wklejenie pakietu ASC
+   i smoke na urządzeniu (P0-5). Lokalny signed Archive **1.0.11 (3)** z `858d5b1`
+   jest nagrany (production APS); status **ARCHIVE RECORDED / NOT UPLOADED**.
    Syntetyczny smoke moderacji A/B/C (S6B) jest zrobiony; konta demo i copy
    listing są przygotowane poza Git / w `docs/app-store-listing.md`.
 
-P0-4: **CODE/PRODUCTION READY — DEVICE TEST DEFERRED.** `delete-account` v5
+P0-4: **CODE/PRODUCTION READY — DEVICE TEST DEFERRED.** `delete-account` v6
 odwołuje token Apple przed cleanupem; sekrety są poza repo. Kontrolowany test
 urządzeniowy Sign in with Apple **nie został wykonany**.
 
@@ -188,7 +192,7 @@ urządzeniowym Sign in with Apple (nie Sandbox IAP), ponowne użycie starego tok
 nie działa, a awaria revoke ma kontrolowaną, ponawialną ścieżkę.
 
 **Status 2026-08-29:** **CODE/PRODUCTION READY — DEVICE TEST DEFERRED.** Commit
-`858d5b1`, funkcja `delete-account` v5 z `verify_jwt=true`. Sekrety Apple
+`858d5b1`, funkcja `delete-account` v6 z `verify_jwt=true`. Sekrety Apple
 wyłącznie w Dashboard. Testy automatyczne (JWT 401, sekrety po nazwach, skan
 logów bez kodów/tokenów) są zapisane osobno od testów urządzeniowych, które
 **nie zostały wykonane**. Dowody: `~/.nix-ops/sprint4-s5/evidence.json`.
@@ -202,14 +206,18 @@ credentials demo są wyłącznie w ASC / `~/.nix-ops/sprint4b/demo-accounts.json
 Stan produkcji po Sprincie 4B (2026-08-29):
 
 - migracje i `report-content` / `cleanup-moderation-evidence` są wdrożone (zob. P0-1/P0-2);
-- `moderation_remove_reported_content` oraz `moderation-admin` `remove` v5 są na produkcji;
+- `moderation_remove_reported_content` oraz `moderation-admin` `remove` v6 są na produkcji;
 - cron `cleanup-moderation-evidence` jest w migracji `20260827125000` (`27 4 * * *` UTC);
-- syntetyczny smoke A/B/C 14 kroków: PASS (`~/.nix-ops/sprint4b/smoke-evidence.json`);
-  list/remove/decide/appeal poszły tymi samymi RPC co Edge, bo `MODERATOR_API_SECRET`
-  nie leży w ops; HTTP list bez sekretu = 401;
+- syntetyczny smoke A/B/C: **PRODUCTION RPC SMOKE PASS — MODERATION EDGE HAPPY-PATH PASS**
+  (`~/.nix-ops/sprint4b/smoke-evidence.json`); HTTP list/remove/decide/appeal = 200
+  (Bearer service role + `x-moderator-secret`); HTTP bez sekretu = 401;
+- lokalny signed Archive **1.0.11 (3)** z `858d5b1` (xcarchive 2 → IPA 3):
+  `aps-environment=production`, app group i `applinks:nix.damianmotylinski.pl` —
+  **ARCHIVE RECORDED / NOT UPLOADED** (`~/.nix-ops/sprint4b/IOS-ARCHIVE.md`);
+  kolejny binary: `CFBundleVersion` **minimum 4**;
 - `push-dispatch` ma `verify_jwt=false` — osobne zadanie [issue #7](https://github.com/endurance71/NIX/issues/7);
 - nadal niepotwierdzone: wklejenie App Privacy/rating/screenshotów w ASC,
-  `aps-environment=production` na Archive, smoke na fizycznym iPhonie i iPad compatibility.
+  smoke na fizycznym iPhonie i iPad compatibility.
 
 **Kryterium zamknięcia:** komplet dowodów z checklisty w sekcji 11, dwa działające konta
 reviewera i pełna ścieżka A↔B wykonana na czystej instalacji bez dostępu do prywatnej skrzynki.
@@ -310,7 +318,7 @@ nie ma RevenueCat/StoreKit i metadata nie może promować subskrypcji, triala an
 | --- | --- | --- |
 | Model biznesowy aktualnego binary | OK | brak RevenueCat, StoreKit, IAP, reklam i zewnętrznych płatności; dokumentacja wyraźnie oddziela przyszły model |
 | Logowanie | OK z P1 nonce | własny email/password + natywny Sign in with Apple; oficjalny przycisk Apple |
-| Usuwanie konta | CODE OK | łatwo dostępne w Profilu; `delete-account` v5 revoke + cleanup; test urządzeniowy Apple odroczony (P0-4) |
+| Usuwanie konta | CODE OK | łatwo dostępne w Profilu; `delete-account` v6 revoke + cleanup; test urządzeniowy Apple odroczony (P0-4) |
 | Uprawnienia | OK | szczegółowe purpose strings dla kamery, mikrofonu, odczytu i zapisu Photos; użycie odpowiada funkcjom |
 | Transport | OK statycznie | ATS arbitrary loads wyłączone; HTTPS dla Supabase i stron prawnych |
 | Sekrety | OK w badanym zakresie | service role/sekrety moderacji po stronie funkcji; brak sekretów w `EXPO_PUBLIC_*` |
@@ -345,8 +353,9 @@ nie ma RevenueCat/StoreKit i metadata nie może promować subskrypcji, triala an
 - TypeScript, ESLint, Knip, Expo Doctor i dependency compatibility nie wykryły błędów.
 - iOS deployment target w projekcie to 16.4; `LSMinimumSystemVersion=12.0` w Info.plist nie
   jest kanonicznym ustawieniem iOS, ale warto potwierdzić finalne minimum na stronie buildu ASC.
-- `aps-environment=development` w pliku repozytorium jest normalne dla developmentu tylko
-  pod warunkiem, że podpisany Archive dystrybucyjny ma `production`. To bramka manualna.
+- `aps-environment=development` w pliku repozytorium jest normalne dla developmentu.
+  IPA dystrybucyjna `1.0.11` (3) z worktree `858d5b1` (2026-08-29) ma `production`.
+  Status: **ARCHIVE RECORDED / NOT UPLOADED**. Kolejny build: **minimum 4**.
 - Background modes `fetch` i `processing` mają rzeczywiste użycie w durable upload/recovery;
   nie są zadeklarowane wyłącznie „na zapas”.
 - Live Activity dotyczy trwającego uploadu i jest powiązane z funkcją aplikacji, zgodnie z
@@ -408,7 +417,7 @@ report → remove → suspension → appeal → block/unblock → cleanup dry-ru
 - [x] Wszystkie dowody mają 30-dniowe `evidence_expires_at`; CHECK `content_reports_evidence_requires_expiry`; v1 dropnięte (PR #5 `1883072`); `missing_expiry=0`; sieroty 0.
 - [ ] Wdrożono skuteczny mechanizm filtrowania tekstu i mediów zgodny z 1.2.
 - [x] Moderator może usunąć treść, zablokować konto, rozpatrzyć appeal i zachować audyt
-  (S6A RPC + `moderation-admin` `remove` v5; S6B PASS 2026-08-29).
+  (S6A RPC + `moderation-admin` `remove` v6; S6B PASS 2026-08-29).
 - [ ] Sign in with Apple revoke działa przed zakończeniem usuwania konta.
 - [ ] Usunięto fallback logowania Apple bez nonce.
 - [ ] Publiczna i in-app Privacy Policy są identyczne merytorycznie i zgodne z kodem.
@@ -440,7 +449,9 @@ report → remove → suspension → appeal → block/unblock → cleanup dry-ru
 - [ ] Screenshoty 6.9" pokazują aplikację w użyciu i fikcyjne dane.
 - [x] Description, subtitle, keywords, category i What's New nie obiecują NiX Circle
       (copy w `docs/app-store-listing.md`; wklejenie do ASC = operator).
-- [ ] Signed Archive ma production APS entitlement i poprawne app-group/associated domains.
+- [x] Signed Archive ma production APS entitlement i poprawne app-group/associated domains
+      (IPA **1.0.11 (3)** z `858d5b1`; **ARCHIVE RECORDED / NOT UPLOADED**;
+      `~/.nix-ops/sprint4b/IOS-ARCHIVE.md`).
 - [ ] Testy: clean install, upgrade, offline, NAT64/IPv6, denial permissions, background upload,
   push, Live Activity, account deletion, Light/Dark, Dynamic Type, VoiceOver i iPad compatibility.
 - [ ] W ASC wybrano dokładnie build, który przeszedł powyższe testy.
