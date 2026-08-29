@@ -122,11 +122,15 @@ function discardPhotoPreview(clearDraft: () => void) {
   router.back();
 }
 
-function openSendToPhoto(viewDurationSec: number) {
+function openSendToPhoto(viewDurationSec: number, recipientId?: string) {
   tap('light');
   router.push({
     pathname: '/send-to',
-    params: { mode: 'image', viewDurationSec: String(viewDurationSec) },
+    params: {
+      mode: 'image',
+      viewDurationSec: String(viewDurationSec),
+      ...(recipientId ? { recipientId } : {}),
+    },
   });
 }
 
@@ -732,10 +736,11 @@ export default function PreviewScreen() {
   const { colors, statusBarStyle } = useAppTheme();
   const insets = useScreenInsets('mediaChrome');
   const styles = createStyles(colors);
-  const raw = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string; durationMs?: string }>();
+  const raw = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string; durationMs?: string; recipientId?: string }>();
   const mode = paramFirst(raw.mode);
   const paramUri = decodeParamUri(paramFirst(raw.uri));
   const rawDurationMs = paramFirst(raw.durationMs);
+  const recipientId = paramFirst(raw.recipientId);
 
   const [viewDurationSec, setViewDurationSec] = useState<NixViewDurationSec>(DEFAULT_NIX_VIEW_DURATION_SEC);
   const [imageLoadError, setImageLoadError] = useState(false);
@@ -1004,7 +1009,7 @@ export default function PreviewScreen() {
                   <NativePreviewSendButton
                     label="Wyślij do"
                     accessibilityLabel="Wybierz odbiorców zdjęcia"
-                    onPress={() => openSendToPhoto(viewDurationSec)}
+                    onPress={() => openSendToPhoto(viewDurationSec, recipientId)}
                     backgroundColor={colors.cameraControlBackground}
                     tintColor={colors.cameraControlTint}
                     chromeVariant="glass"
