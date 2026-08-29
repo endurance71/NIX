@@ -58,7 +58,25 @@ Client secret JWT jest generowany per request (ES256, TTL 5 minut). Authorizatio
 
 Brak któregokolwiek sekretu **blokuje** usunięcie konta Apple (fail-closed). Konta e-mail+hasło nie używają tych sekretów.
 
-Nie wdrażaj funkcji z tymi sekretami, dopóki S4 nie przejdzie review i testu sandbox.
+`delete-account` v5 jest wdrożony z `verify_jwt = true`. Kontrolowany test
+urządzeniowy Sign in with Apple na development lub TestFlight **pozostaje
+otwarty** (P0-4 DEVICE TEST DEFERRED). To nie są konta Sandbox Apple (te
+dotyczą głównie StoreKit/IAP i Apple Pay). Sign in with Apple używa normalnej
+konfiguracji App ID, Apple Account i rzeczywistych endpointów REST
+(`/auth/token`, `/auth/revoke`).
+
+## Test urządzeniowy usuwania konta (otwarty)
+
+Na fizycznym iPhonie, po ustawieniu sekretów i wdrożeniu `delete-account`
+(jeszcze nie wykonane):
+
+1. Poprawne usunięcie konta z identity Apple (świeży sheet Sign in with Apple).
+2. Konto bez identity Apple (e-mail+hasło) — bez kodu Apple, pełny cleanup.
+3. Identity Apple bez `authorizationCode` — 400, brak cleanupu.
+4. Zużyty albo błędny kod — fail-closed, konto zostaje.
+5. Błąd Apple (revoke/exchange) — brak cleanupu bazy, storage i `auth.users`.
+
+Po sukcesie zapisz dowody bez danych użytkowników: brak `auth.users` / profilu / powiązanych nixów, puste własne prefiksy `media-vault/nixes/<userId>` i `avatars/<userId>`, zachowany asset używany przez innego odbiorcę, kwalifikacja ostatniego osieroconego assetu przez `mark_expired_media_uploads` / cron, brak kodów i tokenów w logach.
 
 ## Zmienne środowiskowe aplikacji
 

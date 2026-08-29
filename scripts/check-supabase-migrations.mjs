@@ -39,6 +39,7 @@ const expected = [
   '20260827120000_content_report_evidence_expiry_check_and_drop_v1.sql',
   '20260827125000_schedule_cleanup_moderation_evidence.sql',
   '20260828100000_strengthen_text_message_safety_filter.sql',
+  '20260829170422_moderation_remove_reported_content.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
@@ -289,6 +290,27 @@ if (/DROP CONSTRAINT\s+text_messages_safety_filter_chk/i.test(textSafetyFilterV2
 }
 if (/folded\s*~\s*'zabijecie'/.test(textSafetyFilterV2)) {
   failures.push('text safety filter must not match folded zabijecie (false positive on 2nd-person plural)');
+}
+
+const removeReported = await readFile(
+  path.join(migrationsDir, '20260829170422_moderation_remove_reported_content.sql'),
+  'utf8'
+);
+for (const marker of [
+  'CREATE OR REPLACE FUNCTION public.moderation_remove_reported_content',
+  'FROM public.content_reports r',
+  'DELETE FROM public.text_messages tm',
+  'DELETE FROM public.nixes n',
+  "status IN ('sent', 'viewed', 'cleanup_failed')",
+  "'content_removed'",
+  'GRANT EXECUTE ON FUNCTION public.moderation_remove_reported_content(UUID) TO service_role',
+]) {
+  if (!removeReported.includes(marker)) {
+    failures.push(`moderation remove reported content migration is missing ${marker}`);
+  }
+}
+if (/Storage\.remove|storage\.objects/i.test(removeReported)) {
+  failures.push('moderation remove must not delete Storage objects');
 }
 
 const seed = await readFile(path.join(root, 'supabase', 'seed.sql'), 'utf8');
