@@ -249,7 +249,7 @@ PODS:
     - ExpoModulesCore
   - ExpoFileSystem (57.0.5):
     - ExpoModulesCore
-  - ExpoFont (57.0.1):
+  - ExpoFont (57.0.2):
     - ExpoModulesCore
   - ExpoGlassEffect (57.0.1):
     - ExpoModulesCore
@@ -322,6 +322,8 @@ PODS:
     - ExpoModulesWorklets
     - RNWorklets
   - ExpoNotifications (57.0.14):
+    - ExpoModulesCore
+  - ExpoPasteInput (1.0.0):
     - ExpoModulesCore
   - ExpoRouter (57.0.16):
     - ExpoModulesCore
@@ -3663,6 +3665,7 @@ DEPENDENCIES:
   - ExpoModulesWorklets (from `../node_modules/expo-modules-core`)
   - ExpoModulesWorkletsAdapter (from `../node_modules/expo-modules-core`)
   - ExpoNotifications (from `../node_modules/expo-notifications/ios`)
+  - ExpoPasteInput (from `../node_modules/expo-paste-input/ios`)
   - ExpoRouter (from `../node_modules/expo-router/ios`)
   - ExpoScreenCapture (from `../node_modules/expo-screen-capture/ios`)
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
@@ -3873,6 +3876,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-modules-core"
   ExpoNotifications:
     :path: "../node_modules/expo-notifications/ios"
+  ExpoPasteInput:
+    :path: "../node_modules/expo-paste-input/ios"
   ExpoRouter:
     :path: "../node_modules/expo-router/ios"
   ExpoScreenCapture:
@@ -4116,7 +4121,7 @@ SPEC CHECKSUMS:
   ExpoCrypto: f392e5f076a4c11dbfa1a6046449747acec82711
   ExpoDomWebView: beaec034e51bd028428b98bb1f2633ab79c6d095
   ExpoFileSystem: 0e74ed1536e1643f4a352d84ed55d311d795828d
-  ExpoFont: 59e1faf66ba9bcd232ae1e2ce58d202a48b6f65e
+  ExpoFont: 02ab7433c23831e76b98aa1e2de67b404eeebc4a
   ExpoGlassEffect: 4b62afb489e6b84357701737ce002137c9d5fdbc
   ExpoHaptics: 4503d2da51ff7109712ccdfe0e4939f66818183e
   ExpoImage: b37accc4b12647e5cf939b2335eea2bdb874ad7f
@@ -4133,6 +4138,7 @@ SPEC CHECKSUMS:
   ExpoModulesWorklets: ba8252c1824dce38008bdbd1de28566c6591ab7b
   ExpoModulesWorkletsAdapter: 6e8c680fe80f88dd9845e9f5822b0fca293c3daa
   ExpoNotifications: 6c0393cf9fe8dd90e85dc51585aacbe93372b79b
+  ExpoPasteInput: e8eba5274ad513ba3e02ceb71ad6524bf2e46ce1
   ExpoRouter: 72725c8d3c4d3413ba8ecb26e35d1668ef35b9ae
   ExpoScreenCapture: 6b82aba55db3ecc6f124ebd45163d6db9b916b2d
   ExpoSecureStore: 94793113049a2d7478dfe1a13aa15081e9f61755
@@ -4143,7 +4149,7 @@ SPEC CHECKSUMS:
   ExpoTaskManager: 988d2e4bab5190e36ccbab2acc2829a8c2e2d891
   ExpoUI: eab792a266aec6a73161023b9623ce1166d27393
   ExpoVideo: b1d9a325ddcd4f3ed8ccb374c01b688e98bc6a04
-  ExpoWidgets: cae26e8b94c7fa44192767240eaf4fe035531791
+  ExpoWidgets: fae2289b62784188f2801932e25ec4bacaa4ec94
   EXStructuredHeaders: 1423c3602a30eb078e03b63b251ef912267dd4c0
   EXUpdates: 024d973c0d382061ee368a83de83500630d3971a
   EXUpdatesInterface: 92d2aa5194b6fb93ca8ab749db75665cb28b2e60
@@ -4152,7 +4158,7 @@ SPEC CHECKSUMS:
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
   glog: 9c7bd858f1402a8e680d1637276210773c093b76
   GoogleUtilities: 766ace00c6b10d8148408f329d10c4f051931850
-  hermes-engine: 09a2faa4e7e5894fbe11dd913f882f1ce7264b90
+  hermes-engine: 314c950fed42ae5aa656191e42bef1e7bd71f939
   libavif: 5f8e715bea24debec477006f21ef9e95432e254d
   libdav1d: 23581a4d8ec811ff171ed5e2e05cd27bad64c39f
   libwebp: af5937a13536ef73f3784d69cc342b98961acf33

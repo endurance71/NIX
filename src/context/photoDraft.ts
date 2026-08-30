@@ -10,6 +10,11 @@ export type PhotoDraftData = {
   captureOrientation?: CameraOrientation;
   textOverlay?: MediaTextOverlay | null;
   drawingOverlay?: MediaDrawingOverlay | null;
+  /**
+   * Temporary files created by clipboard import. Camera and gallery URIs must
+   * not be listed here — only these paths are eligible for best-effort delete.
+   */
+  ownedTemporaryUris?: string[];
 };
 
 export type PhotoDraftContextValue = {

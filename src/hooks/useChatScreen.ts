@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -44,6 +45,11 @@ import {
 } from '../services/textOutboxService';
 import { activeChatPeerRef } from '../lib/activeChatPeer';
 import { serializeViewerOpenParams } from '../lib/viewerRoute';
+import { usePhotoDraft } from '../context/photoDraft';
+import { chatPasteFeatures } from '../config/chatPasteFeatures';
+import { handleChatPastePayload } from '../lib/chatPasteHandler';
+import type { ChatPasteIo, ChatPastePayload } from '../lib/chatPaste';
+import { createDefaultChatPasteIo } from '../lib/chatPasteIo';
 
 function generateClientMessageId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -91,9 +97,13 @@ export function useChatScreen(peerId: string) {
   } = useUploadQueue();
   const uploadJobs = useUploadJobs();
 
+  const { setDraft: setPhotoDraft } = usePhotoDraft();
   const [inputBody, setInputBody] = useState('');
   const [composerKey, setComposerKey] = useState(0);
   const [sending, setSending] = useState(false);
+  const [pasteImporting, setPasteImporting] = useState(false);
+  const pasteImportingRef = useRef(false);
+  const pasteIoRef = useRef<ChatPasteIo | null>(null);
   const [uploadClock, setUploadClock] = useState(() => Date.now());
   const [busyUploadActions, setBusyUploadActions] = useState<
     ReadonlyMap<string, UploadRowAction>
@@ -270,6 +280,36 @@ export function useChatScreen(peerId: string) {
       () => setSending(false)
     );
   };
+
+  const handlePaste = useCallback(async (payload: ChatPastePayload) => {
+    if (!chatPasteFeatures.pasteInput) return;
+    if (!pasteIoRef.current) {
+      pasteIoRef.current = createDefaultChatPasteIo();
+    }
+    await handleChatPastePayload(payload, {
+      isImporting: () => pasteImportingRef.current,
+      setImporting: (value) => {
+        pasteImportingRef.current = value;
+        setPasteImporting(value);
+      },
+      setDraft: setPhotoDraft,
+      peerId,
+      t,
+      notifyError: (title) => {
+        notifyError(title);
+      },
+      notifySuccess: (title) => {
+        notifySuccess(title);
+      },
+      announce: (message) => {
+        void AccessibilityInfo.announceForAccessibility(message);
+      },
+      openPreview: (recipientId) => {
+        router.push({ pathname: '/preview', params: { recipientId } });
+      },
+      pasteIo: pasteIoRef.current,
+    });
+  }, [peerId, setPhotoDraft, t]);
 
   const handleRetryTextMessage = async (message: OptimisticTextMessage) => {
     if (!message.outboxId) return;
@@ -574,6 +614,9 @@ export function useChatScreen(peerId: string) {
     setInputBody,
     composerKey,
     sending,
+    pasteInputEnabled: chatPasteFeatures.pasteInput,
+    pasteImporting,
+    handlePaste,
     reportReasons,
     handleSend,
     handleRetryTextMessage,

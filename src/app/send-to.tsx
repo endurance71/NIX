@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
@@ -16,6 +16,7 @@ import { typography } from '../theme/typography';
 import { AppIcon } from '../components/ui/app-icon';
 import { AvatarCircle } from '../components/ui/avatar-circle';
 import { normalizeNixViewDurationSec } from '../lib/nixViewDuration';
+import { applySuggestedRecipientOnce } from '../lib/suggestedRecipient';
 import { toggleSetValue } from '../lib/selection';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { notifyError, notifySuccess } from '../lib/appNotify';
@@ -105,7 +106,7 @@ export default function SendToSheet() {
   const { topContentInset, bottomContentInset } = useScreenInsets('sheet');
   const { colors } = useAppTheme();
   const stylesForTheme = createStyles(colors, topContentInset, bottomContentInset);
-  const rawParams = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string }>();
+  const rawParams = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string; recipientId?: string }>();
   const { draft: draftPhoto, clearDraft: clearPhotoDraft } = usePhotoDraft();
   const photoUri = draftPhoto?.uri ?? decodeParamUri(paramFirst(rawParams.uri));
   const mode = paramFirst(rawParams.mode);
@@ -155,6 +156,21 @@ export default function SendToSheet() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [isSending, setIsSending] = useState(false);
   const sendLockRef = useRef(false);
+  const didPreselectRecipientRef = useRef(false);
+  const suggestedRecipientId = paramFirst(rawParams.recipientId);
+
+  useEffect(() => {
+    if (profilesData === undefined) return;
+    const { applied, selectedId } = applySuggestedRecipientOnce({
+      alreadyApplied: didPreselectRecipientRef.current,
+      recipientId: suggestedRecipientId,
+      acceptedFriendIds: profilesData.map((profile) => profile.id),
+    });
+    didPreselectRecipientRef.current = applied;
+    if (selectedId) {
+      setSelectedIds(new Set([selectedId]));
+    }
+  }, [profilesData, suggestedRecipientId]);
 
   const selectedCount = selectedIds.size;
   const selectedIdList = Array.from(selectedIds);

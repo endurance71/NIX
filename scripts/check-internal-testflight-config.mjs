@@ -9,10 +9,10 @@ const failures = [];
 const production = eas.build?.production;
 const submit = eas.submit?.production?.ios;
 
-if (eas.cli?.appVersionSource !== 'local') failures.push('EAS appVersionSource must be local for the 1.0.11 (2) RC');
+if (eas.cli?.appVersionSource !== 'local') failures.push('EAS appVersionSource must be local for the Internal TestFlight RC');
 if (production?.environment !== 'production') failures.push('production build must use EAS environment production');
 if (production?.channel !== 'production') failures.push('production build must use the production OTA channel');
-if (production?.autoIncrement !== false) failures.push('production build autoIncrement must be false for the 1.0.11 (2) RC');
+if (production?.autoIncrement !== false) failures.push('production build autoIncrement must be false for the Internal TestFlight RC');
 if (eas.build?.preview?.channel !== 'preview') failures.push('preview build must use the preview OTA channel');
 if (eas.build?.development?.channel !== 'development') failures.push('development build must use the development OTA channel');
 if (production?.env?.SENTRY_DISABLE_AUTO_UPLOAD !== 'true') failures.push('Sentry source-map upload must be disabled');
@@ -23,7 +23,10 @@ if (!/^\d{7,}$/.test(submit?.ascAppId ?? '')) failures.push('set the real numeri
 if (pkg.version !== '1.0.11') failures.push('package.json version must be 1.0.11');
 if (appConfig.expo?.version !== '1.0.11') failures.push('app.json expo.version must be 1.0.11');
 if (appConfig.expo?.runtimeVersion !== '1.0.11') failures.push('app.json expo.runtimeVersion must be 1.0.11');
-if (appConfig.expo?.ios?.buildNumber !== '2') failures.push('app.json expo.ios.buildNumber must be 2');
+const buildNumber = Number.parseInt(appConfig.expo?.ios?.buildNumber ?? '', 10);
+if (!Number.isInteger(buildNumber) || buildNumber < 4) {
+  failures.push('app.json expo.ios.buildNumber must be an integer >= 4');
+}
 if (appConfig.expo?.updates?.requestHeaders?.['expo-channel-name'] !== 'production') {
   failures.push('app.json must point updates at the production channel');
 }
@@ -44,6 +47,9 @@ if (!/^EXPO_PUBLIC_SHARE_INVITES_ENABLED=false$/m.test(productionEnv)) {
 }
 if (!/^EXPO_PUBLIC_SENTRY_ENABLED=true$/m.test(productionEnv)) {
   failures.push('Internal TestFlight runtime diagnostics opt-in must be present in .env.production');
+}
+if (!/^EXPO_PUBLIC_CHAT_PASTE_INPUT_ENABLED=true$/m.test(productionEnv)) {
+  failures.push('chat paste input must be explicitly enabled for this Internal TestFlight build');
 }
 
 if (failures.length) {
