@@ -52,6 +52,8 @@ jobs:
         run: npm run doctor:react:changed -- --base main --blocking error --no-score
       - name: Internal TestFlight configuration
         run: npm run check:internal-testflight-config
+      - name: Release environment preflight
+        run: npm run check:release-env
       - name: Hermes production export
         run: npm run export:production
 

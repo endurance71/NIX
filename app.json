@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.damianmotylinski.nixapp",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "associatedDomains": [
         "applinks:nix.damianmotylinski.pl"
       ],
@@ -116,6 +116,7 @@
         }
       ],
       "./plugins/withIosXcodeSpacesInPathFix.js",
+      "./plugins/withIosReleaseEnvValidation.js",
       "@sentry/react-native",
       "expo-font",
       "expo-sqlite",
