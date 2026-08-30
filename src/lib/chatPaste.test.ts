@@ -94,6 +94,26 @@ describe('importPastedImages', () => {
     expect(result.ownedTemporaryUris).toEqual([result.uri]);
     expect(result.width).toBe(800);
     expect(io.normalized).toBe(true);
+    expect(io.deleted).not.toContain(SOURCE);
+  });
+
+  it('nigdy nie usuwa wejściowego file URI, którego importer nie jest właścicielem', async () => {
+    const arbitrarySource = 'file:///documents/user-owned.jpg';
+    const io = createIo({
+      getInfo: async (uri) => {
+        if (uri === arbitrarySource) return { exists: true, size: 12_000 };
+        if (uri.startsWith(`${CACHE}nix-paste/`)) return { exists: true, size: 8_000 };
+        return { exists: false };
+      },
+    });
+
+    const result = await importPastedImages(
+      { type: 'images', uris: [arbitrarySource] },
+      io
+    );
+
+    expect(result.ok).toBe(true);
+    expect(io.deleted).not.toContain(arbitrarySource);
   });
 
   it('przyjmuje PNG i statyczny WebP', async () => {

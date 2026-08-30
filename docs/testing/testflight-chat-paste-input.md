@@ -1,13 +1,15 @@
 # TestFlight Internal — chat paste input
 
-**Status:** INTERNAL TESTING — **NOT APPROVED FOR PUBLIC RELEASE**  
-**Nie** Submit for Review. **Nie** External Testing. P0-3 pozostaje otwarte.  
+**Status:** TESTFLIGHT INTERNAL DEVICE QA PENDING — **NOT APPROVED FOR PUBLIC RELEASE**
+
+**Nie** Submit for Review. **Nie** External Testing. P0-3 pozostaje otwarte.
+
 Media **nie** są automatycznie moderowane. Nie opisywać funkcji jako skanowania obrazów.
 
 ## Zakres builda
 
 - Marketing version: **1.0.11**
-- Build number: **minimum 4** (nie nadpisuje kandydata App Review `1.0.11 (3)`)
+- Build number: **4** (nie nadpisuje kandydata App Review `1.0.11 (3)`)
 - Pakiet: `expo-paste-input@0.2.2` (przypięty)
 - Pipeline: Paste → validate → normalize → PhotoDraft → `/preview` → `/send-to` → `enqueueMediaBatch`
 - Brak zmian bazy, Edge Functions i upload endpointu
@@ -71,7 +73,8 @@ Adds experimental clipboard media support in chat. Internal testing should cover
 | | | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
 | | | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
 
-Oznacz **PASS/FAIL**. Evidence poza Git: `~/.nix-ops/sprint5-paste-input/` (UTC, iOS, model, build, nazwa przypadku, PASS/FAIL, kod błędu bez payloadu).  
+Oznacz **PASS/FAIL**. Evidence poza Git: `~/.nix-ops/sprint5-paste-input/` (UTC, iOS, model, build, nazwa przypadku, PASS/FAIL, kod błędu bez payloadu).
+
 **Zakaz:** treść schowka, obrazy, e-mail, token, URI, nazwy plików, Apple ID, UUID, konta demo.
 
 ## GO / NO-GO Internal
@@ -85,10 +88,11 @@ GO Internal tylko gdy:
 - upload przez istniejącą durable queue
 - cleanup nie kasuje cudzych plików
 - brak treści/URI w logach
-- development device PASS
 - Archive i entitlements OK
 - flaga włączona w tym internal buildzie
 - build number > 3
+
+Test na fizycznym urządzeniu odbywa się z tej dystrybucji TestFlight Internal. Jego PASS jest wymagany przed External Testing lub publicznym App Review, nie przed samym uploadem internal.
 
 **Nie podejmujemy GO dla publicznego App Store w tym dokumencie.**
 

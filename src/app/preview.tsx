@@ -872,6 +872,7 @@ export default function PreviewScreen() {
       captureOrientation: draftPhoto?.captureOrientation,
       textOverlay: next,
       drawingOverlay: draftPhoto?.drawingOverlay ?? null,
+      ownedTemporaryUris: draftPhoto?.ownedTemporaryUris,
     });
   };
 
@@ -884,6 +885,7 @@ export default function PreviewScreen() {
       captureOrientation: draftPhoto?.captureOrientation,
       textOverlay: draftPhoto?.textOverlay ?? null,
       drawingOverlay: next,
+      ownedTemporaryUris: draftPhoto?.ownedTemporaryUris,
     });
   };
 
@@ -910,6 +912,7 @@ export default function PreviewScreen() {
               captureOrientation: draftPhoto?.captureOrientation,
               textOverlay: draftPhoto?.textOverlay ?? null,
               drawingOverlay: draftPhoto?.drawingOverlay ?? null,
+              ownedTemporaryUris: draftPhoto?.ownedTemporaryUris,
             });
           }
         }}

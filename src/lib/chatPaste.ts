@@ -267,14 +267,6 @@ export async function importPastedImages(
       }
     }
 
-    if (sourceUri !== destUri) {
-      try {
-        await io.deleteAsync(sourceUri);
-      } catch {
-        // Library clipboard temp — ignore if already gone.
-      }
-    }
-
     const destInfo = await io.getInfo(destUri);
     if (!destInfo.exists || !destInfo.size || destInfo.size <= 0) {
       await cleanupCreated(created, io);
