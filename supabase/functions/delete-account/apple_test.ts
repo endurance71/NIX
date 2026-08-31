@@ -112,34 +112,40 @@ Deno.test('weryfikuje iss, aud, exp i sub id_token Apple', async () => {
     await verifyAppleIdToken({ idToken: token, clientId, jwks, nowSeconds: now }),
     { ok: true, sub: '001234.apple' }
   );
-  assertEquals((await verifyAppleIdToken({
-    idToken: token,
-    clientId: 'other.bundle',
-    jwks,
-    nowSeconds: now,
-  })).ok, false);
-  assertEquals((await verifyAppleIdToken({
-    idToken: token,
-    clientId,
-    jwks,
-    nowSeconds: now + 4000,
-  })).ok, false);
+  const [wrongAudience, expired] = await Promise.all([
+    verifyAppleIdToken({
+      idToken: token,
+      clientId: 'other.bundle',
+      jwks,
+      nowSeconds: now,
+    }),
+    verifyAppleIdToken({
+      idToken: token,
+      clientId,
+      jwks,
+      nowSeconds: now + 4000,
+    }),
+  ]);
+  assertEquals(wrongAudience.ok, false);
+  assertEquals(expired.ok, false);
 });
 
 Deno.test('odrzuca id_token z obcym podpisem', async () => {
   const now = 1_700_000_000;
-  const { token } = await generateRs256Jwt({
-    iss: APPLE_ISS,
-    aud: 'com.damianmotylinski.nixapp',
-    exp: now + 3600,
-    sub: '001234.apple',
-  });
-  const other = await generateRs256Jwt({
-    iss: APPLE_ISS,
-    aud: 'com.damianmotylinski.nixapp',
-    exp: now + 3600,
-    sub: '001234.apple',
-  });
+  const [{ token }, other] = await Promise.all([
+    generateRs256Jwt({
+      iss: APPLE_ISS,
+      aud: 'com.damianmotylinski.nixapp',
+      exp: now + 3600,
+      sub: '001234.apple',
+    }),
+    generateRs256Jwt({
+      iss: APPLE_ISS,
+      aud: 'com.damianmotylinski.nixapp',
+      exp: now + 3600,
+      sub: '001234.apple',
+    }),
+  ]);
   assertEquals((await verifyAppleIdToken({
     idToken: token,
     clientId: 'com.damianmotylinski.nixapp',

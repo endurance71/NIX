@@ -225,17 +225,17 @@ Deno.test('żadna ścieżka błędu przed revoke nie uruchamia cleanupu', async 
     { appleAuthorizationCode: 'fresh-code' },
   ];
 
-  for (let i = 0; i < cases.length; i++) {
-    const { deps, calls } = cases[i];
+  await Promise.all(cases.map(async ({ deps, calls }, i) => {
     const response = await handleDeleteAccount(request(bodies[i]), deps);
+    const callSet = new Set(calls);
     assertEquals(response.status >= 400, true);
-    assertEquals(calls.includes('database_cleanup'), false);
-    assertEquals(calls.includes('storage_cleanup'), false);
-    assertEquals(calls.includes('delete_auth_user'), false);
-    if (calls.includes('revoke') === false) {
-      assertEquals(calls.includes('database_cleanup'), false);
+    assertEquals(callSet.has('database_cleanup'), false);
+    assertEquals(callSet.has('storage_cleanup'), false);
+    assertEquals(callSet.has('delete_auth_user'), false);
+    if (!callSet.has('revoke')) {
+      assertEquals(callSet.has('database_cleanup'), false);
     }
-  }
+  }));
 });
 
 function abortingFetch(): typeof fetch {
@@ -281,13 +281,14 @@ Deno.test('timeout każdego endpointu Apple nie uruchamia cleanupu', async () =>
     },
   ];
 
-  for (const endpoint of endpoints) {
+  await Promise.all(endpoints.map(async (endpoint) => {
     const { deps, calls } = createDeps({ user: appleUser() });
     endpoint.patch(deps);
     const response = await handleDeleteAccount(request({ appleAuthorizationCode: 'fresh-code' }), deps);
+    const callSet = new Set(calls);
     assertEquals(response.status >= 400, true, endpoint.name);
-    assertEquals(calls.includes('database_cleanup'), false, endpoint.name);
-    assertEquals(calls.includes('storage_cleanup'), false, endpoint.name);
-    assertEquals(calls.includes('delete_auth_user'), false, endpoint.name);
-  }
+    assertEquals(callSet.has('database_cleanup'), false, endpoint.name);
+    assertEquals(callSet.has('storage_cleanup'), false, endpoint.name);
+    assertEquals(callSet.has('delete_auth_user'), false, endpoint.name);
+  }));
 });

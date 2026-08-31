@@ -57,17 +57,18 @@ export async function cleanupOwnedTemporaryUris(
 ): Promise<void> {
   const cacheDirectory = options?.cacheDirectory ?? null;
   const deleteAsync = options?.deleteAsync;
-  const seen = new Set<string>();
+  if (!deleteAsync) return;
 
+  const seen = new Set<string>();
+  const ownedUris: string[] = [];
   for (const uri of uris) {
     if (seen.has(uri)) continue;
     seen.add(uri);
     if (!isOwnedPasteTempUri(uri, cacheDirectory)) continue;
-    if (!deleteAsync) continue;
-    try {
-      await deleteAsync(uri);
-    } catch {
-      // Best-effort and idempotent: missing files are success.
-    }
+    ownedUris.push(uri);
   }
+
+  // The files are independent and deletion is best-effort. allSettled keeps a
+  // missing file from cancelling cleanup of the remaining owned files.
+  await Promise.allSettled(ownedUris.map((uri) => deleteAsync(uri)));
 }

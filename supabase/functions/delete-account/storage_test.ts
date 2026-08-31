@@ -79,6 +79,7 @@ Deno.test('cleanup kasuje wyłącznie własny prefiks i ignoruje ścieżki odbio
   });
 
   const mediaRemoves = removed.filter((call) => call.bucket === 'media-vault');
+  const receivedPathSet = new Set(receivedPaths);
   assertEquals(mediaRemoves.length, 2);
   assertEquals(mediaRemoves[0].paths.length, STORAGE_LIST_PAGE_SIZE);
   assertEquals(mediaRemoves.flatMap((call) => call.paths).length, STORAGE_LIST_PAGE_SIZE + 1);
@@ -87,7 +88,7 @@ Deno.test('cleanup kasuje wyłącznie własny prefiks i ignoruje ścieżki odbio
     true
   );
   assertEquals(
-    mediaRemoves.flatMap((call) => call.paths).some((path) => receivedPaths.includes(path)),
+    mediaRemoves.flatMap((call) => call.paths).some((path) => receivedPathSet.has(path)),
     false
   );
   assertEquals(removed.some((call) => call.bucket === 'avatars'), false);
