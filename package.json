@@ -35,7 +35,7 @@
     "doctor:react": "react-doctor . --verbose",
     "doctor:react:ci": "react-doctor . --blocking warning --no-color",
     "doctor:react:score": "react-doctor . --score",
-    "doctor:react:changed": "react-doctor . --scope changed --base main --blocking warning --no-color",
+    "doctor:react:changed": "react-doctor . --scope changed --base origin/main --blocking warning --no-color",
     "postinstall": "patch-package"
   },
   "dependencies": {

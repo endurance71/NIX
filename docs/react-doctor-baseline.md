@@ -10,7 +10,7 @@
 - Reaudyt po konsolidacji źródła builda `1.0.11 (5)`: **2026-08-31 — 100 / 100**, **0 issues / 418 plików**, react-doctor **v0.9.12** (`npm run doctor:react:ci`). Osobny design audit: **0 issues**. Dwa wąskie wyjątki są udokumentowane w `doctor.config.ts`: imperatywne `Image.getSize` bez renderowania oraz sekwencyjne porcje Supabase Storage po 1000 ścieżek. Czysta czerń transient bootstrap screen pozostaje świadomą powierzchnią OLED.
 - Pełny audyt: `npm run doctor:react`.
 - Blokujący gate pełnego repo: `npm run doctor:react:ci`.
-- Skan tylko regresji względem `main`: `npm run doctor:react:changed`.
+- Skan tylko regresji względem `origin/main`: `npm run doctor:react:changed`.
 - Regresje dead code (pliki): `npm run check-knip` — konfiguracja w [`knip.json`](../knip.json) (eksporty typów wyłączone z gate’a).
 
 Próg regresji: utrzymać wynik **≥ 100** (lub nie zejść poniżej ostatniego zapisu w tym pliku po kolejnych audytach).

@@ -9,6 +9,8 @@ jobs:
     runs_on: linux-medium
     steps:
       - uses: eas/checkout
+      - name: Fetch React Doctor comparison base
+        run: git fetch origin main:refs/remotes/origin/main --depth=100
       - uses: eas/install_node_modules
       - name: Lint
         run: npm run lint
@@ -29,6 +31,6 @@ jobs:
       - name: React Doctor (full, zero warnings)
         run: npm run doctor:react:ci
       - name: React Doctor (new issues)
-        run: npm run doctor:react:changed -- --base main --blocking error --no-score
+        run: npm run doctor:react:changed
       - name: Hermes production export
         run: npm run export:production
