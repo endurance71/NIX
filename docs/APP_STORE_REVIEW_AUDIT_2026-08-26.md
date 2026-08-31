@@ -4,6 +4,9 @@
 **Zakres:** aktualny kod aplikacji iOS `1.0.11`, build `3`, backend Supabase, publiczne strony prawne i lokalne materiały App Store Connect
 **Podstawa:** Apple App Review Guidelines po aktualizacji z 8 czerwca 2026 r.
 **Werdykt:** **NO-GO do App Review**
+**Binary:** **ARCHIVE RECORDED / NOT UPLOADED** — IPA `1.0.11` (3) ze źródła `858d5b1`
+(xcarchive build 2 → eksport build 3). Kolejny binary: `CFBundleVersion` **minimum 4**.
+Migration head: `20260829170422`. P0-4 = **DEVICE TEST DEFERRED**. **Nie** `IN REVIEW`.
 
 ## 1. Podsumowanie zarządcze
 
@@ -19,14 +22,22 @@ retencja dowodów). Wysłanie kandydata do review jest nadal zbyt ryzykowne. Poz
 1. media UGC nie mają żadnej metody filtrowania przed wysłaniem, podczas gdy Guideline
    1.2 wymaga metody filtrowania objectionable material; istniejące report/block i ręczna
    moderacja nie zastępują tego osobnego wymagania (P0-3);
-2. usunięcie konta Apple usuwa użytkownika z Supabase, ale nie ma implementacji odwołania
-   tokenów Sign in with Apple przez Apple REST API (P0-4);
-3. nierozliczone bramki App Review i środowiska: konta demo, ASC,
-   podpisany Archive, smoke na urządzeniu (P0-5).
+2. nierozliczone bramki App Review i środowiska: wklejenie pakietu ASC
+   i smoke na urządzeniu (P0-5). Lokalny signed Archive **1.0.11 (3)** z `858d5b1`
+   jest nagrany (production APS); status **ARCHIVE RECORDED / NOT UPLOADED**.
+   Syntetyczny smoke moderacji A/B/C (S6B) jest zrobiony; konta demo i copy
+   listing są przygotowane poza Git / w `docs/app-store-listing.md`.
 
-Dopóki P0-3, P0-4 i P0-5 nie zostaną zamknięte, status pozostaje **NO-GO**.
-Sprint 2: wdrożony; final acceptance po kontroli T+24
-([issue #6](https://github.com/endurance71/NIX/issues/6), 2026-08-28 10:41 CEST).
+P0-4: **CODE/PRODUCTION READY — DEVICE TEST DEFERRED.** `delete-account` v6
+odwołuje token Apple przed cleanupem; sekrety są poza repo. Kontrolowany test
+urządzeniowy Sign in with Apple **nie został wykonany**.
+
+Dopóki P0-3 i P0-5 nie zostaną zamknięte, status pozostaje **NO-GO**.
+Sprint 4 świadomie zostawia P0-3 otwarte; P0-4 pozostaje odroczone do testu
+urządzeniowego.
+Sprint 2: wdrożony. Pełne T+24 ([issue #6](https://github.com/endurance71/NIX/issues/6))
+**nie zostało wykonane** — okno 24 h nie dobiegło końca; 2026-08-28 ok. 10:19 CEST
+zapisano snapshot i świadomie pominięto/zaakceptowano oczekiwanie.
 
 ## 2. Skala priorytetów
 
@@ -102,8 +113,8 @@ operacyjnym P0-2 (egzekucja retencji), nie blocker autoryzacji.
 | --- | --- |
 | P0-1 | **CLOSED** |
 | P0-2 | **CODE/PRODUCTION CLOSED**; cron codzienny aktywny (jobid 15, invoke 200) |
-| Sprint 2 | wdrożony; **final acceptance pending T+24** ([issue #6](https://github.com/endurance71/NIX/issues/6), po 2026-08-28 10:41 CEST) |
-| Aplikacja | **NO-GO** — P0-3, P0-4, P0-5 |
+| Sprint 2 | wdrożony; **pełne T+24 nie wykonane** — snapshot 2026-08-28 10:19 CEST, oczekiwanie świadomie pominięte ([issue #6](https://github.com/endurance71/NIX/issues/6)) |
+| Aplikacja | **NO-GO** — P0-3, P0-5 (P0-4 CODE/PRODUCTION READY — DEVICE TEST DEFERRED) |
 
 | Pole | Wartość |
 | --- | --- |
@@ -124,12 +135,16 @@ operacyjnym P0-2 (egzekucja retencji), nie blocker autoryzacji.
 | Cleanup | dry-run 0 sierot; live 0 usuniętych rekordów/obiektów (brak sierot; aktywny dowód zachowany) |
 | Integrity | `missing_expiry=0` `expired_with_file=0` `evidence_failed=0` `old_orphans=0` `duplicate_reports=0` |
 | Obserwacja | okno `2026-08-27T08:41:31Z` → `2026-08-28T08:41:31Z`; T0: 1×500 (MIME przed PR #4, wyjaśnione), potem 2×200 / 2×400 / 2×403; Sentry funkcji hard-off |
-| T+24 | [issue #6](https://github.com/endurance71/NIX/issues/6) — nie zamykać Sprint 2 acceptance przed tą kontrolą |
+| T+24 | **nie wykonane.** Snapshot 2026-08-28T08:19:29Z (ok. 22 min przed końcem okna `08:41:31Z`): `missing_expiry=0` `expired_with_file=0` `evidence_failed=0` `duplicate_reporter_text=0` `old_orphans=0`; smoke `f283869e-…` i 1 obiekt evidence obecne; cron jobid 15 `active=true`, 2× HTTP 200 na `cleanup-moderation-evidence`, 0×401. W oknie po T0 brak wywołań `report-content` (brak nowych 500). To **nie** jest T+24 PASS. |
 | Rollback | `TEXT_REPORTS_ENABLED=false` w `supabase/functions/report-content/contract.ts`. **Nie** przywracać v1. |
 | Osobne zadanie | `push-dispatch` prod `verify_jwt=false` (v11) — [issue #7](https://github.com/endurance71/NIX/issues/7). **Nie** zmieniać bez sprawdzenia autoryzacji wywołań (`hasServiceRoleBearer` + Vault JWT). |
 
-`npx supabase migration list --linked` jest zgodny lokalnie i zdalnie do
-`20260827120000`. Nie wołano `migration repair`. Kill-switch v1 nie został użyty.
+`npx supabase migration list --linked` jest zgodny lokalnie i zdalnie przez
+`20260828100000` (wzmocniony filtr tekstu, `db push --include-all` 2026-08-29)
+oraz `20260829170422` (`moderation_remove_reported_content`). Timestamp removal
+pochodzi z MCP `apply_migration` (`to_char(now)` o 17:04:22Z), nie z nazwy
+pliku `20260829120000`. Lokalny plik został wyrównany do wersji produkcyjnej.
+Nie wołano `migration repair`. Kill-switch v1 nie został użyty.
 
 ### P0-3. Niepełna ochrona UGC względem Guideline 1.2
 
@@ -172,21 +187,36 @@ bezpiecznie wymienić/odwołać token po stronie serwera zgodnie z dokumentacją
 idempotencję i dopiero potem zakończyć usuwanie. Sekrety Apple pozostają wyłącznie na
 backendzie.
 
-**Kryterium zamknięcia:** konto Apple zostaje odłączone w teście sandbox, ponowne użycie
-starego tokenu nie działa, a awaria revoke ma kontrolowaną, ponawialną ścieżkę.
+**Kryterium zamknięcia:** konto Apple zostaje odłączone w kontrolowanym teście
+urządzeniowym Sign in with Apple (nie Sandbox IAP), ponowne użycie starego tokenu
+nie działa, a awaria revoke ma kontrolowaną, ponawialną ścieżkę.
+
+**Status 2026-08-29:** **CODE/PRODUCTION READY — DEVICE TEST DEFERRED.** Commit
+`858d5b1`, funkcja `delete-account` v6 z `verify_jwt=true`. Sekrety Apple
+wyłącznie w Dashboard. Testy automatyczne (JWT 401, sekrety po nazwach, skan
+logów bez kodów/tokenów) są zapisane osobno od testów urządzeniowych, które
+**nie zostały wykonane**. Dowody: `~/.nix-ops/sprint4-s5/evidence.json`.
 
 ### P0-5. Niezamknięte bramki App Review i środowiska produkcyjnego
 
 **Reguły:** Before You Submit, 2.1 App Completeness, 2.3 Accurate Metadata.
 
-`docs/testflight-test-information.md` nadal zawiera placeholdery dwóch kont demo, telefonu,
-nazwiska kontaktowego i screenshotów. Stan produkcji po Sprincie 2 (2026-08-27):
+`docs/testflight-test-information.md` nie zawiera haseł ani placeholderów loginów —
+credentials demo są wyłącznie w ASC / `~/.nix-ops/sprint4b/demo-accounts.json`.
+Stan produkcji po Sprincie 4B (2026-08-29):
 
 - migracje i `report-content` / `cleanup-moderation-evidence` są wdrożone (zob. P0-1/P0-2);
+- `moderation_remove_reported_content` oraz `moderation-admin` `remove` v6 są na produkcji;
 - cron `cleanup-moderation-evidence` jest w migracji `20260827125000` (`27 4 * * *` UTC);
+- syntetyczny smoke A/B/C: **PRODUCTION RPC SMOKE PASS — MODERATION EDGE HAPPY-PATH PASS**
+  (`~/.nix-ops/sprint4b/smoke-evidence.json`); HTTP list/remove/decide/appeal = 200
+  (Bearer service role + `x-moderator-secret`); HTTP bez sekretu = 401;
+- lokalny signed Archive **1.0.11 (3)** z `858d5b1` (xcarchive 2 → IPA 3):
+  `aps-environment=production`, app group i `applinks:nix.damianmotylinski.pl` —
+  **ARCHIVE RECORDED / NOT UPLOADED** (`~/.nix-ops/sprint4b/IOS-ARCHIVE.md`);
+  kolejny binary: `CFBundleVersion` **minimum 4**;
 - `push-dispatch` ma `verify_jwt=false` — osobne zadanie [issue #7](https://github.com/endurance71/NIX/issues/7);
-- nadal niepotwierdzone: kolejka moderatora, App Privacy/rating w ASC,
-  `aps-environment=production` na Archive, dostępność backendu przez review,
+- nadal niepotwierdzone: wklejenie App Privacy/rating/screenshotów w ASC,
   smoke na fizycznym iPhonie i iPad compatibility.
 
 **Kryterium zamknięcia:** komplet dowodów z checklisty w sekcji 11, dwa działające konta
@@ -257,11 +287,10 @@ jako błąd, nie jako sygnał do wyłączenia weryfikacji.
 
 ### P1-6. Brak kompletnej, wersjonowanej paczki metadata App Store
 
-Repozytorium ma dobre Test Information, App Privacy i Age Rating, ale nie znaleziono
-kanonicznego zestawu nazwa/subtitle/description/keywords/category/What's New dla PL i EN.
-Nie można więc porównać rzeczywistych pól ASC z funkcjami binary ani automatycznie wykryć
-obiecywania przyszłego NiX Circle. Aktualny binary nie ma RevenueCat/StoreKit i metadata
-nie może jeszcze promować subskrypcji, triala ani limitu Free.
+Repozytorium ma Test Information, App Privacy (manifest) i Age Rating. Kanoniczny zestaw
+nazwa/subtitle/description/keywords/What's New PL i EN jest w
+`docs/app-store-listing.md`. Wklejenie do ASC pozostaje krokiem operatora. Aktualny binary
+nie ma RevenueCat/StoreKit i metadata nie może promować subskrypcji, triala ani limitu Free.
 
 ## 5. P2 — usprawnienia i hardening
 
@@ -289,7 +318,7 @@ nie może jeszcze promować subskrypcji, triala ani limitu Free.
 | --- | --- | --- |
 | Model biznesowy aktualnego binary | OK | brak RevenueCat, StoreKit, IAP, reklam i zewnętrznych płatności; dokumentacja wyraźnie oddziela przyszły model |
 | Logowanie | OK z P1 nonce | własny email/password + natywny Sign in with Apple; oficjalny przycisk Apple |
-| Usuwanie konta | częściowo OK | łatwo dostępne w Profilu, reautoryzacja, usunięcie Auth/danych/Storage; brak Apple revoke jest P0 |
+| Usuwanie konta | CODE OK | łatwo dostępne w Profilu; `delete-account` v6 revoke + cleanup; test urządzeniowy Apple odroczony (P0-4) |
 | Uprawnienia | OK | szczegółowe purpose strings dla kamery, mikrofonu, odczytu i zapisu Photos; użycie odpowiada funkcjom |
 | Transport | OK statycznie | ATS arbitrary loads wyłączone; HTTPS dla Supabase i stron prawnych |
 | Sekrety | OK w badanym zakresie | service role/sekrety moderacji po stronie funkcji; brak sekretów w `EXPO_PUBLIC_*` |
@@ -315,7 +344,7 @@ nie może jeszcze promować subskrypcji, triala ani limitu Free.
 | timely response | runbook: critical 2 h/12 h, normal 24 h/72 h | MANUAL — brak dowodu dyżuru i metryk |
 | block abusive users | viewer/chat/inbox + lista unblock | spełnione statycznie |
 | published contact | app + support URL + email | spełnione |
-| removal i plan poprawy | decyzje warning/suspend/ban; brak jawnego uniwersalnego removal dla każdego typu | P1/P0 operacyjne |
+| removal i plan poprawy | `moderation_remove_reported_content` + `moderation-admin` `remove`; smoke 4B PASS | spełnione operacyjnie; media nadal bez auto-skanu (P0-3) |
 
 ## 8. Performance i binary
 
@@ -324,8 +353,9 @@ nie może jeszcze promować subskrypcji, triala ani limitu Free.
 - TypeScript, ESLint, Knip, Expo Doctor i dependency compatibility nie wykryły błędów.
 - iOS deployment target w projekcie to 16.4; `LSMinimumSystemVersion=12.0` w Info.plist nie
   jest kanonicznym ustawieniem iOS, ale warto potwierdzić finalne minimum na stronie buildu ASC.
-- `aps-environment=development` w pliku repozytorium jest normalne dla developmentu tylko
-  pod warunkiem, że podpisany Archive dystrybucyjny ma `production`. To bramka manualna.
+- `aps-environment=development` w pliku repozytorium jest normalne dla developmentu.
+  IPA dystrybucyjna `1.0.11` (3) z worktree `858d5b1` (2026-08-29) ma `production`.
+  Status: **ARCHIVE RECORDED / NOT UPLOADED**. Kolejny build: **minimum 4**.
 - Background modes `fetch` i `processing` mają rzeczywiste użycie w durable upload/recovery;
   nie są zadeklarowane wyłącznie „na zapas”.
 - Live Activity dotyczy trwającego uploadu i jest powiązane z funkcją aplikacji, zgodnie z
@@ -375,7 +405,8 @@ Przy przyszłym releasie NiX Circle trzeba ponownie wykonać pełny audyt sekcji
 | fizyczny iPhone/iPad/VoiceOver/IPv6 smoke | MANUAL |
 
 Uwaga: przejście istniejących testów nie obejmuje P0-3 (media 1.2). P0-1/P0-2 mają
-pgTAP 17/17 po contract oraz smoke A/B/C na produkcji (2026-08-27).
+pgTAP 17/17 po contract oraz smoke A/B/C na produkcji (2026-08-27). Sprint 4B S6B:
+report → remove → suspension → appeal → block/unblock → cleanup dry-run → integrity 0.
 
 ## 11. Checklista naprawcza przed ponowną decyzją GO
 
@@ -385,7 +416,8 @@ pgTAP 17/17 po contract oraz smoke A/B/C na produkcji (2026-08-27).
 - [x] Dodano testy A/B/C dla zgłoszeń i prób podmiany UUID (pgTAP 17/17; produkcja: B 200, A/C 403, XOR 400).
 - [x] Wszystkie dowody mają 30-dniowe `evidence_expires_at`; CHECK `content_reports_evidence_requires_expiry`; v1 dropnięte (PR #5 `1883072`); `missing_expiry=0`; sieroty 0.
 - [ ] Wdrożono skuteczny mechanizm filtrowania tekstu i mediów zgodny z 1.2.
-- [ ] Moderator może usunąć treść, zablokować konto, rozpatrzyć appeal i zachować audyt.
+- [x] Moderator może usunąć treść, zablokować konto, rozpatrzyć appeal i zachować audyt
+  (S6A RPC + `moderation-admin` `remove` v6; S6B PASS 2026-08-29).
 - [ ] Sign in with Apple revoke działa przed zakończeniem usuwania konta.
 - [ ] Usunięto fallback logowania Apple bez nonce.
 - [ ] Publiczna i in-app Privacy Policy są identyczne merytorycznie i zgodne z kodem.
@@ -394,44 +426,53 @@ pgTAP 17/17 po contract oraz smoke A/B/C na produkcji (2026-08-27).
 
 ### Produkcja i operacje — obowiązkowe
 
-- [x] `supabase migration list --linked` zgadza się z repozytorium (do `20260827125000` po cronie).
+- [x] `supabase migration list --linked` zgadza się z repozytorium
+  (przez `20260828100000` filtr + `20260829170422` remove; bez repair).
 - [ ] Wszystkie Edge Functions wdrożono z właściwą weryfikacją JWT/sekretów (`push-dispatch` prod `verify_jwt=false` — [issue #7](https://github.com/endurance71/NIX/issues/7)).
 - [x] Cron `cleanup-moderation-evidence` zaplanowany (`27 4 * * *` UTC, Vault `moderation_cleanup_secret`). Alert missing_expiry: Sentry hard-off; kontrola SQL / `check:moderation-evidence-integrity`.
 - [ ] Wykonano `check:media-storage-integrity` na produkcji i DB lint.
-- [ ] Przeprowadzono smoke report/block/decision/removal/appeal/cleanup.
+- [x] Przeprowadzono smoke report/block/decision/removal/appeal/cleanup
+  (S6B HTTP 2026-08-29; `moderation-admin` list/remove/decide/appeal = 200;
+  dowód `~/.nix-ops/sprint4b/smoke-evidence.json`, bez PII).
 - [ ] Wyznaczono właściciela moderacji i dyżur zgodny z deklarowanym SLA.
 - [ ] Backend, email confirmation, deep links i support będą aktywne podczas review.
 
 ### App Store Connect i urządzenia — obowiązkowe
 
 - [ ] Dwa konta demo działają na czystym urządzeniu i są już zaakceptowanymi znajomymi.
+      (backend: provision 2026-08-29, znajomość accepted, atestacja 16+;
+      credentials wyłącznie `~/.nix-ops/sprint4b/demo-accounts.json` i ASC)
 - [ ] Reviewer ma oba loginy, hasła, username i prostą instrukcję pełnego flow.
 - [ ] Uzupełniono imię, nazwisko, telefon i email kontaktowy.
 - [ ] App Privacy opublikowano zgodnie z finalnym binary.
 - [ ] Age Rating zapisano; Messaging = Yes, 16+ override, not Kids.
 - [ ] Screenshoty 6.9" pokazują aplikację w użyciu i fikcyjne dane.
-- [ ] Description, subtitle, keywords, category i What's New nie obiecują NiX Circle.
-- [ ] Signed Archive ma production APS entitlement i poprawne app-group/associated domains.
+- [x] Description, subtitle, keywords, category i What's New nie obiecują NiX Circle
+      (copy w `docs/app-store-listing.md`; wklejenie do ASC = operator).
+- [x] Signed Archive ma production APS entitlement i poprawne app-group/associated domains
+      (IPA **1.0.11 (3)** z `858d5b1`; **ARCHIVE RECORDED / NOT UPLOADED**;
+      `~/.nix-ops/sprint4b/IOS-ARCHIVE.md`).
 - [ ] Testy: clean install, upgrade, offline, NAT64/IPv6, denial permissions, background upload,
   push, Live Activity, account deletion, Light/Dark, Dynamic Type, VoiceOver i iPad compatibility.
 - [ ] W ASC wybrano dokładnie build, który przeszedł powyższe testy.
 
-## 12. Proponowane Review Notes po zamknięciu P0
+## 12. Proponowane Review Notes (Sprint 4B)
 
-Nie należy wysyłać obecnych notatek przed wdrożeniem poprawek. Po ich zamknięciu użyć
-krótkiej, prawdziwej wersji o następującej strukturze:
+Nie obiecywać automatycznego skanowania mediów, RevenueCat ani subskrypcji.
+Token revocation Sign in with Apple jest zaimplementowane w kodzie; test
+urządzeniowy usuwania konta Apple jest odroczony.
 
 > NiX is a private 1:1 messenger for accepted friends aged 16+. Please use the two demo
 > accounts in Review Information; they are already connected. Send a text, photo and short
 > video from account A, then open them on account B. Safety controls are available from the
-> message menu: Report and Block. Text and media are screened before delivery, reports are
-> reviewed by our moderation team, and report evidence is deleted after 30 days. Account
-> deletion is available at Profile → Account → Delete account and includes Sign in with Apple
-> token revocation. Push notifications and the upload Live Activity are optional. There are
-> no purchases, subscriptions, ads or tracking in this build.
+> message menu: Report and Block. Text messages pass a basic backend keyword filter.
+> Photos and videos are not automatically scanned. Reports are reviewed by our moderation team,
+> reported content can be removed from the queue, and report evidence is deleted after 30 days.
+> Account deletion is available at Profile → Account → Delete account and includes Sign in with
+> Apple token revocation in the backend. Push notifications and the upload Live Activity are
+> optional. There are no purchases, subscriptions, ads or tracking in this build.
 
-Opis filtrowania musi odpowiadać wdrożonej technologii. Jeśli poprawka nie obejmie mediów,
-nie wolno wkleić powyższej deklaracji — status pozostaje NO-GO.
+Nie wpisywać zdania `Text and media are screened before delivery`.
 
 ## 13. Źródła Apple
 

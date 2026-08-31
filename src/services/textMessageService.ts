@@ -66,6 +66,10 @@ export async function sendTextMessage({
       );
     }
 
+    if (error.message.includes('text_messages_safety_filter_chk')) {
+      throw new DomainError('CONTENT_NOT_ALLOWED', 'Ta wiadomość nie może zostać wysłana.');
+    }
+
     throw new DomainError('UNKNOWN', error.message || 'Nie udało się wysłać wiadomości.');
   }
 

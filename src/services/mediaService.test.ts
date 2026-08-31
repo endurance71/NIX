@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MAX_VIDEO_FILE_SIZE_BYTES, uploadImageAndCreateNix, uploadVideoAndCreateNix, isFastPathEligible } from './mediaService';
+import { MAX_IMAGE_FILE_SIZE_BYTES, MAX_VIDEO_FILE_SIZE_BYTES, uploadImageAndCreateNix, uploadVideoAndCreateNix, isFastPathEligible } from './mediaService';
 
 const {
   mockUpload,
@@ -68,6 +68,12 @@ vi.mock('./resumableUploadService', () => ({
 }));
 
 describe('mediaService', () => {
+  it('eksportuje ten sam limit obrazu co wklejanie do czatu', async () => {
+    const { CHAT_PASTE_MAX_IMAGE_BYTES } = await import('../lib/chatPaste');
+    expect(MAX_IMAGE_FILE_SIZE_BYTES).toBe(10 * 1024 * 1024);
+    expect(MAX_IMAGE_FILE_SIZE_BYTES).toBe(CHAT_PASTE_MAX_IMAGE_BYTES);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     // Domyślny rozmiar pliku — 4 bajty (testowy stub).

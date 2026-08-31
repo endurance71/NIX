@@ -89,6 +89,39 @@ describe('textMessageService', () => {
 
       expect(result).toEqual(mockResult);
     });
+
+    it('mapuje naruszenie filtra na CONTENT_NOT_ALLOWED bez treści wiadomości', async () => {
+      mockInsertSelectSingle.mockResolvedValue({
+        data: null,
+        error: {
+          code: '23514',
+          message: 'new row for relation "text_messages" violates check constraint "text_messages_safety_filter_chk"',
+        },
+      });
+
+      await expect(
+        sendTextMessage({ receiverId: 'peer-456', body: 'blokowana-tresc-testowa' })
+      ).rejects.toMatchObject({
+        code: 'CONTENT_NOT_ALLOWED',
+        message: 'Ta wiadomość nie może zostać wysłana.',
+      });
+    });
+
+    it('nie traktuje innych CHECK 23514 jako moderacji', async () => {
+      mockInsertSelectSingle.mockResolvedValue({
+        data: null,
+        error: {
+          code: '23514',
+          message: 'new row for relation "text_messages" violates check constraint "check_sender_neq_receiver"',
+        },
+      });
+
+      await expect(
+        sendTextMessage({ receiverId: 'user-123', body: 'Cześć' })
+      ).rejects.toMatchObject({
+        code: 'UNKNOWN',
+      });
+    });
   });
 
   describe('fetchTextMessagesWithPeer', () => {

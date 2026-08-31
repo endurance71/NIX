@@ -31,7 +31,7 @@ function buildVideoContentType(fileUri: string) {
 export const NIX_ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const NIX_ALLOWED_VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/x-m4v']);
 
-const MAX_IMAGE_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+export const MAX_IMAGE_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const TARGET_IMAGE_LONG_EDGE = 1440;
 const TARGET_IMAGE_QUALITY = 0.75;
 /** Skip re-encode when camera/gallery file is already within size + dimension budget. */

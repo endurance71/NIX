@@ -6,7 +6,9 @@
 
 - **Rejestracja:** `supabase.auth.signUp({ email, password })` — Supabase wysyła link potwierdzający (konfiguracja projektu Supabase Auth).
 - **Logowanie:** `signInWithPassword({ email, password })`.
-- **Logowanie Apple (iOS):** `expo-apple-authentication` → `supabase.auth.signInWithIdToken({ provider: 'apple', token, nonce })` — implementacja w [`src/services/socialAuthService.ts`](../src/services/socialAuthService.ts).
+- **Logowanie Apple (iOS):** `expo-apple-authentication` → `supabase.auth.signInWithIdToken({ provider: 'apple', token, nonce })` — implementacja w [`src/services/socialAuthService.ts`](../src/services/socialAuthService.ts). `nonce` jest obowiązkowy; mismatch jest błędem i nie powoduje ponowienia bez nonce.
+- **Usuwanie konta Apple:** natywna autoryzacja zwraca świeży `authorizationCode`. Klient **nie** wywołuje `signInWithIdToken`, nie zmienia sesji i nie loguje kodu. Kod idzie wyłącznie w body `delete-account`.
+- **Usuwanie konta Apple (backend):** `delete-account` rozpoznaje identity `apple` wyłącznie z `auth.getUser()`. Dla takiego użytkownika wymaga `appleAuthorizationCode`, wymienia go przez `POST https://appleid.apple.com/auth/token`, weryfikuje podpis oraz `iss` / `aud` / `exp` / `sub` w `id_token`, porównuje `sub` z identity Apple w Supabase Auth (nie z `profiles.apple_id`) i dopiero po zgodności odwołuje `refresh_token` przez `/auth/revoke`. HTTP 200 z revoke — także dla tokenu wcześniej odwołanego — pozwala przejść do cleanupu bazy, storage i `delete user`. Mismatch albo brak wiarygodnego `sub` jest fail-closed: bez revoke, cleanupu i usunięcia. Konta bez identity Apple zachowują dotychczasowy przepływ bez kodu.
 - **Wylogowanie:** `signOut()`.
 - **Reset hasła:** `resetPasswordForEmail(email, { redirectTo })` → ekran `reset-password` wywołuje `updatePassword(newPassword)`.
 - **Zmiana hasła (zalogowany, tylko e-mail+hasło):** ekran `change-password`; ukryty dla kont Apple-only (`userHasEmailPasswordIdentity`).
@@ -79,4 +81,4 @@ Komunikaty użytkownika pochodzą z kluczy i18n w [`src/lib/i18n.ts`](../src/lib
 | Rejestracja na istniejący e-mail | `accountExists` |
 | Anulowanie Apple | brak komunikatu błędu |
 | Błąd Apple / brak tokena | `appleSignInFailed`, `appleSignInNoToken` |
-| Nonces mismatch (GoTrue) | automatyczny retry bez nonce w `socialAuthService` |
+| Nonces mismatch (GoTrue) | błąd konfiguracji; klient nie ponawia `signInWithIdToken` bez nonce |

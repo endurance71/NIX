@@ -83,4 +83,25 @@ describe('i18n', () => {
     expect(err.messageKey).toBe('domainErrors.UNAUTHORIZED');
     expect(toDomainError(err, 'fallback').code).toBe('UNAUTHORIZED');
   });
+
+  it('tłumaczy komunikaty wklejania obrazu w PL i EN', async () => {
+    expect(i18nModule.default.t('chat.pastePreparingImage')).toBe('Przygotowywanie obrazu…');
+    expect(i18nModule.default.t('chat.pasteMultipleImages')).toBe('Możesz wkleić tylko jeden obraz naraz.');
+    expect(i18nModule.default.t('chat.pasteAnimatedUnsupported')).toBe(
+      'Animowane obrazy nie są jeszcze obsługiwane.'
+    );
+    expect(i18nModule.default.t('chat.pasteUnreadable')).toBe('Nie udało się odczytać wklejonego obrazu.');
+    expect(i18nModule.default.t('chat.pasteUnsupportedFormat')).toBe('Ten format obrazu nie jest obsługiwany.');
+    expect(i18nModule.default.t('chat.pasteImageAdded')).toBe('Obraz został dodany do podglądu.');
+
+    await i18nModule.default.changeLanguage('en');
+    expect(i18nModule.default.t('chat.pastePreparingImage')).toBe('Preparing image…');
+    expect(i18nModule.default.t('chat.pasteMultipleImages')).toBe('You can paste only one image at a time.');
+    expect(i18nModule.default.t('chat.pasteAnimatedUnsupported')).toBe(
+      'Animated images are not supported yet.'
+    );
+    expect(i18nModule.default.t('chat.pasteUnreadable')).toBe('The pasted image could not be read.');
+    expect(i18nModule.default.t('chat.pasteUnsupportedFormat')).toBe('This image format is not supported.');
+    expect(i18nModule.default.t('chat.pasteImageAdded')).toBe('Image added to preview.');
+  });
 });

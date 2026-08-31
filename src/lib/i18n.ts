@@ -333,6 +333,12 @@ export const resources = {
           'Liczba odbiorców tej wysyłki: {{count}}. Wybrana czynność wpłynie na wszystkich.',
         uploadActionFailure: 'Nie udało się zmienić stanu wysyłki.',
         systemCaptureAttempt: 'Podjęto próbę zrzutu ekranu lub nagrania wideo.',
+        pastePreparingImage: 'Przygotowywanie obrazu…',
+        pasteMultipleImages: 'Możesz wkleić tylko jeden obraz naraz.',
+        pasteAnimatedUnsupported: 'Animowane obrazy nie są jeszcze obsługiwane.',
+        pasteUnreadable: 'Nie udało się odczytać wklejonego obrazu.',
+        pasteUnsupportedFormat: 'Ten format obrazu nie jest obsługiwany.',
+        pasteImageAdded: 'Obraz został dodany do podglądu.',
       },
       notifications: {
         title: 'Powiadomienia',
@@ -599,6 +605,7 @@ export const resources = {
         deleteAccountProcessing: 'Usuwanie konta…',
         deleteAccountConfirmationError: 'Wpisz swoją nazwę użytkownika, aby potwierdzić.',
         deleteAccountPasswordError: 'Wpisz aktualne hasło.',
+        deleteAccountAppleCodeError: 'Potwierdzenie Apple nie zwróciło kodu. Spróbuj ponownie.',
         deleteAccountFailed: 'Nie udało się usunąć konta. Spróbuj ponownie.',
       },
       push: {
@@ -703,6 +710,7 @@ export const resources = {
         CLEANUP_FAILED: 'Nie udało się wyczyścić wiadomości.',
         CANCELLED: 'Operacja została anulowana.',
         NOT_FOUND: 'Nie znaleziono.',
+        CONTENT_NOT_ALLOWED: 'Ta wiadomość nie może zostać wysłana.',
         UNKNOWN: 'Wystąpił nieoczekiwany błąd.',
       },
       sentStatus: {
@@ -1032,6 +1040,12 @@ export const resources = {
           'This upload includes {{count}} people. The selected action will affect every recipient.',
         uploadActionFailure: 'Could not change the upload state.',
         systemCaptureAttempt: 'A screenshot or screen recording attempt was detected.',
+        pastePreparingImage: 'Preparing image…',
+        pasteMultipleImages: 'You can paste only one image at a time.',
+        pasteAnimatedUnsupported: 'Animated images are not supported yet.',
+        pasteUnreadable: 'The pasted image could not be read.',
+        pasteUnsupportedFormat: 'This image format is not supported.',
+        pasteImageAdded: 'Image added to preview.',
       },
       notifications: {
         title: 'Notifications',
@@ -1296,6 +1310,7 @@ export const resources = {
         deleteAccountProcessing: 'Deleting account…',
         deleteAccountConfirmationError: 'Enter your username to confirm.',
         deleteAccountPasswordError: 'Enter your current password.',
+        deleteAccountAppleCodeError: 'Apple confirmation did not return a code. Try again.',
         deleteAccountFailed: 'We could not delete your account. Please try again.',
       },
       push: {
@@ -1400,6 +1415,7 @@ export const resources = {
         CLEANUP_FAILED: 'Failed to clean up message.',
         CANCELLED: 'Operation was cancelled.',
         NOT_FOUND: 'Not found.',
+        CONTENT_NOT_ALLOWED: 'This message cannot be sent.',
         UNKNOWN: 'Unexpected error occurred.',
       },
       sentStatus: {

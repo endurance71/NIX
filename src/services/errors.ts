@@ -8,6 +8,7 @@ export type DomainErrorCode =
   | 'CLEANUP_FAILED'
   | 'CANCELLED'
   | 'NOT_FOUND'
+  | 'CONTENT_NOT_ALLOWED'
   | 'UNKNOWN';
 
 export class DomainError extends Error {

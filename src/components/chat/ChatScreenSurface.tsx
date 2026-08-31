@@ -58,6 +58,7 @@ import { appleUiSpring, duration, useMotionEnabled } from '../../theme/motion';
 import { STACK_NAV_BAR_HEIGHT } from '../../theme/safeArea';
 import { typography } from '../../theme/typography';
 import { PressableScale } from '../ui/pressable-scale';
+import { TextInputWrapper } from 'expo-paste-input';
 import i18n from '../../lib/i18n';
 
 type ChatScreenSurfaceProps = {
@@ -999,14 +1000,24 @@ function ChatComposer({ vm, keyboardHeight, restingPad }: ChatComposerProps) {
     <TextInput
       key={vm.composerKey}
       defaultValue={vm.inputBody}
-      placeholder={vm.t('chat.typeMessage')}
+      placeholder={vm.pasteImporting ? vm.t('chat.pastePreparingImage') : vm.t('chat.typeMessage')}
       placeholderTextColor={colors.secondaryLabel}
       onChangeText={vm.setInputBody}
       onSubmitEditing={() => void vm.handleSend()}
       editable={!vm.sending}
       returnKeyType="send"
+      accessibilityLabel={vm.t('chat.typeMessage')}
+      accessibilityState={{ busy: vm.pasteImporting, disabled: vm.sending }}
       style={[styles.inputText, { color: colors.label }]}
     />
+  );
+
+  const composerInput = vm.pasteInputEnabled ? (
+    <TextInputWrapper onPaste={vm.handlePaste} style={styles.pasteInputWrapper}>
+      {inputField}
+    </TextInputWrapper>
+  ) : (
+    inputField
   );
 
   const sendControl = useGlass ? (
@@ -1043,10 +1054,10 @@ function ChatComposer({ vm, keyboardHeight, restingPad }: ChatComposerProps) {
       <View style={styles.composerRow}>
         {useGlass ? (
           <GlassView style={styles.inputGlass} glassEffectStyle="regular" isInteractive>
-            {inputField}
+            {composerInput}
           </GlassView>
         ) : (
-          <View style={[styles.inputGlass, fallbackFill]}>{inputField}</View>
+          <View style={[styles.inputGlass, fallbackFill]}>{composerInput}</View>
         )}
 
         <PressableScale
@@ -1060,9 +1071,17 @@ function ChatComposer({ vm, keyboardHeight, restingPad }: ChatComposerProps) {
       </View>
 
       <View style={styles.footerRow}>
-        <Text style={[styles.footerText, { color: colors.label }]} numberOfLines={2}>
-          {vm.t('chat.disappearsFooter')}
-        </Text>
+        {vm.pasteImporting ? (
+          <Text
+            style={[styles.footerText, { color: colors.label }]}
+            accessibilityLiveRegion="polite">
+            {vm.t('chat.pastePreparingImage')}
+          </Text>
+        ) : (
+          <Text style={[styles.footerText, { color: colors.label }]} numberOfLines={2}>
+            {vm.t('chat.disappearsFooter')}
+          </Text>
+        )}
         <Text style={[styles.footerCounter, { color: colors.label }]}>
           {`${vm.inputBody.length}/2000`}
         </Text>
@@ -1560,6 +1579,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 14,
     overflow: 'hidden',
+  },
+  pasteInputWrapper: {
+    flex: 1,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
   },
   inputText: {
     ...typography.body,

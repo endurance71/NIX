@@ -70,6 +70,11 @@ Lista kolejki jest dostępna przez POST do `moderation-admin` z nagłówkiem
 `x-moderator-secret` i body `{"action":"list"}`. Zwracany link do dowodu wygasa
 po 10 minutach. Nie zapisuj go w komunikatorze, ticketach ani logach.
 
+Usunięcie zgłoszonej treści: `{"action":"remove","reportId":"..."}`. Cel bierze
+wyłącznie z `content_reports` (wiadomość tekstowa albo nix). Współdzielony
+`media_assets` nie jest kasowany tutaj; ostatnia aktywna referencja idzie do
+`cleanup-media-upload-orphans`. Dowód raportu zostaje do końca retencji.
+
 ## Smoke A/B/C
 
 Trzy konta, A i B są zaakceptowanymi znajomymi. C nie jest odbiorcą A→B.

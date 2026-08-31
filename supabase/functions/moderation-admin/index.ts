@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.5';
 import { json, notifySentry } from '../_shared/http.ts';
 import { hasServiceRoleBearer } from '../_shared/service-auth.ts';
+import { readAdminAction, readReportId, statusForRemoveRpcError } from './contract.ts';
 
 type Decision = 'dismiss' | 'warning' | 'suspension' | 'ban';
 
@@ -19,21 +20,18 @@ Deno.serve(async (req) => {
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'Server is not configured' }, 500);
   const client = createClient(supabaseUrl, serviceRoleKey);
 
-  let payload: {
-    action?: 'list' | 'decide' | 'appeal';
-    reportId?: string;
-    decision?: Decision;
-    note?: string;
-    suspensionHours?: number;
-    appealOutcome?: 'upheld' | 'action_revoked';
-  };
+  let payload: Record<string, unknown>;
   try {
-    payload = await req.json();
+    const parsed = await req.json();
+    payload = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
   } catch {
     return json({ error: 'Invalid JSON payload' }, 400);
   }
 
-  if (payload.action === 'list') {
+  const action = readAdminAction(payload);
+  if (action === 'list') {
     const { data, error } = await client
       .from('content_reports')
       .select('id, reported_user_id, reason, details, status, priority, evidence_path, created_at')
@@ -55,37 +53,57 @@ Deno.serve(async (req) => {
     return json({ reports });
   }
 
-  if (payload.action === 'appeal') {
-    if (!payload.reportId || !payload.appealOutcome || !payload.note?.trim()) {
+  if (action === 'remove') {
+    const reportId = readReportId(payload);
+    if (!reportId) return json({ error: 'reportId is required' }, 400);
+    const { error: removeError } = await client.rpc('moderation_remove_reported_content', {
+      p_report_id: reportId,
+    });
+    if (removeError) {
+      return json({ error: removeError.message }, statusForRemoveRpcError(removeError.message));
+    }
+    await notifySentry('moderation.report.content_removed', { report_id: reportId }, 'info');
+    return json({ ok: true });
+  }
+
+  if (action === 'appeal') {
+    const reportId = readReportId(payload);
+    const appealOutcome = payload.appealOutcome;
+    const note = typeof payload.note === 'string' ? payload.note : '';
+    if (!reportId || (appealOutcome !== 'upheld' && appealOutcome !== 'action_revoked') || !note.trim()) {
       return json({ error: 'reportId, appealOutcome, and note are required' }, 400);
     }
     const { error: appealError } = await client.rpc('moderation_record_appeal', {
-      p_report_id: payload.reportId,
-      p_outcome: payload.appealOutcome,
-      p_note: payload.note.trim(),
+      p_report_id: reportId,
+      p_outcome: appealOutcome,
+      p_note: note.trim(),
     });
     if (appealError) return json({ error: appealError.message }, 400);
     await notifySentry(
       'moderation.appeal.resolved',
-      { report_id: payload.reportId, outcome: payload.appealOutcome },
+      { report_id: reportId, outcome: appealOutcome },
       'info'
     );
     return json({ ok: true });
   }
 
-  if (payload.action !== 'decide' || !payload.reportId || !payload.decision) {
+  const reportId = readReportId(payload);
+  const decision = payload.decision;
+  if (action !== 'decide' || !reportId || typeof decision !== 'string') {
     return json({ error: 'A valid action, reportId, and decision are required' }, 400);
   }
-  if (payload.note && payload.note.length > 1000) return json({ error: 'Note is too long' }, 400);
-  if (payload.decision === 'suspension' && (!payload.suspensionHours || payload.suspensionHours < 1)) {
+  const note = typeof payload.note === 'string' ? payload.note : '';
+  if (note.length > 1000) return json({ error: 'Note is too long' }, 400);
+  const suspensionHours = typeof payload.suspensionHours === 'number' ? payload.suspensionHours : null;
+  if (decision === 'suspension' && (!suspensionHours || suspensionHours < 1)) {
     return json({ error: 'suspensionHours is required for a suspension' }, 400);
   }
 
   const { error: decisionError } = await client.rpc('moderation_decide_report', {
-    p_report_id: payload.reportId,
-    p_decision: payload.decision,
-    p_note: payload.note?.trim() || null,
-    p_suspension_hours: payload.suspensionHours ?? null,
+    p_report_id: reportId,
+    p_decision: decision as Decision,
+    p_note: note.trim() || null,
+    p_suspension_hours: suspensionHours,
   });
   if (decisionError) {
     const status = decisionError.message.includes('not found') ? 404
@@ -94,6 +112,6 @@ Deno.serve(async (req) => {
     return json({ error: decisionError.message }, status);
   }
 
-  await notifySentry('moderation.report.resolved', { report_id: payload.reportId, decision: payload.decision }, 'info');
+  await notifySentry('moderation.report.resolved', { report_id: reportId, decision }, 'info');
   return json({ ok: true });
 });

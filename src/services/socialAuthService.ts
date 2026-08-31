@@ -8,6 +8,7 @@ const NOT_CONFIGURED = 'SOCIAL_AUTH_NOT_CONFIGURED' as const;
 
 export const APPLE_SIGN_IN_ERROR_CODES = {
   NO_IDENTITY_TOKEN: 'APPLE_SIGN_IN_NO_IDENTITY_TOKEN',
+  NO_AUTHORIZATION_CODE: 'APPLE_SIGN_IN_NO_AUTHORIZATION_CODE',
   UNAVAILABLE: 'APPLE_SIGN_IN_UNAVAILABLE',
 } as const;
 
@@ -64,78 +65,53 @@ async function persistAppleProfileMetadata(
   }
 }
 
-function isNonceMismatchError(message: string) {
-  const normalized = message.toLowerCase();
-  return normalized.includes('nonce') && normalized.includes('mismatch');
+function authError(message: string) {
+  return {
+    data: { session: null, user: null },
+    error: {
+      message,
+      name: 'AuthError',
+      status: 400,
+    },
+  };
 }
 
-async function signInWithAppleIdToken(identityToken: string, rawNonce: string) {
-  const { data, error } = await supabase.auth.signInWithIdToken({
-    provider: 'apple',
-    token: identityToken,
-    nonce: rawNonce,
-  });
-
-  if (!error) return { data, error };
-
-  if (isNonceMismatchError(error.message)) {
-    return supabase.auth.signInWithIdToken({
-      provider: 'apple',
-      token: identityToken,
-    });
-  }
-
-  return { data, error };
-}
-
-export async function signInWithApple() {
+async function requestAppleCredential() {
   if (process.env.EXPO_OS !== 'ios') {
-    return {
-      data: { session: null, user: null },
-      error: {
-        message: APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE,
-        name: 'AuthError',
-        status: 400,
-      },
-    };
+    return { credential: null, rawNonce: null, error: authError(APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE).error };
   }
 
   const available = await AppleAuthentication.isAvailableAsync();
   if (!available) {
-    return {
-      data: { session: null, user: null },
-      error: {
-        message: APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE,
-        name: 'AuthError',
-        status: 400,
-      },
-    };
+    return { credential: null, rawNonce: null, error: authError(APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE).error };
   }
 
+  const rawNonce = createRawNonce();
+  const hashedNonce = await sha256Hex(rawNonce);
+  const credential = await AppleAuthentication.signInAsync({
+    requestedScopes: [
+      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+      AppleAuthentication.AppleAuthenticationScope.EMAIL,
+    ],
+    nonce: hashedNonce,
+  });
+  return { credential, rawNonce, error: null };
+}
+
+export async function signInWithApple() {
   try {
-    const rawNonce = createRawNonce();
-    const hashedNonce = await sha256Hex(rawNonce);
-
-    const credential = await AppleAuthentication.signInAsync({
-      requestedScopes: [
-        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-        AppleAuthentication.AppleAuthenticationScope.EMAIL,
-      ],
-      nonce: hashedNonce,
-    });
-
-    if (!credential.identityToken) {
-      return {
-        data: { session: null, user: null },
-        error: {
-          message: APPLE_SIGN_IN_ERROR_CODES.NO_IDENTITY_TOKEN,
-          name: 'AuthError',
-          status: 400,
-        },
-      };
+    const requested = await requestAppleCredential();
+    if (requested.error) return { data: { session: null, user: null }, error: requested.error };
+    const { credential, rawNonce } = requested;
+    if (!credential?.identityToken || !rawNonce) {
+      return authError(APPLE_SIGN_IN_ERROR_CODES.NO_IDENTITY_TOKEN);
     }
 
-    const { data, error } = await signInWithAppleIdToken(credential.identityToken, rawNonce);
+    const { data, error } = await supabase.auth.signInWithIdToken({
+      provider: 'apple',
+      token: credential.identityToken,
+      nonce: rawNonce,
+    });
     if (error) {
       return { data: { session: null, user: null }, error };
     }
@@ -154,13 +130,36 @@ export async function signInWithApple() {
       return { data: { session: null, user: null }, error: null };
     }
 
-    return {
-      data: { session: null, user: null },
-      error: {
-        message: err.message ?? 'Apple sign in failed',
-        name: 'AuthError',
-        status: 400,
-      },
-    };
+    return authError(err.message ?? 'Apple sign in failed');
+  }
+}
+
+export async function reauthenticateAppleForAccountDeletion() {
+  try {
+    if (process.env.EXPO_OS !== 'ios') {
+      return { authorizationCode: null, error: authError(APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE).error };
+    }
+
+    const available = await AppleAuthentication.isAvailableAsync();
+    if (!available) {
+      return { authorizationCode: null, error: authError(APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE).error };
+    }
+
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [],
+    });
+    // Keep the code in memory only. Do not call signInWithIdToken or otherwise
+    // replace the current Supabase session. S4 exchanges this code on the backend.
+    if (!credential.authorizationCode) {
+      return { authorizationCode: null, error: authError(APPLE_SIGN_IN_ERROR_CODES.NO_AUTHORIZATION_CODE).error };
+    }
+
+    return { authorizationCode: credential.authorizationCode, error: null };
+  } catch (error: unknown) {
+    const err = error as { code?: string; message?: string };
+    if (err.code === 'ERR_REQUEST_CANCELED') {
+      return { authorizationCode: null, error: authError(APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE).error };
+    }
+    return { authorizationCode: null, error: authError(err.message ?? 'Apple sign in failed').error };
   }
 }

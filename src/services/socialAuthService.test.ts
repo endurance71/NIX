@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { APPLE_SIGN_IN_ERROR_CODES, signInWithApple } from './socialAuthService';
+import { APPLE_SIGN_IN_ERROR_CODES, reauthenticateAppleForAccountDeletion, signInWithApple } from './socialAuthService';
 
 const {
   mockAuth,
@@ -130,30 +130,26 @@ describe('socialAuthService', () => {
     expect(error?.message).toBe(APPLE_SIGN_IN_ERROR_CODES.NO_IDENTITY_TOKEN);
   });
 
-  it('ponawia signInWithIdToken bez nonce przy Nonces mismatch', async () => {
+  it('nie ponawia signInWithIdToken bez nonce przy Nonces mismatch', async () => {
     mockAppleAuth.signInAsync.mockResolvedValue({
       identityToken: 'identity-token',
       user: 'apple-user-123',
       fullName: null,
     });
-    mockAuth.signInWithIdToken
-      .mockResolvedValueOnce({
-        data: { session: null, user: null },
-        error: { message: 'Nonces mismatch' },
-      })
-      .mockResolvedValueOnce({
-        data: { session: { access_token: 'token' }, user: { id: 'user-1' } },
-        error: null,
-      });
+    mockAuth.signInWithIdToken.mockResolvedValue({
+      data: { session: null, user: null },
+      error: { message: 'Nonces mismatch' },
+    });
 
     const { data, error } = await signInWithApple();
 
-    expect(error).toBeNull();
-    expect(data?.session).toBeTruthy();
-    expect(mockAuth.signInWithIdToken).toHaveBeenCalledTimes(2);
-    expect(mockAuth.signInWithIdToken).toHaveBeenLastCalledWith({
+    expect(error?.message).toBe('Nonces mismatch');
+    expect(data?.session).toBeNull();
+    expect(mockAuth.signInWithIdToken).toHaveBeenCalledTimes(1);
+    expect(mockAuth.signInWithIdToken).toHaveBeenCalledWith({
       provider: 'apple',
       token: 'identity-token',
+      nonce: 'raw-nonce-123',
     });
   });
 
@@ -164,5 +160,36 @@ describe('socialAuthService', () => {
 
     expect(error?.message).toBe(APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE);
     expect(mockAppleAuth.isAvailableAsync).not.toHaveBeenCalled();
+  });
+
+  it('przy usuwaniu konta wymaga authorizationCode i nie zmienia sesji Supabase', async () => {
+    mockAppleAuth.signInAsync.mockResolvedValue({
+      identityToken: 'identity-token',
+      authorizationCode: 'fresh-apple-code',
+      user: 'apple-user-123',
+      fullName: null,
+    });
+
+    const result = await reauthenticateAppleForAccountDeletion();
+
+    expect(result.error).toBeNull();
+    expect(result.authorizationCode).toBe('fresh-apple-code');
+    expect(mockAuth.signInWithIdToken).toHaveBeenCalledTimes(0);
+    expect(mockAuth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('zatrzymuje usuwanie gdy Apple nie zwróci authorizationCode', async () => {
+    mockAppleAuth.signInAsync.mockResolvedValue({
+      identityToken: 'identity-token',
+      authorizationCode: null,
+      user: 'apple-user-123',
+      fullName: null,
+    });
+
+    const result = await reauthenticateAppleForAccountDeletion();
+
+    expect(result.authorizationCode).toBeNull();
+    expect(result.error?.message).toBe(APPLE_SIGN_IN_ERROR_CODES.NO_AUTHORIZATION_CODE);
+    expect(mockAuth.signInWithIdToken).toHaveBeenCalledTimes(0);
   });
 });
