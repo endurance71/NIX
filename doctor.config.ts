@@ -37,6 +37,24 @@ export default {
         rules: ['react-doctor/async-parallel'],
       },
       {
+        // React Native Image is used only for the imperative Image.getSize API.
+        // Nothing is rendered here, so expo-image caching/rendering does not apply.
+        files: ['src/lib/chatPasteIo.ts'],
+        rules: ['react-doctor/rn-prefer-expo-image'],
+      },
+      {
+        // The bootstrap screen is intentionally pure black: it is a transient,
+        // content-free OLED loading surface before themed UI becomes available.
+        files: ['src/app/_layout.tsx'],
+        rules: ['react-doctor/no-pure-black-background'],
+      },
+      {
+        // Supabase Storage accepts at most 1000 paths per remove call. Keep batches
+        // sequential to bound pressure and preserve predictable partial-failure behavior.
+        files: ['supabase/functions/delete-account/storage.ts'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
         // Platform-specific modules, Expo Router route modules, and shared design tokens
         // are resolved outside react-doctor's import graph but are used at runtime.
         files: [

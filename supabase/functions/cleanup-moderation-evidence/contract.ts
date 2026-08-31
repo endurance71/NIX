@@ -13,7 +13,10 @@ export type EvidenceOrphan = {
 };
 
 export function summarizeEvidenceOrphans(rows: EvidenceOrphan[]) {
-  const eligibleNames = rows.filter((row) => row.eligible).map((row) => row.object_name);
+  const eligibleNames: string[] = [];
+  for (const row of rows) {
+    if (row.eligible) eligibleNames.push(row.object_name);
+  }
   return {
     orphanCount: rows.length,
     eligibleOrphanCount: eligibleNames.length,

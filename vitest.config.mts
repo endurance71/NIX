@@ -1,11 +1,14 @@
-import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { defineConfig } from 'vitest/config';
+
+const configDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   resolve: {
     alias: {
-      '@expo/ui': path.resolve(__dirname, 'vitest-shims/expo-ui-empty.ts'),
-      '@expo/ui/community/menu': path.resolve(__dirname, 'vitest-shims/expo-ui-empty.ts'),
+      '@expo/ui': path.resolve(configDirectory, 'vitest-shims/expo-ui-empty.ts'),
+      '@expo/ui/community/menu': path.resolve(configDirectory, 'vitest-shims/expo-ui-empty.ts'),
     },
   },
   test: {
