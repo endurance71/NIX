@@ -44,18 +44,28 @@ On the exact build 5 source SHA:
 
 1. **P0-3 — UGC filtering:** photos and video are not filtered before delivery.
    Public App Review remains blocked until backend enforcement, production
-   evidence and policy updates are complete.
+   evidence and policy updates are complete. PR #9 is green and contains only
+   the Proposed ADR, policy, fixtures and real-provider spike; Azure F0 evidence
+   is still required before the ADR can be accepted.
 2. **Physical-device QA:** execute
    [`../testing/testflight-chat-paste-input.md`](../testing/testflight-chat-paste-input.md)
    on an iPhone and record the result outside Git.
 3. **P0-4/P0-5 device gates:** verify Sign in with Apple, Apple credential
    revocation during account deletion, clean install, upgrade, offline/retry,
    IPv6/NAT64 and iPad compatibility.
-4. **Push JWT consistency:** close GitHub issue #7 only after production cron
-   and webhook calls are proven to work with `verify_jwt=true`.
+4. **Push JWT consistency:** production `push-dispatch` v14 still has
+   `verify_jwt=false`. Read-only verification confirmed that active cron callers
+   send the Vault-backed service-role JWT and currently receive HTTP 200. Close
+   GitHub issue #7 only after an authorized v15 deployment with
+   `verify_jwt=true` and a repeated cron/webhook smoke.
 5. **Release tag:** create a signed tag
    `testflight/ios-1.0.11-build.5` on `c2175ce` after the repository signing key
    is unlocked.
+6. **Native dependency security:** resolve GitHub issue #15 by moving from
+   React Native 0.86.2 to the patched compatible release and validating a new
+   native binary. Do not apply `npm audit fix --force`.
+7. **Reproducible Deno gate:** resolve GitHub issue #16 by pinning the supported
+   Node/Deno toolchain and refreshing `deno.lock` in a dedicated tooling PR.
 
 ## Next eligible App Review candidate
 
