@@ -1,5 +1,8 @@
 # Sprint 4B — smoke moderacji i pakiet ASC
 
+> **Historical execution plan.** For the current binary and App Review state,
+> use [`../release/ios-current.md`](../release/ios-current.md).
+
 **Status:** **ARCHIVE RECORDED / NOT UPLOADED**. P0-3 świadomie otwarte. P0-4 =
 `CODE/PRODUCTION READY — DEVICE TEST DEFERRED`. Test urządzeniowy Sign in
 with Apple **nie został wykonany**. Aplikacja **nie jest GO**. **Nie** `IN REVIEW`.
