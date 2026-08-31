@@ -1,5 +1,9 @@
 # NiX — kompleksowy audyt App Store Review
 
+> **Historical audit snapshot.** Binary and submission states in this document
+> describe evidence collected through 2026-08-29. The current release state is
+> maintained in [`release/ios-current.md`](./release/ios-current.md).
+
 **Data audytu:** 2026-08-26; reaudyt produkcyjny P0-1/P0-2: 2026-08-27
 **Zakres:** aktualny kod aplikacji iOS `1.0.11`, build `3`, backend Supabase, publiczne strony prawne i lokalne materiały App Store Connect
 **Podstawa:** Apple App Review Guidelines po aktualizacji z 8 czerwca 2026 r.

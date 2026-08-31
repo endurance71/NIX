@@ -1,5 +1,8 @@
 # Chat paste input — TestFlight Internal
 
+> **Historical execution plan.** For the current binary and App Review state,
+> use [`../release/ios-current.md`](../release/ios-current.md).
+
 **Status:** CODE READY — **TESTFLIGHT INTERNAL DEVICE QA PENDING**
 
 **Branch:** `codex/chat-paste-input`

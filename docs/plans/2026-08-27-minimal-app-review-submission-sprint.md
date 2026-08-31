@@ -1,5 +1,8 @@
 # Sprint 4 — minimalny kandydat do App Review
 
+> **Historical execution plan.** For the current binary and App Review state,
+> use [`../release/ios-current.md`](../release/ios-current.md).
+
 ## Cel sprintu
 
 W ciągu pięciu dni przygotować i wysłać do App Review prawdziwy, stabilny build
