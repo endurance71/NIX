@@ -40,13 +40,23 @@ On the exact build 5 source SHA:
 - Xcode Archive, export, signing and App Store upload: PASS, recorded outside
   Git in `~/.nix-ops/sprint5-paste-input/INTERNAL-TESTFLIGHT-5.md`.
 
+## P0-3 / moderation progress (2026-09-03)
+
+| Gate | Status |
+| --- | --- |
+| C2 Azure F0 spike | **NO-GO** — ADR-001 stays **Proposed**. Evidence: `~/.nix-ops/p0-3-spike/decision.md` |
+| C3A OVH offline video runtime | **PASS** (offline benchmark; no Azure; no prod entry) |
+| C3B offline integration | **PASS** on branch `codex/p0-3-c3b-integration` / PR #18 — fake Azure, F0 ledger SQL local-only, Deno 36 tests. **No** prod `db push`, **no** `pre_delivery_moderation_enabled` |
+| Production pre-delivery filter | **OFF** — Guideline 1.2 still blocks public App Review |
+
+Hard stop: C3 prod / flag / Privacy Policy update / READY FOR REVIEW only after §6 decision GO **and** Accepted C2. See [`../plans/2026-09-03-c3b-s6-decision-gate.md`](../plans/2026-09-03-c3b-s6-decision-gate.md).
+
 ## Open release blockers
 
-1. **P0-3 — UGC filtering:** photos and video are not filtered before delivery.
-   Public App Review remains blocked until backend enforcement, production
-   evidence and policy updates are complete. PR #9 is green and contains only
-   the Proposed ADR, policy, fixtures and real-provider spike; Azure F0 evidence
-   is still required before the ADR can be accepted.
+1. **P0-3 — UGC filtering:** photos and video are not filtered before delivery on
+   production. C3B offline code exists (PR #18) but does not satisfy Guideline 1.2
+   until Accepted C2, authorized staging, then production enforcement. ADR remains
+   Proposed / NO-GO.
 2. **Physical-device QA:** execute
    [`../testing/testflight-chat-paste-input.md`](../testing/testflight-chat-paste-input.md)
    on an iPhone and record the result outside Git.
