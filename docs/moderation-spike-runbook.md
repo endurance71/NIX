@@ -129,7 +129,8 @@ pozostaje wyłączona; uruchomienie C3 wymaga osobnego planu runtime z ffmpeg.
 - p95 trzech safe 180 s hybrydy: 27.405 s; batch z buforem: 164.429 s < 900 s.
 - Prognoza z agregatów 7/30 dni: 641 txn/miesiąc z buforem 20% (wariant 120 klatek/film: 2860).
 - Szacunek kosztu: 1.450125 USD z kredytu, nie kwota rozliczona przez Azure.
-- ADR **Proposed** do potwierdzenia spending limitu, dokładnego licznika portalu i usunięcia S0. Mac zablokował domknięcie UI.
+- S0 usunięty po odblokowaniu Maca (odświeżona grupa: zero zasobów); Azure Home potwierdził ochronę kredytu i datę wygaśnięcia 2026-10-01.
+- ADR **Proposed** do uzgodnienia dokładnego licznika portalu; lokalny ledger ma 1937 prób, portal nadal pokazywał zaokrąglone i opóźnione 1.23k obrazów.
 - Nie ponawiać live. Klucz był tylko w pamięci zakończonego procesu; schowek wyczyszczony, pliku klucza nie tworzono.
 - Dowody: `~/.nix-ops/p0-3-spike-s0/`; historyczne katalogi bez zmian.
 - C3 i flaga produkcyjna nietknięte. Wynik lokalny nie zastępuje walidacji docelowego runtime ffmpeg.

@@ -124,9 +124,10 @@ dla `baseline_1fps` i `uniform_scene_guard`, wszystkie safe severity 0.
 z buforem 20%, wobec limitu operacyjnego 4000. Szacowany koszt testu:
 1.450125 USD z kredytu; rozliczenie Azure jeszcze niepotwierdzone.
 
-ADR pozostaje **Proposed**: brakuje jednoznacznego potwierdzenia aktywnego
-spending limitu, dokładnej sumy z portalu i usunięcia S0. Blokada Maca
-przerwała administracyjne domknięcie. Dowody:
+ADR pozostaje **Proposed** do uzgodnienia dokładnej sumy z portalu.
+Po odblokowaniu Maca S0 usunięto (odświeżona grupa: zero zasobów), a Azure Home
+potwierdził wstrzymanie usług po wyczerpaniu/wygaśnięciu kredytu. Ostatni
+licznik portalu pozostaje opóźniony i zaokrąglony; lokalny ledger ma 1937 prób. Dowody:
 `~/.nix-ops/p0-3-spike-s0/decision.md`. **Nie powtarzać live.**
 Po domknięciu uruchomić `--require-complete-s0`; dopiero PASS pozwala
 zaakceptować wybór dostawcy. Produkcja i C3 pozostają wyłączone.
