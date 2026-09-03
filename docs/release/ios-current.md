@@ -46,7 +46,7 @@ On the exact build 5 source SHA:
 | --- | --- |
 | C2 Azure F0 spike | **NO-GO** — ADR-001 stays **Proposed**. Evidence: `~/.nix-ops/p0-3-spike/decision.md` |
 | C3A OVH offline video runtime | **PASS** (offline benchmark; no Azure; no prod entry) |
-| C3B offline integration | **PASS** on branch `codex/p0-3-c3b-integration` / PR #18 — fake Azure, F0 ledger SQL local-only, Deno 36 tests. **No** prod `db push`, **no** `pre_delivery_moderation_enabled` |
+| C3B offline integration | **PASS** — merged to `main` via [PR #18](https://github.com/endurance71/NIX/pull/18) (`034b93a`). Fake Azure, F0 ledger SQL local-only, Deno 36 tests. **No** prod `db push`, **no** `pre_delivery_moderation_enabled` |
 | Production pre-delivery filter | **OFF** — Guideline 1.2 still blocks public App Review |
 
 Hard stop: C3 prod / flag / Privacy Policy update / READY FOR REVIEW only after §6 decision GO **and** Accepted C2. See [`../plans/2026-09-03-c3b-s6-decision-gate.md`](../plans/2026-09-03-c3b-s6-decision-gate.md).
@@ -54,9 +54,9 @@ Hard stop: C3 prod / flag / Privacy Policy update / READY FOR REVIEW only after 
 ## Open release blockers
 
 1. **P0-3 — UGC filtering:** photos and video are not filtered before delivery on
-   production. C3B offline code exists (PR #18) but does not satisfy Guideline 1.2
-   until Accepted C2, authorized staging, then production enforcement. ADR remains
-   Proposed / NO-GO.
+   production. C3B offline code is on `main` (PR #18) but does not satisfy
+   Guideline 1.2 until Accepted C2, authorized staging, then production
+   enforcement. ADR remains Proposed / NO-GO.
 2. **Physical-device QA:** execute
    [`../testing/testflight-chat-paste-input.md`](../testing/testflight-chat-paste-input.md)
    on an iPhone and record the result outside Git.
