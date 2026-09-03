@@ -1,6 +1,6 @@
 # C3A: isolated OVH video runtime experiment
 
-Status: experimental, offline only. No production entry point, credentials,
+Status: C3A offline benchmark PASS (2026-09-03), experimental, offline only. No production entry point, credentials,
 Azure SDK, database connection or feature flag. ADR-001 is not changed.
 
 `core.ts` provides a single-flight, one-job loop (claim 1, lease 900 seconds,
@@ -66,3 +66,14 @@ test image after collecting evidence. Do not prune unrelated Docker resources.
 - Promotional trial expiry must not trigger a Pay-As-You-Go upgrade.
 
 Container limit semantics: https://docs.docker.com/engine/containers/resource_constraints/
+
+## Recorded C3A result
+
+Benchmark source: `a4ad3f7a5668edeb37d58eb62e7959cadacff750`.
+10/10 cases passed; zero Azure requests, no OOM/restart. Maximum **sampled** RAM
+49.71 MiB, minimum host available RAM 3.848 GiB, maximum host load1 1.196.
+Three 180-second runs: 21.737 / 22.122 / 22.256 seconds with the fake provider.
+Container/media removed. This supports bounded runtime feasibility, not a
+production performance guarantee or a change to the C2/ADR acceptance gate.
+Use `node workers/moderation/summarize-evidence.mjs <sanitized-jsonl>` to validate
+and summarize the external evidence. Historical benchmark results are immutable.

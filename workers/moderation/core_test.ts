@@ -4,32 +4,36 @@ import { command, COVERAGE, processVideo } from "./video.ts";
 function assert(value: unknown): asserts value {
   if (!value) throw new Error("assertion_failed");
 }
-const safe = async () => ({
-  categoriesAnalysis: [{ category: "Violence" as const, severity: 0 }],
-});
-const fakeProcess: typeof processVideo = async () => ({
-  decision: "approved",
-  maxSeverity: 0,
-  policyVersion: "2026.08.27-p0",
-  frames: 1,
-  peakFrameBytes: 1,
-  duration: 15,
-  coverage: COVERAGE,
-});
+const safe = () =>
+  Promise.resolve({
+    categoriesAnalysis: [{ category: "Violence" as const, severity: 0 }],
+  });
+const fakeProcess: typeof processVideo = () =>
+  Promise.resolve({
+    decision: "approved",
+    maxSeverity: 0,
+    policyVersion: "2026.08.27-p0",
+    frames: 1,
+    peakFrameBytes: 1,
+    duration: 15,
+    coverage: COVERAGE,
+  });
 function harness(completeFails = false) {
   let materialized = 0;
   const outcomes: Outcome[] = [];
   const queue: Queue = {
-    claim: async (_owner, limit, lease) => {
+    claim: (_owner, limit, lease) => {
       assert(limit === 1 && lease === 900);
-      return [{ id: "synthetic", path: "unused" }];
+      return Promise.resolve([{ id: "synthetic", path: "unused" }]);
     },
-    complete: async (_job, _owner, outcome) => {
+    complete: (_job, _owner, outcome) => {
       outcomes.push(outcome);
-      if (completeFails) throw new Error("lost_lease");
+      if (completeFails) return Promise.reject(new Error("lost_lease"));
+      return Promise.resolve();
     },
-    materialize: async () => {
+    materialize: () => {
       materialized++;
+      return Promise.resolve();
     },
   };
   return { queue, outcomes, count: () => materialized };
@@ -93,18 +97,18 @@ Deno.test("concurrent tick cannot claim a second job", async () => {
 });
 Deno.test("RPC completion error blocks materialization with original argument names", async () => {
   const calls: string[] = [];
-  const queue = rpcQueue(async (name, args) => {
+  const queue = rpcQueue((name, args) => {
     calls.push(name);
     if (name === "claim_moderation_jobs") {
       assert(args.p_limit === 1 && args.p_lease_seconds === 900);
-      return {
+      return Promise.resolve({
         data: [{ id: "synthetic", content_kind: "media" }],
         error: null,
-      };
+      });
     }
     assert(args.p_status === "approved" && args.p_job_id === "synthetic");
-    return { data: null, error: "lost_lease" };
-  }, async () => "unused");
+    return Promise.resolve({ data: null, error: "lost_lease" });
+  }, () => Promise.resolve("unused"));
   try {
     await createWorker(queue, safe, 1000, fakeProcess)();
   } catch { /* expected */ }
