@@ -102,10 +102,11 @@ staging + observation window.
 
 | Decision | GO / NO-GO | Signer | Date |
 | --- | --- | --- | --- |
-| 1 Portal reconcile | PENDING | | |
-| 2 F0 after 1 Oct | PENDING | | |
-| 3 Staging live | **NO-GO (default)** | plan default | 2026-09-03 |
+| 1 Portal reconcile | **NO-GO for live** (interim: floor 3414) | ops interim | 2026-09-03 |
+| 2 F0 after 1 Oct | **NO-GO until written confirmation** | ops interim | 2026-09-03 |
+| 3 Staging live | **NO-GO** | plan default | 2026-09-03 |
 | 4 Prod flag / Review | **NO-GO** | plan hard stop | 2026-09-03 |
 
-When humans complete PENDING rows, append a short note under
-`~/.nix-ops/p0-3-s6/` (no secrets) and update this table in a follow-up docs PR.
+Evidence: `~/.nix-ops/p0-3-s6/decision-signoff-20260903.md`. When humans file a
+Portal recheck or F0-after-Oct confirmation, append under `~/.nix-ops/p0-3-s6/`
+(no secrets) and update this table.

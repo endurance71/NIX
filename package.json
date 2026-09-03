@@ -162,6 +162,8 @@
         "expo-dev-client",
         "expo-file-system",
         "expo-haptics",
+        "expo-font",
+        "expo-image",
         "expo-image-manipulator",
         "expo-image-picker",
         "expo-linking",
