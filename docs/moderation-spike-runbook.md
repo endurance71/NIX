@@ -123,7 +123,13 @@ pozostaje wyłączona; uruchomienie C3 wymaga osobnego planu runtime z ffmpeg.
 ## Stan 2026-09-03
 
 - Spike **uruchomiony** na istniejącym F0 (nie „nieuruchomiony”).
-- Text recall + safe JPEG/MP4 (wszystkie strategie) — OK.
-- High-risk JPEG/MP4 — **blokada**: brak zwalidowanego reject JPEG (syntetyki = severity 0).
-- ADR-001 pozostaje **Proposed**; flaga produkcyjna wyłączona.
-- Szczegóły: `~/.nix-ops/p0-3-spike/decision.md`.
+- Pełny S0 C2: techniczny PASS, SHA `e75dd9df570e16b7ee40c7a3cea1b1b85af9d767`.
+- 5 safe / 2 reject teksty, safe/reject JPEG, baseline i hybryda po 12/12 high-risk MP4 rejected; safe severity 0.
+- 1937 prób (1930 obraz, 7 tekst), bez retry/429/5xx; 44 testy offline PASS.
+- p95 trzech safe 180 s hybrydy: 27.405 s; batch z buforem: 164.429 s < 900 s.
+- Prognoza z agregatów 7/30 dni: 641 txn/miesiąc z buforem 20% (wariant 120 klatek/film: 2860).
+- Szacunek kosztu: 1.450125 USD z kredytu, nie kwota rozliczona przez Azure.
+- ADR **Proposed** do potwierdzenia spending limitu, dokładnego licznika portalu i usunięcia S0. Mac zablokował domknięcie UI.
+- Nie ponawiać live. Klucz był tylko w pamięci zakończonego procesu; schowek wyczyszczony, pliku klucza nie tworzono.
+- Dowody: `~/.nix-ops/p0-3-spike-s0/`; historyczne katalogi bez zmian.
+- C3 i flaga produkcyjna nietknięte. Wynik lokalny nie zastępuje walidacji docelowego runtime ffmpeg.

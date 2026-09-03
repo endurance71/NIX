@@ -34,7 +34,9 @@ Atrapa i filtr wyłącznie na urządzeniu są zakazane.
 
 **Proponowany dostawca (do potwierdzenia w A6): Azure AI Content Safety, wyłącznie
 tier F0**, zasób w **Sweden Central** (zapas: West Europe), API `2024-09-01`.
-**Zakaz tworzenia S0** w 3A i 3B, dopóki osobna decyzja kosztowa tego nie otworzy.
+S0 nie jest planowanym tierem produkcyjnym. Osobna decyzja użytkownika z
+2026-09-03 dopuściła jeden izolowany test S0 opłacony kredytem promocyjnym,
+bez Pay-As-You-Go i bez usuwania spending limitu; zasób testowy ma być usunięty.
 
 Powód nadrzędny: prywatne wiadomości 1:1 nie mogą iść na domyślny endpoint USA
 bez rezydencji i DPA w dniu startu. Microsoft DPA jest częścią Azure Online
@@ -112,17 +114,29 @@ Pierwszy rollout: **severity 4 = `rejected`**. Human review jest **wyłączone**
 
 ## Implementation strategy (worker; ADR still Proposed)
 
-Spike Azure F0 **został uruchomiony** na istniejącym zasobie Sweden Central / F0
-(2026-09-03). Text recall i bezpieczne JPEG/MP4 przeszły; **brak** zwalidowanego
-high-risk JPEG → macierz recall wideo incomplete. Status ADR pozostaje
-**Proposed** — **STOP** dla produkcyjnego enforcement. Szczegóły poza Git:
-`~/.nix-ops/p0-3-spike/decision.md`. Hard budget operacyjny: **4000** txn/mies.
-(1000 z F0 5000 = nietykalna rezerwa).
+Spiki F0 oraz hybrydowy delta mają niezmienione historyczne dowody. Pełna
+macierz C2 na izolowanym S0 w Sweden Central (2026-09-03) osiągnęła
+**techniczny PASS** z czystego SHA `e75dd9df570e16b7ee40c7a3cea1b1b85af9d767`:
+5 safe i 2 reject teksty, safe/reject JPEG, po 12/12 high-risk MP4 rejected
+dla `baseline_1fps` i `uniform_scene_guard`, wszystkie safe severity 0.
+1937 prób, bez retry i błędów providera; p95 hybrydy 180 s = 27.405 s,
+5 × p95 × 1.2 = 164.429 s < 900 s. Prognoza 7/30 dni = 641 txn/miesiąc
+z buforem 20%, wobec limitu operacyjnego 4000. Szacowany koszt testu:
+1.450125 USD z kredytu; rozliczenie Azure jeszcze niepotwierdzone.
+
+ADR pozostaje **Proposed**: brakuje jednoznacznego potwierdzenia aktywnego
+spending limitu, dokładnej sumy z portalu i usunięcia S0. Blokada Maca
+przerwała administracyjne domknięcie. Dowody:
+`~/.nix-ops/p0-3-spike-s0/decision.md`. **Nie powtarzać live.**
+Po domknięciu uruchomić `--require-complete-s0`; dopiero PASS pozwala
+zaakceptować wybór dostawcy. Produkcja i C3 pozostają wyłączone.
 
 Worker **nie** używa miniatury. Domyślna strategia runtime to `uniform`
 (12/24/60 klatek + start/środek/koniec, `MODERATION_VIDEO_STRATEGY`).
-`thumbnail` jest odrzucane. `uniform` wolno przyjąć dopiero gdy recall na
-9 high-risk clipach = baseline `1 fps`. Hosted Supabase Edge nie dostarcza
+`thumbnail` jest odrzucane. Sam `uniform` nie został zaakceptowany;
+kandydatem po C2 jest `uniform_scene_guard`, zawsze z etykietą
+`sampled_timeline_not_a_full_video_scan` i limitem 120 klatek. Zmiana
+domyślnej strategii oraz runtime należy do osobnego C3. Hosted Supabase Edge nie dostarcza
 ffmpeg — brak binarki kończy job jako `error`, nigdy `approved`.
 
 Nie ustawiać `Accepted`, dopóki dowody nie mają pełnego recall
@@ -137,7 +151,7 @@ decyzji i liczby transakcji. A6 ustawia `Accepted`, `Superseded` albo `Rejected`
 - [ ] Issue #6 T+24 wykonane nie wcześniej niż 2026-08-28 10:41 CEST
 - [ ] PR #9 zielony; jedna strategia i te same limity w ADR, spike i planie;
       brak twierdzenia „full video scan” dla strategii innych niż baseline 1 fps
-- [ ] Zasób Content Safety Sweden Central, **sku F0**, sekrety poza Git, brak S0
+- [ ] Produkcyjny zasób Content Safety Sweden Central, **sku F0**; testowy S0 usunięty
 - [ ] Spike tekst PL/EN + JPEG na prawdziwym API (`scripts/moderation-provider-spike.ts`)
 - [ ] Spike MP4 15/60/180 s: start/środek/koniec; porównanie baseline / uniform /
       scene / contact sheet; zapis txn vs cap 5000
