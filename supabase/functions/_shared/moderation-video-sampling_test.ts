@@ -1,4 +1,7 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import {
+  assertEquals,
+  assertThrows,
+} from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   azureImageTransactions,
   baselineTimestamps,
@@ -6,6 +9,7 @@ import {
   describeTimelineCoverage,
   scenePlusAnchorTimestamps,
   uniformCount,
+  uniformSceneGuardTimestamps,
   uniformTimestamps,
 } from "./moderation-video-sampling.ts";
 
@@ -73,6 +77,63 @@ Deno.test("scene strategy always keeps start/mid/end even with no scenes", () =>
     coverage.coverageClaim,
     "sampled_timeline_not_a_full_video_scan",
   );
+});
+
+Deno.test("uniform scene guard samples before and after a detected cut", () => {
+  const stamps = uniformSceneGuardTimestamps(14.92, [6.52]);
+  assertEquals(stamps.includes(5.77), true);
+  assertEquals(stamps.includes(6.27), true);
+  assertEquals(stamps.includes(6.52), true);
+  assertEquals(stamps.includes(6.77), true);
+  const coverage = describeTimelineCoverage(
+    stamps,
+    14.92,
+    "uniform_scene_guard",
+  );
+  assertEquals(
+    coverage.coverageClaim,
+    "sampled_timeline_not_a_full_video_scan",
+  );
+});
+
+Deno.test("uniform scene guard clips boundaries, sorts, and deduplicates", () => {
+  const stamps = uniformSceneGuardTimestamps(15, [0, 0.1, 14.95, 15]);
+  assertEquals(stamps[0], 0);
+  assertEquals(stamps.at(-1), 14.95);
+  assertEquals(
+    stamps.every((value, index) => index === 0 || value > stamps[index - 1]),
+    true,
+  );
+});
+
+Deno.test("uniform scene guard without cuts equals uniform", () => {
+  assertEquals(uniformSceneGuardTimestamps(60, []), uniformTimestamps(60));
+});
+
+Deno.test("uniform scene guard rejects more than 120 unique frames", () => {
+  const cuts = Array.from({ length: 40 }, (_, index) => 1 + index * 4);
+  assertThrows(
+    () => uniformSceneGuardTimestamps(180, cuts),
+    Error,
+    "excessive_scene_changes",
+  );
+});
+
+Deno.test("guard windows intersect all off-anchor fixture intervals", () => {
+  const fixtures = [
+    { duration: 14.92, cut: 6.52, unsafeStart: 5.5, unsafeEnd: 6.5 },
+    { duration: 59.96, cut: 23.2, unsafeStart: 22.2, unsafeEnd: 23.2 },
+    { duration: 179.96, cut: 67.6, unsafeStart: 66.6, unsafeEnd: 67.6 },
+  ];
+  for (const fixture of fixtures) {
+    const stamps = uniformSceneGuardTimestamps(fixture.duration, [fixture.cut]);
+    assertEquals(
+      stamps.some((time) =>
+        time >= fixture.unsafeStart && time <= fixture.unsafeEnd
+      ),
+      true,
+    );
+  }
 });
 
 Deno.test("contact sheet is one Azure image transaction", () => {

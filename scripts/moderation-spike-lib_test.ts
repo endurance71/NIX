@@ -10,12 +10,12 @@ import {
   monthlyForecastTxn,
   p95,
   parseCaseSet,
-  parseSceneTimes,
   parseSpikeMode,
   requireBudgetBeforeRequest,
   sanitizeSpikeRecord,
   videoLeaseFitsBatch,
 } from "./moderation-spike-lib.ts";
+import { parseSceneTimes } from "../supabase/functions/_shared/moderation-video-scenes.ts";
 
 Deno.test("parseSpikeMode accepts text|image|video|all", () => {
   assertEquals(parseSpikeMode("text"), "text");

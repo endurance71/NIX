@@ -5,8 +5,12 @@ export const SPIKE_DURATIONS_SEC = [15, 60, 180] as const;
 export type SamplingStrategy =
   | "baseline_1fps"
   | "uniform"
+  | "uniform_scene_guard"
   | "scene_plus_anchors"
   | "contact_sheet";
+
+export const MAX_SCENE_GUARD_FRAMES = 120;
+export const SCENE_GUARD_OFFSETS_SEC = [-0.75, -0.25, 0, 0.25] as const;
 
 export function uniqueSorted(values: number[]): number[] {
   return [...new Set(values.map((value) => Math.round(value * 1000) / 1000))]
@@ -49,6 +53,26 @@ export function scenePlusAnchorTimestamps(
     ...anchorTimestamps(durationSec),
     ...sceneTimes.filter((time) => time >= 0 && time <= durationSec),
   ]);
+}
+
+export function uniformSceneGuardTimestamps(
+  durationSec: number,
+  sceneTimes: number[],
+): number[] {
+  const last = Math.max(0, durationSec - 0.05);
+  const guards = sceneTimes.flatMap((time) =>
+    SCENE_GUARD_OFFSETS_SEC.map((offset) =>
+      Math.min(last, Math.max(0, time + offset))
+    )
+  );
+  const timestamps = uniqueSorted([
+    ...uniformTimestamps(durationSec),
+    ...guards,
+  ]);
+  if (timestamps.length > MAX_SCENE_GUARD_FRAMES) {
+    throw new Error("excessive_scene_changes");
+  }
+  return timestamps;
 }
 
 export function describeTimelineCoverage(
@@ -114,6 +138,8 @@ export function timestampsForStrategy(
     case "uniform":
     case "contact_sheet":
       return uniformTimestamps(durationSec);
+    case "uniform_scene_guard":
+      return uniformSceneGuardTimestamps(durationSec, sceneTimes);
     case "scene_plus_anchors":
       return scenePlusAnchorTimestamps(durationSec, sceneTimes);
     default: {
@@ -131,6 +157,7 @@ export function resolveWorkerSamplingStrategy(
   if (
     value === "baseline_1fps" ||
     value === "uniform" ||
+    value === "uniform_scene_guard" ||
     value === "scene_plus_anchors" ||
     value === "contact_sheet"
   ) {

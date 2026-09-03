@@ -4,11 +4,12 @@
  * Modes:
  *   SPIKE_MODE=text|image|video|all
  *   SPIKE_DRY_RUN=1           — ffprobe/scene/cost only, zero Azure calls
- *   SPIKE_F0_USED_BEFORE=N    — required for live runs (hard budget 4000)
+ *   SPIKE_F0_USED_BEFORE=N    — required for live runs
+ *   SPIKE_F0_HARD_BUDGET=N    — optional per-run ceiling, at most 4000
  *
  * Azure has no Video API. Strategies:
  *   baseline_1fps         — only this may be labeled full-timeline
- *   uniform / scene_plus_anchors / contact_sheet — sampled, never full scan
+ *   uniform / uniform_scene_guard / scene_plus_anchors / contact_sheet — sampled, never full scan
  *
  * Exit 2 = DoR / config. Exit 1 = provider, budget, expectation, or ffmpeg fail-closed.
  */
@@ -25,6 +26,7 @@ import {
   type SamplingStrategy,
   timestampsForStrategy,
 } from "../supabase/functions/_shared/moderation-video-sampling.ts";
+import { detectVideoSceneTimes } from "../supabase/functions/_shared/moderation-video-scenes.ts";
 import {
   assertExpectedDecision,
   canAffordLiveRun,
@@ -34,7 +36,6 @@ import {
   p95,
   parseCaseSet,
   parseExpectedDecision,
-  parseSceneTimes,
   parseSpikeMode,
   requireBudgetBeforeRequest,
   sanitizeSpikeRecord,
@@ -46,6 +47,7 @@ const HUMAN_REVIEW_ENABLED = false;
 const STRATEGIES: SamplingStrategy[] = [
   "baseline_1fps",
   "uniform",
+  "uniform_scene_guard",
   "scene_plus_anchors",
   "contact_sheet",
 ];
@@ -78,6 +80,8 @@ const maxRetries = Math.max(
 );
 const jsonlPath = Deno.env.get("SPIKE_JSONL_OUT");
 const usedBeforeRaw = Deno.env.get("SPIKE_F0_USED_BEFORE");
+const runHardBudgetRaw = Deno.env.get("SPIKE_F0_HARD_BUDGET");
+const runHardBudget = Number(runHardBudgetRaw ?? F0_HARD_BUDGET);
 
 const expectText = parseExpectedDecision(Deno.env.get("SPIKE_EXPECT_TEXT"));
 const expectJpeg = parseExpectedDecision(Deno.env.get("SPIKE_EXPECT_JPEG"));
@@ -105,6 +109,17 @@ const usedBefore = dryRun
   : Number(usedBeforeRaw);
 if (!Number.isFinite(usedBefore) || usedBefore < 0) {
   console.error(`invalid SPIKE_F0_USED_BEFORE=${usedBeforeRaw}`);
+  Deno.exit(2);
+}
+if (
+  !Number.isInteger(runHardBudget) || runHardBudget <= 0 ||
+  runHardBudget > F0_HARD_BUDGET
+) {
+  console.error(
+    `invalid SPIKE_F0_HARD_BUDGET=${
+      runHardBudgetRaw ?? runHardBudget
+    }; must be 1..${F0_HARD_BUDGET}`,
+  );
   Deno.exit(2);
 }
 
@@ -238,7 +253,7 @@ async function postAnalyze(kind: "text" | "image", body: unknown): Promise<{
   const attemptLatenciesMs: number[] = [];
   for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
     try {
-      requireBudgetBeforeRequest(usedBefore, transactions, F0_HARD_BUDGET);
+      requireBudgetBeforeRequest(usedBefore, transactions, runHardBudget);
     } catch (error) {
       console.error(error instanceof Error ? error.message : error);
       Deno.exit(1);
@@ -377,30 +392,10 @@ async function extractFrame(
 }
 
 async function detectScenes(videoPath: string): Promise<number[]> {
-  const result = await runCommand(
-    "ffmpeg",
-    [
-      "-hide_banner",
-      "-i",
-      videoPath,
-      "-vf",
-      `select='gt(scene,${sceneThreshold})',showinfo`,
-      "-an",
-      "-f",
-      "null",
-      "-",
-    ],
-    { stderr: "piped" },
-  );
-  try {
-    return parseSceneTimes(
-      new TextDecoder().decode(result.stderr),
-      result.code,
-    );
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : error);
-    Deno.exit(1);
-  }
+  const result = await detectVideoSceneTimes(videoPath, sceneThreshold);
+  if (result.ok) return result.times;
+  console.error(result.error);
+  Deno.exit(1);
 }
 
 async function buildContactSheet(
@@ -541,18 +536,20 @@ if (runVideo) {
     const durationActual = await ffprobeDuration(videoPath);
     const ffprobeMs = Math.round(performance.now() - ffprobeStarted);
     const sceneStarted = performance.now();
-    const sceneTimes = strategies.includes("scene_plus_anchors")
-      ? await detectScenes(videoPath)
-      : [];
-    const sceneDetectionMs = strategies.includes("scene_plus_anchors")
+    const needsSceneDetection = strategies.includes("scene_plus_anchors") ||
+      strategies.includes("uniform_scene_guard");
+    const sceneTimes = needsSceneDetection ? await detectScenes(videoPath) : [];
+    const sceneDetectionMs = needsSceneDetection
       ? Math.round(performance.now() - sceneStarted)
       : 0;
     for (const strategy of strategies) {
-      const stamps = timestampsForStrategy(
-        strategy,
-        durationActual,
-        sceneTimes,
-      );
+      let stamps: number[];
+      try {
+        stamps = timestampsForStrategy(strategy, durationActual, sceneTimes);
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : error);
+        Deno.exit(1);
+      }
       const coverage = describeTimelineCoverage(
         stamps,
         durationActual,
@@ -574,7 +571,10 @@ if (runVideo) {
         path: videoPath,
         sceneTimes,
         preprocessingMs: ffprobeMs +
-          (strategy === "scene_plus_anchors" ? sceneDetectionMs : 0),
+          (strategy === "scene_plus_anchors" ||
+              strategy === "uniform_scene_guard"
+            ? sceneDetectionMs
+            : 0),
       });
     }
   }
@@ -586,7 +586,7 @@ const estimateImage = runImage
   : 0;
 const estimateVideo = videoPlans.reduce((sum, row) => sum + row.azureTxn, 0);
 const estimateTotal = estimateText + estimateImage + estimateVideo;
-const afford = canAffordLiveRun(usedBefore, estimateTotal, F0_HARD_BUDGET);
+const afford = canAffordLiveRun(usedBefore, estimateTotal, runHardBudget);
 
 console.log(
   JSON.stringify({
@@ -597,7 +597,7 @@ console.log(
     estimateTotal,
     withReserve: afford.withReserve,
     projected: afford.projected,
-    hardBudget: F0_HARD_BUDGET,
+    hardBudget: runHardBudget,
     monthlyCap: F0_MONTHLY_CAP,
     ok: afford.ok,
   }),
@@ -605,7 +605,7 @@ console.log(
 
 if (!dryRun && !afford.ok) {
   console.error(
-    `Live spike blocked by hard budget ${F0_HARD_BUDGET}: used_before=${usedBefore} estimate=${estimateTotal} with_reserve=${afford.withReserve}`,
+    `Live spike blocked by hard budget ${runHardBudget}: used_before=${usedBefore} estimate=${estimateTotal} with_reserve=${afford.withReserve}`,
   );
   Deno.exit(1);
 }
@@ -687,7 +687,7 @@ if (dryRun) {
     );
   }
   console.log(
-    `transactions=0 estimate=${estimateTotal} f0HardBudget=${F0_HARD_BUDGET} dryRun=1`,
+    `transactions=0 estimate=${estimateTotal} f0HardBudget=${runHardBudget} dryRun=1`,
   );
   console.log("spike dry-run ok — zero Azure requests");
 } else {
@@ -918,7 +918,7 @@ if (dryRun) {
       JSON.stringify({
         ...row,
         f0BudgetHint:
-          `${row.azureTxn} image txns (hard ${F0_HARD_BUDGET} / cap ${F0_MONTHLY_CAP})`,
+          `${row.azureTxn} image txns (hard ${runHardBudget} / cap ${F0_MONTHLY_CAP})`,
       }),
     );
   }
@@ -942,7 +942,7 @@ console.log(`latency_summary=${JSON.stringify(latencySummary)}`);
 console.log(
   `transactions=${transactions} usedBefore=${usedBefore} projected=${
     usedBefore + transactions
-  } f0HardBudget=${F0_HARD_BUDGET} f0MonthlyCap=${F0_MONTHLY_CAP}`,
+  } f0HardBudget=${runHardBudget} f0MonthlyCap=${F0_MONTHLY_CAP}`,
 );
 
 record({
@@ -952,7 +952,7 @@ record({
   estimateTotal,
   usedBefore,
   projected: usedBefore + transactions,
-  hardBudget: F0_HARD_BUDGET,
+  hardBudget: runHardBudget,
   monthlyCap: F0_MONTHLY_CAP,
   latencySummary,
 });

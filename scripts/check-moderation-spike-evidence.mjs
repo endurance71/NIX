@@ -4,6 +4,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
 
 const requireComplete = process.argv.includes('--require-complete');
+const requireHybridDelta = process.argv.includes('--require-hybrid-delta');
 const spikeDir = process.env.SPIKE_EVIDENCE_DIR?.trim()
   || join(process.env.HOME || '', '.nix-ops', 'p0-3-spike');
 const failures = [];
@@ -92,6 +93,50 @@ for (const required of REQUIRED) {
 const runFiles = files.filter((file) => file.rel.startsWith('runs/') && file.name.endsWith('.jsonl'));
 if (!runFiles.length) failures.push('missing runs/*.jsonl');
 
+if (requireHybridDelta && failures.length === 0) {
+  const rows = [];
+  for (const file of runFiles) {
+    const fileRows = readFileSync(file.abs, 'utf8').split(/\n/).filter((line) => line.trim()).map((line) => JSON.parse(line));
+    rows.push(...fileRows);
+    const summaries = fileRows.filter((row) => row.kind === 'summary' && row.dryRun !== true);
+    if (summaries.length !== 1 || summaries[0].hardBudget > 3800 || summaries[0].projected > 3800) {
+      failures.push(`${file.rel} must have one live summary within delta ceiling 3800`);
+    }
+    const logicalTxn = fileRows.filter((row) => row.kind !== 'summary' && row.dryRun !== true)
+      .reduce((sum, row) => sum + (row.azureTxn ?? 0), 0);
+    if (summaries[0] && summaries[0].transactions < logicalTxn) {
+      failures.push(`${file.rel} transaction summary does not reconcile`);
+    }
+  }
+  const dataRows = rows.filter((row) => row.dryRun !== true && row.kind !== 'summary');
+  const shas = new Set(dataRows.map((row) => row.codeSha));
+  if (shas.size !== 1 || !/^[0-9a-f]{40}$/.test([...shas][0] ?? '')
+    || dataRows.some((row) => row.workingTreeClean !== true)) {
+    failures.push('hybrid delta evidence must share one clean 40-character Git SHA');
+  }
+  for (const caseSet of ['hybrid-safe', 'hybrid-off-anchor']) {
+    for (const durationTarget of [15, 60, 180]) {
+      const match = dataRows.find((row) => row.kind === 'video' && row.caseSet === caseSet
+        && row.durationTarget === durationTarget && row.strategy === 'uniform_scene_guard');
+      const expectedDecision = caseSet === 'hybrid-safe' ? 'approved' : 'rejected';
+      if (!match || match.decision !== expectedDecision
+        || (expectedDecision === 'rejected' && !(match.maxSeverity >= 4))) {
+        failures.push(`missing/failed hybrid delta ${caseSet} ${durationTarget}s`);
+        continue;
+      }
+      if (match.coverage !== 'sampled_timeline_not_a_full_video_scan') {
+        failures.push(`wrong hybrid coverage ${caseSet} ${durationTarget}s`);
+      }
+      if (!isNonNegativeNumber(match.videoDecisionTotalMs) || !isNonNegativeNumber(match.providerRequestP95Ms)) {
+        failures.push(`missing hybrid latency ${caseSet} ${durationTarget}s`);
+      }
+      if (caseSet === 'hybrid-off-anchor' && !(match.sceneCount > 0)) {
+        failures.push(`hybrid detector found no cut for ${durationTarget}s fixture`);
+      }
+    }
+  }
+}
+
 if (requireComplete && failures.length === 0) {
   const metadata = readJson('resource-metadata.json');
   const forecast = readJson('traffic-forecast.json');
@@ -163,7 +208,7 @@ if (requireComplete && failures.length === 0) {
   }
 
   const durations = [15, 60, 180];
-  const strategies = ['baseline_1fps', 'uniform', 'scene_plus_anchors', 'contact_sheet'];
+  const strategies = ['baseline_1fps', 'uniform_scene_guard'];
   const videoCases = [
     { caseSet: 'safe', decision: 'approved' },
     { caseSet: 'highrisk-start', decision: 'rejected' },
@@ -188,7 +233,7 @@ if (requireComplete && failures.length === 0) {
         if (!isNonNegativeNumber(match.videoDecisionTotalMs) || !isNonNegativeNumber(match.providerRequestP95Ms)) {
           failures.push(`missing total/provider latency ${expected.caseSet} ${durationTarget}s ${strategy}`);
         }
-        if (expected.caseSet === 'highrisk-scene' && strategy === 'scene_plus_anchors' && !(match.sceneCount > 0)) {
+        if (expected.caseSet === 'highrisk-scene' && strategy === 'uniform_scene_guard' && !(match.sceneCount > 0)) {
           failures.push(`scene detector found no cut for ${durationTarget}s scene fixture`);
         }
       }
@@ -196,11 +241,11 @@ if (requireComplete && failures.length === 0) {
   }
 
   const uniform180Totals = dataRows.filter((row) => row.kind === 'video' && row.caseSet === 'safe'
-    && row.durationTarget === 180 && row.strategy === 'uniform' && isNonNegativeNumber(row.videoDecisionTotalMs))
+    && row.durationTarget === 180 && row.strategy === 'uniform_scene_guard' && isNonNegativeNumber(row.videoDecisionTotalMs))
     .map((row) => row.videoDecisionTotalMs);
   const uniform180P95 = percentile95(uniform180Totals);
   if (uniform180Totals.length < 3 || uniform180P95 == null || uniform180P95 * 5 * 1.2 >= 900_000) {
-    failures.push('uniform 180s needs >=3 total-latency samples and must fit 5-job/900s lease with 20% margin');
+    failures.push('uniform_scene_guard 180s needs >=3 total-latency samples and must fit 5-job/900s lease with 20% margin');
   }
   if (latency.status !== 'COMPLETE' || latency.workerBatchFitsLease !== true) {
     failures.push('latency-summary must be COMPLETE and confirm worker lease fit');
@@ -215,4 +260,5 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Spike evidence ${requireComplete ? 'COMPLETE' : 'hygiene'} OK: ${spikeDir} (${files.length} files, no media/secrets).`);
+const validationMode = requireComplete ? 'COMPLETE' : requireHybridDelta ? 'HYBRID DELTA' : 'hygiene';
+console.log(`Spike evidence ${validationMode} OK: ${spikeDir} (${files.length} files, no media/secrets).`);

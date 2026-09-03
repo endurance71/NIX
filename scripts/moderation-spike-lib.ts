@@ -16,18 +16,6 @@ export function parseCaseSet(raw: string | undefined | null): string {
   return value;
 }
 
-export function parseSceneTimes(stderr: string, exitCode: number): number[] {
-  if (exitCode !== 0) {
-    throw new Error(`scene_detection_failed exit=${exitCode}`);
-  }
-  const times: number[] = [];
-  for (const match of stderr.matchAll(/pts_time:([0-9.]+)/g)) {
-    const value = Number(match[1]);
-    if (Number.isFinite(value)) times.push(value);
-  }
-  return times;
-}
-
 export function videoLeaseFitsBatch(
   p95VideoDecisionMs: number,
   batchSize = 5,
