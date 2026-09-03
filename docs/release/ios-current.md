@@ -71,11 +71,13 @@ Hard stop: C3 prod / flag / Privacy Policy update / READY FOR REVIEW only after 
 5. **Release tag:** create a signed tag
    `testflight/ios-1.0.11-build.5` on `c2175ce` after the repository signing key
    is unlocked.
-6. **Native dependency security:** resolve GitHub issue #15 by moving from
-   React Native 0.86.2 to the patched compatible release and validating a new
-   native binary. Do not apply `npm audit fix --force`.
-7. **Reproducible Deno gate:** resolve GitHub issue #16 by pinning the supported
-   Node/Deno toolchain and refreshing `deno.lock` in a dedicated tooling PR.
+6. **Native dependency security:** source moves to React Native `0.86.3` + patch
+   in PR #19 (C6). A new native binary (`1.0.11` build `6+`) is still required
+   before the audit advisory is closed on devices. Do not apply
+   `npm audit fix --force`.
+7. **Reproducible Deno gate:** Node `24.18` / Deno `2.9.6` pins + frozen
+   `deno.lock` land in PR #19 (C6). Close GitHub issue #16 after merge and CI
+   confirmation.
 
 ## Next eligible App Review candidate
 
