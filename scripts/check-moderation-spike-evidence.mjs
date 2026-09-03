@@ -215,6 +215,12 @@ if (completeRequested && failures.length === 0) {
 
   const live = rows.filter((row) => row.dryRun !== true);
   const dataRows = live.filter((row) => row.kind !== 'summary');
+  if (requireCompleteS0) {
+    const totalAttempts = live.filter((row) => row.kind === 'summary')
+      .reduce((sum, row) => sum + row.transactions, 0);
+    if (!isNonNegativeNumber(totalAttempts) || totalAttempts > 2500) failures.push('S0 total experiment exceeds 2500 attempts');
+    if (dataRows.some((row) => row.decision === 'approved' && row.maxSeverity !== 0)) failures.push('S0 safe approvals require severity 0');
+  }
   if (!dataRows.length) failures.push('complete evidence requires live rows');
   const expectedTier = requireCompleteS0 ? 'S0' : 'F0';
   if (dataRows.some((row) => row.billingTier != null && row.billingTier !== expectedTier)) {

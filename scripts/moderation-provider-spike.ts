@@ -29,7 +29,7 @@ import {
 } from "../supabase/functions/_shared/moderation-video-sampling.ts";
 import { detectVideoSceneTimes } from "../supabase/functions/_shared/moderation-video-scenes.ts";
 import {
-  assertExpectedDecision,
+  assertExpectedDecision as assertLegacyExpectedDecision,
   canAffordLiveRun,
   type ExpectedDecision,
   F0_MONTHLY_CAP,
@@ -181,6 +181,20 @@ const latenciesByStrategy: Record<string, number[]> = {};
 const videoTotalsByStrategy: Record<string, number[]> = {};
 const jsonlRows: Record<string, unknown>[] = [];
 
+function assertExpectedDecision(
+  sampleId: string,
+  actual: string,
+  expected: ExpectedDecision | null,
+  maxSeverity: number | null,
+) {
+  assertLegacyExpectedDecision(sampleId, actual, expected, maxSeverity);
+  if (billingTier === "S0" && expected === "approved" && maxSeverity !== 0) {
+    throw new Error(
+      `safe_severity_nonzero id=${sampleId} maxSeverity=${maxSeverity}`,
+    );
+  }
+}
+
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
   const chunk = 0x8000;
@@ -230,6 +244,11 @@ function record(row: Record<string, unknown>) {
     workingTreeClean: gitEvidence.workingTreeClean,
     ...row,
   }));
+  if (jsonlPath) {
+    Deno.writeTextFileSync(jsonlPath, JSON.stringify(jsonlRows.at(-1)) + "\n", {
+      append: true,
+    });
+  }
 }
 
 async function readGitEvidence(): Promise<
@@ -276,6 +295,21 @@ async function postAnalyze(kind: "text" | "image", body: unknown): Promise<{
       Deno.exit(1);
     }
 
+    // Count attempts before fetch: a network failure can still be billable.
+    transactions += 1;
+    if (jsonlPath) {
+      Deno.writeTextFileSync(
+        jsonlPath + ".attempts",
+        JSON.stringify({
+          codeSha: gitEvidence.codeSha,
+          billingTier,
+          kind,
+          attempt: transactions,
+          cumulativeAttempts: usedBefore + transactions,
+        }) + "\n",
+        { append: true },
+      );
+    }
     const started = performance.now();
     const response = await fetch(
       `${azureEndpoint}/contentsafety/${kind}:analyze?api-version=${API_VERSION}`,
@@ -290,7 +324,6 @@ async function postAnalyze(kind: "text" | "image", body: unknown): Promise<{
     );
     const latencyMs = Math.round(performance.now() - started);
     attemptLatenciesMs.push(latencyMs);
-    transactions += 1;
 
     if (response.ok) {
       const analysis = await response.json() as ProviderAnalysis;
@@ -860,6 +893,14 @@ if (dryRun) {
           await Deno.readFile(framePath),
         );
         videoDecision = worse(videoDecision, frameDecision);
+        if (billingTier === "S0" && expectVideo === "approved") {
+          assertExpectedDecision(
+            "safe-video-frame",
+            frameDecision.decision,
+            "approved",
+            frameDecision.maxSeverity,
+          );
+        }
         strategyLatencies.push(...frameDecision.attemptLatenciesMs);
         console.log(
           `mp4 ${plan.durationTarget}s strategy=${plan.strategy} frame=${
