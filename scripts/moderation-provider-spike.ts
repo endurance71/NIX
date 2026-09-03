@@ -4,8 +4,9 @@
  * Modes:
  *   SPIKE_MODE=text|image|video|all
  *   SPIKE_DRY_RUN=1           — ffprobe/scene/cost only, zero Azure calls
- *   SPIKE_F0_USED_BEFORE=N    — required for live runs
- *   SPIKE_F0_HARD_BUDGET=N    — optional per-run ceiling, at most 4000
+ *   SPIKE_BILLING_TIER=F0|S0  — defaults to F0
+ *   SPIKE_TXN_USED_BEFORE=N   — required for live runs (legacy F0 alias supported)
+ *   SPIKE_TXN_HARD_BUDGET=N   — F0 max 4000; S0 experiment max 2500
  *
  * Azure has no Video API. Strategies:
  *   baseline_1fps         — only this may be labeled full-timeline
@@ -31,9 +32,10 @@ import {
   assertExpectedDecision,
   canAffordLiveRun,
   type ExpectedDecision,
-  F0_HARD_BUDGET,
   F0_MONTHLY_CAP,
+  hardBudgetForTier,
   p95,
+  parseBillingTier,
   parseCaseSet,
   parseExpectedDecision,
   parseSpikeMode,
@@ -54,6 +56,7 @@ const STRATEGIES: SamplingStrategy[] = [
 
 const mode = parseSpikeMode(Deno.env.get("SPIKE_MODE"));
 const caseSet = parseCaseSet(Deno.env.get("SPIKE_CASE_SET"));
+const billingTier = parseBillingTier(Deno.env.get("SPIKE_BILLING_TIER"));
 const dryRun = Deno.env.get("SPIKE_DRY_RUN") === "1" ||
   Deno.env.get("SPIKE_DRY_RUN") === "true";
 const endpoint = Deno.env.get("AZURE_CONTENT_SAFETY_ENDPOINT")?.replace(
@@ -74,14 +77,21 @@ const imageDelayMs = Math.max(
   0,
   Number(Deno.env.get("SPIKE_IMAGE_DELAY_MS") ?? "2500") || 2500,
 );
-const maxRetries = Math.max(
+const maxAttempts = Math.max(
   1,
-  Number(Deno.env.get("SPIKE_HTTP_RETRIES") ?? "8") || 8,
+  Number(
+    Deno.env.get("SPIKE_HTTP_ATTEMPTS") ??
+      Deno.env.get("SPIKE_HTTP_RETRIES") ??
+      (billingTier === "S0" ? "1" : "8"),
+  ) || (billingTier === "S0" ? 1 : 8),
 );
 const jsonlPath = Deno.env.get("SPIKE_JSONL_OUT");
-const usedBeforeRaw = Deno.env.get("SPIKE_F0_USED_BEFORE");
-const runHardBudgetRaw = Deno.env.get("SPIKE_F0_HARD_BUDGET");
-const runHardBudget = Number(runHardBudgetRaw ?? F0_HARD_BUDGET);
+const usedBeforeRaw = Deno.env.get("SPIKE_TXN_USED_BEFORE") ??
+  Deno.env.get("SPIKE_F0_USED_BEFORE");
+const runHardBudgetRaw = Deno.env.get("SPIKE_TXN_HARD_BUDGET") ??
+  Deno.env.get("SPIKE_F0_HARD_BUDGET");
+const tierHardBudget = hardBudgetForTier(billingTier);
+const runHardBudget = Number(runHardBudgetRaw ?? tierHardBudget);
 
 const expectText = parseExpectedDecision(Deno.env.get("SPIKE_EXPECT_TEXT"));
 const expectJpeg = parseExpectedDecision(Deno.env.get("SPIKE_EXPECT_JPEG"));
@@ -99,7 +109,7 @@ if (!dryRun && (!endpoint || !key)) {
 
 if (!dryRun && (usedBeforeRaw == null || usedBeforeRaw.trim() === "")) {
   console.error(
-    "Live spike blocked: set SPIKE_F0_USED_BEFORE to current monthly F0 usage.",
+    "Live spike blocked: set SPIKE_TXN_USED_BEFORE to calls already made by this resource (legacy SPIKE_F0_USED_BEFORE is supported).",
   );
   Deno.exit(2);
 }
@@ -108,17 +118,23 @@ const usedBefore = dryRun
   ? Number(usedBeforeRaw ?? "0") || 0
   : Number(usedBeforeRaw);
 if (!Number.isFinite(usedBefore) || usedBefore < 0) {
-  console.error(`invalid SPIKE_F0_USED_BEFORE=${usedBeforeRaw}`);
+  console.error(`invalid SPIKE_TXN_USED_BEFORE=${usedBeforeRaw}`);
   Deno.exit(2);
 }
 if (
   !Number.isInteger(runHardBudget) || runHardBudget <= 0 ||
-  runHardBudget > F0_HARD_BUDGET
+  runHardBudget > tierHardBudget
 ) {
   console.error(
-    `invalid SPIKE_F0_HARD_BUDGET=${
+    `invalid SPIKE_TXN_HARD_BUDGET=${
       runHardBudgetRaw ?? runHardBudget
-    }; must be 1..${F0_HARD_BUDGET}`,
+    }; must be 1..${tierHardBudget} for ${billingTier}`,
+  );
+  Deno.exit(2);
+}
+if (!dryRun && billingTier === "S0" && maxAttempts !== 1) {
+  console.error(
+    "Live S0 spike blocked: SPIKE_HTTP_ATTEMPTS must be 1 (no automatic retry).",
   );
   Deno.exit(2);
 }
@@ -209,6 +225,7 @@ function retryAfterMs(response: Response, attempt: number): number {
 function record(row: Record<string, unknown>) {
   jsonlRows.push(sanitizeSpikeRecord({
     caseSet,
+    billingTier,
     codeSha: gitEvidence.codeSha,
     workingTreeClean: gitEvidence.workingTreeClean,
     ...row,
@@ -251,7 +268,7 @@ async function postAnalyze(kind: "text" | "image", body: unknown): Promise<{
   }
 
   const attemptLatenciesMs: number[] = [];
-  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       requireBudgetBeforeRequest(usedBefore, transactions, runHardBudget);
     } catch (error) {
@@ -281,7 +298,7 @@ async function postAnalyze(kind: "text" | "image", body: unknown): Promise<{
     }
 
     const retryable = response.status === 429 || response.status >= 500;
-    if (!retryable || attempt === maxRetries) {
+    if (!retryable || attempt === maxAttempts) {
       console.error(
         `provider ${kind} HTTP ${response.status} — fail-closed, not allow`,
       );
@@ -289,7 +306,7 @@ async function postAnalyze(kind: "text" | "image", body: unknown): Promise<{
     }
     const waitMs = retryAfterMs(response, attempt);
     console.warn(
-      `provider ${kind} HTTP ${response.status} attempt ${attempt}/${maxRetries}, wait ${waitMs}ms`,
+      `provider ${kind} HTTP ${response.status} attempt ${attempt}/${maxAttempts}, wait ${waitMs}ms`,
     );
     await sleep(waitMs);
   }
@@ -593,12 +610,13 @@ console.log(
     phase: "budget",
     dryRun,
     mode,
+    billingTier,
     usedBefore,
     estimateTotal,
     withReserve: afford.withReserve,
     projected: afford.projected,
     hardBudget: runHardBudget,
-    monthlyCap: F0_MONTHLY_CAP,
+    monthlyCap: billingTier === "F0" ? F0_MONTHLY_CAP : null,
     ok: afford.ok,
   }),
 );
@@ -611,7 +629,7 @@ if (!dryRun && !afford.ok) {
 }
 
 console.log(
-  `policy=${POLICY_VERSION} humanReview=${HUMAN_REVIEW_ENABLED} severity4=rejected mode=${mode} dryRun=${dryRun} imageDelayMs=${imageDelayMs}`,
+  `policy=${POLICY_VERSION} humanReview=${HUMAN_REVIEW_ENABLED} severity4=rejected mode=${mode} tier=${billingTier} dryRun=${dryRun} imageDelayMs=${imageDelayMs}`,
 );
 
 if (dryRun) {
@@ -917,8 +935,9 @@ if (dryRun) {
     console.log(
       JSON.stringify({
         ...row,
-        f0BudgetHint:
-          `${row.azureTxn} image txns (hard ${runHardBudget} / cap ${F0_MONTHLY_CAP})`,
+        budgetHint: billingTier === "F0"
+          ? `${row.azureTxn} image txns (hard ${runHardBudget} / cap ${F0_MONTHLY_CAP})`
+          : `${row.azureTxn} image txns (S0 experiment hard ${runHardBudget})`,
       }),
     );
   }
@@ -942,18 +961,21 @@ console.log(`latency_summary=${JSON.stringify(latencySummary)}`);
 console.log(
   `transactions=${transactions} usedBefore=${usedBefore} projected=${
     usedBefore + transactions
-  } f0HardBudget=${runHardBudget} f0MonthlyCap=${F0_MONTHLY_CAP}`,
+  } billingTier=${billingTier} hardBudget=${runHardBudget} monthlyCap=${
+    billingTier === "F0" ? F0_MONTHLY_CAP : "none"
+  }`,
 );
 
 record({
   kind: "summary",
   dryRun,
+  billingTier,
   transactions,
   estimateTotal,
   usedBefore,
   projected: usedBefore + transactions,
   hardBudget: runHardBudget,
-  monthlyCap: F0_MONTHLY_CAP,
+  monthlyCap: billingTier === "F0" ? F0_MONTHLY_CAP : null,
   latencySummary,
 });
 

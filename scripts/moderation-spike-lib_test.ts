@@ -7,11 +7,14 @@ import {
   canAffordLiveRun,
   estimateWithRetryReserve,
   F0_HARD_BUDGET,
+  hardBudgetForTier,
   monthlyForecastTxn,
   p95,
+  parseBillingTier,
   parseCaseSet,
   parseSpikeMode,
   requireBudgetBeforeRequest,
+  S0_EXPERIMENT_HARD_BUDGET,
   sanitizeSpikeRecord,
   videoLeaseFitsBatch,
 } from "./moderation-spike-lib.ts";
@@ -21,6 +24,21 @@ Deno.test("parseSpikeMode accepts text|image|video|all", () => {
   assertEquals(parseSpikeMode("text"), "text");
   assertEquals(parseSpikeMode("all"), "all");
   assertThrows(() => parseSpikeMode("jpeg"));
+});
+
+Deno.test("billing tier defaults to F0 and gives S0 an isolated 2500-call ceiling", () => {
+  assertEquals(parseBillingTier(undefined), "F0");
+  assertEquals(parseBillingTier("s0"), "S0");
+  assertEquals(hardBudgetForTier("F0"), F0_HARD_BUDGET);
+  assertEquals(hardBudgetForTier("S0"), S0_EXPERIMENT_HARD_BUDGET);
+  assertThrows(() => parseBillingTier("payg"));
+});
+
+Deno.test("S0 experiment budget includes ten percent reserve", () => {
+  const allowed = canAffordLiveRun(0, 2140, S0_EXPERIMENT_HARD_BUDGET);
+  assertEquals(allowed.ok, true);
+  const blocked = canAffordLiveRun(0, 2300, S0_EXPERIMENT_HARD_BUDGET);
+  assertEquals(blocked.ok, false);
 });
 
 Deno.test("case set is stable and safe for evidence identifiers", () => {

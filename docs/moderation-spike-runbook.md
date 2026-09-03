@@ -1,4 +1,4 @@
-# P0-3 Azure F0 spike — runbook operacyjny
+# P0-3 Azure moderation spike — runbook operacyjny
 
 Dowody (JSON/JSONL/MD/logi) wyłącznie w `~/.nix-ops/p0-3-spike/`.
 Media kontrolne wyłącznie w `~/.nix-ops/p0-3-fixtures/` — **nigdy** w katalogu dowodów ani w Git.
@@ -86,6 +86,39 @@ Po wynikach zaktualizuj ADR-001:
 - **Proposed / NO-GO** — brak recall, zły region/SKU, budżet lub niekompletne dowody.
 
 C3, migracje prod i `pre_delivery_moderation_enabled` są **poza** tym etapem.
+
+## Jednorazowe domknięcie C2 na kredycie S0
+
+Historycznych dowodów F0 nie wolno zmieniać. Pełny test S0 zapisuje wyniki w
+`~/.nix-ops/p0-3-spike-s0/`, a sekret wyłącznie w
+`~/.nix-ops/azure-content-safety-s0/env` z uprawnieniami `0600`.
+
+Warunki przed utworzeniem zasobu:
+
+1. aktywna subskrypcja Free Trial i spending limit;
+2. kredyt ważny przez cały test;
+3. regionalny koszt 2500 analiz z buforem 20% mniejszy od pozostałego kredytu;
+4. osobny zasób `nix-content-safety-c2-s0` w Sweden Central, bez zmiany F0.
+
+Live S0 wymaga `SPIKE_BILLING_TIER=S0`, `SPIKE_TXN_USED_BEFORE`,
+`SPIKE_TXN_HARD_BUDGET=2500` oraz `SPIKE_HTTP_ATTEMPTS=1`. Dry-run jest
+autorytatywny; jeśli cała macierz z rezerwą 10% przekracza 2500, nie wolno
+rozpoczynać live. Każdy 429/5xx kończy przebieg fail-closed bez retry.
+
+Agregaty 7/30 dni pobierać wyłącznie zapytaniem
+`scripts/moderation-traffic-aggregates.sql`. Zapytanie nie odczytuje treści,
+ścieżek mediów ani identyfikatorów użytkowników.
+
+Po pełnym PASS uruchomić:
+
+```bash
+SPIKE_EVIDENCE_DIR="$HOME/.nix-ops/p0-3-spike-s0" \
+  npm run check:moderation-spike-evidence -- --require-complete-s0
+```
+
+Po zapisaniu metadanych usunąć tymczasowy zasób S0 i plik z kluczem. Nie
+przechodzić na Pay-As-You-Go i nie usuwać spending limitu. Produkcyjna flaga
+pozostaje wyłączona; uruchomienie C3 wymaga osobnego planu runtime z ffmpeg.
 
 ## Stan 2026-09-03
 

@@ -1,12 +1,29 @@
-/** Shared helpers for Azure F0 moderation spike (testable, no network). */
+/** Shared helpers for Azure moderation spikes (testable, no network). */
 
 export const F0_MONTHLY_CAP = 5000;
 /** Soft operational ceiling: leave 1000 txn as untouchable reserve. */
 export const F0_HARD_BUDGET = 4000;
-export const F0_RETRY_RESERVE_RATIO = 0.1;
+/** One-off S0 C2 experiment ceiling; this is not a production allowance. */
+export const S0_EXPERIMENT_HARD_BUDGET = 2500;
+export const RETRY_RESERVE_RATIO = 0.1;
+/** Backward-compatible export used by the historical F0 tests. */
+export const F0_RETRY_RESERVE_RATIO = RETRY_RESERVE_RATIO;
 
 export type SpikeMode = "text" | "image" | "video" | "all";
 export type ExpectedDecision = "approved" | "rejected";
+export type SpikeBillingTier = "F0" | "S0";
+
+export function parseBillingTier(
+  raw: string | undefined | null,
+): SpikeBillingTier {
+  const value = (raw ?? "F0").trim().toUpperCase();
+  if (value === "F0" || value === "S0") return value;
+  throw new Error(`invalid_SPIKE_BILLING_TIER=${raw}`);
+}
+
+export function hardBudgetForTier(tier: SpikeBillingTier): number {
+  return tier === "F0" ? F0_HARD_BUDGET : S0_EXPERIMENT_HARD_BUDGET;
+}
 
 export function parseCaseSet(raw: string | undefined | null): string {
   const value = (raw ?? "unspecified").trim().toLowerCase();
@@ -63,7 +80,7 @@ export function assertExpectedDecision(
 }
 
 export function estimateWithRetryReserve(estimate: number): number {
-  return Math.ceil(estimate * (1 + F0_RETRY_RESERVE_RATIO));
+  return Math.ceil(estimate * (1 + RETRY_RESERVE_RATIO));
 }
 
 export function budgetRemaining(
@@ -108,7 +125,7 @@ export function requireBudgetBeforeRequest(
   const projected = usedBefore + transactionsSoFar + 1;
   if (projected > hardBudget) {
     throw new Error(
-      `f0_hard_budget_blocked used_before=${usedBefore} so_far=${transactionsSoFar} next=${projected} hard=${hardBudget}`,
+      `transaction_hard_budget_blocked used_before=${usedBefore} so_far=${transactionsSoFar} next=${projected} hard=${hardBudget}`,
     );
   }
 }

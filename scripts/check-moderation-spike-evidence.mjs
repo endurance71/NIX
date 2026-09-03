@@ -4,7 +4,13 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
 
 const requireComplete = process.argv.includes('--require-complete');
+const requireCompleteS0 = process.argv.includes('--require-complete-s0');
 const requireHybridDelta = process.argv.includes('--require-hybrid-delta');
+const completeRequested = requireComplete || requireCompleteS0;
+if (requireComplete && requireCompleteS0) {
+  console.error('choose only one complete evidence profile');
+  process.exit(2);
+}
 const spikeDir = process.env.SPIKE_EVIDENCE_DIR?.trim()
   || join(process.env.HOME || '', '.nix-ops', 'p0-3-spike');
 const failures = [];
@@ -137,14 +143,32 @@ if (requireHybridDelta && failures.length === 0) {
   }
 }
 
-if (requireComplete && failures.length === 0) {
+if (completeRequested && failures.length === 0) {
   const metadata = readJson('resource-metadata.json');
   const forecast = readJson('traffic-forecast.json');
   const latency = readJson('latency-summary.json');
   const decision = readFileSync(join(spikeDir, 'decision.md'), 'utf8');
 
   if (String(metadata.region).toLowerCase() !== 'sweden central') failures.push('metadata region must be Sweden Central');
-  if (String(metadata.sku).toUpperCase() !== 'F0' || metadata.noS0Created !== true) failures.push('metadata must confirm F0 and no S0');
+  if (requireCompleteS0) {
+    if (String(metadata.sku).toUpperCase() !== 'S0'
+      || metadata.funding !== 'promotional_credit'
+      || metadata.freeTrialActive !== true
+      || metadata.spendingLimitActive !== true) {
+      failures.push('S0 metadata must confirm promotional credit, active Free Trial and spending limit');
+    }
+    if (!isNonNegativeNumber(metadata.creditBefore)
+      || typeof metadata.creditCurrency !== 'string'
+      || !metadata.creditCurrency
+      || typeof metadata.creditExpiresAt !== 'string'
+      || !metadata.creditExpiresAt
+      || !isNonNegativeNumber(metadata.estimatedTestCostWith20pctBuffer)
+      || metadata.estimatedTestCostWith20pctBuffer > metadata.creditBefore) {
+      failures.push('S0 metadata must prove the buffered estimate fits the promotional credit');
+    }
+  } else if (String(metadata.sku).toUpperCase() !== 'F0' || metadata.noS0Created !== true) {
+    failures.push('metadata must confirm F0 and no S0');
+  }
   if (!metadata.usageConfirmedInPortal || !isNonNegativeNumber(metadata.monthlyUsageExactTxn)) {
     failures.push('metadata must contain exact Portal usage confirmation');
   }
@@ -181,8 +205,9 @@ if (requireComplete && failures.length === 0) {
       const summaries = liveRows.filter((row) => row.kind === 'summary');
       if (summaries.length !== 1) failures.push(`${file.rel} must contain exactly one live summary row`);
       const logicalTxn = liveRows.filter((row) => row.kind !== 'summary').reduce((sum, row) => sum + (row.azureTxn ?? 0), 0);
+      const evidenceBudget = requireCompleteS0 ? 2500 : 4000;
       if (summaries[0] && (!isNonNegativeNumber(summaries[0].transactions)
-        || summaries[0].transactions < logicalTxn || summaries[0].projected > 4000)) {
+        || summaries[0].transactions < logicalTxn || summaries[0].projected > evidenceBudget)) {
         failures.push(`${file.rel} transaction summary does not reconcile or exceeds budget`);
       }
     }
@@ -191,6 +216,13 @@ if (requireComplete && failures.length === 0) {
   const live = rows.filter((row) => row.dryRun !== true);
   const dataRows = live.filter((row) => row.kind !== 'summary');
   if (!dataRows.length) failures.push('complete evidence requires live rows');
+  const expectedTier = requireCompleteS0 ? 'S0' : 'F0';
+  if (dataRows.some((row) => row.billingTier != null && row.billingTier !== expectedTier)) {
+    failures.push(`all live evidence must use billing tier ${expectedTier}`);
+  }
+  if (requireCompleteS0 && dataRows.some((row) => row.billingTier !== 'S0')) {
+    failures.push('S0 evidence rows must explicitly record billingTier=S0');
+  }
   const shas = new Set(dataRows.map((row) => row.codeSha));
   if (shas.size !== 1 || !/^[0-9a-f]{40}$/.test([...shas][0] ?? '') || dataRows.some((row) => row.workingTreeClean !== true)) {
     failures.push('all live evidence must share one clean 40-character Git SHA');
@@ -260,5 +292,5 @@ if (failures.length) {
   process.exit(1);
 }
 
-const validationMode = requireComplete ? 'COMPLETE' : requireHybridDelta ? 'HYBRID DELTA' : 'hygiene';
+const validationMode = requireCompleteS0 ? 'COMPLETE S0' : requireComplete ? 'COMPLETE F0' : requireHybridDelta ? 'HYBRID DELTA' : 'hygiene';
 console.log(`Spike evidence ${validationMode} OK: ${spikeDir} (${files.length} files, no media/secrets).`);
