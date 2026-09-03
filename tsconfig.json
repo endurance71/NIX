@@ -18,6 +18,11 @@
     "expo-env.d.ts"
   ],
   "exclude": [
-    "supabase/functions/**/*"
+    "supabase/functions/**/*",
+    "workers/**/*",
+    "scripts/moderation-provider-spike.ts",
+    "scripts/moderation-spike-lib.ts",
+    "scripts/moderation-spike-lib_test.ts",
+    "scripts/moderation-spike-retry_test.ts"
   ]
 }
