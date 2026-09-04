@@ -110,3 +110,17 @@ staging + observation window.
 Evidence: `~/.nix-ops/p0-3-s6/decision-signoff-20260903.md`. When humans file a
 Portal recheck or F0-after-Oct confirmation, append under `~/.nix-ops/p0-3-s6/`
 (no secrets) and update this table.
+
+## Append — 2026-09-04 (interim floor update; history above unchanged)
+
+**Not** a staging/live GO. Portal Metrics still PENDING human.
+
+| Field | Value |
+| --- | --- |
+| Historical F0 spike accounted | **3414** (pre-hybrid; keep as history only) |
+| Current interim `external_used` floor | **3624** (includes F0 hybrid delta ledger) |
+| Formula | `external_used = max(portal_monthly_txn_now, 3624)` |
+| Remaining if Portal unread | **376** (`4000 − 3624`) |
+| Live Azure | **NO-GO** (budget too tight for new matrix; Portal unread) |
+
+Do not seed future ledgers from **3414** alone while hybrid floor **3624** stands.

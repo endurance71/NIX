@@ -37,6 +37,8 @@ Still **forbidden** until separate written GO:
 
 Flag remains **OFF**. Offline/fake provider paths only.
 
+F0 budget interim (ops, not a GO): `external_used` floor **3624** / remaining **376** (historical spike accounting **3414** only). See next-gate + §6 append.
+
 ## Next docs
 
 - Next staging/canary gate (plan only): [`2026-09-04-c3b-next-gate-staging-canary.md`](2026-09-04-c3b-next-gate-staging-canary.md)

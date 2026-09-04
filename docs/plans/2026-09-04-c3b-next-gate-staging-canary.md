@@ -18,7 +18,7 @@ This stage does **not** include:
 ## Preconditions (must be filed outside Git)
 
 1. Portal reconcile F0 txn (§6 Decision 1) → `~/.nix-ops/p0-3-s6/portal-reconcile-YYYYMMDD.md`
-2. `external_used` floor = `max(portal_monthly_txn_now, 3414)`; remaining = `4000 - external_used` ≥ planned cap
+2. `external_used` floor = `max(portal_monthly_txn_now, 3624)`; remaining = `4000 - external_used` ≥ planned cap (interim remaining **376** if Portal unread)
 3. Written F0-after-2026-10-01 confirmation if the window crosses that date (§6 Decision 2)
 4. Staging Decision 3 = **GO** with named signer
 5. Runtime: `ffmpeg` / `ffprobe` on PATH for any worker/video path (see spike runbook)
@@ -40,7 +40,8 @@ This stage does **not** include:
 | Field | Value |
 | --- | --- |
 | Hard operational ceiling | **4000** txn/month (1000 of F0 5000 = untouchable reserve) |
-| `external_used` floor (interim) | **3414** until Portal recheck |
+| `external_used` floor (interim) | **3624** (F0 hybrid ledger; supersedes historical spike **3414**) until Portal recheck |
+| Remaining if Portal unread | **376** (`4000 − 3624`) — insufficient for new live matrix |
 | Portal reconcile | **PENDING** human |
 | Cost target | **0 PLN** Azure incremental beyond accounted F0 |
 

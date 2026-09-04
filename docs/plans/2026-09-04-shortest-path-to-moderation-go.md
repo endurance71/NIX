@@ -24,7 +24,7 @@
 | --- | --- |
 | C3B offline / audit / Auth-Storage | **MERGED** `5d3cd41` ([PR #24](https://github.com/endurance71/NIX/pull/24)); flag OFF |
 | Expo CI for #24 | Exception (quota); local preflight PASS |
-| C2 spike | NO-GO; accounted **3414 / 4000** floor |
+| C2 spike | NO-GO / ADR Proposed; interim `external_used` floor **3624 / 4000** (remaining **376**); historical F0 spike alone was **3414** before hybrid delta |
 | Production pre-delivery filter | **OFF** |
 
 ## Nearest unlocking step
