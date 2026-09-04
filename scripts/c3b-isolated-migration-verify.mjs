@@ -9,12 +9,19 @@
  * - Storage buckets stubbed (not a full Supabase reset substitute)
  *
  * Exit 0 = PASS, 1 = FAIL, 2 = PARTIAL/BLOCKED (infra)
+ * Final exit is always computed after teardown (teardown fail → 1).
  */
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  blockEgress,
+  finalExitCode,
+  performTeardown,
+  verifyEgress,
+} from "./lib/c3b-isolated-guards.mjs";
 import {
   buildSafePsqlEnv,
   buildStrippedChildEnv,
@@ -137,91 +144,6 @@ async function waitForPostgres(maxMs = 180_000) {
   return false;
 }
 
-async function blockEgress(container) {
-  await run("docker", [
-    "exec",
-    container,
-    "sh",
-    "-c",
-    "command -v iptables >/dev/null || apk add --no-cache iptables iptables-legacy ip6tables >/dev/null 2>&1; command -v iptables >/dev/null || apk add --no-cache iptables >/dev/null 2>&1",
-  ]);
-  const has = await run("docker", [
-    "exec",
-    container,
-    "sh",
-    "-c",
-    "command -v iptables",
-  ]);
-  if (has.status !== 0) {
-    return { ok: false, detail: "iptables unavailable" };
-  }
-
-  // Tight egress: only ESTABLISHED/RELATED + loopback. No private LAN NEW opens.
-  const v4 = [
-    "iptables -F OUTPUT 2>/dev/null || true",
-    "iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT || iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT",
-    "iptables -A OUTPUT -o lo -j ACCEPT",
-    "iptables -A OUTPUT -d 127.0.0.0/8 -j ACCEPT",
-    "iptables -P OUTPUT DROP",
-    "iptables -L OUTPUT -n",
-  ].join(" && ");
-
-  const v6 = [
-    "if command -v ip6tables >/dev/null 2>&1; then",
-    "  ip6tables -F OUTPUT 2>/dev/null || true",
-    "  ip6tables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT || ip6tables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT || true",
-    "  ip6tables -A OUTPUT -o lo -j ACCEPT",
-    "  ip6tables -A OUTPUT -d ::1/128 -j ACCEPT",
-    "  ip6tables -P OUTPUT DROP",
-    "  ip6tables -L OUTPUT -n",
-    "else",
-    "  echo 'ip6tables missing — IPv6 may be unavailable in container'",
-    "fi",
-  ].join("\n");
-
-  const r4 = await run("docker", ["exec", container, "sh", "-c", v4]);
-  if (r4.status !== 0) {
-    return { ok: false, detail: r4.stderr || r4.stdout };
-  }
-  const r6 = await run("docker", ["exec", container, "sh", "-c", v6]);
-  return {
-    ok: true,
-    detail: `${r4.stdout}\n${r6.stdout}`,
-    ipv6: r6.status === 0,
-  };
-}
-
-async function verifyEgress(container) {
-  // Public egress must fail; loopback probe should succeed.
-  const pub = await run("docker", [
-    "exec",
-    container,
-    "sh",
-    "-c",
-    "(command -v wget >/dev/null && wget -T 2 -q -O /dev/null http://1.1.1.1/) || (command -v nc >/dev/null && nc -z -w 2 1.1.1.1 80) || (command -v busybox >/dev/null && busybox wget -T 2 -q -O /dev/null http://1.1.1.1/); echo EXIT:$?",
-  ]);
-  const pubExit = /EXIT:(\d+)/.exec(pub.stdout + pub.stderr);
-  const publicBlocked = pubExit ? Number(pubExit[1]) !== 0 : pub.status !== 0;
-
-  const loop = await run("docker", [
-    "exec",
-    container,
-    "sh",
-    "-c",
-    "psql -U postgres -d postgres -At -c 'SELECT 1' >/dev/null 2>&1; echo EXIT:$?",
-  ]);
-  const loopExit = /EXIT:(\d+)/.exec(loop.stdout + loop.stderr);
-  const loopOk = loopExit ? Number(loopExit[1]) === 0 : false;
-
-  if (!publicBlocked) {
-    return { ok: false, detail: "public egress still reachable" };
-  }
-  if (!loopOk) {
-    return { ok: false, detail: "loopback postgres probe failed after egress lock" };
-  }
-  return { ok: true, detail: "public blocked; loopback ok" };
-}
-
 /** Storage tables live outside the postgres image; stub only what baseline needs. */
 const STORAGE_STUB_SQL = `
 CREATE TABLE IF NOT EXISTS storage.buckets (
@@ -283,28 +205,13 @@ async function runPgTap(label, file) {
   return true;
 }
 
-async function assertGone(container, network) {
-  if (container) {
-    const ctr = await run("docker", ["ps", "-aq", "-f", `name=^/${container}$`]);
-    if (ctr.stdout.trim()) {
-      return `container still present: ${container}`;
-    }
-  }
-  if (network) {
-    const nets = await run("docker", ["network", "ls", "-q", "-f", `name=^${network}$`]);
-    if (nets.stdout.trim()) {
-      return `network still present: ${network}`;
-    }
-  }
-  return null;
-}
-
 async function main() {
   const id = randomUUID().replace(/-/g, "").slice(0, 12);
   const runId = randomUUID();
   const container = `c3b-mig-${id}`;
   const network = `c3b-mig-net-${id}`;
-  let exitCode = 1;
+  // Never return from try — only set tryExit so finally can override via finalExitCode.
+  let tryExit = 1;
   let started = false;
   let networkCreated = false;
 
@@ -316,7 +223,8 @@ async function main() {
     const net = await run("docker", ["network", "create", network]);
     if (net.status !== 0) {
       console.error("BLOCKED: docker network create failed", net.stderr || net.stdout);
-      return 2;
+      tryExit = 2;
+      return;
     }
     networkCreated = true;
 
@@ -336,43 +244,59 @@ async function main() {
     ]);
     if (runCtr.status !== 0) {
       console.error("BLOCKED: docker run failed", runCtr.stderr || runCtr.stdout);
-      return 2;
+      tryExit = 2;
+      return;
     }
     started = true;
     log("CONTAINER_STARTED");
 
     if (!(await waitForPostgres())) {
       console.error("BLOCKED: postgres on :15432 did not become ready");
-      return 2;
+      tryExit = 2;
+      return;
     }
     log("POSTGRES_READY");
 
-    const egress = await blockEgress(container);
+    const egress = await blockEgress(run, container);
     if (!egress.ok) {
-      console.error("PARTIAL: egress block failed:", egress.detail);
+      console.error("BLOCKED: egress block failed:", egress.detail);
       console.error("Refusing to apply migrations that schedule prod HTTP without egress lock.");
-      return 2;
+      tryExit = 2;
+      return;
+    }
+    if (egress.ipv6Mode === "IPV6_DISABLED_OK") {
+      log("IPV6_DISABLED_OK");
+    } else if (egress.ipv6Mode === "IPV6_BLOCKED_OK") {
+      log("IPV6_BLOCKED_OK");
     }
     log("EGRESS_BLOCKED");
 
-    const probe = await verifyEgress(container);
+    const probe = await verifyEgress(run, container, {
+      ipv6Enabled: Boolean(egress.ipv6Enabled),
+    });
     if (!probe.ok) {
-      console.error("BLOCKED: egress isolation probe failed:", probe.detail);
-      return 2;
+      console.error(
+        `BLOCKED: egress isolation probe failed (${probe.reason}):`,
+        probe.detail,
+      );
+      tryExit = 2;
+      return;
     }
     log(`EGRESS_VERIFIED ${probe.detail}`);
 
     const cron = await psqlSql("CREATE EXTENSION IF NOT EXISTS pg_cron;");
     if (cron.status !== 0) {
       console.error("FAIL: CREATE EXTENSION pg_cron", cron.stderr || cron.stdout);
-      return 1;
+      tryExit = 1;
+      return;
     }
     const cronCheck = await psqlSql(
       "SELECT extname FROM pg_extension WHERE extname = 'pg_cron';",
     );
     if (cronCheck.stdout.trim() !== "pg_cron") {
       console.error("FAIL: pg_cron extension missing");
-      return 1;
+      tryExit = 1;
+      return;
     }
     log("PG_CRON_OK");
 
@@ -384,7 +308,8 @@ async function main() {
     `);
     if (roleOk.status !== 0) {
       console.error("PARTIAL: role stubs failed", roleOk.stderr || roleOk.stdout);
-      return 2;
+      tryExit = 2;
+      return;
     }
     const stubs = await run(
       "docker",
@@ -403,12 +328,12 @@ async function main() {
         "-c",
         STORAGE_STUB_SQL,
       ],
-      // docker exec env is inside container; still avoid leaking host PG* into docker CLI child if any
       { env: buildStrippedChildEnv({ PATH: process.env.PATH, HOME: process.env.HOME }) },
     );
     if (stubs.status !== 0) {
       console.error("PARTIAL: storage stubs failed", stubs.stderr || stubs.stdout);
-      return 2;
+      tryExit = 2;
+      return;
     }
     log("STORAGE_STUB_OK");
 
@@ -436,7 +361,8 @@ async function main() {
         "PARTIAL: auth.users compat columns failed",
         authCompat.stderr || authCompat.stdout,
       );
-      return 2;
+      tryExit = 2;
+      return;
     }
     log("AUTH_USERS_COMPAT_OK");
 
@@ -451,7 +377,8 @@ async function main() {
         console.error(
           "status=PARTIAL (migration apply incomplete — not a clean project db reset PASS)",
         );
-        return 1;
+        tryExit = 1;
+        return;
       }
     }
     log("MIGRATIONS_APPLIED");
@@ -463,7 +390,8 @@ async function main() {
     );
     if (Number(hasReserve.stdout.trim()) < 1) {
       console.error("FAIL: reserve_moderation_budget missing after migrations");
-      return 1;
+      tryExit = 1;
+      return;
     }
 
     const sentinel = await psqlSql(`
@@ -476,14 +404,24 @@ async function main() {
     `);
     if (sentinel.status !== 0) {
       console.error("FAIL: isolated run sentinel", sentinel.stderr || sentinel.stdout);
-      return 1;
+      tryExit = 1;
+      return;
     }
     log(`SENTINEL_OK ${runId}`);
 
     await psqlSql("CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;");
-    if (!(await runPgTap("F0_PGTAP", F0_TEST))) return 1;
-    if (!(await runPgTap("COMPLETE_AUDIT_PGTAP", COMPLETE_TEST))) return 1;
-    if (!(await runPgTap("SECURITY_DEFINER_GRANTS_PGTAP", GRANTS_TEST))) return 1;
+    if (!(await runPgTap("F0_PGTAP", F0_TEST))) {
+      tryExit = 1;
+      return;
+    }
+    if (!(await runPgTap("COMPLETE_AUDIT_PGTAP", COMPLETE_TEST))) {
+      tryExit = 1;
+      return;
+    }
+    if (!(await runPgTap("SECURITY_DEFINER_GRANTS_PGTAP", GRANTS_TEST))) {
+      tryExit = 1;
+      return;
+    }
 
     log("RUN DIRECT race on migrated schema (isolated disposable DB)");
     const race = await run(
@@ -505,51 +443,32 @@ async function main() {
     process.stderr.write(race.stderr);
     if (race.status !== 0) {
       console.error(`FAIL: isolated DIRECT race exit=${race.status}`);
-      return 1;
+      tryExit = 1;
+      return;
     }
     log("ISOLATED_DIRECT_RACE_OK");
     log("status=PASS isolated migrations + pgTAP(F0/complete/grants) + direct race");
     log("note: storage.buckets/objects stubbed — NOT a substitute for full project supabase db reset");
-    exitCode = 0;
+    tryExit = 0;
   } catch (err) {
     console.error(err);
-    exitCode = 1;
+    tryExit = 1;
   } finally {
-    let teardownOk = true;
-    if (started) {
-      const rm = await run("docker", ["rm", "-f", container]);
-      if (rm.status !== 0) {
-        console.error("TEARDOWN_FAIL: docker rm", rm.stderr || rm.stdout);
-        teardownOk = false;
-      }
-    }
-    if (networkCreated) {
-      const rn = await run("docker", ["network", "rm", network]);
-      if (rn.status !== 0) {
-        // network may already be gone
-        const still = await run("docker", ["network", "ls", "-q", "-f", `name=^${network}$`]);
-        if (still.stdout.trim()) {
-          console.error("TEARDOWN_FAIL: docker network rm", rn.stderr || rn.stdout);
-          teardownOk = false;
-        }
-      }
-    }
-    const leftover = await assertGone(
-      started ? container : "",
-      networkCreated ? network : "",
-    );
-    if (leftover) {
-      console.error(`TEARDOWN_FAIL: ${leftover}`);
-      teardownOk = false;
-    }
-    if (teardownOk && started) {
+    const { teardownOk, leftover } = await performTeardown(run, {
+      started,
+      networkCreated,
+      container,
+      network,
+    });
+    if (!teardownOk) {
+      console.error(
+        `TEARDOWN_FAIL${leftover ? `: ${leftover}` : " (docker rm/network/verify)"}`,
+      );
+    } else if (started || networkCreated) {
       log(`TEARDOWN_OK removed ${container} and ${network}`);
-    } else if (!teardownOk) {
-      exitCode = 1;
     }
+    return finalExitCode(tryExit, teardownOk);
   }
-
-  return exitCode;
 }
 
 const isDirect =
