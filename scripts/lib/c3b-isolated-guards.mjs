@@ -247,16 +247,20 @@ export async function resolveNetworkCidr(run, network) {
  * @param {RunFn} run
  * @param {string} container
  * @param {string} cidr
+ * @param {{ allowInstall?: boolean }} [opts] allowInstall=false when the network has no NAT (apk/apt would hang)
  * @returns {Promise<{ ok: boolean, detail: string, ipv6Enabled: boolean, ipv6Mode: string | null }>}
  */
-export async function blockInternalEgress(run, container, cidr) {
-  await run("docker", [
-    "exec",
-    container,
-    "sh",
-    "-c",
-    "command -v iptables >/dev/null || apk add --no-cache iptables iptables-legacy ip6tables >/dev/null 2>&1; command -v iptables >/dev/null || (apt-get update >/dev/null 2>&1 && apt-get install -y iptables >/dev/null 2>&1) || true; command -v ip6tables >/dev/null || apk add --no-cache ip6tables >/dev/null 2>&1 || true",
-  ]);
+export async function blockInternalEgress(run, container, cidr, opts = {}) {
+  const allowInstall = opts.allowInstall !== false;
+  if (allowInstall) {
+    await run("docker", [
+      "exec",
+      container,
+      "sh",
+      "-c",
+      "command -v iptables >/dev/null || apk add --no-cache iptables iptables-legacy ip6tables >/dev/null 2>&1; command -v iptables >/dev/null || (apt-get update >/dev/null 2>&1 && apt-get install -y iptables >/dev/null 2>&1) || true; command -v ip6tables >/dev/null || apk add --no-cache ip6tables >/dev/null 2>&1 || true",
+    ]);
+  }
   const has = await run("docker", ["exec", container, "sh", "-c", "command -v iptables"]);
   if (has.status !== 0) {
     return {
@@ -348,13 +352,14 @@ export async function blockInternalEgress(run, container, cidr) {
  * @param {RunFn} run
  * @param {string[]} containers
  * @param {string} cidr
+ * @param {{ allowInstall?: boolean }} [opts]
  */
-export async function lockStackInternalEgress(run, containers, cidr) {
+export async function lockStackInternalEgress(run, containers, cidr, opts = {}) {
   const locked = [];
   const skipped = [];
   let ipv6Enabled = false;
   for (const container of containers) {
-    const r = await blockInternalEgress(run, container, cidr);
+    const r = await blockInternalEgress(run, container, cidr, opts);
     if (!r.ok) {
       if (/iptables unavailable/i.test(r.detail)) {
         skipped.push(container);

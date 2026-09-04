@@ -60,7 +60,10 @@ const IMAGE_PG = "public.ecr.aws/supabase/postgres:17.6.1.165";
 const IMAGE_AUTH = "public.ecr.aws/supabase/gotrue:v2.193.0";
 const IMAGE_STORAGE = "public.ecr.aws/supabase/storage-api:v1.65.1";
 const IMAGE_KONG = "public.ecr.aws/supabase/kong:2.8.1";
-const IMAGE_PEER = "alpine:3.20";
+const IMAGE_PEER = "c3b-alpine-iptables:3.20";
+const PEER_DOCKERFILE = `FROM alpine:3.20
+RUN apk add --no-cache iptables iproute2 busybox-extras
+`;
 
 /** Local-only Supabase demo JWT material — never prod / Azure vault. */
 const JWT_SECRET = "super-secret-jwt-token-with-at-least-32-characters-long";
@@ -410,6 +413,36 @@ export async function runAuthStorageVerify(deps = {}) {
     log(`PATH_B_TIP=${PATH_B_TIP}`);
     log(`IMAGES pg=${IMAGE_PG} auth=${IMAGE_AUTH} storage=${IMAGE_STORAGE} kong=${IMAGE_KONG}`);
 
+    const peerImg = await run("docker", ["image", "inspect", IMAGE_PEER]);
+    if (peerImg.status !== 0) {
+      log(`BUILD_PEER_IMAGE ${IMAGE_PEER}`);
+      const built = await new Promise((resolve) => {
+        const child = spawn(
+          "docker",
+          ["build", "-t", IMAGE_PEER, "-"],
+          { cwd: ROOT, env: process.env },
+        );
+        let stdout = "";
+        let stderr = "";
+        child.stdout.on("data", (d) => {
+          stdout += d;
+        });
+        child.stderr.on("data", (d) => {
+          stderr += d;
+        });
+        child.stdin.write(PEER_DOCKERFILE);
+        child.stdin.end();
+        child.on("close", (status) =>
+          resolve({ status: status ?? 1, stdout, stderr }),
+        );
+      });
+      if (built.status !== 0) {
+        console.error("BLOCKED: cannot build peer iptables image", built.stderr || built.stdout);
+        tryExit = 2;
+        return;
+      }
+    }
+
     // No IP masquerade → containers cannot NAT to the public Internet; host publish still works.
     const net = await run("docker", [
       "network",
@@ -665,9 +698,18 @@ export async function runAuthStorageVerify(deps = {}) {
 
     // Lock every shell-capable container; GoTrue is distroless → covered by no-masquerade.
     const lockTargets = [dbName, peerCtr, storageName, kongName];
-    const locked = await lockStackInternalEgress(run, lockTargets, cidrInfo.cidr);
+    const locked = await lockStackInternalEgress(run, lockTargets, cidrInfo.cidr, {
+      allowInstall: false,
+    });
     if (!locked.ok) {
       console.error("BLOCKED: stack egress lock failed:", locked.detail);
+      tryExit = 2;
+      return;
+    }
+    if (!locked.locked.includes(peerCtr)) {
+      console.error(
+        "BLOCKED: peer helper must hold iptables lock (use prebuilt c3b-alpine-iptables image)",
+      );
       tryExit = 2;
       return;
     }
