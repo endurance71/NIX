@@ -12,6 +12,7 @@ import {
   interpretPublicProbe,
   LOOPBACK_TCP_PROBE_SCRIPT,
   performTeardown,
+  runProbeGatePhase,
   verifyEgress,
 } from "./lib/c3b-isolated-guards.mjs";
 
@@ -79,7 +80,7 @@ describe("interpretPublicProbe", () => {
   it("probe_infra_fail when EXIT marker missing", () => {
     const r = interpretPublicProbe({
       toolsPresent: true,
-      execStatus: 1,
+      execStatus: 0,
       stdout: "docker exploded",
     });
     assert.equal(r.ok, false);
@@ -96,7 +97,7 @@ describe("interpretPublicProbe", () => {
     assert.equal(r.reason, "public_reachable");
   });
 
-  it("public_blocked when EXIT:nonzero", () => {
+  it("public_blocked when EXIT:nonzero and exec ok", () => {
     const r = interpretPublicProbe({
       toolsPresent: true,
       execStatus: 0,
@@ -104,6 +105,36 @@ describe("interpretPublicProbe", () => {
     });
     assert.equal(r.ok, true);
     assert.equal(r.reason, "public_blocked");
+  });
+
+  it("EXIT:127 is probe_unavailable not public_blocked", () => {
+    const r = interpretPublicProbe({
+      toolsPresent: true,
+      execStatus: 0,
+      stdout: "EXIT:127",
+    });
+    assert.equal(r.ok, false);
+    assert.equal(r.reason, "probe_unavailable");
+  });
+
+  it("EXIT:126 is probe_unavailable", () => {
+    const r = interpretPublicProbe({
+      toolsPresent: true,
+      execStatus: 0,
+      stdout: "EXIT:126",
+    });
+    assert.equal(r.ok, false);
+    assert.equal(r.reason, "probe_unavailable");
+  });
+
+  it("execStatus:1 with EXIT:1 is probe_infra_fail not public_blocked", () => {
+    const r = interpretPublicProbe({
+      toolsPresent: true,
+      execStatus: 1,
+      stdout: "EXIT:1",
+    });
+    assert.equal(r.ok, false);
+    assert.equal(r.reason, "probe_infra_fail");
   });
 });
 
@@ -117,6 +148,12 @@ describe("interpretLoopbackProbe", () => {
       interpretLoopbackProbe({ execStatus: 0, stdout: "nope" }).reason,
       "probe_infra_fail",
     );
+  });
+
+  it("execStatus:1 with EXIT:0 is probe_infra_fail not loopback_ok", () => {
+    const r = interpretLoopbackProbe({ execStatus: 1, stdout: "EXIT:0" });
+    assert.equal(r.ok, false);
+    assert.equal(r.reason, "probe_infra_fail");
   });
 });
 
@@ -222,7 +259,7 @@ describe("verifyEgress with stubs", () => {
   it("probe_infra_fail when docker exec has no EXIT marker", async () => {
     const run = stubRun([
       {
-        match: (cmd, args) => args.join(" ").includes("TOOLS_"),
+        match: (cmd, args) => args.join(" ").includes("TOOLS_") && !args.join(" ").includes("IPV6"),
         result: { status: 0, stdout: "TOOLS_OK\n", stderr: "" },
       },
       {
@@ -233,6 +270,89 @@ describe("verifyEgress with stubs", () => {
     const r = await verifyEgress(run, "ctr", { ipv6Enabled: false });
     assert.equal(r.ok, false);
     assert.equal(r.reason, "probe_infra_fail");
+  });
+
+  it("IPv6 enabled without IPv6 tools is probe_unavailable", async () => {
+    const run = stubRun([
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("TOOLS_") && !args.join(" ").includes("IPV6"),
+        result: { status: 0, stdout: "TOOLS_OK\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) => args.join(" ").includes("1.1.1.1"),
+        result: { status: 0, stdout: "EXIT:1\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) => args.join(" ").includes("IPV6_TOOLS"),
+        result: { status: 0, stdout: "IPV6_TOOLS_MISSING\n", stderr: "" },
+      },
+    ]);
+    const r = await verifyEgress(run, "ctr", { ipv6Enabled: true });
+    assert.equal(r.ok, false);
+    assert.equal(r.reason, "probe_unavailable");
+  });
+});
+
+describe("runProbeGatePhase", () => {
+  it("failed probe skips migrations, runs cleanup, exit 2", async () => {
+    let migrations = 0;
+    const run = stubRun([
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("TOOLS_") && !args.join(" ").includes("IPV6"),
+        result: { status: 0, stdout: "TOOLS_OK\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) => args.join(" ").includes("1.1.1.1"),
+        result: { status: 0, stdout: "EXIT:127\n", stderr: "" },
+      },
+      { match: "docker rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker network rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker ps", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker network ls", result: { status: 0, stdout: "", stderr: "" } },
+    ]);
+    const phase = await runProbeGatePhase({
+      run,
+      container: "c3b-mig-x",
+      network: "c3b-mig-net-x",
+      ipv6Enabled: false,
+      applyMigrations: () => {
+        migrations += 1;
+      },
+    });
+    assert.equal(phase.probe.ok, false);
+    assert.equal(phase.migrationsRun, false);
+    assert.equal(migrations, 0);
+    assert.equal(phase.teardownOk, true);
+    assert.equal(phase.exitCode, 2);
+  });
+
+  it("failed probe + teardown fail → exit 1", async () => {
+    const run = stubRun([
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("TOOLS_") && !args.join(" ").includes("IPV6"),
+        result: { status: 0, stdout: "TOOLS_OK\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) => args.join(" ").includes("1.1.1.1"),
+        result: { status: 0, stdout: "EXIT:127\n", stderr: "" },
+      },
+      { match: "docker rm", result: { status: 1, stdout: "", stderr: "busy" } },
+      { match: "docker network rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker ps", result: { status: 0, stdout: "still\n", stderr: "" } },
+      { match: "docker network ls", result: { status: 0, stdout: "", stderr: "" } },
+    ]);
+    const phase = await runProbeGatePhase({
+      run,
+      container: "c3b-mig-x",
+      network: "c3b-mig-net-x",
+      ipv6Enabled: false,
+    });
+    assert.equal(phase.migrationsRun, false);
+    assert.equal(phase.teardownOk, false);
+    assert.equal(phase.exitCode, 1);
   });
 });
 

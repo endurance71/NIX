@@ -64,10 +64,25 @@ export function interpretPublicProbe(input) {
   if (!input.toolsPresent) {
     return { ok: false, reason: "probe_unavailable", exitCode: null };
   }
+  // docker exec itself failed — do not trust any EXIT marker in the stream.
+  if (input.execStatus !== 0) {
+    return { ok: false, reason: "probe_infra_fail", exitCode: null };
+  }
   const text = `${input.stdout ?? ""}${input.stderr ?? ""}`;
   const exitCode = parseExitMarker(text);
   if (exitCode === null) {
     return { ok: false, reason: "probe_infra_fail", exitCode: null };
+  }
+  // Shell "command not found" / "not executable" — not proof of firewall DROP.
+  if (exitCode === 126 || exitCode === 127) {
+    return { ok: false, reason: "probe_unavailable", exitCode };
+  }
+  // Bad CLI options / usage noise without a real connect attempt.
+  if (
+    exitCode !== 0 &&
+    /\b(usage:|invalid option|unrecognized option|illegal option|bad option)\b/i.test(text)
+  ) {
+    return { ok: false, reason: "probe_unavailable", exitCode };
   }
   // EXIT:0 means the public connect succeeded → egress not blocked.
   if (exitCode === 0) {
@@ -85,6 +100,9 @@ export function interpretPublicProbe(input) {
  * }} input
  */
 export function interpretLoopbackProbe(input) {
+  if (input.execStatus !== 0) {
+    return { ok: false, reason: "probe_infra_fail", exitCode: null };
+  }
   const text = `${input.stdout ?? ""}${input.stderr ?? ""}`;
   const exitCode = parseExitMarker(text);
   if (exitCode === null) {
@@ -167,6 +185,10 @@ export const IPV6_EGRESS_LIST_SCRIPT = "ip6tables -L OUTPUT -n";
 
 export const PROBE_TOOLS_CHECK_SCRIPT =
   "if command -v wget >/dev/null 2>&1 || command -v nc >/dev/null 2>&1 || (command -v busybox >/dev/null 2>&1 && busybox wget --help >/dev/null 2>&1); then echo TOOLS_OK; else echo TOOLS_MISSING; fi";
+
+/** IPv6 public probe needs nc and/or wget that can target an IPv6 literal. */
+export const IPV6_PROBE_TOOLS_CHECK_SCRIPT =
+  "if command -v nc >/dev/null 2>&1 || command -v wget >/dev/null 2>&1; then echo IPV6_TOOLS_OK; else echo IPV6_TOOLS_MISSING; fi";
 
 export const PUBLIC_IPV4_PROBE_SCRIPT = [
   "set +e",
@@ -300,6 +322,27 @@ export async function verifyEgress(run, container, opts = {}) {
   }
 
   if (opts.ipv6Enabled) {
+    const tools6 = await run("docker", [
+      "exec",
+      container,
+      "sh",
+      "-c",
+      IPV6_PROBE_TOOLS_CHECK_SCRIPT,
+    ]);
+    if (tools6.status !== 0) {
+      return {
+        ok: false,
+        reason: "probe_infra_fail",
+        detail: "IPv6 probe tools check failed",
+      };
+    }
+    if (!tools6.stdout.includes("IPV6_TOOLS_OK")) {
+      return {
+        ok: false,
+        reason: "probe_unavailable",
+        detail: "public IPv6 probe: probe_unavailable",
+      };
+    }
     const pub6 = await run("docker", [
       "exec",
       container,
@@ -307,11 +350,8 @@ export async function verifyEgress(run, container, opts = {}) {
       "-c",
       PUBLIC_IPV6_PROBE_SCRIPT,
     ]);
-    // Re-use public taxonomy; EXIT:127 with tools means probe attempted but failed to connect
-    // is OK for "blocked". Missing dedicated IPv6 tool after toolsPresent check is rare —
-    // PUBLIC_IPV6_PROBE_SCRIPT still echoes EXIT.
     const pub6Decision = interpretPublicProbe({
-      toolsPresent,
+      toolsPresent: true,
       execStatus: pub6.status,
       stdout: pub6.stdout,
       stderr: pub6.stderr,
@@ -393,4 +433,57 @@ export async function performTeardown(run, ctx) {
     teardownOk = false;
   }
   return { teardownOk, leftover };
+}
+
+/**
+ * Stub-friendly model of the runner gate: verifyEgress → (optional migrate) → teardown → final exit.
+ * Failed probe never runs migrations; teardown always runs; exit uses finalExitCode.
+ *
+ * @param {{
+ *   run: RunFn,
+ *   container: string,
+ *   network: string,
+ *   started?: boolean,
+ *   networkCreated?: boolean,
+ *   ipv6Enabled?: boolean,
+ *   applyMigrations?: () => Promise<void> | void,
+ * }} opts
+ */
+export async function runProbeGatePhase(opts) {
+  const {
+    run,
+    container,
+    network,
+    started = true,
+    networkCreated = true,
+    ipv6Enabled = false,
+    applyMigrations,
+  } = opts;
+  const migrationCalls = [];
+  const probe = await verifyEgress(run, container, { ipv6Enabled });
+  let tryExit = 2;
+  let migrationsRun = false;
+  if (probe.ok) {
+    migrationsRun = true;
+    if (applyMigrations) {
+      migrationCalls.push("apply");
+      await applyMigrations();
+    }
+    tryExit = 0;
+  }
+  const { teardownOk, leftover } = await performTeardown(run, {
+    started,
+    networkCreated,
+    container,
+    network,
+  });
+  return {
+    probe,
+    migrationsRun,
+    migrationCalls,
+    tryExit,
+    teardownOk,
+    leftover,
+    exitCode: finalExitCode(tryExit, teardownOk),
+  };
 }
