@@ -24,6 +24,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { buildSafePsqlEnv } from "./lib/safe-psql-env.mjs";
 
 const ALLOWED_LOCAL_PORTS = new Set([54322, 15432]);
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
@@ -131,17 +132,6 @@ function exitBlocked(message) {
   process.exit(2);
 }
 
-function psqlEnv(password) {
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) {
-    if (key.startsWith("PG")) {
-      delete env[key];
-    }
-  }
-  env.PGPASSWORD = password;
-  return env;
-}
-
 /**
  * @param {{ user: string, password: string, host: string, port: number }} target
  * @param {string} database
@@ -172,7 +162,7 @@ function runPsql(target, database, opts) {
 
   return new Promise((resolve) => {
     const child = spawn("psql", args, {
-      env: psqlEnv(target.password),
+      env: buildSafePsqlEnv(target.password),
       encoding: "utf8",
     });
     let stdout = "";
@@ -302,6 +292,12 @@ async function main() {
     }
   }
   if (useDirect) {
+    const runId = process.env.C3B_ISOLATED_RUN_ID?.trim() ?? "";
+    if (!/^[a-z0-9-]{8,64}$/i.test(runId)) {
+      exitBlocked(
+        "BLOCKED: C3B_CONC_DIRECT=1 requires C3B_ISOLATED_RUN_ID matching isolated sentinel",
+      );
+    }
     const fn = await runPsql(target, ADMIN_DB, {
       sql: `SELECT COUNT(*)::int FROM pg_proc p
             JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -312,6 +308,15 @@ async function main() {
         "BLOCKED: C3B_CONC_DIRECT=1 requires reserve_moderation_budget on migrated isolated DB",
       );
     }
+    const sent = await runPsql(target, ADMIN_DB, {
+      sql: `SELECT COUNT(*)::int FROM private.c3b_isolated_run WHERE run_id = '${runId.replace(/'/g, "")}'`,
+    });
+    if (sent.status !== 0 || Number(lastLine(sent)) !== 1) {
+      exitBlocked(
+        "BLOCKED: C3B_ISOLATED_RUN_ID does not match private.c3b_isolated_run sentinel (not the disposable stack)",
+      );
+    }
+    console.log(`ISOLATED_RUN_ID_OK ${runId}`);
   }
 
   const ephemeralDb = useDirect

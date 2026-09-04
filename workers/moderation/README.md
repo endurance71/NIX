@@ -35,6 +35,12 @@ Migracje lokalne (nie pushować na prod):
 - `supabase/migrations/20260831150000_pre_delivery_moderation_f0_budget.sql`
 - `supabase/migrations/20260904120000_c3b_audit_complete_and_budget.sql` (REVOKE complete, lease recovery, attempt terminal semantics)
 
+Dodane (C3B audit / izolowany runner):
+
+- `scripts/lib/safe-psql-env.mjs` — strip wszystkich `PG*` przed spawn `psql`
+- `npm run test:c3b-isolated-migrations` — disposable Docker `:15432`, tight egress + probe, sentinel `C3B_ISOLATED_RUN_ID`, pgTAP F0/complete/grants + DIRECT race
+- Isolated PASS **nie** zastępuje project `supabase db reset` (Storage stub + auth column compat)
+
 Zobacz też [`docs/plans/2026-09-04-c3b-audit-fixes.md`](../../docs/plans/2026-09-04-c3b-audit-fixes.md).
 
 - hard budget **4000**, `external_used`, osobne liczniki text/image
