@@ -13,6 +13,7 @@ import {
   interpretPublicProbe,
   INTERNAL_IPV6_EGRESS_APPLY_SCRIPT,
   LOOPBACK_TCP_PROBE_SCRIPT,
+  lockAndVerifyRequiredServices,
   lockStackInternalEgress,
   performStackTeardown,
   performTeardown,
@@ -377,6 +378,91 @@ describe("lockStackInternalEgress", () => {
     assert.deepEqual(r.locked, ["has-ipt"]);
     assert.deepEqual(r.skipped, ["no-ipt"]);
     assert.equal(r.ipv6Enabled, false);
+  });
+});
+
+describe("lockAndVerifyRequiredServices", () => {
+  it("fail-closed when sidecar cannot start for a required service", async () => {
+    const run = stubRun([
+      { match: "docker rm", result: { status: 0, stdout: "", stderr: "" } },
+      {
+        match: (cmd, args) =>
+          cmd === "docker" &&
+          args[0] === "run" &&
+          args.includes("--network") &&
+          args.some((a) => String(a).startsWith("container:")),
+        result: { status: 1, stdout: "", stderr: "cannot join netns" },
+      },
+    ]);
+    const r = await lockAndVerifyRequiredServices(
+      run,
+      [{ name: "svc-auth", internalPeer: { host: "db", port: 5432 } }],
+      { image: "c3b-alpine-iptables:3.20", cidr: "172.28.0.0/16" },
+    );
+    assert.equal(r.ok, false);
+    assert.match(r.detail, /svc-auth: sidecar/);
+    assert.deepEqual(r.locked, []);
+  });
+
+  it("locks and probes every required service without skip", async () => {
+    const run = stubRun([
+      { match: "docker rm", result: { status: 0, stdout: "", stderr: "" } },
+      {
+        match: (cmd, args) =>
+          cmd === "docker" &&
+          args[0] === "run" &&
+          args.includes("--network") &&
+          args.some((a) => String(a).startsWith("container:")),
+        result: { status: 0, stdout: "sidecar\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("command -v iptables") && !args.join(" ").includes("ip6"),
+        result: { status: 0, stdout: "/sbin/iptables\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("iptables -F") ||
+          args.join(" ").includes("iptables -A") ||
+          args.join(" ").includes("iptables -P") ||
+          args.join(" ").includes("iptables -L"),
+        result: { status: 0, stdout: "Chain OUTPUT\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("if_inet6") || args.join(" ").includes("IPV6_ON"),
+        result: { status: 0, stdout: "IPV6_OFF\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("TOOLS_") && !args.join(" ").includes("IPV6"),
+        result: { status: 0, stdout: "TOOLS_OK\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) => args.join(" ").includes("1.1.1.1"),
+        result: { status: 0, stdout: "EXIT:1\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("18087") || args.join(" ").includes("nc -l"),
+        result: { status: 0, stdout: "EXIT:0\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) => args.join(" ").includes("nc -z"),
+        result: { status: 0, stdout: "EXIT:0\n", stderr: "" },
+      },
+    ]);
+    const r = await lockAndVerifyRequiredServices(
+      run,
+      [
+        { name: "svc-db", internalPeer: { host: "127.0.0.1", port: 5432 } },
+        { name: "svc-auth", internalPeer: { host: "db", port: 5432 } },
+      ],
+      { image: "c3b-alpine-iptables:3.20", cidr: "172.28.0.0/16" },
+    );
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.locked, ["svc-db", "svc-auth"]);
+    assert.equal(r.details.length, 2);
   });
 });
 

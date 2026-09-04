@@ -4,8 +4,8 @@
  * NOT the everyday supabase_*_NIX project (ports 54321–54329 untouched).
  *
  * - Host ports: 127.0.0.1:15532 (db), 127.0.0.1:15521 (kong)
- * - Bridge with enable_ip_masquerade=false (stack-wide no external NAT)
- * - iptables/ip6tables CIDR lock on every container that has a shell
+ * - Bridge with enable_ip_masquerade=false (defense in depth; not sole proof)
+ * - Fail-closed netns sidecar (NET_ADMIN) lock+probe on db/auth/storage/kong
  * - Real GoTrue + storage-api (no storage table stubs)
  * - Path A: all migrations from zero
  * - Path B: bootstrap through PATH_B_TIP, seed Auth/Storage/moderation, then remaining
@@ -20,11 +20,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   finalExitCode,
-  lockStackInternalEgress,
+  lockAndVerifyRequiredServices,
   performStackTeardown,
   resolveNetworkCidr,
-  verifyEgress,
-  verifyInternalPeerProbe,
 } from "./lib/c3b-isolated-guards.mjs";
 import {
   buildSafePsqlEnv,
@@ -187,7 +185,6 @@ export async function runAuthStorageVerify(deps = {}) {
   const authName = `c3b-authstore-${id}-auth`;
   const storageName = `c3b-authstore-${id}-storage`;
   const kongName = `c3b-authstore-${id}-kong`;
-  const peerCtr = `c3b-authstore-${id}-peer`;
   const containers = [];
   const volumes = [];
   let networkCreated = false;
@@ -606,25 +603,6 @@ export async function runAuthStorageVerify(deps = {}) {
     }
     containers.push(storageName);
 
-    const peerRun = await run("docker", [
-      "run",
-      "-d",
-      "--name",
-      peerCtr,
-      "--network",
-      network,
-      "--cap-add=NET_ADMIN",
-      IMAGE_PEER,
-      "sleep",
-      "3600",
-    ]);
-    if (peerRun.status !== 0) {
-      console.error("BLOCKED: peer probe helper failed", peerRun.stderr || peerRun.stdout);
-      tryExit = 2;
-      return;
-    }
-    containers.push(peerCtr);
-
     kongDir = join(
       process.env.HOME || tmpdir(),
       ".nix-ops",
@@ -696,62 +674,38 @@ export async function runAuthStorageVerify(deps = {}) {
       return;
     }
 
-    // Lock every shell-capable container; GoTrue is distroless → covered by no-masquerade.
-    const lockTargets = [dbName, peerCtr, storageName, kongName];
-    const locked = await lockStackInternalEgress(run, lockTargets, cidrInfo.cidr, {
-      allowInstall: false,
+    // Fail-closed: lock+probe each required service netns via NET_ADMIN sidecar.
+    const required = [
+      { name: dbName, internalPeer: { host: "127.0.0.1", port: 5432 } },
+      { name: authName, internalPeer: { host: "db", port: 5432 } },
+      { name: storageName, internalPeer: { host: "db", port: 5432 } },
+      { name: kongName, internalPeer: { host: "auth", port: 9999 } },
+    ];
+    const locked = await lockAndVerifyRequiredServices(run, required, {
+      image: IMAGE_PEER,
+      cidr: cidrInfo.cidr,
     });
     if (!locked.ok) {
-      console.error("BLOCKED: stack egress lock failed:", locked.detail);
+      console.error("BLOCKED: service netns egress lock/probe failed:", locked.detail);
       tryExit = 2;
       return;
     }
-    if (!locked.locked.includes(peerCtr)) {
+    if (locked.locked.length !== required.length) {
       console.error(
-        "BLOCKED: peer helper must hold iptables lock (use prebuilt c3b-alpine-iptables image)",
+        "BLOCKED: incomplete service netns lock",
+        `locked=${locked.locked.join(",")} required=${required.map((s) => s.name).join(",")}`,
       );
       tryExit = 2;
       return;
     }
     log(
-      `EGRESS_STACK_OK cidr=${cidrInfo.cidr} locked=${locked.locked.join(",")} skipped=${locked.skipped.join(",") || "none"} ipv6=${locked.ipv6Enabled}`,
+      `EGRESS_STACK_OK cidr=${cidrInfo.cidr} locked=${locked.locked.join(",")} ipv6=${locked.ipv6Enabled} mode=netns-sidecar`,
     );
-    log("EGRESS_AUTH_VIA_NO_MASQUERADE (distroless GoTrue)");
-
-    const probeDb = await verifyEgress(run, dbName, {
-      ipv6Enabled: locked.ipv6Enabled,
-    });
-    if (!probeDb.ok) {
-      console.error(
-        `BLOCKED: db public egress probe failed (${probeDb.reason}):`,
-        probeDb.detail,
+    for (const d of locked.details) {
+      log(
+        `EGRESS_SVC_OK service=${d.name} ${d.detail}${d.peerDetail ? ` peer=${d.peerDetail}` : ""}`,
       );
-      tryExit = 2;
-      return;
     }
-    log(`EGRESS_DB_PUBLIC_BLOCKED ${probeDb.detail}`);
-
-    const probePeer = await verifyEgress(run, peerCtr, {
-      ipv6Enabled: locked.ipv6Enabled,
-      loopbackMode: "nc-self",
-    });
-    if (!probePeer.ok) {
-      console.error(
-        `BLOCKED: peer public egress probe failed (${probePeer.reason}):`,
-        probePeer.detail,
-      );
-      tryExit = 2;
-      return;
-    }
-    log(`EGRESS_PEER_PUBLIC_BLOCKED ${probePeer.detail}`);
-
-    const peer = await verifyInternalPeerProbe(run, peerCtr, "db", 5432);
-    if (!peer.ok) {
-      console.error(`BLOCKED: internal db peer probe failed (${peer.reason}):`, peer.detail);
-      tryExit = 2;
-      return;
-    }
-    log(`PEER_OK ${peer.detail}`);
 
     const cron = await psqlSql("CREATE EXTENSION IF NOT EXISTS pg_cron;");
     if (cron.status !== 0) {

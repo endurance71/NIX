@@ -348,7 +348,7 @@ export async function blockInternalEgress(run, container, cidr, opts = {}) {
 
 /**
  * Lock egress on every container that has a shell+iptables; report which were locked.
- * Distroless images (e.g. GoTrue) must sit on a no-masquerade network instead.
+ * Prefer {@link lockAndVerifyRequiredServices} for multi-image stacks (incl. distroless).
  * @param {RunFn} run
  * @param {string[]} containers
  * @param {string} cidr
@@ -377,6 +377,197 @@ export async function lockStackInternalEgress(run, containers, cidr, opts = {}) 
     if (r.ipv6Enabled) ipv6Enabled = true;
   }
   return { ok: true, detail: `locked=${locked.length}`, locked, skipped, ipv6Enabled };
+}
+
+/**
+ * Run work inside a temporary NET_ADMIN sidecar attached to a service's network namespace.
+ * Iptables rules applied in the shared netns persist after the sidecar is removed.
+ * @param {RunFn} run
+ * @param {{
+ *   serviceCtr: string,
+ *   image: string,
+ *   work: (sidecar: string) => Promise<unknown>,
+ * }} opts
+ */
+export async function withServiceNetnsSidecar(run, opts) {
+  const { serviceCtr, image, work } = opts;
+  const sidecar = `${serviceCtr}-netlock`;
+  await run("docker", ["rm", "-f", sidecar]);
+  const started = await run("docker", [
+    "run",
+    "-d",
+    "--name",
+    sidecar,
+    "--network",
+    `container:${serviceCtr}`,
+    "--cap-add=NET_ADMIN",
+    image,
+    "sleep",
+    "600",
+  ]);
+  if (started.status !== 0) {
+    return {
+      ok: false,
+      detail: started.stderr || started.stdout || "sidecar start failed",
+      result: null,
+    };
+  }
+  let result = null;
+  let workError = null;
+  try {
+    result = await work(sidecar);
+  } catch (err) {
+    workError = err;
+  }
+  await run("docker", ["rm", "-f", sidecar]);
+  if (workError) {
+    throw workError;
+  }
+  return { ok: true, detail: "ok", result };
+}
+
+/**
+ * Fail-closed lock + egress (+ optional internal) probe from a service's own netns.
+ * @param {RunFn} run
+ * @param {{
+ *   serviceCtr: string,
+ *   image: string,
+ *   cidr: string,
+ *   internalPeer?: { host: string, port: number } | null,
+ *   loopbackMode?: "psql" | "nc-self",
+ * }} opts
+ */
+export async function lockAndVerifyServiceNetns(run, opts) {
+  const {
+    serviceCtr,
+    image,
+    cidr,
+    internalPeer = null,
+    loopbackMode = "nc-self",
+  } = opts;
+
+  const session = await withServiceNetnsSidecar(run, {
+    serviceCtr,
+    image,
+    work: async (sidecar) => {
+      const lock = await blockInternalEgress(run, sidecar, cidr, {
+        allowInstall: false,
+      });
+      if (!lock.ok) {
+        return {
+          ok: false,
+          stage: "lock",
+          detail: lock.detail,
+          ipv6Enabled: false,
+        };
+      }
+      const probe = await verifyEgress(run, sidecar, {
+        ipv6Enabled: lock.ipv6Enabled,
+        loopbackMode,
+      });
+      if (!probe.ok) {
+        return {
+          ok: false,
+          stage: "egress",
+          detail: `${probe.reason}: ${probe.detail}`,
+          ipv6Enabled: lock.ipv6Enabled,
+        };
+      }
+      let peerDetail = null;
+      if (internalPeer) {
+        const peer = await verifyInternalPeerProbe(
+          run,
+          sidecar,
+          internalPeer.host,
+          internalPeer.port,
+        );
+        if (!peer.ok) {
+          return {
+            ok: false,
+            stage: "internal",
+            detail: `${peer.reason}: ${peer.detail}`,
+            ipv6Enabled: lock.ipv6Enabled,
+          };
+        }
+        peerDetail = peer.detail;
+      }
+      return {
+        ok: true,
+        stage: "verified",
+        detail: probe.detail,
+        peerDetail,
+        ipv6Enabled: lock.ipv6Enabled,
+      };
+    },
+  });
+
+  if (!session.ok) {
+    return {
+      ok: false,
+      stage: "sidecar",
+      detail: session.detail,
+      ipv6Enabled: false,
+      peerDetail: null,
+    };
+  }
+  if (!session.result || typeof session.result !== "object") {
+    return {
+      ok: false,
+      stage: "sidecar",
+      detail: "sidecar work returned no result",
+      ipv6Enabled: false,
+      peerDetail: null,
+    };
+  }
+  return session.result;
+}
+
+/**
+ * Lock+verify every required service netns. Any failure → ok:false (never skip).
+ * @param {RunFn} run
+ * @param {Array<{
+ *   name: string,
+ *   internalPeer?: { host: string, port: number } | null,
+ *   loopbackMode?: "psql" | "nc-self",
+ * }>} services
+ * @param {{ image: string, cidr: string }} opts
+ */
+export async function lockAndVerifyRequiredServices(run, services, opts) {
+  const locked = [];
+  const details = [];
+  let ipv6Enabled = false;
+  for (const svc of services) {
+    const r = await lockAndVerifyServiceNetns(run, {
+      serviceCtr: svc.name,
+      image: opts.image,
+      cidr: opts.cidr,
+      internalPeer: svc.internalPeer ?? null,
+      loopbackMode: svc.loopbackMode ?? "nc-self",
+    });
+    if (!r.ok) {
+      return {
+        ok: false,
+        detail: `${svc.name}: ${r.stage}: ${r.detail}`,
+        locked,
+        details,
+        ipv6Enabled,
+      };
+    }
+    locked.push(svc.name);
+    details.push({
+      name: svc.name,
+      detail: r.detail,
+      peerDetail: r.peerDetail,
+    });
+    if (r.ipv6Enabled) ipv6Enabled = true;
+  }
+  return {
+    ok: true,
+    detail: `locked=${locked.join(",")}`,
+    locked,
+    details,
+    ipv6Enabled,
+  };
 }
 
 /**
@@ -699,12 +890,13 @@ export async function performStackTeardown(run, ctx) {
   const network = ctx.network || "";
   let teardownOk = true;
 
-  for (const container of containers) {
-    const rm = await run("docker", ["rm", "-f", container]);
-    if (rm.status !== 0) {
-      teardownOk = false;
-    }
+  const rmResults = await Promise.all(
+    containers.map((container) => run("docker", ["rm", "-f", container])),
+  );
+  if (rmResults.some((rm) => rm.status !== 0)) {
+    teardownOk = false;
   }
+
   if (network) {
     const rn = await run("docker", ["network", "rm", network]);
     if (rn.status !== 0) {
@@ -720,11 +912,12 @@ export async function performStackTeardown(run, ctx) {
       }
     }
   }
-  for (const volume of volumes) {
-    const rv = await run("docker", ["volume", "rm", "-f", volume]);
-    if (rv.status !== 0) {
-      teardownOk = false;
-    }
+
+  const volResults = await Promise.all(
+    volumes.map((volume) => run("docker", ["volume", "rm", "-f", volume])),
+  );
+  if (volResults.some((rv) => rv.status !== 0)) {
+    teardownOk = false;
   }
 
   const leftover = await assertGone(run, { containers, network, volumes });
