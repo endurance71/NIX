@@ -1,7 +1,7 @@
 # C3B — next gate: staging / canary (plan only)
 
-**Date:** 2026-09-04  
-**Status:** Plan document — **not executed**. Zero runtime in this file.  
+**Date:** 2026-09-04
+**Status:** Plan document — **not executed**. Zero runtime in this file.
 **Aligned with:** [`2026-09-03-c3b-s6-decision-gate.md`](2026-09-03-c3b-s6-decision-gate.md), [`../moderation-spike-runbook.md`](../moderation-spike-runbook.md), [`2026-09-04-c3b-auth-storage-merged.md`](2026-09-04-c3b-auth-storage-merged.md).
 
 ## Goal of this gate

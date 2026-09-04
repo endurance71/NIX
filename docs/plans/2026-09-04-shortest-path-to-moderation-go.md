@@ -1,7 +1,7 @@
 # Shortest path to moderation GO (cost-first)
 
-**Date:** 2026-09-04  
-**Sources:** [`../release/ios-current.md`](../release/ios-current.md), ADR-001 (Proposed), [`2026-09-03-c3b-s6-decision-gate.md`](2026-09-03-c3b-s6-decision-gate.md), [`2026-09-04-c3b-next-gate-staging-canary.md`](2026-09-04-c3b-next-gate-staging-canary.md).  
+**Date:** 2026-09-04
+**Sources:** [`../release/ios-current.md`](../release/ios-current.md), ADR-001 (Proposed), [`2026-09-03-c3b-s6-decision-gate.md`](2026-09-03-c3b-s6-decision-gate.md), [`2026-09-04-c3b-next-gate-staging-canary.md`](2026-09-04-c3b-next-gate-staging-canary.md).
 **Verdict today:** **NO-GO** on real production / App Review GO. Merging C3B code does **not** unlock GO.
 
 ## Ordered path (shortest, cost-first)

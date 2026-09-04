@@ -1,6 +1,6 @@
 # C3B Auth/Storage — merged status (2026-09-04)
 
-**Purpose:** Canonical post-merge status for C3B audit / disposable Auth+Storage stack.  
+**Purpose:** Canonical post-merge status for C3B audit / disposable Auth+Storage stack.
 **Scope:** Documentation only. Does **not** authorize prod, Azure live, feature flag, §6 GO, or App Review.
 
 ## Merge facts

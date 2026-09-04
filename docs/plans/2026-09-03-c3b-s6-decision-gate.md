@@ -122,7 +122,7 @@ Portal recheck or F0-after-Oct confirmation, append under `~/.nix-ops/p0-3-s6/`
 | Operational `external_used` floor | **3624** = `max(3523, 3624)` (hybrid ledger) |
 | Remaining to ops ceiling **4000** | **376** |
 | Remaining to F0 cap **5000** | **1376** |
-| F0 reconcile | **DONE** (MCP) — not „PENDING human” / unread |
+| F0 reconcile | **DONE via authenticated Azure Monitor/MCP** |
 | Open admin | Deleted **S0** exact usage unavailable; exception proposal inactive |
 | Live Azure / prod flag | **NO-GO** (budget + C2 Proposed) |
 
