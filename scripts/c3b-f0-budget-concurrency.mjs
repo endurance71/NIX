@@ -2,34 +2,52 @@
 /**
  * Two-connection F0 budget race for the LAST free unit (local Postgres only).
  *
- * FORBIDDEN outside local Supabase (loopback:54322). Exit 2 = BLOCKED.
+ * FORBIDDEN outside local loopback. Exit 2 = BLOCKED.
  * Creates an ephemeral database `c3b_conc_<uuid>`, never mutates the project
  * app-database ledger, and never CREATE ROLE / GRANT membership (cluster-wide).
+ * Never terminates foreign Postgres backends (no session killing).
  *
  * Modes:
  * - default: apply scripts/sql/c3b_f0_concurrency_bootstrap.sql (DDL only)
- * - C3B_CONC_USE_TEMPLATE=1: CREATE DATABASE … TEMPLATE postgres (migrated schema)
+ * - C3B_CONC_USE_TEMPLATE=1: CREATE DATABASE … TEMPLATE postgres (migrated schema);
+ *   if source is busy → exit 2 BLOCKED (without terminating other sessions)
  * - C3B_CONC_FORCE_FAIL=1: fail after create/bootstrap; still DROP + role snapshot check
+ * - C3B_CONC_DIRECT=1: race on admin DB `postgres` (isolated stack :15432 only);
+ *   no CREATE/DROP DATABASE (container is disposable)
  *
  * Connection target is never passed as a raw URI to psql.
  *
  * Usage: node scripts/c3b-f0-budget-concurrency.mjs
- * Exit 0 = PASS, 1 = FAIL, 2 = BLOCKED (non-local / unavailable / missing roles).
+ * Exit 0 = PASS, 1 = FAIL, 2 = BLOCKED (non-local / unavailable / missing roles / busy template).
  */
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const LOCAL_PORT = 54322;
+const ALLOWED_LOCAL_PORTS = new Set([54322, 15432]);
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
-const DEFAULT_RAW = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 const ADMIN_DB = "postgres";
 const BOOTSTRAP_SQL = join(
   dirname(fileURLToPath(import.meta.url)),
   "sql",
   "c3b_f0_concurrency_bootstrap.sql",
 );
+
+function resolveAllowedPort() {
+  const raw = process.env.C3B_CONC_ALLOW_PORT;
+  const port = raw ? Number(raw) : 54322;
+  if (!Number.isInteger(port) || !ALLOWED_LOCAL_PORTS.has(port)) {
+    throw new Error(
+      `BLOCKED: C3B_CONC_ALLOW_PORT must be one of ${[...ALLOWED_LOCAL_PORTS].join(",")}`,
+    );
+  }
+  return port;
+}
+
+function defaultRawUrl(port) {
+  return `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`;
+}
 
 /** Forbidden libpq override tokens anywhere in the raw URL string. */
 const FORBIDDEN_PARAM_RE = /(?:^|[?&#;])(?:host|hostaddr|service|options)=/i;
@@ -64,9 +82,11 @@ SELECT
  * Parse and approve a local admin connection target.
  * Database name from the URL is ignored (admin uses `postgres`; race uses ephemeral).
  * @param {string} raw
+ * @param {{ allowedPort?: number }} [opts]
  * @returns {{ user: string, password: string, host: string, port: number }}
  */
-export function parseApprovedLocalTarget(raw) {
+export function parseApprovedLocalTarget(raw, opts = {}) {
+  const allowedPort = opts.allowedPort ?? resolveAllowedPort();
   if (typeof raw !== "string" || raw.trim().length === 0) {
     throw new Error("BLOCKED: non-local database (empty SUPABASE_DB_URL)");
   }
@@ -94,9 +114,9 @@ export function parseApprovedLocalTarget(raw) {
 
   const host = (parsed.hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
   const port = parsed.port ? Number(parsed.port) : 5432;
-  if (!LOCAL_HOSTS.has(host) || port !== LOCAL_PORT) {
+  if (!LOCAL_HOSTS.has(host) || port !== allowedPort) {
     throw new Error(
-      `BLOCKED: non-local database (host=${host || "?"} port=${port}; require loopback:${LOCAL_PORT})`,
+      `BLOCKED: non-local database (host=${host || "?"} port=${port}; require loopback:${allowedPort})`,
     );
   }
 
@@ -214,15 +234,32 @@ async function assertNoLeftoverConcDb(target) {
 }
 
 async function main() {
+  let allowedPort;
+  try {
+    allowedPort = resolveAllowedPort();
+  } catch (err) {
+    exitBlocked(err instanceof Error ? err.message : String(err));
+  }
+
   let target;
   try {
-    target = parseApprovedLocalTarget(process.env.SUPABASE_DB_URL ?? DEFAULT_RAW);
+    target = parseApprovedLocalTarget(
+      process.env.SUPABASE_DB_URL ?? defaultRawUrl(allowedPort),
+      { allowedPort },
+    );
   } catch (err) {
     exitBlocked(err instanceof Error ? err.message : String(err));
   }
 
   const useTemplate = process.env.C3B_CONC_USE_TEMPLATE === "1";
   const forceFail = process.env.C3B_CONC_FORCE_FAIL === "1";
+  const useDirect = process.env.C3B_CONC_DIRECT === "1";
+  if (useDirect && allowedPort !== 15432) {
+    exitBlocked("BLOCKED: C3B_CONC_DIRECT=1 only allowed with C3B_CONC_ALLOW_PORT=15432");
+  }
+  if (useDirect && useTemplate) {
+    exitBlocked("BLOCKED: C3B_CONC_DIRECT=1 and C3B_CONC_USE_TEMPLATE=1 are mutually exclusive");
+  }
 
   const ping = await runPsql(target, ADMIN_DB, { sql: "SELECT 1" });
   if (ping.status !== 0) {
@@ -264,158 +301,94 @@ async function main() {
       );
     }
   }
+  if (useDirect) {
+    const fn = await runPsql(target, ADMIN_DB, {
+      sql: `SELECT COUNT(*)::int FROM pg_proc p
+            JOIN pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname = 'public' AND p.proname = 'reserve_moderation_budget';`,
+    });
+    if (fn.status !== 0 || Number(lastLine(fn)) < 1) {
+      exitBlocked(
+        "BLOCKED: C3B_CONC_DIRECT=1 requires reserve_moderation_budget on migrated isolated DB",
+      );
+    }
+  }
 
-  const ephemeralDb = `c3b_conc_${randomUUID().replace(/-/g, "")}`;
-  let racePassed = false;
+  const ephemeralDb = useDirect
+    ? ADMIN_DB
+    : `c3b_conc_${randomUUID().replace(/-/g, "")}`;
   let exitCode = 1;
+  let dbCreated = false;
+  let readyForRace = false;
 
   try {
-    if (useTemplate) {
-      let created = await runPsql(target, ADMIN_DB, {
+    if (useDirect) {
+      readyForRace = true;
+      console.log("DIRECT_RACE_ON_ADMIN_DB (isolated stack)");
+    } else if (useTemplate) {
+      const created = await runPsql(target, ADMIN_DB, {
         sql: `CREATE DATABASE ${quoteIdent(ephemeralDb)} TEMPLATE postgres;`,
       });
       if (created.status !== 0) {
-        await runPsql(target, ADMIN_DB, {
-          sql: `
-            SELECT pg_terminate_backend(a.pid)
-            FROM pg_stat_activity a
-            JOIN pg_roles r ON r.rolname = a.usename
-            WHERE a.datname = 'postgres'
-              AND a.pid <> pg_backend_pid()
-              AND a.backend_type = 'client backend'
-              AND NOT r.rolsuper;
-          `,
-        });
-        created = await runPsql(target, ADMIN_DB, {
-          sql: `CREATE DATABASE ${quoteIdent(ephemeralDb)} TEMPLATE postgres;`,
-        });
-        if (created.status !== 0) {
-          console.error(
-            "FAIL: CREATE DATABASE TEMPLATE",
-            created.stderr || created.stdout,
-          );
-          return 1;
-        }
+        console.error(
+          "BLOCKED: template source database busy (no session terminate)",
+        );
+        console.error(created.stderr || created.stdout);
+        exitCode = 2;
+      } else {
+        dbCreated = true;
+        readyForRace = true;
+        console.log(`CREATED_TEMPLATE ${ephemeralDb}`);
       }
-      console.log(`CREATED_TEMPLATE ${ephemeralDb}`);
     } else {
       const created = await runPsql(target, ADMIN_DB, {
         sql: `CREATE DATABASE ${quoteIdent(ephemeralDb)};`,
       });
       if (created.status !== 0) {
         console.error("FAIL: CREATE DATABASE", created.stderr || created.stdout);
-        return 1;
+        exitCode = 1;
+      } else {
+        dbCreated = true;
+        const boot = await runPsql(target, ephemeralDb, { file: BOOTSTRAP_SQL });
+        if (boot.status !== 0) {
+          console.error("FAIL: bootstrap", boot.stderr || boot.stdout);
+          exitCode = 1;
+        } else {
+          readyForRace = true;
+          console.log(`CREATED_BOOTSTRAP ${ephemeralDb}`);
+        }
       }
-
-      const boot = await runPsql(target, ephemeralDb, { file: BOOTSTRAP_SQL });
-      if (boot.status !== 0) {
-        console.error("FAIL: bootstrap", boot.stderr || boot.stdout);
-        return 1;
-      }
-      console.log(`CREATED_BOOTSTRAP ${ephemeralDb}`);
     }
 
-    if (forceFail) {
+    if (readyForRace && forceFail) {
       console.error("FAIL: C3B_CONC_FORCE_FAIL=1 (controlled failure before race)");
-      return 1;
-    }
-
-    // One free unit (external_used=3999, hard_budget=4000) on ephemeral DB only.
-    const setup = await runPsql(target, ephemeralDb, {
-      sql: `
-        SELECT private.ensure_moderation_f0_ledger(
-          private.moderation_f0_month_key(),
-          4000,
-          3999
-        );
-        SELECT hard_budget - (external_used + reserved_txn + consumed_txn)
-        FROM private.moderation_f0_ledger
-        WHERE month_key = private.moderation_f0_month_key();
-      `,
-    });
-    if (setup.status !== 0) {
-      console.error("FAIL: setup", setup.stderr || setup.stdout);
-      return 1;
-    }
-    // ensure ON CONFLICT does not raise external_used — for template clone may already have row.
-    // Force race state with UPDATE only inside ephemeral DB.
-    const forceState = await runPsql(target, ephemeralDb, {
-      sql: `
-        UPDATE private.moderation_f0_ledger
-        SET hard_budget = 4000,
-            external_used = 3999,
-            reserved_txn = 0,
-            consumed_txn = 0,
-            text_txn = 0,
-            image_txn = 0,
-            updated_at = NOW()
-        WHERE month_key = private.moderation_f0_month_key();
-        DELETE FROM private.moderation_f0_reservations
-        WHERE month_key = private.moderation_f0_month_key();
-        SELECT hard_budget - (external_used + reserved_txn + consumed_txn)
-        FROM private.moderation_f0_ledger
-        WHERE month_key = private.moderation_f0_month_key();
-      `,
-    });
-    if (forceState.status !== 0) {
-      console.error("FAIL: forceState", forceState.stderr || forceState.stdout);
-      return 1;
-    }
-    const remaining = Number(lastLine(forceState));
-    if (remaining !== 1) {
-      console.error(`FAIL: expected 1 remaining unit before race, got ${remaining}`);
-      return 1;
-    }
-
-    const a1 = randomUUID();
-    const a2 = randomUUID();
-    const sql = (attempt) =>
-      `SET ROLE service_role; SELECT (public.reserve_moderation_budget('image', 1, NULL, '${attempt}', 4000, NULL)->>'ok');`;
-
-    const [childA, childB] = await Promise.all([
-      runPsql(target, ephemeralDb, { sql: sql(a1) }),
-      runPsql(target, ephemeralDb, { sql: sql(a2) }),
-    ]);
-
-    const okCount = [childA, childB].filter(isTrue).length;
-    const failCount = [childA, childB].filter(isFalse).length;
-
-    const ledger = await runPsql(target, ephemeralDb, {
-      sql: `
-        SELECT external_used + reserved_txn + consumed_txn
-        FROM private.moderation_f0_ledger
-        WHERE month_key = private.moderation_f0_month_key();
-      `,
-    });
-    const used = Number(lastLine(ledger));
-
-    if (okCount !== 1 || failCount !== 1 || used !== 4000) {
-      console.error(
-        `FAIL: expected exactly 1 ok / 1 fail and used=4000; got ok=${okCount} fail=${failCount} used=${used}`,
-      );
-      console.error("A", childA.stdout, childA.stderr);
-      console.error("B", childB.stdout, childB.stderr);
-      return 1;
-    }
-
-    racePassed = true;
-    console.log(
-      `PASS: ephemeral ${ephemeralDb} last-unit race → exactly 1 ok / 1 exhausted; used=4000` +
-        (useTemplate ? " (TEMPLATE)" : " (bootstrap)"),
-    );
-    exitCode = 0;
-  } finally {
-    const dropped = await runPsql(target, ADMIN_DB, {
-      sql: `DROP DATABASE IF EXISTS ${quoteIdent(ephemeralDb)} WITH (FORCE);`,
-    });
-    if (dropped.status !== 0) {
-      console.error(
-        "FAIL: DROP DATABASE cleanup",
-        dropped.stderr || dropped.stdout,
-      );
       exitCode = 1;
+    } else if (readyForRace) {
+      exitCode = await runLastUnitRace(target, ephemeralDb, {
+        useTemplate,
+        useDirect,
+      });
+    }
+  } finally {
+    if (dbCreated) {
+      const dropped = await runPsql(target, ADMIN_DB, {
+        sql: `DROP DATABASE IF EXISTS ${quoteIdent(ephemeralDb)} WITH (FORCE);`,
+      });
+      if (dropped.status !== 0) {
+        console.error(
+          "FAIL: DROP DATABASE cleanup",
+          dropped.stderr || dropped.stdout,
+        );
+        if (exitCode === 0 || exitCode === 2) exitCode = 1;
+      } else {
+        console.log(`CLEANUP: dropped ${ephemeralDb}`);
+      }
+    } else if (!useDirect) {
+      await runPsql(target, ADMIN_DB, {
+        sql: `DROP DATABASE IF EXISTS ${quoteIdent(ephemeralDb)} WITH (FORCE);`,
+      });
     } else {
-      console.log(`CLEANUP: dropped ${ephemeralDb}`);
+      console.log("CLEANUP: skipped DROP (direct race on disposable isolated postgres)");
     }
 
     try {
@@ -424,7 +397,7 @@ async function main() {
         console.error("FAIL: cluster role/membership snapshot changed");
         console.error("BEFORE\n" + snapBefore);
         console.error("AFTER\n" + snapAfter);
-        exitCode = 1;
+        if (exitCode === 0 || exitCode === 2) exitCode = 1;
       } else {
         console.log("ROLE_SNAPSHOT_UNCHANGED");
       }
@@ -432,11 +405,99 @@ async function main() {
       console.log("NO_LEFTOVER_C3B_CONC_DB");
     } catch (err) {
       console.error("FAIL:", err instanceof Error ? err.message : String(err));
-      exitCode = 1;
+      if (exitCode === 0 || exitCode === 2) exitCode = 1;
     }
   }
 
   return exitCode;
+}
+
+/**
+ * @param {{ user: string, password: string, host: string, port: number }} target
+ * @param {string} ephemeralDb
+ * @param {{ useTemplate: boolean, useDirect: boolean }} modes
+ * @returns {Promise<number>} 0 PASS, 1 FAIL
+ */
+async function runLastUnitRace(target, ephemeralDb, modes) {
+  const { useTemplate, useDirect } = modes;
+  const setup = await runPsql(target, ephemeralDb, {
+    sql: `
+      SELECT private.ensure_moderation_f0_ledger(
+        private.moderation_f0_month_key(),
+        4000,
+        3999
+      );
+    `,
+  });
+  if (setup.status !== 0) {
+    console.error("FAIL: setup", setup.stderr || setup.stdout);
+    return 1;
+  }
+
+  const forceState = await runPsql(target, ephemeralDb, {
+    sql: `
+      UPDATE private.moderation_f0_ledger
+      SET hard_budget = 4000,
+          external_used = 3999,
+          reserved_txn = 0,
+          consumed_txn = 0,
+          text_txn = 0,
+          image_txn = 0,
+          updated_at = NOW()
+      WHERE month_key = private.moderation_f0_month_key();
+      DELETE FROM private.moderation_f0_reservations
+      WHERE month_key = private.moderation_f0_month_key();
+      SELECT hard_budget - (external_used + reserved_txn + consumed_txn)
+      FROM private.moderation_f0_ledger
+      WHERE month_key = private.moderation_f0_month_key();
+    `,
+  });
+  if (forceState.status !== 0) {
+    console.error("FAIL: forceState", forceState.stderr || forceState.stdout);
+    return 1;
+  }
+  const remaining = Number(lastLine(forceState));
+  if (remaining !== 1) {
+    console.error(`FAIL: expected 1 remaining unit before race, got ${remaining}`);
+    return 1;
+  }
+
+  const a1 = randomUUID();
+  const a2 = randomUUID();
+  const sql = (attempt) =>
+    `SET ROLE service_role; SELECT (public.reserve_moderation_budget('image', 1, NULL, '${attempt}', 4000, NULL)->>'ok');`;
+
+  const [childA, childB] = await Promise.all([
+    runPsql(target, ephemeralDb, { sql: sql(a1) }),
+    runPsql(target, ephemeralDb, { sql: sql(a2) }),
+  ]);
+
+  const okCount = [childA, childB].filter(isTrue).length;
+  const failCount = [childA, childB].filter(isFalse).length;
+
+  const ledger = await runPsql(target, ephemeralDb, {
+    sql: `
+      SELECT external_used + reserved_txn + consumed_txn
+      FROM private.moderation_f0_ledger
+      WHERE month_key = private.moderation_f0_month_key();
+    `,
+  });
+  const used = Number(lastLine(ledger));
+
+  if (okCount !== 1 || failCount !== 1 || used !== 4000) {
+    console.error(
+      `FAIL: expected exactly 1 ok / 1 fail and used=4000; got ok=${okCount} fail=${failCount} used=${used}`,
+    );
+    console.error("A", childA.stdout, childA.stderr);
+    console.error("B", childB.stdout, childB.stderr);
+    return 1;
+  }
+
+  console.log(
+    `PASS: ephemeral ${ephemeralDb} last-unit race → exactly 1 ok / 1 exhausted; used=4000` +
+      (useTemplate ? " (TEMPLATE)" : useDirect ? " (DIRECT)" : " (bootstrap)"),
+  );
+  return 0;
 }
 
 const isDirectRun =
