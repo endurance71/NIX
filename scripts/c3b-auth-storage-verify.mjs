@@ -733,6 +733,7 @@ export async function runAuthStorageVerify(deps = {}) {
 
     const probePeer = await verifyEgress(run, peerCtr, {
       ipv6Enabled: locked.ipv6Enabled,
+      loopbackMode: "nc-self",
     });
     if (!probePeer.ok) {
       console.error(

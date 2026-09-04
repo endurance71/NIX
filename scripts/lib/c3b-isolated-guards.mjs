@@ -460,9 +460,41 @@ export const PUBLIC_IPV6_PROBE_SCRIPT = [
   "echo EXIT:127",
 ].join("\n");
 
-/** Explicit TCP loopback — never rely on default unix/libpq host. */
+/** Explicit TCP loopback via Postgres — never rely on default unix/libpq host. */
 export const LOOPBACK_TCP_PROBE_SCRIPT =
   "psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -At -c 'SELECT 1' >/dev/null 2>&1; echo EXIT:$?";
+
+/**
+ * Self-listen TCP loopback for non-Postgres containers (peer helpers).
+ * Proves OUTPUT -o lo / 127.0.0.0/8 still works after DROP policy.
+ */
+export const LOOPBACK_NC_SELF_PROBE_SCRIPT = [
+  "set +e",
+  "PORT=18087",
+  "if command -v nc >/dev/null 2>&1; then",
+  "  nc -l -p \"$PORT\" >/dev/null 2>&1 &",
+  "  LPID=$!",
+  "  sleep 0.2",
+  "  nc -z -w 1 127.0.0.1 \"$PORT\"",
+  "  EC=$?",
+  "  kill \"$LPID\" 2>/dev/null",
+  "  wait \"$LPID\" 2>/dev/null",
+  "  echo EXIT:$EC",
+  "  exit 0",
+  "fi",
+  "if command -v busybox >/dev/null 2>&1; then",
+  "  busybox nc -l -p \"$PORT\" >/dev/null 2>&1 &",
+  "  LPID=$!",
+  "  sleep 0.2",
+  "  busybox nc -z -w 1 127.0.0.1 \"$PORT\"",
+  "  EC=$?",
+  "  kill \"$LPID\" 2>/dev/null",
+  "  wait \"$LPID\" 2>/dev/null",
+  "  echo EXIT:$EC",
+  "  exit 0",
+  "fi",
+  "echo EXIT:127",
+].join("\n");
 
 /**
  * Apply IPv4+IPv6 egress lock inside container.
@@ -540,7 +572,7 @@ export async function blockEgress(run, container) {
  * Verify egress isolation with taxonomy (no false "blocked" on tool miss).
  * @param {RunFn} run
  * @param {string} container
- * @param {{ ipv6Enabled?: boolean }} [opts]
+ * @param {{ ipv6Enabled?: boolean, loopbackMode?: "psql" | "nc-self" }} [opts]
  */
 export async function verifyEgress(run, container, opts = {}) {
   const tools = await run("docker", [
@@ -620,12 +652,15 @@ export async function verifyEgress(run, container, opts = {}) {
     }
   }
 
+  const loopbackMode = opts.loopbackMode === "nc-self" ? "nc-self" : "psql";
+  const loopScript =
+    loopbackMode === "nc-self" ? LOOPBACK_NC_SELF_PROBE_SCRIPT : LOOPBACK_TCP_PROBE_SCRIPT;
   const loop = await run("docker", [
     "exec",
     container,
     "sh",
     "-c",
-    LOOPBACK_TCP_PROBE_SCRIPT,
+    loopScript,
   ]);
   const loopDecision = interpretLoopbackProbe({
     execStatus: loop.status,

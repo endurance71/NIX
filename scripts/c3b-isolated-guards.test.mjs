@@ -295,6 +295,38 @@ describe("verifyEgress with stubs", () => {
     assert.equal(r.ok, false);
     assert.equal(r.reason, "probe_unavailable");
   });
+
+  it("nc-self loopback mode uses self-listen probe script", async () => {
+    const seen = [];
+    const run = stubRun([
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("TOOLS_") && !args.join(" ").includes("IPV6"),
+        result: { status: 0, stdout: "TOOLS_OK\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) => args.join(" ").includes("1.1.1.1"),
+        result: { status: 0, stdout: "EXIT:1\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) => {
+          const s = args.join(" ");
+          if (s.includes("18087") || s.includes("nc -l")) {
+            seen.push("nc-self");
+            return true;
+          }
+          return s.includes("psql -h 127.0.0.1");
+        },
+        result: { status: 0, stdout: "EXIT:0\n", stderr: "" },
+      },
+    ]);
+    const r = await verifyEgress(run, "ctr", {
+      ipv6Enabled: false,
+      loopbackMode: "nc-self",
+    });
+    assert.equal(r.ok, true);
+    assert.deepEqual(seen, ["nc-self"]);
+  });
 });
 
 describe("buildInternalEgressScript", () => {
