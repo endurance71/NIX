@@ -27,39 +27,39 @@ Migration: [`supabase/migrations/20260904120000_c3b_audit_complete_and_budget.sq
 
 ### Pre-merge corrections (PR #22)
 
-1. **Safe concurrency connection:** [`scripts/c3b-f0-budget-concurrency.mjs`](../../scripts/c3b-f0-budget-concurrency.mjs) never passes a raw URI to `psql`. Rejects any query/hash params and libpq override tokens (`host`, `hostaddr`, `service`, `options`). Spawns `psql -X` with explicit `-h/-p/-U/-d` and clears inherited `PG*` env (sets only `PGPASSWORD`). Offline validator: `npm run test:c3b-budget-concurrency-validate`.
-2. **Ephemeral race DB:** creates `c3b_conc_<uuid>` on local `:54322`, applies [`scripts/sql/c3b_f0_concurrency_bootstrap.sql`](../../scripts/sql/c3b_f0_concurrency_bootstrap.sql), runs the last-unit two-connection race there, `DROP DATABASE … WITH (FORCE)` in `finally`. Does **not** mutate the project app-database ledger.
-3. **Operational ceiling ≤ 4000:** migration [`20260904120100_c3b_audit_hard_budget_4000.sql`](../../supabase/migrations/20260904120100_c3b_audit_hard_budget_4000.sql) + memory reject. SKU `F0_MONTHLY_CAP = 5000` stays descriptive only.
+1. **Safe concurrency connection:** never passes a raw URI to `psql`; rejects query/hash + libpq overrides; `psql -X` + cleared `PG*`. Validator: `npm run test:c3b-budget-concurrency-validate`.
+2. **Ephemeral race + cluster isolation:** `c3b_conc_<uuid>` + [`scripts/sql/c3b_f0_concurrency_bootstrap.sql`](../../scripts/sql/c3b_f0_concurrency_bootstrap.sql) **without** `CREATE ROLE` / `GRANT … TO CURRENT_USER`. Preflight requires existing `anon`/`authenticated`/`service_role` and membership; role/membership snapshot must be unchanged after DROP; no leftover `c3b_conc_%`. `C3B_CONC_FORCE_FAIL=1` verifies cleanup on controlled failure.
+3. **Template mode (migration schema):** `C3B_CONC_USE_TEMPLATE=1` clones `TEMPLATE postgres`. On busy local Supabase (superuser sessions that cannot be terminated), CREATE may fail — record as evidence, not a PASS.
+4. **Operational ceiling ≤ 4000:** [`20260904120100_c3b_audit_hard_budget_4000.sql`](../../supabase/migrations/20260904120100_c3b_audit_hard_budget_4000.sql) + memory reject. SKU `F0_MONTHLY_CAP = 5000` stays descriptive only.
 
 ### Cron / `supabase db reset`
 
-A clean local `supabase db reset` requires the `cron` schema / `pg_cron` from the Supabase local init. Without it, reset fails with `schema "cron" does not exist`. Manual stub + `migration up` is an **upgrade-path** check only — status remains **PARTIAL**, never a full LOCAL PASS for reset.
+Clean `supabase db reset` still **PARTIAL**: migration `20260722193000` runs `GRANT USAGE ON SCHEMA cron` while `CREATE EXTENSION pg_cron` is commented out, and local reset init does not create `cron` / `pg_cron` before that migration (`ERROR: schema "cron" does not exist`). Real `CREATE EXTENSION pg_cron` on the live `postgres` DB + `migration up` is a valid **upgrade-path** check (not a clean reset PASS). Do not use empty schema atrapas.
 
 ## Local quality commands
 
 | Command | Meaning |
 | --- | --- |
 | `npm run check:toolchain` | Node 24 / Deno 2.9.6 |
-| `npm run deno:check` / `deno:test` | frozen lockfile |
 | `npm run test:moderation-worker` | Deno workers/moderation |
-| `npm run test:supabase-db` | local Postgres (docker fallback) |
 | `npm run test:c3b-budget-concurrency-validate` | offline URL/target validator |
-| `npm run test:c3b-budget-concurrency` | ephemeral-DB last-unit race (local only) |
+| `npm run test:c3b-budget-concurrency` | ephemeral bootstrap race (no cluster role mutation) |
+| `C3B_CONC_FORCE_FAIL=1 npm run test:c3b-budget-concurrency` | cleanup / snapshot regression |
+| `C3B_CONC_USE_TEMPLATE=1 npm run test:c3b-budget-concurrency` | race on TEMPLATE postgres (needs quiet DB) |
 | `npm run audit:high` | high+ only; no `--force` |
 
-Report labels: **LOCAL PASS** / **CI ERROR** / **PENDING** / **PARTIAL** / **NOT RUN**. Do not treat memory tests as SQL PASS.
+Report labels: **LOCAL PASS** / **CI ERROR** / **PENDING** / **PARTIAL** / **NOT RUN**.
 
 ## Historical F0 vs S0
 
 - Historical F0 spike evidence: `~/.nix-ops/p0-3-spike/` (immutable).
-- Any later S0 experiment stays separate; this PR does **not** create S0 or PAYG.
+- This PR does **not** create S0 or PAYG.
 
 ## Rollback
 
-1. Revert this branch / drop migrations `20260904120000_*` and `20260904120100_*` from local DB only (`supabase migration repair` / restore).
-2. Worker attempt-id / ledger changes revert with the git revert.
-3. Keep `pre_delivery_moderation_enabled = false`. Never `db push` these migrations to prod without a separate written GO.
+1. Revert branch / drop audit migrations from local DB only.
+2. Keep `pre_delivery_moderation_enabled = false`. Never `db push` to prod without a separate written GO.
 
 ## Evidence
 
-Outside Git: `~/.nix-ops/p0-3-c3b-audit-fixes/` (SHA-tagged Deno/SQL/validate/concurrency logs; no secrets/media).
+Outside Git: `~/.nix-ops/p0-3-c3b-audit-fixes/` (SHA-tagged logs; no secrets/media).

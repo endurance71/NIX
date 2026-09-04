@@ -3,15 +3,18 @@
  * Two-connection F0 budget race for the LAST free unit (local Postgres only).
  *
  * FORBIDDEN outside local Supabase (loopback:54322). Exit 2 = BLOCKED.
- * Creates an ephemeral database `c3b_conc_<uuid>`, bootstraps minimal F0 DDL,
- * runs the race there, and DROP DATABASE in finally — never mutates the
- * project app database ledger.
+ * Creates an ephemeral database `c3b_conc_<uuid>`, never mutates the project
+ * app-database ledger, and never CREATE ROLE / GRANT membership (cluster-wide).
  *
- * Connection target is never passed as a raw URI to psql. Query-string
- * libpq overrides (host, hostaddr, service, …) are rejected.
+ * Modes:
+ * - default: apply scripts/sql/c3b_f0_concurrency_bootstrap.sql (DDL only)
+ * - C3B_CONC_USE_TEMPLATE=1: CREATE DATABASE … TEMPLATE postgres (migrated schema)
+ * - C3B_CONC_FORCE_FAIL=1: fail after create/bootstrap; still DROP + role snapshot check
+ *
+ * Connection target is never passed as a raw URI to psql.
  *
  * Usage: node scripts/c3b-f0-budget-concurrency.mjs
- * Exit 0 = PASS, 1 = FAIL, 2 = BLOCKED (non-local / unavailable).
+ * Exit 0 = PASS, 1 = FAIL, 2 = BLOCKED (non-local / unavailable / missing roles).
  */
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -30,6 +33,32 @@ const BOOTSTRAP_SQL = join(
 
 /** Forbidden libpq override tokens anywhere in the raw URL string. */
 const FORBIDDEN_PARAM_RE = /(?:^|[?&#;])(?:host|hostaddr|service|options)=/i;
+
+const ROLE_SNAPSHOT_SQL = `
+SELECT string_agg(line, E'\\n' ORDER BY line)
+FROM (
+  SELECT format(
+    'role:%s oid=%s login=%s bypassrls=%s',
+    rolname, oid, rolcanlogin, rolbypassrls
+  ) AS line
+  FROM pg_roles
+  WHERE rolname IN ('anon', 'authenticated', 'service_role')
+  UNION ALL
+  SELECT format('member:%s->%s', m.rolname, r.rolname) AS line
+  FROM pg_auth_members am
+  JOIN pg_roles r ON r.oid = am.roleid
+  JOIN pg_roles m ON m.oid = am.member
+  WHERE r.rolname IN ('anon', 'authenticated', 'service_role')
+     OR m.rolname IN ('anon', 'authenticated', 'service_role')
+) s;
+`.trim();
+
+const PREFLIGHT_SQL = `
+SELECT
+  (SELECT COUNT(*)::int FROM pg_roles
+   WHERE rolname IN ('anon', 'authenticated', 'service_role')) AS role_count,
+  pg_has_role(current_user, 'service_role', 'member') AS can_set_service_role;
+`.trim();
 
 /**
  * Parse and approve a local admin connection target.
@@ -142,6 +171,10 @@ function lastLine(c) {
   return c.stdout.trim().split("\n").filter(Boolean).pop() ?? "";
 }
 
+function fullStdout(c) {
+  return c.stdout.replace(/\r/g, "").trim();
+}
+
 function isTrue(c) {
   const v = lastLine(c).toLowerCase();
   return c.status === 0 && (v === "t" || v === "true");
@@ -159,6 +192,27 @@ function quoteIdent(name) {
   return `"${name}"`;
 }
 
+async function snapshotRoles(target) {
+  const r = await runPsql(target, ADMIN_DB, { sql: ROLE_SNAPSHOT_SQL });
+  if (r.status !== 0) {
+    throw new Error(`role snapshot failed: ${r.stderr || r.stdout}`);
+  }
+  return fullStdout(r);
+}
+
+async function assertNoLeftoverConcDb(target) {
+  const r = await runPsql(target, ADMIN_DB, {
+    sql: `SELECT COALESCE(string_agg(datname, ',' ORDER BY datname), '') FROM pg_database WHERE datname LIKE 'c3b_conc_%';`,
+  });
+  if (r.status !== 0) {
+    throw new Error(`leftover check failed: ${r.stderr || r.stdout}`);
+  }
+  const left = lastLine(r);
+  if (left) {
+    throw new Error(`leftover c3b_conc databases: ${left}`);
+  }
+}
+
 async function main() {
   let target;
   try {
@@ -167,6 +221,9 @@ async function main() {
     exitBlocked(err instanceof Error ? err.message : String(err));
   }
 
+  const useTemplate = process.env.C3B_CONC_USE_TEMPLATE === "1";
+  const forceFail = process.env.C3B_CONC_FORCE_FAIL === "1";
+
   const ping = await runPsql(target, ADMIN_DB, { sql: "SELECT 1" });
   if (ping.status !== 0) {
     console.error("BLOCKED: local Postgres unavailable");
@@ -174,26 +231,96 @@ async function main() {
     process.exit(2);
   }
 
+  const pre = await runPsql(target, ADMIN_DB, { sql: PREFLIGHT_SQL });
+  if (pre.status !== 0) {
+    exitBlocked(`BLOCKED: role preflight query failed: ${pre.stderr || pre.stdout}`);
+  }
+  const [roleCountRaw, canSetRaw] = fullStdout(pre).split("|");
+  const roleCount = Number(roleCountRaw);
+  const canSet = String(canSetRaw).toLowerCase() === "t";
+  if (roleCount !== 3 || !canSet) {
+    exitBlocked(
+      `BLOCKED: required roles missing or current_user cannot SET ROLE service_role (role_count=${roleCount} can_set=${canSet})`,
+    );
+  }
+
+  let snapBefore;
+  try {
+    snapBefore = await snapshotRoles(target);
+  } catch (err) {
+    exitBlocked(err instanceof Error ? err.message : String(err));
+  }
+  console.log("ROLE_SNAPSHOT_BEFORE_OK");
+
+  if (useTemplate) {
+    const fn = await runPsql(target, ADMIN_DB, {
+      sql: `SELECT COUNT(*)::int FROM pg_proc p
+            JOIN pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname = 'public' AND p.proname = 'reserve_moderation_budget';`,
+    });
+    if (fn.status !== 0 || Number(lastLine(fn)) < 1) {
+      exitBlocked(
+        "BLOCKED: C3B_CONC_USE_TEMPLATE=1 requires reserve_moderation_budget on postgres (run migrations / db reset first)",
+      );
+    }
+  }
+
   const ephemeralDb = `c3b_conc_${randomUUID().replace(/-/g, "")}`;
   let racePassed = false;
   let exitCode = 1;
 
   try {
-    const created = await runPsql(target, ADMIN_DB, {
-      sql: `CREATE DATABASE ${quoteIdent(ephemeralDb)};`,
-    });
-    if (created.status !== 0) {
-      console.error("FAIL: CREATE DATABASE", created.stderr || created.stdout);
+    if (useTemplate) {
+      let created = await runPsql(target, ADMIN_DB, {
+        sql: `CREATE DATABASE ${quoteIdent(ephemeralDb)} TEMPLATE postgres;`,
+      });
+      if (created.status !== 0) {
+        await runPsql(target, ADMIN_DB, {
+          sql: `
+            SELECT pg_terminate_backend(a.pid)
+            FROM pg_stat_activity a
+            JOIN pg_roles r ON r.rolname = a.usename
+            WHERE a.datname = 'postgres'
+              AND a.pid <> pg_backend_pid()
+              AND a.backend_type = 'client backend'
+              AND NOT r.rolsuper;
+          `,
+        });
+        created = await runPsql(target, ADMIN_DB, {
+          sql: `CREATE DATABASE ${quoteIdent(ephemeralDb)} TEMPLATE postgres;`,
+        });
+        if (created.status !== 0) {
+          console.error(
+            "FAIL: CREATE DATABASE TEMPLATE",
+            created.stderr || created.stdout,
+          );
+          return 1;
+        }
+      }
+      console.log(`CREATED_TEMPLATE ${ephemeralDb}`);
+    } else {
+      const created = await runPsql(target, ADMIN_DB, {
+        sql: `CREATE DATABASE ${quoteIdent(ephemeralDb)};`,
+      });
+      if (created.status !== 0) {
+        console.error("FAIL: CREATE DATABASE", created.stderr || created.stdout);
+        return 1;
+      }
+
+      const boot = await runPsql(target, ephemeralDb, { file: BOOTSTRAP_SQL });
+      if (boot.status !== 0) {
+        console.error("FAIL: bootstrap", boot.stderr || boot.stdout);
+        return 1;
+      }
+      console.log(`CREATED_BOOTSTRAP ${ephemeralDb}`);
+    }
+
+    if (forceFail) {
+      console.error("FAIL: C3B_CONC_FORCE_FAIL=1 (controlled failure before race)");
       return 1;
     }
 
-    const boot = await runPsql(target, ephemeralDb, { file: BOOTSTRAP_SQL });
-    if (boot.status !== 0) {
-      console.error("FAIL: bootstrap", boot.stderr || boot.stdout);
-      return 1;
-    }
-
-    // Fresh ephemeral DB: one free unit (external_used=3999, hard_budget=4000).
+    // One free unit (external_used=3999, hard_budget=4000) on ephemeral DB only.
     const setup = await runPsql(target, ephemeralDb, {
       sql: `
         SELECT private.ensure_moderation_f0_ledger(
@@ -210,7 +337,31 @@ async function main() {
       console.error("FAIL: setup", setup.stderr || setup.stdout);
       return 1;
     }
-    const remaining = Number(lastLine(setup));
+    // ensure ON CONFLICT does not raise external_used — for template clone may already have row.
+    // Force race state with UPDATE only inside ephemeral DB.
+    const forceState = await runPsql(target, ephemeralDb, {
+      sql: `
+        UPDATE private.moderation_f0_ledger
+        SET hard_budget = 4000,
+            external_used = 3999,
+            reserved_txn = 0,
+            consumed_txn = 0,
+            text_txn = 0,
+            image_txn = 0,
+            updated_at = NOW()
+        WHERE month_key = private.moderation_f0_month_key();
+        DELETE FROM private.moderation_f0_reservations
+        WHERE month_key = private.moderation_f0_month_key();
+        SELECT hard_budget - (external_used + reserved_txn + consumed_txn)
+        FROM private.moderation_f0_ledger
+        WHERE month_key = private.moderation_f0_month_key();
+      `,
+    });
+    if (forceState.status !== 0) {
+      console.error("FAIL: forceState", forceState.stderr || forceState.stdout);
+      return 1;
+    }
+    const remaining = Number(lastLine(forceState));
     if (remaining !== 1) {
       console.error(`FAIL: expected 1 remaining unit before race, got ${remaining}`);
       return 1;
@@ -249,7 +400,8 @@ async function main() {
 
     racePassed = true;
     console.log(
-      `PASS: ephemeral ${ephemeralDb} last-unit race → exactly 1 ok / 1 exhausted; used=4000`,
+      `PASS: ephemeral ${ephemeralDb} last-unit race → exactly 1 ok / 1 exhausted; used=4000` +
+        (useTemplate ? " (TEMPLATE)" : " (bootstrap)"),
     );
     exitCode = 0;
   } finally {
@@ -261,11 +413,26 @@ async function main() {
         "FAIL: DROP DATABASE cleanup",
         dropped.stderr || dropped.stdout,
       );
-      if (racePassed) {
-        exitCode = 1;
-      }
-    } else if (racePassed) {
+      exitCode = 1;
+    } else {
       console.log(`CLEANUP: dropped ${ephemeralDb}`);
+    }
+
+    try {
+      const snapAfter = await snapshotRoles(target);
+      if (snapAfter !== snapBefore) {
+        console.error("FAIL: cluster role/membership snapshot changed");
+        console.error("BEFORE\n" + snapBefore);
+        console.error("AFTER\n" + snapAfter);
+        exitCode = 1;
+      } else {
+        console.log("ROLE_SNAPSHOT_UNCHANGED");
+      }
+      await assertNoLeftoverConcDb(target);
+      console.log("NO_LEFTOVER_C3B_CONC_DB");
+    } catch (err) {
+      console.error("FAIL:", err instanceof Error ? err.message : String(err));
+      exitCode = 1;
     }
   }
 

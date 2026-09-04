@@ -1,24 +1,9 @@
 -- Minimal F0 budget schema for ephemeral c3b_conc_* race DBs only.
 -- Operational hard_budget ceiling = 4000. Not for production.
+-- Does NOT create cluster roles or grant memberships — requires existing
+-- local Supabase roles: anon, authenticated, service_role.
 
 CREATE SCHEMA IF NOT EXISTS private;
-
-DO $$ BEGIN
-  CREATE ROLE anon NOLOGIN;
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE ROLE authenticated NOLOGIN;
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE ROLE service_role NOLOGIN BYPASSRLS;
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-GRANT service_role TO CURRENT_USER;
 
 CREATE TABLE IF NOT EXISTS public.moderation_jobs (
   id UUID PRIMARY KEY
