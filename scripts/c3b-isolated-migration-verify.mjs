@@ -10,6 +10,8 @@
  *
  * Exit 0 = PASS, 1 = FAIL, 2 = PARTIAL/BLOCKED (infra)
  * Final exit is always computed after teardown (teardown fail → 1).
+ *
+ * Test injection: `runIsolatedMigrationVerify({ run })` — CLI unchanged (no new user modes).
  */
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -51,98 +53,6 @@ const HOST_PORT = 15432;
 const IMAGE_FALLBACK = "public.ecr.aws/supabase/postgres:17.6.1.165";
 const PGUSER = "postgres";
 const PGPASSWORD = "postgres";
-
-function run(cmd, args, opts = {}) {
-  return new Promise((resolve) => {
-    const child = spawn(cmd, args, {
-      env: opts.env ?? process.env,
-      cwd: opts.cwd || ROOT,
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d) => {
-      stdout += d;
-    });
-    child.stderr.on("data", (d) => {
-      stderr += d;
-    });
-    child.on("close", (status) => resolve({ status: status ?? 1, stdout, stderr }));
-  });
-}
-
-function log(msg) {
-  console.log(msg);
-}
-
-async function resolveImage() {
-  const insp = await run("docker", [
-    "inspect",
-    "supabase_db_NIX",
-    "--format",
-    "{{.Config.Image}}",
-  ]);
-  if (insp.status === 0 && insp.stdout.trim()) {
-    return insp.stdout.trim();
-  }
-  return IMAGE_FALLBACK;
-}
-
-async function psqlSql(sql) {
-  return run(
-    "psql",
-    [
-      "-X",
-      "-v",
-      "ON_ERROR_STOP=1",
-      "-h",
-      "127.0.0.1",
-      "-p",
-      String(HOST_PORT),
-      "-U",
-      PGUSER,
-      "-d",
-      "postgres",
-      "-At",
-      "-c",
-      sql,
-    ],
-    { env: buildSafePsqlEnv(PGPASSWORD) },
-  );
-}
-
-async function psqlFile(file) {
-  return run(
-    "psql",
-    [
-      "-X",
-      "-v",
-      "ON_ERROR_STOP=1",
-      "-h",
-      "127.0.0.1",
-      "-p",
-      String(HOST_PORT),
-      "-U",
-      PGUSER,
-      "-d",
-      "postgres",
-      "-f",
-      file,
-    ],
-    { env: buildSafePsqlEnv(PGPASSWORD) },
-  );
-}
-
-async function waitForPostgres(maxMs = 180_000) {
-  const start = Date.now();
-  while (Date.now() - start < maxMs) {
-    const r = await psqlSql(
-      "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') AND EXISTS (SELECT 1 FROM pg_namespace WHERE nspname='storage');",
-    );
-    if (r.status === 0 && r.stdout.trim() === "t") return true;
-    await new Promise((res) => setTimeout(res, 2000));
-  }
-  return false;
-}
 
 /** Storage tables live outside the postgres image; stub only what baseline needs. */
 const STORAGE_STUB_SQL = `
@@ -193,19 +103,126 @@ ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS is_anonymous boolean NOT NULL DEFAULT false;
 `;
 
-async function runPgTap(label, file) {
-  log(`RUN ${label}`);
-  const tap = await psqlFile(file);
-  const tapOut = tap.stdout + tap.stderr;
-  if (tap.status !== 0 || /not ok /i.test(tapOut)) {
-    console.error(`FAIL: ${label}`, tapOut);
-    return false;
-  }
-  log(`${label}_OK`);
-  return true;
+/**
+ * Default process runner used by CLI. Tests inject a stub via deps.run.
+ * @returns {(cmd: string, args: string[], opts?: { env?: NodeJS.ProcessEnv, cwd?: string }) => Promise<{ status: number, stdout: string, stderr: string }>}
+ */
+export function createDefaultRun() {
+  return function run(cmd, args, opts = {}) {
+    return new Promise((resolve) => {
+      const child = spawn(cmd, args, {
+        env: opts.env ?? process.env,
+        cwd: opts.cwd || ROOT,
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (d) => {
+        stdout += d;
+      });
+      child.stderr.on("data", (d) => {
+        stderr += d;
+      });
+      child.on("close", (status) =>
+        resolve({ status: status ?? 1, stdout, stderr }),
+      );
+    });
+  };
 }
 
-async function main() {
+function log(msg) {
+  console.log(msg);
+}
+
+/**
+ * Orchestrate isolated stack. Optional `deps.run` is for tests only — CLI has no new modes.
+ * @param {{ run?: ReturnType<typeof createDefaultRun> }} [deps]
+ * @returns {Promise<number>} final process exit code
+ */
+export async function runIsolatedMigrationVerify(deps = {}) {
+  const run = deps.run ?? createDefaultRun();
+
+  async function resolveImage() {
+    const insp = await run("docker", [
+      "inspect",
+      "supabase_db_NIX",
+      "--format",
+      "{{.Config.Image}}",
+    ]);
+    if (insp.status === 0 && insp.stdout.trim()) {
+      return insp.stdout.trim();
+    }
+    return IMAGE_FALLBACK;
+  }
+
+  async function psqlSql(sql) {
+    return run(
+      "psql",
+      [
+        "-X",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        String(HOST_PORT),
+        "-U",
+        PGUSER,
+        "-d",
+        "postgres",
+        "-At",
+        "-c",
+        sql,
+      ],
+      { env: buildSafePsqlEnv(PGPASSWORD) },
+    );
+  }
+
+  async function psqlFile(file) {
+    return run(
+      "psql",
+      [
+        "-X",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        String(HOST_PORT),
+        "-U",
+        PGUSER,
+        "-d",
+        "postgres",
+        "-f",
+        file,
+      ],
+      { env: buildSafePsqlEnv(PGPASSWORD) },
+    );
+  }
+
+  async function waitForPostgres(maxMs = 180_000) {
+    const start = Date.now();
+    while (Date.now() - start < maxMs) {
+      const r = await psqlSql(
+        "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') AND EXISTS (SELECT 1 FROM pg_namespace WHERE nspname='storage');",
+      );
+      if (r.status === 0 && r.stdout.trim() === "t") return true;
+      await new Promise((res) => setTimeout(res, 2000));
+    }
+    return false;
+  }
+
+  async function runPgTap(label, file) {
+    log(`RUN ${label}`);
+    const tap = await psqlFile(file);
+    const tapOut = tap.stdout + tap.stderr;
+    if (tap.status !== 0 || /not ok /i.test(tapOut)) {
+      console.error(`FAIL: ${label}`, tapOut);
+      return false;
+    }
+    log(`${label}_OK`);
+    return true;
+  }
+
   const id = randomUUID().replace(/-/g, "").slice(0, 12);
   const runId = randomUUID();
   const container = `c3b-mig-${id}`;
@@ -476,7 +493,7 @@ const isDirect =
   import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isDirect) {
-  main()
+  runIsolatedMigrationVerify()
     .then((code) => process.exit(code ?? 1))
     .catch((err) => {
       console.error(err);
