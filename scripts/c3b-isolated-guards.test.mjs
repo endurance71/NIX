@@ -6,13 +6,20 @@ import { fileURLToPath } from "node:url";
 import {
   assertGone,
   blockEgress,
+  buildInternalEgressScript,
   decideIpv6Lock,
   finalExitCode,
   interpretLoopbackProbe,
   interpretPublicProbe,
+  INTERNAL_IPV6_EGRESS_APPLY_SCRIPT,
   LOOPBACK_TCP_PROBE_SCRIPT,
+  lockAndVerifyRequiredServices,
+  lockStackInternalEgress,
+  performStackTeardown,
   performTeardown,
+  removeContainerAndAssertGone,
   verifyEgress,
+  withServiceNetnsSidecar,
 } from "./lib/c3b-isolated-guards.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -290,6 +297,297 @@ describe("verifyEgress with stubs", () => {
     const r = await verifyEgress(run, "ctr", { ipv6Enabled: true });
     assert.equal(r.ok, false);
     assert.equal(r.reason, "probe_unavailable");
+  });
+
+  it("nc-self loopback mode uses self-listen probe script", async () => {
+    const seen = [];
+    const run = stubRun([
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("TOOLS_") && !args.join(" ").includes("IPV6"),
+        result: { status: 0, stdout: "TOOLS_OK\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) => args.join(" ").includes("1.1.1.1"),
+        result: { status: 0, stdout: "EXIT:1\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) => {
+          const s = args.join(" ");
+          if (s.includes("18087") || s.includes("nc -l")) {
+            seen.push("nc-self");
+            return true;
+          }
+          return s.includes("psql -h 127.0.0.1");
+        },
+        result: { status: 0, stdout: "EXIT:0\n", stderr: "" },
+      },
+    ]);
+    const r = await verifyEgress(run, "ctr", {
+      ipv6Enabled: false,
+      loopbackMode: "nc-self",
+    });
+    assert.equal(r.ok, true);
+    assert.deepEqual(seen, ["nc-self"]);
+  });
+});
+
+describe("buildInternalEgressScript", () => {
+  it("allows loopback plus network CIDR then DROP", () => {
+    const s = buildInternalEgressScript("172.28.0.0/16");
+    assert.match(s, /127\.0\.0\.0\/8/);
+    assert.match(s, /-d 172\.28\.0\.0\/16 -j ACCEPT/);
+    assert.match(s, /iptables -P OUTPUT DROP/);
+  });
+
+  it("rejects non-CIDR input", () => {
+    assert.throws(() => buildInternalEgressScript("not-a-cidr"), /invalid network cidr/);
+  });
+
+  it("IPv6 internal script drops OUTPUT after ULA/link-local allow", () => {
+    assert.match(INTERNAL_IPV6_EGRESS_APPLY_SCRIPT, /fc00::\/7/);
+    assert.match(INTERNAL_IPV6_EGRESS_APPLY_SCRIPT, /ip6tables -P OUTPUT DROP/);
+  });
+});
+
+describe("lockStackInternalEgress", () => {
+  it("skips containers without iptables and locks others", async () => {
+    const run2 = async (cmd, args = []) => {
+      const key = `${cmd} ${args.join(" ")}`;
+      if (key.includes("apk add") || key.includes("apt-get")) {
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      if (args.includes("no-ipt") && key.includes("command -v iptables")) {
+        return { status: 1, stdout: "", stderr: "" };
+      }
+      if (
+        key.includes("command -v iptables") &&
+        !key.includes("ip6tables") &&
+        !key.includes("iptables -")
+      ) {
+        return { status: 0, stdout: "/sbin/iptables\n", stderr: "" };
+      }
+      if (key.includes("iptables -P OUTPUT DROP")) {
+        return { status: 0, stdout: "ok\n", stderr: "" };
+      }
+      if (key.includes("IPV6_ON") || key.includes("if_inet6")) {
+        return { status: 0, stdout: "IPV6_OFF\n", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: `unhandled ${key}` };
+    };
+    const r = await lockStackInternalEgress(run2, ["has-ipt", "no-ipt"], "172.28.0.0/16");
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.locked, ["has-ipt"]);
+    assert.deepEqual(r.skipped, ["no-ipt"]);
+    assert.equal(r.ipv6Enabled, false);
+  });
+});
+
+describe("lockAndVerifyRequiredServices", () => {
+  it("fail-closed when sidecar cannot start for a required service", async () => {
+    const run = stubRun([
+      { match: "docker rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker ps", result: { status: 0, stdout: "", stderr: "" } },
+      {
+        match: (cmd, args) =>
+          cmd === "docker" &&
+          args[0] === "run" &&
+          args.includes("--network") &&
+          args.some((a) => String(a).startsWith("container:")),
+        result: { status: 1, stdout: "", stderr: "cannot join netns" },
+      },
+    ]);
+    const r = await lockAndVerifyRequiredServices(
+      run,
+      [{ name: "svc-auth", internalPeer: { host: "db", port: 5432 } }],
+      { image: "c3b-alpine-iptables:3.20", cidr: "172.28.0.0/16" },
+    );
+    assert.equal(r.ok, false);
+    assert.match(r.detail, /svc-auth: sidecar/);
+    assert.deepEqual(r.locked, []);
+  });
+
+  it("locks and probes every required service without skip", async () => {
+    const tracked = [];
+    const run = stubRun([
+      { match: "docker rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker ps", result: { status: 0, stdout: "", stderr: "" } },
+      {
+        match: (cmd, args) =>
+          cmd === "docker" &&
+          args[0] === "run" &&
+          args.includes("--network") &&
+          args.some((a) => String(a).startsWith("container:")),
+        result: { status: 0, stdout: "sidecar\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("command -v iptables") && !args.join(" ").includes("ip6"),
+        result: { status: 0, stdout: "/sbin/iptables\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("iptables -F") ||
+          args.join(" ").includes("iptables -A") ||
+          args.join(" ").includes("iptables -P") ||
+          args.join(" ").includes("iptables -L"),
+        result: { status: 0, stdout: "Chain OUTPUT\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("if_inet6") || args.join(" ").includes("IPV6_ON"),
+        result: { status: 0, stdout: "IPV6_OFF\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("TOOLS_") && !args.join(" ").includes("IPV6"),
+        result: { status: 0, stdout: "TOOLS_OK\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) => args.join(" ").includes("1.1.1.1"),
+        result: { status: 0, stdout: "EXIT:1\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) =>
+          args.join(" ").includes("18087") || args.join(" ").includes("nc -l"),
+        result: { status: 0, stdout: "EXIT:0\n", stderr: "" },
+      },
+      {
+        match: (cmd, args) => args.join(" ").includes("nc -z"),
+        result: { status: 0, stdout: "EXIT:0\n", stderr: "" },
+      },
+    ]);
+    const r = await lockAndVerifyRequiredServices(
+      run,
+      [
+        { name: "svc-db", internalPeer: { host: "127.0.0.1", port: 5432 } },
+        { name: "svc-auth", internalPeer: { host: "db", port: 5432 } },
+      ],
+      {
+        image: "c3b-alpine-iptables:3.20",
+        cidr: "172.28.0.0/16",
+        onSidecarCreated: (n) => tracked.push(n),
+      },
+    );
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.locked, ["svc-db", "svc-auth"]);
+    assert.equal(r.details.length, 2);
+    assert.deepEqual(tracked, ["svc-db-netlock", "svc-auth-netlock"]);
+  });
+});
+
+describe("withServiceNetnsSidecar cleanup", () => {
+  it("docker rm status 1 after work → ok false (not ok true)", async () => {
+    let rmCalls = 0;
+    const run = stubRun([
+      {
+        match: "docker rm",
+        result: () => {
+          rmCalls += 1;
+          // pre-clean ok; post-work cleanup fails
+          if (rmCalls === 1) {
+            return { status: 0, stdout: "", stderr: "" };
+          }
+          return { status: 1, stdout: "", stderr: "busy" };
+        },
+      },
+      { match: "docker ps", result: { status: 0, stdout: "", stderr: "" } },
+      {
+        match: (cmd, args) =>
+          cmd === "docker" &&
+          args[0] === "run" &&
+          args.some((a) => String(a).startsWith("container:")),
+        result: { status: 0, stdout: "sid\n", stderr: "" },
+      },
+    ]);
+    const session = await withServiceNetnsSidecar(run, {
+      serviceCtr: "svc-x",
+      image: "img",
+      work: async () => ({ hello: true }),
+    });
+    assert.equal(session.ok, false);
+    assert.equal(session.cleanupFailed, true);
+    assert.match(session.detail, /sidecar cleanup/);
+  });
+
+  it("rm status 0 but container still listed → ok false", async () => {
+    let phase = "pre";
+    const run2 = async (cmd, args = []) => {
+      const key = `${cmd} ${args.join(" ")}`;
+      if (key.includes("docker rm")) {
+        if (phase === "pre") {
+          phase = "run";
+          return { status: 0, stdout: "", stderr: "" };
+        }
+        phase = "post-rm";
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      if (key.includes("docker ps")) {
+        if (phase === "post-rm") {
+          return { status: 0, stdout: "abc123\n", stderr: "" };
+        }
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      if (key.includes("docker run") && key.includes("container:")) {
+        phase = "work";
+        return { status: 0, stdout: "sid\n", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: `unhandled ${key}` };
+    };
+    const session = await withServiceNetnsSidecar(run2, {
+      serviceCtr: "svc-y",
+      image: "img",
+      work: async () => ({ ok: true }),
+    });
+    assert.equal(session.ok, false);
+    assert.equal(session.cleanupFailed, true);
+    assert.match(session.detail, /still present|sidecar cleanup/);
+  });
+
+  it("removeContainerAndAssertGone fails when rm status is non-zero", async () => {
+    const run = stubRun([
+      { match: "docker rm", result: { status: 1, stdout: "", stderr: "denied" } },
+    ]);
+    const r = await removeContainerAndAssertGone(run, "c3b-x");
+    assert.equal(r.ok, false);
+    assert.match(r.detail, /denied|status=1/);
+  });
+});
+
+describe("performStackTeardown", () => {
+  it("removes containers, network, volumes and verifies gone", async () => {
+    const run = stubRun([
+      { match: "docker rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker network rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker volume rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker ps", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker network ls", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker volume ls", result: { status: 0, stdout: "", stderr: "" } },
+    ]);
+    const { teardownOk } = await performStackTeardown(run, {
+      containers: ["c3b-a", "c3b-b"],
+      network: "c3b-net",
+      volumes: ["c3b-vol"],
+    });
+    assert.equal(teardownOk, true);
+  });
+
+  it("leftover volume → teardownOk false", async () => {
+    const run = stubRun([
+      { match: "docker rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker network rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker volume rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker ps", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker network ls", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker volume ls", result: { status: 0, stdout: "c3b-vol\n", stderr: "" } },
+    ]);
+    const { teardownOk, leftover } = await performStackTeardown(run, {
+      containers: ["c3b-a"],
+      network: "c3b-net",
+      volumes: ["c3b-vol"],
+    });
+    assert.equal(teardownOk, false);
+    assert.match(String(leftover), /volume still present/);
   });
 });
 

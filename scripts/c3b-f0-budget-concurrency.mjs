@@ -12,7 +12,7 @@
  * - C3B_CONC_USE_TEMPLATE=1: CREATE DATABASE … TEMPLATE postgres (migrated schema);
  *   if source is busy → exit 2 BLOCKED (without terminating other sessions)
  * - C3B_CONC_FORCE_FAIL=1: fail after create/bootstrap; still DROP + role snapshot check
- * - C3B_CONC_DIRECT=1: race on admin DB `postgres` (isolated stack :15432 only);
+ * - C3B_CONC_DIRECT=1: race on admin DB `postgres` (isolated :15432 / authstore :15532);
  *   no CREATE/DROP DATABASE (container is disposable)
  *
  * Connection target is never passed as a raw URI to psql.
@@ -26,7 +26,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildSafePsqlEnv } from "./lib/safe-psql-env.mjs";
 
-const ALLOWED_LOCAL_PORTS = new Set([54322, 15432]);
+const ALLOWED_LOCAL_PORTS = new Set([54322, 15432, 15532]);
+const DIRECT_PORTS = new Set([15432, 15532]);
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 const ADMIN_DB = "postgres";
 const BOOTSTRAP_SQL = join(
@@ -244,8 +245,10 @@ async function main() {
   const useTemplate = process.env.C3B_CONC_USE_TEMPLATE === "1";
   const forceFail = process.env.C3B_CONC_FORCE_FAIL === "1";
   const useDirect = process.env.C3B_CONC_DIRECT === "1";
-  if (useDirect && allowedPort !== 15432) {
-    exitBlocked("BLOCKED: C3B_CONC_DIRECT=1 only allowed with C3B_CONC_ALLOW_PORT=15432");
+  if (useDirect && !DIRECT_PORTS.has(allowedPort)) {
+    exitBlocked(
+      "BLOCKED: C3B_CONC_DIRECT=1 only allowed with C3B_CONC_ALLOW_PORT=15432|15532",
+    );
   }
   if (useDirect && useTemplate) {
     exitBlocked("BLOCKED: C3B_CONC_DIRECT=1 and C3B_CONC_USE_TEMPLATE=1 are mutually exclusive");
