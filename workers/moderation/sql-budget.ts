@@ -23,7 +23,10 @@ export function sqlBudgetLedger(
       if (error) throw new Error("budget_reserve_failed");
       const row = data as Record<string, unknown> | null;
       if (!row || row.ok !== true) {
-        return { ok: false, reason: WAITING_BUDGET } satisfies ReserveResult;
+        const reason = row?.reason === "attempt_already_terminal"
+          ? "attempt_already_terminal"
+          : WAITING_BUDGET;
+        return { ok: false, reason } satisfies ReserveResult;
       }
       return {
         ok: true,

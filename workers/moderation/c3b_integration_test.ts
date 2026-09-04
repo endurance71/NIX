@@ -153,6 +153,94 @@ Deno.test("uncertain provider failure does not release budget", async () => {
   assert(snap.consumedTxn === 1 && snap.reservedTxn === 0);
 });
 
+Deno.test("open attempt reserve is idempotent; terminal blocks free retry", async () => {
+  const ledger = createMemoryBudgetLedger({ hardBudget: 5 });
+  const attempt = crypto.randomUUID();
+  const first = await ledger.reserve("text", 1, "j1", attempt);
+  assert(first.ok);
+  const again = await ledger.reserve("text", 1, "j1", attempt);
+  assert(again.ok && again.idempotent === true);
+  assert(again.reservationId === first.reservationId);
+  await ledger.confirm(first.reservationId);
+  const terminal = await ledger.reserve("text", 1, "j1", attempt);
+  assert(!terminal.ok && terminal.reason === "attempt_already_terminal");
+  const charged = await ledger.reserve("text", 1, "j1", crypto.randomUUID());
+  assert(charged.ok);
+  const snap = await ledger.snapshot();
+  assert(snap.consumedTxn === 1 && snap.reservedTxn === 1);
+});
+
+Deno.test("memory ledger rejects hardBudget above F0_HARD_BUDGET", () => {
+  let failed = false;
+  try {
+    createMemoryBudgetLedger({ hardBudget: F0_HARD_BUDGET + 1 });
+  } catch (e) {
+    failed = e instanceof Error && e.message === "invalid_hard_budget";
+  }
+  assert(failed);
+});
+
+Deno.test("release then same attempt_id cannot free-retry", async () => {
+  const ledger = createMemoryBudgetLedger({ hardBudget: 5 });
+  const attempt = crypto.randomUUID();
+  const r = await ledger.reserve("image", 1, "j1", attempt);
+  assert(r.ok);
+  await ledger.releaseIfUnused(r.reservationId);
+  const retry = await ledger.reserve("image", 1, "j1", attempt);
+  assert(!retry.ok && retry.reason === "attempt_already_terminal");
+  const snap = await ledger.snapshot();
+  assert(snap.reservedTxn === 0 && snap.consumedTxn === 0);
+});
+
+Deno.test("abort before send releases; abort after send does not", async () => {
+  const ledger = createMemoryBudgetLedger({ hardBudget: 5 });
+  const before = crypto.randomUUID();
+  const reserved = await ledger.reserve("text", 1, "j1", before);
+  assert(reserved.ok);
+  await ledger.releaseIfUnused(reserved.reservationId);
+  let snap = await ledger.snapshot();
+  assert(snap.reservedTxn === 0);
+
+  const after = crypto.randomUUID();
+  const r2 = await ledger.reserve("text", 1, "j1", after);
+  assert(r2.ok);
+  await ledger.confirm(r2.reservationId);
+  await ledger.releaseIfUnused(r2.reservationId);
+  snap = await ledger.snapshot();
+  assert(snap.consumedTxn === 1 && snap.reservedTxn === 0);
+});
+
+Deno.test("retry text/JPEG/video each charge a new attempt", async () => {
+  const dir = await makeTempDir();
+  const jpeg = `${dir}/r.jpg`;
+  const mp4 = `${dir}/r.mp4`;
+  await writeMinimalJpeg(jpeg);
+  await synthesizeMp4(mp4, { seconds: 1 });
+  try {
+    const ledger = createMemoryBudgetLedger({ hardBudget: 50 });
+    for (const kind of ["text", "image", "video"] as const) {
+      for (let i = 0; i < 2; i++) {
+        const job = kind === "text"
+          ? { id: `retry-t-${i}`, kind, text: "hello" as string }
+          : kind === "image"
+          ? { id: `retry-i-${i}`, kind, path: jpeg }
+          : { id: `retry-v-${i}`, kind, path: mp4 };
+        const q = createMemoryIntegrationQueue([job]);
+        const p = createFakeProvider("safe", { gapMs: 0 });
+        const out = await createIntegrationWorker(q, p, ledger, {
+          timeoutMs: 30_000,
+        }).tick();
+        assert(out?.decision === "approved", `${kind} retry ${i}`);
+      }
+    }
+    const snap = await ledger.snapshot();
+    // 2 text + 2 image + 2 video×(>=1 frame) — at least 6 consumed.
+    assert(snap.consumedTxn >= 6);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("text approve and reject via fake provider", async () => {
   const dir = await makeTempDir();
   try {

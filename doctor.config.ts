@@ -106,6 +106,27 @@ export default {
         files: ['supabase/functions/process-data-exports/index.ts'],
         rules: ['react-doctor/async-await-in-loop'],
       },
+      {
+        // Deno moderation worker entrypoints and helpers are exercised by `deno test`
+        // / npm scripts; react-doctor's import graph does not treat them as used.
+        files: ['workers/moderation/**'],
+        rules: ['deslop/unused-file'],
+      },
+      {
+        // Sequential by design: recover→materialize ordering, single-flight claim,
+        // and Azure/F0 budget rate limits must not be parallelized via Promise.all.
+        files: [
+          'workers/moderation/core.ts',
+          'workers/moderation/rpc-queue.ts',
+          'workers/moderation/benchmark.ts',
+        ],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Offline evidence summarizer: two independent filter passes over NDJSON lines.
+        files: ['workers/moderation/summarize-evidence.mjs'],
+        rules: ['react-doctor/js-combine-iterations'],
+      },
     ],
   },
 };

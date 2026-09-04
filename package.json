@@ -42,7 +42,12 @@
     "doctor:react:score": "react-doctor . --score",
     "doctor:react:changed": "react-doctor . --scope changed --base origin/main --blocking warning --no-color",
     "postinstall": "patch-package",
-    "check:toolchain": "node scripts/check-toolchain.mjs"
+    "check:toolchain": "node scripts/check-toolchain.mjs",
+    "test:moderation-worker": "deno test --no-config --allow-read --allow-write --allow-run workers/moderation",
+    "audit:high": "npm audit --audit-level=high",
+    "test:c3b-budget-concurrency": "node scripts/c3b-f0-budget-concurrency.mjs",
+    "test:c3b-budget-concurrency-validate": "node --test scripts/c3b-f0-budget-concurrency-validate.test.mjs scripts/safe-psql-env.test.mjs scripts/c3b-isolated-guards.test.mjs",
+    "test:c3b-isolated-migrations": "node scripts/c3b-isolated-migration-verify.mjs"
   },
   "dependencies": {
     "@expo/ui": "~57.0.13",
@@ -118,8 +123,8 @@
     "react-doctor": "^0.9.12",
     "sf-symbols-typescript": "^2.2.0",
     "typescript": "~6.0.3",
-    "xcode": "3.0.1",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "xcode": "3.0.1"
   },
   "private": true,
   "overrides": {
