@@ -17,7 +17,9 @@ import {
   lockStackInternalEgress,
   performStackTeardown,
   performTeardown,
+  removeContainerAndAssertGone,
   verifyEgress,
+  withServiceNetnsSidecar,
 } from "./lib/c3b-isolated-guards.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -385,6 +387,7 @@ describe("lockAndVerifyRequiredServices", () => {
   it("fail-closed when sidecar cannot start for a required service", async () => {
     const run = stubRun([
       { match: "docker rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker ps", result: { status: 0, stdout: "", stderr: "" } },
       {
         match: (cmd, args) =>
           cmd === "docker" &&
@@ -405,8 +408,10 @@ describe("lockAndVerifyRequiredServices", () => {
   });
 
   it("locks and probes every required service without skip", async () => {
+    const tracked = [];
     const run = stubRun([
       { match: "docker rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker ps", result: { status: 0, stdout: "", stderr: "" } },
       {
         match: (cmd, args) =>
           cmd === "docker" &&
@@ -458,11 +463,94 @@ describe("lockAndVerifyRequiredServices", () => {
         { name: "svc-db", internalPeer: { host: "127.0.0.1", port: 5432 } },
         { name: "svc-auth", internalPeer: { host: "db", port: 5432 } },
       ],
-      { image: "c3b-alpine-iptables:3.20", cidr: "172.28.0.0/16" },
+      {
+        image: "c3b-alpine-iptables:3.20",
+        cidr: "172.28.0.0/16",
+        onSidecarCreated: (n) => tracked.push(n),
+      },
     );
     assert.equal(r.ok, true);
     assert.deepEqual(r.locked, ["svc-db", "svc-auth"]);
     assert.equal(r.details.length, 2);
+    assert.deepEqual(tracked, ["svc-db-netlock", "svc-auth-netlock"]);
+  });
+});
+
+describe("withServiceNetnsSidecar cleanup", () => {
+  it("docker rm status 1 after work → ok false (not ok true)", async () => {
+    let rmCalls = 0;
+    const run = stubRun([
+      {
+        match: "docker rm",
+        result: () => {
+          rmCalls += 1;
+          // pre-clean ok; post-work cleanup fails
+          if (rmCalls === 1) {
+            return { status: 0, stdout: "", stderr: "" };
+          }
+          return { status: 1, stdout: "", stderr: "busy" };
+        },
+      },
+      { match: "docker ps", result: { status: 0, stdout: "", stderr: "" } },
+      {
+        match: (cmd, args) =>
+          cmd === "docker" &&
+          args[0] === "run" &&
+          args.some((a) => String(a).startsWith("container:")),
+        result: { status: 0, stdout: "sid\n", stderr: "" },
+      },
+    ]);
+    const session = await withServiceNetnsSidecar(run, {
+      serviceCtr: "svc-x",
+      image: "img",
+      work: async () => ({ hello: true }),
+    });
+    assert.equal(session.ok, false);
+    assert.equal(session.cleanupFailed, true);
+    assert.match(session.detail, /sidecar cleanup/);
+  });
+
+  it("rm status 0 but container still listed → ok false", async () => {
+    let phase = "pre";
+    const run2 = async (cmd, args = []) => {
+      const key = `${cmd} ${args.join(" ")}`;
+      if (key.includes("docker rm")) {
+        if (phase === "pre") {
+          phase = "run";
+          return { status: 0, stdout: "", stderr: "" };
+        }
+        phase = "post-rm";
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      if (key.includes("docker ps")) {
+        if (phase === "post-rm") {
+          return { status: 0, stdout: "abc123\n", stderr: "" };
+        }
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      if (key.includes("docker run") && key.includes("container:")) {
+        phase = "work";
+        return { status: 0, stdout: "sid\n", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: `unhandled ${key}` };
+    };
+    const session = await withServiceNetnsSidecar(run2, {
+      serviceCtr: "svc-y",
+      image: "img",
+      work: async () => ({ ok: true }),
+    });
+    assert.equal(session.ok, false);
+    assert.equal(session.cleanupFailed, true);
+    assert.match(session.detail, /still present|sidecar cleanup/);
+  });
+
+  it("removeContainerAndAssertGone fails when rm status is non-zero", async () => {
+    const run = stubRun([
+      { match: "docker rm", result: { status: 1, stdout: "", stderr: "denied" } },
+    ]);
+    const r = await removeContainerAndAssertGone(run, "c3b-x");
+    assert.equal(r.ok, false);
+    assert.match(r.detail, /denied|status=1/);
   });
 });
 

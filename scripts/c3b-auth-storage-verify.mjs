@@ -684,10 +684,20 @@ export async function runAuthStorageVerify(deps = {}) {
     const locked = await lockAndVerifyRequiredServices(run, required, {
       image: IMAGE_PEER,
       cidr: cidrInfo.cidr,
+      onSidecarCreated: (name) => {
+        if (!containers.includes(name)) {
+          containers.push(name);
+        }
+      },
     });
     if (!locked.ok) {
-      console.error("BLOCKED: service netns egress lock/probe failed:", locked.detail);
-      tryExit = 2;
+      if (locked.cleanupFailed) {
+        console.error("FAIL: sidecar cleanup:", locked.detail);
+        tryExit = 1;
+      } else {
+        console.error("BLOCKED: service netns egress lock/probe failed:", locked.detail);
+        tryExit = 2;
+      }
       return;
     }
     if (locked.locked.length !== required.length) {

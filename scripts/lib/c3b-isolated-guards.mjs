@@ -380,19 +380,56 @@ export async function lockStackInternalEgress(run, containers, cidr, opts = {}) 
 }
 
 /**
+ * docker rm -f + assertGone. Fail-closed: rm status or leftover → not ok.
+ * @param {RunFn} run
+ * @param {string} container
+ * @returns {Promise<{ ok: boolean, detail: string }>}
+ */
+export async function removeContainerAndAssertGone(run, container) {
+  const name = String(container || "").trim();
+  if (!name) {
+    return { ok: false, detail: "empty container name" };
+  }
+  const rm = await run("docker", ["rm", "-f", name]);
+  if (rm.status !== 0) {
+    return {
+      ok: false,
+      detail: rm.stderr || rm.stdout || `docker rm -f ${name} status=${rm.status}`,
+    };
+  }
+  const leftover = await assertGone(run, { containers: [name] });
+  if (leftover) {
+    return { ok: false, detail: leftover };
+  }
+  return { ok: true, detail: `${name} gone` };
+}
+
+/**
  * Run work inside a temporary NET_ADMIN sidecar attached to a service's network namespace.
  * Iptables rules applied in the shared netns persist after the sidecar is removed.
+ * Cleanup failure never returns ok: true.
  * @param {RunFn} run
  * @param {{
  *   serviceCtr: string,
  *   image: string,
  *   work: (sidecar: string) => Promise<unknown>,
+ *   onSidecarCreated?: (sidecar: string) => void,
  * }} opts
  */
 export async function withServiceNetnsSidecar(run, opts) {
-  const { serviceCtr, image, work } = opts;
+  const { serviceCtr, image, work, onSidecarCreated } = opts;
   const sidecar = `${serviceCtr}-netlock`;
-  await run("docker", ["rm", "-f", sidecar]);
+
+  const preClean = await removeContainerAndAssertGone(run, sidecar);
+  if (!preClean.ok) {
+    return {
+      ok: false,
+      detail: `pre-clean: ${preClean.detail}`,
+      result: null,
+      cleanupFailed: true,
+    };
+  }
+
   const started = await run("docker", [
     "run",
     "-d",
@@ -406,12 +443,19 @@ export async function withServiceNetnsSidecar(run, opts) {
     "600",
   ]);
   if (started.status !== 0) {
+    const postFail = await removeContainerAndAssertGone(run, sidecar);
     return {
       ok: false,
       detail: started.stderr || started.stdout || "sidecar start failed",
       result: null,
+      cleanupFailed: !postFail.ok,
     };
   }
+
+  if (typeof onSidecarCreated === "function") {
+    onSidecarCreated(sidecar);
+  }
+
   let result = null;
   let workError = null;
   try {
@@ -419,11 +463,21 @@ export async function withServiceNetnsSidecar(run, opts) {
   } catch (err) {
     workError = err;
   }
-  await run("docker", ["rm", "-f", sidecar]);
+
+  const cleaned = await removeContainerAndAssertGone(run, sidecar);
+  if (!cleaned.ok) {
+    return {
+      ok: false,
+      detail: `sidecar cleanup: ${cleaned.detail}`,
+      result,
+      cleanupFailed: true,
+      workError,
+    };
+  }
   if (workError) {
     throw workError;
   }
-  return { ok: true, detail: "ok", result };
+  return { ok: true, detail: "ok", result, cleanupFailed: false };
 }
 
 /**
@@ -435,6 +489,7 @@ export async function withServiceNetnsSidecar(run, opts) {
  *   cidr: string,
  *   internalPeer?: { host: string, port: number } | null,
  *   loopbackMode?: "psql" | "nc-self",
+ *   onSidecarCreated?: (sidecar: string) => void,
  * }} opts
  */
 export async function lockAndVerifyServiceNetns(run, opts) {
@@ -444,11 +499,13 @@ export async function lockAndVerifyServiceNetns(run, opts) {
     cidr,
     internalPeer = null,
     loopbackMode = "nc-self",
+    onSidecarCreated,
   } = opts;
 
   const session = await withServiceNetnsSidecar(run, {
     serviceCtr,
     image,
+    onSidecarCreated,
     work: async (sidecar) => {
       const lock = await blockInternalEgress(run, sidecar, cidr, {
         allowInstall: false,
@@ -501,6 +558,16 @@ export async function lockAndVerifyServiceNetns(run, opts) {
     },
   });
 
+  if (session.cleanupFailed) {
+    return {
+      ok: false,
+      stage: "cleanup",
+      detail: session.detail,
+      ipv6Enabled: false,
+      peerDetail: null,
+      cleanupFailed: true,
+    };
+  }
   if (!session.ok) {
     return {
       ok: false,
@@ -508,6 +575,7 @@ export async function lockAndVerifyServiceNetns(run, opts) {
       detail: session.detail,
       ipv6Enabled: false,
       peerDetail: null,
+      cleanupFailed: false,
     };
   }
   if (!session.result || typeof session.result !== "object") {
@@ -517,6 +585,7 @@ export async function lockAndVerifyServiceNetns(run, opts) {
       detail: "sidecar work returned no result",
       ipv6Enabled: false,
       peerDetail: null,
+      cleanupFailed: false,
     };
   }
   return session.result;
@@ -524,13 +593,18 @@ export async function lockAndVerifyServiceNetns(run, opts) {
 
 /**
  * Lock+verify every required service netns. Any failure → ok:false (never skip).
+ * cleanupFailed → caller should use exit 1 (not BLOCKED/2).
  * @param {RunFn} run
  * @param {Array<{
  *   name: string,
  *   internalPeer?: { host: string, port: number } | null,
  *   loopbackMode?: "psql" | "nc-self",
  * }>} services
- * @param {{ image: string, cidr: string }} opts
+ * @param {{
+ *   image: string,
+ *   cidr: string,
+ *   onSidecarCreated?: (sidecar: string) => void,
+ * }} opts
  */
 export async function lockAndVerifyRequiredServices(run, services, opts) {
   const locked = [];
@@ -543,6 +617,7 @@ export async function lockAndVerifyRequiredServices(run, services, opts) {
       cidr: opts.cidr,
       internalPeer: svc.internalPeer ?? null,
       loopbackMode: svc.loopbackMode ?? "nc-self",
+      onSidecarCreated: opts.onSidecarCreated,
     });
     if (!r.ok) {
       return {
@@ -551,6 +626,7 @@ export async function lockAndVerifyRequiredServices(run, services, opts) {
         locked,
         details,
         ipv6Enabled,
+        cleanupFailed: r.stage === "cleanup" || Boolean(r.cleanupFailed),
       };
     }
     locked.push(svc.name);
@@ -567,6 +643,7 @@ export async function lockAndVerifyRequiredServices(run, services, opts) {
     locked,
     details,
     ipv6Enabled,
+    cleanupFailed: false,
   };
 }
 
