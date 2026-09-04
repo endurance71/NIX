@@ -31,13 +31,13 @@ Still **forbidden** until separate written GO:
 - Production `db push` / contract expand-contract on prod
 - Azure Content Safety **live** calls (beyond previously approved spike accounting)
 - `pre_delivery_moderation_enabled` on production
-- §6 Decisions 1–4 as GO without human Portal / C2 updates
+- §6 Decisions 2–4 / Accepted C2 without owner GO (F0 Monitor reconcile already done; S0 admin still open)
 - Public App Review / Privacy Policy claims of automatic UGC scan
 - Paid EAS / Expo CI re-run “to unblock” #24
 
 Flag remains **OFF**. Offline/fake provider paths only.
 
-F0 budget interim (ops, not a GO): `external_used` floor **3624** / remaining **376** (historical spike accounting **3414** only). See next-gate + §6 append.
+F0 budget (ops, not a GO): Monitor/MCP exact **3523**; `external_used` **3624** / remaining **376** (to F0 5000: **1376**); historical spike **3414**. See next-gate + §6 append.
 
 ## Next docs
 

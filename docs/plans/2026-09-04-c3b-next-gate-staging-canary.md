@@ -17,12 +17,13 @@ This stage does **not** include:
 
 ## Preconditions (must be filed outside Git)
 
-1. Portal reconcile F0 txn (§6 Decision 1) → `~/.nix-ops/p0-3-s6/portal-reconcile-YYYYMMDD.md`
-2. `external_used` floor = `max(portal_monthly_txn_now, 3624)`; remaining = `4000 - external_used` ≥ planned cap (interim remaining **376** if Portal unread)
+1. F0 reconcile (§6 Decision 1) — **DONE** via authenticated Azure Monitor / MCP → `~/.nix-ops/p0-3-s6/F0-MONITOR-MCP-20260904.md` / `portal-reconcile-20260904.md`
+2. `external_used` = `max(3523, 3624)` = **3624**; remaining to 4000 = **376** (to F0 5000 = **1376**)
 3. Written F0-after-2026-10-01 confirmation if the window crosses that date (§6 Decision 2)
 4. Staging Decision 3 = **GO** with named signer
 5. Runtime: `ffmpeg` / `ffprobe` on PATH for any worker/video path (see spike runbook)
 6. C3B code on `main` (merge `5d3cd41`+) with flag still OFF on prod
+7. C2 **Accepted** (owner) — still **Proposed**; S0 admin exact **or** activated exception still open
 
 ## Staging + canary shape
 
@@ -40,12 +41,15 @@ This stage does **not** include:
 | Field | Value |
 | --- | --- |
 | Hard operational ceiling | **4000** txn/month (1000 of F0 5000 = untouchable reserve) |
-| `external_used` floor (interim) | **3624** (F0 hybrid ledger; supersedes historical spike **3414**) until Portal recheck |
-| Remaining if Portal unread | **376** (`4000 − 3624`) — insufficient for new live matrix |
-| Portal reconcile | **PENDING** human |
+| F0 month-to-date exact (Azure Monitor / MCP) | **3523** (3499 image + 24 text) |
+| `external_used` operational floor | **3624** = `max(3523, 3624)` (hybrid ledger; historical spike **3414**) |
+| Remaining to ops **4000** | **376** — insufficient for new live matrix |
+| Remaining to F0 **5000** | **1376** |
+| F0 reconcile | **DONE** (MCP) |
+| Open admin | Deleted S0 exact usage unavailable (exception proposal inactive) |
 | Cost target | **0 PLN** Azure incremental beyond accounted F0 |
 
-Do not re-run high-risk matrix to “match” Portal numbers.
+Do not re-run high-risk matrix to “match” Monitor numbers.
 
 ## Rollback
 
