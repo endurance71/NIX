@@ -6,11 +6,13 @@ import { fileURLToPath } from "node:url";
 import {
   assertGone,
   blockEgress,
+  buildInternalEgressScript,
   decideIpv6Lock,
   finalExitCode,
   interpretLoopbackProbe,
   interpretPublicProbe,
   LOOPBACK_TCP_PROBE_SCRIPT,
+  performStackTeardown,
   performTeardown,
   verifyEgress,
 } from "./lib/c3b-isolated-guards.mjs";
@@ -290,6 +292,56 @@ describe("verifyEgress with stubs", () => {
     const r = await verifyEgress(run, "ctr", { ipv6Enabled: true });
     assert.equal(r.ok, false);
     assert.equal(r.reason, "probe_unavailable");
+  });
+});
+
+describe("buildInternalEgressScript", () => {
+  it("allows loopback plus network CIDR then DROP", () => {
+    const s = buildInternalEgressScript("172.28.0.0/16");
+    assert.match(s, /127\.0\.0\.0\/8/);
+    assert.match(s, /-d 172\.28\.0\.0\/16 -j ACCEPT/);
+    assert.match(s, /iptables -P OUTPUT DROP/);
+  });
+
+  it("rejects non-CIDR input", () => {
+    assert.throws(() => buildInternalEgressScript("not-a-cidr"), /invalid network cidr/);
+  });
+});
+
+describe("performStackTeardown", () => {
+  it("removes containers, network, volumes and verifies gone", async () => {
+    const run = stubRun([
+      { match: "docker rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker network rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker volume rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker ps", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker network ls", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker volume ls", result: { status: 0, stdout: "", stderr: "" } },
+    ]);
+    const { teardownOk } = await performStackTeardown(run, {
+      containers: ["c3b-a", "c3b-b"],
+      network: "c3b-net",
+      volumes: ["c3b-vol"],
+    });
+    assert.equal(teardownOk, true);
+  });
+
+  it("leftover volume → teardownOk false", async () => {
+    const run = stubRun([
+      { match: "docker rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker network rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker volume rm", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker ps", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker network ls", result: { status: 0, stdout: "", stderr: "" } },
+      { match: "docker volume ls", result: { status: 0, stdout: "c3b-vol\n", stderr: "" } },
+    ]);
+    const { teardownOk, leftover } = await performStackTeardown(run, {
+      containers: ["c3b-a"],
+      network: "c3b-net",
+      volumes: ["c3b-vol"],
+    });
+    assert.equal(teardownOk, false);
+    assert.match(String(leftover), /volume still present/);
   });
 });
 

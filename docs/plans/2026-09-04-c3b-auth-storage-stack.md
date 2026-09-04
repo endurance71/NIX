@@ -1,0 +1,24 @@
+# C3B disposable Auth/Storage stack — 2026-09-04
+
+**Branch:** `codex/c3b-auth-storage`  
+**Depends on:** PR #23 tip (`run` inject). **Not** a production GO.
+
+## Stack
+
+Pinned images: Postgres `17.6.1.165`, GoTrue `v2.193.0`, storage-api `v1.65.1`, Kong `2.8.1`.  
+Ports: `127.0.0.1:15532` (db), `127.0.0.1:15521` (kong). Prefix `c3b-authstore-*`.  
+Bridge network (not `--internal`) + Postgres iptables allow CIDR (`buildInternalEgressScript`).  
+Cleanup: `performStackTeardown` (containers + network + volumes).
+
+## Commands
+
+| Command | Meaning |
+| --- | --- |
+| `test:c3b-budget-concurrency-validate` | includes authstore offline stubs |
+| `test:c3b-auth-storage` | Path A live |
+| `test:c3b-auth-storage-b` | Path B live (tip `20260831150000_…`) |
+
+## Evidence
+
+`~/.nix-ops/p0-3-c3b-audit-fixes/STAGE-auth-storage-real-stack.md` + SHA-tagged run logs.  
+Everyday `supabase_db_NIX` untouched. Azure / flag / §6 / App Review **NO-GO**. 0 zł EAS.

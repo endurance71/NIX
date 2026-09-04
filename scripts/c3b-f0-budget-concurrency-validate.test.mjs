@@ -42,6 +42,14 @@ describe("parseApprovedLocalTarget", () => {
     assert.equal(t.port, 15432);
   });
 
+  it("accepts authstore stack port 15532 when allowed", () => {
+    const t = parseApprovedLocalTarget(
+      "postgresql://postgres:postgres@127.0.0.1:15532/postgres",
+      { allowedPort: 15532 },
+    );
+    assert.equal(t.port, 15532);
+  });
+
   it("rejects remote host", () => {
     assert.throws(
       () =>

@@ -131,14 +131,26 @@ export function finalExitCode(tryExit, teardownOk) {
  */
 
 /**
- * Verify container/network are gone; treat docker CLI errors as TEARDOWN_FAIL.
+ * Verify containers/network/volumes are gone; docker CLI errors → TEARDOWN_FAIL.
+ * Accepts legacy `{ container, network }` or stack `{ containers[], network, volumes[] }`.
  * @param {RunFn} run
- * @param {{ container?: string, network?: string }} names
+ * @param {{
+ *   container?: string,
+ *   containers?: string[],
+ *   network?: string,
+ *   volumes?: string[],
+ * }} names
  * @returns {Promise<string | null>} error message or null if gone
  */
 export async function assertGone(run, names) {
-  const { container, network } = names;
-  if (container) {
+  const containers = [
+    ...(names.containers ?? []),
+    ...(names.container ? [names.container] : []),
+  ].filter(Boolean);
+  const volumes = (names.volumes ?? []).filter(Boolean);
+  const network = names.network || "";
+
+  for (const container of containers) {
     const ctr = await run("docker", ["ps", "-aq", "-f", `name=^/${container}$`]);
     if (ctr.status !== 0) {
       return `cannot_verify container gone: docker ps status=${ctr.status}`;
@@ -156,7 +168,129 @@ export async function assertGone(run, names) {
       return `network still present: ${network}`;
     }
   }
+  for (const volume of volumes) {
+    const vol = await run("docker", ["volume", "ls", "-q", "-f", `name=^${volume}$`]);
+    if (vol.status !== 0) {
+      return `cannot_verify volume gone: docker volume ls status=${vol.status}`;
+    }
+    if (vol.stdout.trim()) {
+      return `volume still present: ${volume}`;
+    }
+  }
   return null;
+}
+
+/**
+ * Fail-closed OUTPUT policy that still allows Docker-network peers (CIDR).
+ * Do not use for single-container :15432 loopback-only lock.
+ * @param {string} cidr e.g. 172.28.0.0/16
+ */
+export function buildInternalEgressScript(cidr) {
+  if (!/^\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}$/.test(String(cidr || ""))) {
+    throw new Error(`invalid network cidr: ${cidr}`);
+  }
+  return [
+    "iptables -F OUTPUT 2>/dev/null || true",
+    "iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT || iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT",
+    "iptables -A OUTPUT -o lo -j ACCEPT",
+    "iptables -A OUTPUT -d 127.0.0.0/8 -j ACCEPT",
+    `iptables -A OUTPUT -d ${cidr} -j ACCEPT`,
+    "iptables -P OUTPUT DROP",
+    "iptables -L OUTPUT -n",
+  ].join(" && ");
+}
+
+/**
+ * @param {RunFn} run
+ * @param {string} network
+ * @returns {Promise<{ ok: boolean, cidr: string, detail: string }>}
+ */
+export async function resolveNetworkCidr(run, network) {
+  const insp = await run("docker", [
+    "network",
+    "inspect",
+    network,
+    "--format",
+    "{{(index .IPAM.Config 0).Subnet}}",
+  ]);
+  const cidr = insp.stdout.trim();
+  if (insp.status !== 0 || !cidr) {
+    return {
+      ok: false,
+      cidr: "",
+      detail: insp.stderr || insp.stdout || "network inspect failed",
+    };
+  }
+  if (!/^\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}$/.test(cidr)) {
+    return { ok: false, cidr: "", detail: `unexpected subnet format: ${cidr}` };
+  }
+  return { ok: true, cidr, detail: cidr };
+}
+
+/**
+ * Apply internal-allow egress lock inside a container (Postgres on authstore stack).
+ * @param {RunFn} run
+ * @param {string} container
+ * @param {string} cidr
+ */
+export async function blockInternalEgress(run, container, cidr) {
+  await run("docker", [
+    "exec",
+    container,
+    "sh",
+    "-c",
+    "command -v iptables >/dev/null || apk add --no-cache iptables iptables-legacy ip6tables >/dev/null 2>&1; command -v iptables >/dev/null || apk add --no-cache iptables >/dev/null 2>&1 || true",
+  ]);
+  const has = await run("docker", ["exec", container, "sh", "-c", "command -v iptables"]);
+  if (has.status !== 0) {
+    return { ok: false, detail: "iptables unavailable" };
+  }
+  let script;
+  try {
+    script = buildInternalEgressScript(cidr);
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : String(err) };
+  }
+  const r4 = await run("docker", ["exec", container, "sh", "-c", script]);
+  if (r4.status !== 0) {
+    return { ok: false, detail: r4.stderr || r4.stdout || "internal egress apply failed" };
+  }
+  return { ok: true, detail: r4.stdout };
+}
+
+/**
+ * Probe TCP to an internal peer hostname from a container.
+ * @param {RunFn} run
+ * @param {string} fromContainer
+ * @param {string} host
+ * @param {number} port
+ */
+export async function verifyInternalPeerProbe(run, fromContainer, host, port) {
+  const script = [
+    "set +e",
+    `if command -v nc >/dev/null 2>&1; then nc -z -w 2 ${host} ${port}; echo EXIT:$?; exit 0; fi`,
+    `if command -v wget >/dev/null 2>&1; then wget -T 2 -q -O /dev/null http://${host}:${port}/; echo EXIT:$?; exit 0; fi`,
+    "echo EXIT:127",
+  ].join("\n");
+  const r = await run("docker", ["exec", fromContainer, "sh", "-c", script]);
+  if (r.status !== 0) {
+    return { ok: false, reason: "probe_infra_fail", detail: "peer probe exec failed" };
+  }
+  const code = parseExitMarker(`${r.stdout}${r.stderr}`);
+  if (code === null) {
+    return { ok: false, reason: "probe_infra_fail", detail: "peer probe missing EXIT marker" };
+  }
+  if (code === 126 || code === 127) {
+    return { ok: false, reason: "probe_unavailable", detail: "peer probe tools missing" };
+  }
+  if (code !== 0) {
+    return {
+      ok: false,
+      reason: "peer_unreachable",
+      detail: `internal ${host}:${port} EXIT:${code}`,
+    };
+  }
+  return { ok: true, reason: "peer_ok", detail: `${host}:${port}` };
 }
 
 /** Shell snippets used by the runner (also asserted in contract tests). */
@@ -395,42 +529,64 @@ export async function verifyEgress(run, container, opts = {}) {
 }
 
 /**
- * Run docker rm / network rm and verify gone.
+ * Tear down multiple containers + network + volumes and verify gone.
  * @param {RunFn} run
- * @param {{ started: boolean, networkCreated: boolean, container: string, network: string }} ctx
- * @returns {Promise<boolean>} teardownOk
+ * @param {{
+ *   containers?: string[],
+ *   network?: string,
+ *   volumes?: string[],
+ * }} ctx
  */
-export async function performTeardown(run, ctx) {
+export async function performStackTeardown(run, ctx) {
+  const containers = (ctx.containers ?? []).filter(Boolean);
+  const volumes = (ctx.volumes ?? []).filter(Boolean);
+  const network = ctx.network || "";
   let teardownOk = true;
-  if (ctx.started) {
-    const rm = await run("docker", ["rm", "-f", ctx.container]);
+
+  for (const container of containers) {
+    const rm = await run("docker", ["rm", "-f", container]);
     if (rm.status !== 0) {
       teardownOk = false;
     }
   }
-  if (ctx.networkCreated) {
-    const rn = await run("docker", ["network", "rm", ctx.network]);
+  if (network) {
+    const rn = await run("docker", ["network", "rm", network]);
     if (rn.status !== 0) {
       const still = await run("docker", [
         "network",
         "ls",
         "-q",
         "-f",
-        `name=^${ctx.network}$`,
+        `name=^${network}$`,
       ]);
-      if (still.status !== 0) {
-        teardownOk = false;
-      } else if (still.stdout.trim()) {
+      if (still.status !== 0 || still.stdout.trim()) {
         teardownOk = false;
       }
     }
   }
-  const leftover = await assertGone(run, {
-    container: ctx.started ? ctx.container : "",
-    network: ctx.networkCreated ? ctx.network : "",
-  });
+  for (const volume of volumes) {
+    const rv = await run("docker", ["volume", "rm", "-f", volume]);
+    if (rv.status !== 0) {
+      teardownOk = false;
+    }
+  }
+
+  const leftover = await assertGone(run, { containers, network, volumes });
   if (leftover) {
     teardownOk = false;
   }
   return { teardownOk, leftover };
+}
+
+/**
+ * Run docker rm / network rm and verify gone (single-container isolated runner).
+ * @param {RunFn} run
+ * @param {{ started: boolean, networkCreated: boolean, container: string, network: string }} ctx
+ */
+export async function performTeardown(run, ctx) {
+  return performStackTeardown(run, {
+    containers: ctx.started && ctx.container ? [ctx.container] : [],
+    network: ctx.networkCreated ? ctx.network : "",
+    volumes: [],
+  });
 }
