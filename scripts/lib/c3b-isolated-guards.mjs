@@ -436,8 +436,11 @@ export async function performTeardown(run, ctx) {
 }
 
 /**
- * Stub-friendly model of the runner gate: verifyEgress → (optional migrate) → teardown → final exit.
- * Failed probe never runs migrations; teardown always runs; exit uses finalExitCode.
+ * @deprecated Prefer stubbing `runIsolatedMigrationVerify({ run })` in
+ * `scripts/c3b-isolated-migration-verify.test.mjs` — this model is not wired
+ * into the real runner and must not be the sole orchestration proof.
+ *
+ * Stub-friendly gate model: verifyEgress → (optional migrate) → teardown → final exit.
  *
  * @param {{
  *   run: RunFn,

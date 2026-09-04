@@ -46,7 +46,7 @@
     "test:moderation-worker": "deno test --no-config --allow-read --allow-write --allow-run workers/moderation",
     "audit:high": "npm audit --audit-level=high",
     "test:c3b-budget-concurrency": "node scripts/c3b-f0-budget-concurrency.mjs",
-    "test:c3b-budget-concurrency-validate": "node --test scripts/c3b-f0-budget-concurrency-validate.test.mjs scripts/safe-psql-env.test.mjs scripts/c3b-isolated-guards.test.mjs",
+    "test:c3b-budget-concurrency-validate": "node --test scripts/c3b-f0-budget-concurrency-validate.test.mjs scripts/safe-psql-env.test.mjs scripts/c3b-isolated-guards.test.mjs scripts/c3b-isolated-migration-verify.test.mjs",
     "test:c3b-isolated-migrations": "node scripts/c3b-isolated-migration-verify.mjs"
   },
   "dependencies": {

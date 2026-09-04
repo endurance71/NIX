@@ -12,7 +12,6 @@ import {
   interpretPublicProbe,
   LOOPBACK_TCP_PROBE_SCRIPT,
   performTeardown,
-  runProbeGatePhase,
   verifyEgress,
 } from "./lib/c3b-isolated-guards.mjs";
 
@@ -294,68 +293,6 @@ describe("verifyEgress with stubs", () => {
   });
 });
 
-describe("runProbeGatePhase", () => {
-  it("failed probe skips migrations, runs cleanup, exit 2", async () => {
-    let migrations = 0;
-    const run = stubRun([
-      {
-        match: (cmd, args) =>
-          args.join(" ").includes("TOOLS_") && !args.join(" ").includes("IPV6"),
-        result: { status: 0, stdout: "TOOLS_OK\n", stderr: "" },
-      },
-      {
-        match: (cmd, args) => args.join(" ").includes("1.1.1.1"),
-        result: { status: 0, stdout: "EXIT:127\n", stderr: "" },
-      },
-      { match: "docker rm", result: { status: 0, stdout: "", stderr: "" } },
-      { match: "docker network rm", result: { status: 0, stdout: "", stderr: "" } },
-      { match: "docker ps", result: { status: 0, stdout: "", stderr: "" } },
-      { match: "docker network ls", result: { status: 0, stdout: "", stderr: "" } },
-    ]);
-    const phase = await runProbeGatePhase({
-      run,
-      container: "c3b-mig-x",
-      network: "c3b-mig-net-x",
-      ipv6Enabled: false,
-      applyMigrations: () => {
-        migrations += 1;
-      },
-    });
-    assert.equal(phase.probe.ok, false);
-    assert.equal(phase.migrationsRun, false);
-    assert.equal(migrations, 0);
-    assert.equal(phase.teardownOk, true);
-    assert.equal(phase.exitCode, 2);
-  });
-
-  it("failed probe + teardown fail → exit 1", async () => {
-    const run = stubRun([
-      {
-        match: (cmd, args) =>
-          args.join(" ").includes("TOOLS_") && !args.join(" ").includes("IPV6"),
-        result: { status: 0, stdout: "TOOLS_OK\n", stderr: "" },
-      },
-      {
-        match: (cmd, args) => args.join(" ").includes("1.1.1.1"),
-        result: { status: 0, stdout: "EXIT:127\n", stderr: "" },
-      },
-      { match: "docker rm", result: { status: 1, stdout: "", stderr: "busy" } },
-      { match: "docker network rm", result: { status: 0, stdout: "", stderr: "" } },
-      { match: "docker ps", result: { status: 0, stdout: "still\n", stderr: "" } },
-      { match: "docker network ls", result: { status: 0, stdout: "", stderr: "" } },
-    ]);
-    const phase = await runProbeGatePhase({
-      run,
-      container: "c3b-mig-x",
-      network: "c3b-mig-net-x",
-      ipv6Enabled: false,
-    });
-    assert.equal(phase.migrationsRun, false);
-    assert.equal(phase.teardownOk, false);
-    assert.equal(phase.exitCode, 1);
-  });
-});
-
 describe("performTeardown", () => {
   it("teardown fail after PASS → final exit 1", async () => {
     const run = stubRun([
@@ -384,6 +321,9 @@ describe("runner contracts", () => {
     assert.ok(applyIdx > egressIdx, "migrations must not run before egress lock");
     assert.match(src, /finalExitCode/);
     assert.match(src, /tryExit/);
+    assert.match(src, /export async function runIsolatedMigrationVerify/);
+    assert.match(src, /export function createDefaultRun/);
+    assert.match(src, /deps\.run \?\? createDefaultRun/);
     assert.doesNotMatch(
       src,
       /return 2;\s*\n\s*}\s*\n\s*networkCreated/,
