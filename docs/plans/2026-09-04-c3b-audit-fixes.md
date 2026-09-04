@@ -23,14 +23,17 @@ Migration: [`supabase/migrations/20260904120000_c3b_audit_complete_and_budget.sq
 ### P2 — local PostgreSQL
 
 - Fixed pgTAP `plan()` counts; boundary `3999+1` then exhausted; ledger isolation between cases.
-- Concurrency: `npm run test:c3b-budget-concurrency` (two `psql` connections).
 - Allowlist updated in `security_definer_grants_test.sql` for F0 RPCs.
 
 ### Pre-merge corrections (PR #22)
 
-1. **Safe concurrency harness** (`scripts/c3b-f0-budget-concurrency.mjs`): hard allowlist loopback:`54322` only; `SUPABASE_DB_URL` must pass the same check or exit `2` (`BLOCKED`). No wipe of entire ledger tables — setup only touches the current UTC `month_key` row / its reservations.
-2. **True last-unit race:** prepare `used = hard_budget - 1`, then two parallel `reserve(..., 1)` → exactly one `ok` and one `f0_budget_exhausted`, `used == 4000`.
-3. **Operational ceiling ≤ 4000:** migration [`20260904120100_c3b_audit_hard_budget_4000.sql`](../../supabase/migrations/20260904120100_c3b_audit_hard_budget_4000.sql) clamps rows, replaces CHECK, and rejects `p_hard_budget > 4000` in `ensure` / `reserve` (`INVALID_HARD_BUDGET`). Memory `createMemoryBudgetLedger` throws `invalid_hard_budget` above `F0_HARD_BUDGET`. SKU constant `F0_MONTHLY_CAP = 5000` stays descriptive only.
+1. **Safe concurrency connection:** [`scripts/c3b-f0-budget-concurrency.mjs`](../../scripts/c3b-f0-budget-concurrency.mjs) never passes a raw URI to `psql`. Rejects any query/hash params and libpq override tokens (`host`, `hostaddr`, `service`, `options`). Spawns `psql -X` with explicit `-h/-p/-U/-d` and clears inherited `PG*` env (sets only `PGPASSWORD`). Offline validator: `npm run test:c3b-budget-concurrency-validate`.
+2. **Ephemeral race DB:** creates `c3b_conc_<uuid>` on local `:54322`, applies [`scripts/sql/c3b_f0_concurrency_bootstrap.sql`](../../scripts/sql/c3b_f0_concurrency_bootstrap.sql), runs the last-unit two-connection race there, `DROP DATABASE … WITH (FORCE)` in `finally`. Does **not** mutate the project app-database ledger.
+3. **Operational ceiling ≤ 4000:** migration [`20260904120100_c3b_audit_hard_budget_4000.sql`](../../supabase/migrations/20260904120100_c3b_audit_hard_budget_4000.sql) + memory reject. SKU `F0_MONTHLY_CAP = 5000` stays descriptive only.
+
+### Cron / `supabase db reset`
+
+A clean local `supabase db reset` requires the `cron` schema / `pg_cron` from the Supabase local init. Without it, reset fails with `schema "cron" does not exist`. Manual stub + `migration up` is an **upgrade-path** check only — status remains **PARTIAL**, never a full LOCAL PASS for reset.
 
 ## Local quality commands
 
@@ -40,7 +43,8 @@ Migration: [`supabase/migrations/20260904120000_c3b_audit_complete_and_budget.sq
 | `npm run deno:check` / `deno:test` | frozen lockfile |
 | `npm run test:moderation-worker` | Deno workers/moderation |
 | `npm run test:supabase-db` | local Postgres (docker fallback) |
-| `npm run test:c3b-budget-concurrency` | two-connection last-unit race (local only) |
+| `npm run test:c3b-budget-concurrency-validate` | offline URL/target validator |
+| `npm run test:c3b-budget-concurrency` | ephemeral-DB last-unit race (local only) |
 | `npm run audit:high` | high+ only; no `--force` |
 
 Report labels: **LOCAL PASS** / **CI ERROR** / **PENDING** / **PARTIAL** / **NOT RUN**. Do not treat memory tests as SQL PASS.
@@ -58,4 +62,4 @@ Report labels: **LOCAL PASS** / **CI ERROR** / **PENDING** / **PARTIAL** / **NOT
 
 ## Evidence
 
-Outside Git: `~/.nix-ops/p0-3-c3b-audit-fixes/` (SHA, Deno/SQL/audit/concurrency logs; no secrets/media).
+Outside Git: `~/.nix-ops/p0-3-c3b-audit-fixes/` (SHA-tagged Deno/SQL/validate/concurrency logs; no secrets/media).
