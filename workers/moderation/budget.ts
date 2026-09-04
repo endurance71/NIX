@@ -62,6 +62,9 @@ export function createMemoryBudgetLedger(
   } = {},
 ): BudgetLedger {
   const hardBudget = options.hardBudget ?? F0_HARD_BUDGET;
+  if (!Number.isInteger(hardBudget) || hardBudget < 1 || hardBudget > F0_HARD_BUDGET) {
+    throw new Error("invalid_hard_budget");
+  }
   const month = options.monthKey ?? monthKeyUtc();
   let textTxn = 0;
   let imageTxn = 0;

@@ -26,6 +26,12 @@ Migration: [`supabase/migrations/20260904120000_c3b_audit_complete_and_budget.sq
 - Concurrency: `npm run test:c3b-budget-concurrency` (two `psql` connections).
 - Allowlist updated in `security_definer_grants_test.sql` for F0 RPCs.
 
+### Pre-merge corrections (PR #22)
+
+1. **Safe concurrency harness** (`scripts/c3b-f0-budget-concurrency.mjs`): hard allowlist loopback:`54322` only; `SUPABASE_DB_URL` must pass the same check or exit `2` (`BLOCKED`). No wipe of entire ledger tables — setup only touches the current UTC `month_key` row / its reservations.
+2. **True last-unit race:** prepare `used = hard_budget - 1`, then two parallel `reserve(..., 1)` → exactly one `ok` and one `f0_budget_exhausted`, `used == 4000`.
+3. **Operational ceiling ≤ 4000:** migration [`20260904120100_c3b_audit_hard_budget_4000.sql`](../../supabase/migrations/20260904120100_c3b_audit_hard_budget_4000.sql) clamps rows, replaces CHECK, and rejects `p_hard_budget > 4000` in `ensure` / `reserve` (`INVALID_HARD_BUDGET`). Memory `createMemoryBudgetLedger` throws `invalid_hard_budget` above `F0_HARD_BUDGET`. SKU constant `F0_MONTHLY_CAP = 5000` stays descriptive only.
+
 ## Local quality commands
 
 | Command | Meaning |
@@ -34,10 +40,10 @@ Migration: [`supabase/migrations/20260904120000_c3b_audit_complete_and_budget.sq
 | `npm run deno:check` / `deno:test` | frozen lockfile |
 | `npm run test:moderation-worker` | Deno workers/moderation |
 | `npm run test:supabase-db` | local Postgres (docker fallback) |
-| `npm run test:c3b-budget-concurrency` | two-connection race |
+| `npm run test:c3b-budget-concurrency` | two-connection last-unit race (local only) |
 | `npm run audit:high` | high+ only; no `--force` |
 
-Report labels: **LOCAL PASS** / **CI ERROR** / **NOT RUN**. Do not treat memory tests as SQL PASS.
+Report labels: **LOCAL PASS** / **CI ERROR** / **PENDING** / **PARTIAL** / **NOT RUN**. Do not treat memory tests as SQL PASS.
 
 ## Historical F0 vs S0
 
@@ -46,10 +52,10 @@ Report labels: **LOCAL PASS** / **CI ERROR** / **NOT RUN**. Do not treat memory 
 
 ## Rollback
 
-1. Revert this branch / drop migration `20260904120000_c3b_audit_complete_and_budget.sql` from local DB only (`supabase migration repair` / restore).
+1. Revert this branch / drop migrations `20260904120000_*` and `20260904120100_*` from local DB only (`supabase migration repair` / restore).
 2. Worker attempt-id / ledger changes revert with the git revert.
-3. Keep `pre_delivery_moderation_enabled = false`. Never `db push` this migration to prod without a separate written GO.
+3. Keep `pre_delivery_moderation_enabled = false`. Never `db push` these migrations to prod without a separate written GO.
 
 ## Evidence
 
-Outside Git: `~/.nix-ops/p0-3-c3b-audit-fixes/` (SHA, Deno/SQL/audit logs; no secrets/media).
+Outside Git: `~/.nix-ops/p0-3-c3b-audit-fixes/` (SHA, Deno/SQL/audit/concurrency logs; no secrets/media).

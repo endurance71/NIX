@@ -1,7 +1,7 @@
 -- C3B F0 budget + recovery grants/RLS (local pgTAP only — never prod push).
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(21);
+SELECT plan(23);
 
 SELECT has_table('private', 'moderation_f0_ledger', 'f0 ledger exists');
 SELECT has_table('private', 'moderation_f0_reservations', 'f0 reservations exist');
@@ -149,6 +149,25 @@ SELECT is(
   public.reserve_moderation_budget('text', 1, NULL, 'idem-open', 10, 0)->>'reason',
   'attempt_already_terminal',
   'terminal attempt returns attempt_already_terminal'
+);
+
+-- ensure is private/SECURITY DEFINER: assert as postgres (not service_role).
+RESET ROLE;
+
+SELECT throws_ok(
+  $$SELECT private.ensure_moderation_f0_ledger('cap-reject', 5000, 0)$$,
+  'P0001',
+  'INVALID_HARD_BUDGET',
+  'ensure rejects hard_budget 5000'
+);
+
+SET ROLE service_role;
+
+SELECT throws_ok(
+  $$SELECT public.reserve_moderation_budget('text', 1, NULL, 'cap-reject-attempt', 5000, 0)$$,
+  'P0001',
+  'INVALID_HARD_BUDGET',
+  'reserve rejects hard_budget 5000'
 );
 
 RESET ROLE;

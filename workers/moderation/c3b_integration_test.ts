@@ -170,6 +170,16 @@ Deno.test("open attempt reserve is idempotent; terminal blocks free retry", asyn
   assert(snap.consumedTxn === 1 && snap.reservedTxn === 1);
 });
 
+Deno.test("memory ledger rejects hardBudget above F0_HARD_BUDGET", () => {
+  let failed = false;
+  try {
+    createMemoryBudgetLedger({ hardBudget: F0_HARD_BUDGET + 1 });
+  } catch (e) {
+    failed = e instanceof Error && e.message === "invalid_hard_budget";
+  }
+  assert(failed);
+});
+
 Deno.test("release then same attempt_id cannot free-retry", async () => {
   const ledger = createMemoryBudgetLedger({ hardBudget: 5 });
   const attempt = crypto.randomUUID();
