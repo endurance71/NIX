@@ -40,7 +40,12 @@ async function withBudgetedCall(
 > {
   signal.throwIfAborted();
   const reserved = await ledger.reserve(category, 1, jobId, attemptId);
-  if (!reserved.ok) return { ok: false, waiting: true };
+  if (!reserved.ok) {
+    if (reserved.reason === "attempt_already_terminal") {
+      return { ok: false, waiting: false, error: "attempt_already_terminal" };
+    }
+    return { ok: false, waiting: true };
+  }
 
   let sent = false;
   try {
@@ -95,7 +100,7 @@ export async function processIntegrationJob(
         ledger,
         "text",
         job.id,
-        `${job.id}-text-1`,
+        crypto.randomUUID(),
         signal,
         () => provider.analyzeText(job.text!, signal),
       );
@@ -148,7 +153,7 @@ export async function processIntegrationJob(
         ledger,
         "image",
         job.id,
-        `${job.id}-image-1`,
+        crypto.randomUUID(),
         signal,
         () => provider.analyzeImage(bytes, signal),
       );
@@ -201,12 +206,11 @@ export async function processIntegrationJob(
       frame: Uint8Array,
       frameSignal: AbortSignal,
     ): Promise<ProviderAnalysis> => {
-      const attemptId = `${job.id}-frame-${provider.azureRequestCount() + 1}`;
       const result = await withBudgetedCall(
         ledger,
         "image",
         job.id,
-        attemptId,
+        crypto.randomUUID(),
         frameSignal,
         () => provider.analyzeImage(frame, frameSignal),
       );

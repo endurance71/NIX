@@ -1,7 +1,7 @@
 -- C3B F0 budget + recovery grants/RLS (local pgTAP only — never prod push).
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(14);
+SELECT plan(21);
 
 SELECT has_table('private', 'moderation_f0_ledger', 'f0 ledger exists');
 SELECT has_table('private', 'moderation_f0_reservations', 'f0 reservations exist');
@@ -82,25 +82,73 @@ SELECT is(
   'service_role can mark materialized'
 );
 
--- Atomic budget behaviour as service_role
+-- Isolate ledger state for budget cases (do not inherit prior test residue).
+DELETE FROM private.moderation_f0_reservations;
+DELETE FROM private.moderation_f0_ledger;
+
+SET LOCAL ROLE service_role;
+
+-- Boundary: external_used=3999 → first unit ok, second exhausted.
+SELECT ok(
+  (public.reserve_moderation_budget('text', 1, NULL, 'bound-a', 4000, 3999)->>'ok')::boolean,
+  '3999 + 1 reserve succeeds'
+);
+
+SELECT ok(
+  (public.reserve_moderation_budget('text', 1, NULL, 'bound-b', 4000, 3999)->>'ok')::boolean = false,
+  'next transaction after 3999+1 is exhausted'
+);
+
+-- Fresh ledger for small-cap oversubscription (hard_budget=1).
+RESET ROLE;
+DELETE FROM private.moderation_f0_reservations;
+DELETE FROM private.moderation_f0_ledger;
 SET LOCAL ROLE service_role;
 
 SELECT ok(
-  (public.reserve_moderation_budget('text', 1, NULL, 'attempt-full', 4000, 3999)->>'ok')::boolean = false,
-  'reserve fails when external_used leaves no room'
+  (public.reserve_moderation_budget('image', 1, NULL, 'cap-d1', 1, 0)->>'ok')::boolean,
+  'first unit of hard_budget=1 ok'
+);
+SELECT ok(
+  (public.reserve_moderation_budget('image', 1, NULL, 'cap-d2', 1, 0)->>'ok')::boolean = false,
+  'second unit of hard_budget=1 exhausted'
+);
+
+-- Open-attempt idempotency vs free-retry after confirm.
+RESET ROLE;
+DELETE FROM private.moderation_f0_reservations;
+DELETE FROM private.moderation_f0_ledger;
+SET LOCAL ROLE service_role;
+
+SELECT ok(
+  (public.reserve_moderation_budget('text', 1, NULL, 'idem-open', 10, 0)->>'ok')::boolean,
+  'initial reserve ok'
 );
 
 SELECT ok(
-  (public.reserve_moderation_budget('image', 1, NULL, 'attempt-ok', 10, 0)->>'ok')::boolean,
-  'service_role reserves within budget'
+  COALESCE(
+    (public.reserve_moderation_budget('text', 1, NULL, 'idem-open', 10, 0)->>'idempotent')::boolean,
+    false
+  ),
+  'open attempt reserve is idempotent'
+);
+
+SELECT lives_ok(
+  $$SELECT public.confirm_moderation_budget(
+    (public.reserve_moderation_budget('text', 1, NULL, 'idem-open', 10, 0)->>'reservation_id')::uuid
+  )$$,
+  'confirm open reservation'
 );
 
 SELECT ok(
-  (public.reserve_moderation_budget('image', 1, NULL, 'attempt-d1', 1, 0)->>'ok')::boolean, 'first unit of hard_budget=1 ok'
+  (public.reserve_moderation_budget('text', 1, NULL, 'idem-open', 10, 0)->>'ok')::boolean = false,
+  'confirmed attempt cannot free-retry'
 );
-SELECT ok(
-  (public.reserve_moderation_budget('image', 1, NULL, 'attempt-d2', 1, 0)->>'ok')::boolean = false,
-  'parallel oversubscription second unit exhausted'
+
+SELECT is(
+  public.reserve_moderation_budget('text', 1, NULL, 'idem-open', 10, 0)->>'reason',
+  'attempt_already_terminal',
+  'terminal attempt returns attempt_already_terminal'
 );
 
 RESET ROLE;

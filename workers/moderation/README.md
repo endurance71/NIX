@@ -30,14 +30,18 @@ Dodane:
 | `shutdown.ts` | Controlled stop + orphan `nix-frame-*` cleanup |
 | `createIntegrationWorker` | Pełny tick + recovery approve→materialize |
 
-Migracja lokalna (nie pushować na prod):
-`supabase/migrations/20260831150000_pre_delivery_moderation_f0_budget.sql`
+Migracje lokalne (nie pushować na prod):
+
+- `supabase/migrations/20260831150000_pre_delivery_moderation_f0_budget.sql`
+- `supabase/migrations/20260904120000_c3b_audit_complete_and_budget.sql` (REVOKE complete, lease recovery, attempt terminal semantics)
+
+Zobacz też [`docs/plans/2026-09-04-c3b-audit-fixes.md`](../../docs/plans/2026-09-04-c3b-audit-fixes.md).
 
 - hard budget **4000**, `external_used`, osobne liczniki text/image
-- `reserve` / `confirm` / `release_if_unused` (niepewny wynik nie zwalnia)
+- `reserve` / `confirm` / `release_if_unused` (niepewny wynik nie zwalnia; confirmed/released attempt nie daje free retry)
 - `waiting_reason = f0_budget_exhausted`, rollover miesiąca UTC
 - claim default **limit 1 / lease 900 s**
-- `materialized_at` + `claim_approved_unmaterialized_*`
+- `materialized_at` + `claim_approved_unmaterialized_*` (bez kradzieży aktywnego lease)
 
 Rate: F0 Moderation APIs = **5 RPS**; worker używa min. odstępu 200 ms.
 

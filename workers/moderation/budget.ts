@@ -3,8 +3,11 @@ import { F0_HARD_BUDGET, WAITING_BUDGET } from "./constants.ts";
 export type BudgetCategory = "text" | "image";
 
 export type ReserveResult =
-  | { ok: true; reservationId: string }
-  | { ok: false; reason: typeof WAITING_BUDGET };
+  | { ok: true; reservationId: string; idempotent?: boolean }
+  | {
+    ok: false;
+    reason: typeof WAITING_BUDGET | "attempt_already_terminal";
+  };
 
 export type BudgetLedger = {
   /** Atomically reserve units before a provider attempt. */
@@ -36,10 +39,20 @@ function monthKeyUtc(d = new Date()): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+type OpenRow = {
+  reservationId: string;
+  attemptId: string;
+  category: BudgetCategory;
+  units: number;
+  confirmed: boolean;
+  released: boolean;
+};
+
 /**
- * In-memory ledger for offline tests. Mirrors durable DB semantics:
- * restart of this object loses state (tests use a fresh instance);
- * production uses SQL ledger that survives worker restart.
+ * In-memory ledger mirroring SQL semantics:
+ * - open attempt_id → idempotent reserve
+ * - confirmed/released attempt_id → no free retry
+ * - new attempt_id required for each real send
  */
 export function createMemoryBudgetLedger(
   options: {
@@ -55,10 +68,8 @@ export function createMemoryBudgetLedger(
   let reservedTxn = 0;
   let consumedTxn = 0;
   const externalUsed = options.externalUsed ?? 0;
-  const open = new Map<
-    string,
-    { category: BudgetCategory; units: number; confirmed: boolean }
-  >();
+  const byReservation = new Map<string, OpenRow>();
+  const byAttempt = new Map<string, OpenRow>();
 
   function usedTotal(): number {
     return externalUsed + consumedTxn + reservedTxn;
@@ -69,27 +80,53 @@ export function createMemoryBudgetLedger(
       if (!Number.isInteger(units) || units < 1) {
         throw new Error("invalid_budget_units");
       }
+      if (!attemptId || attemptId.trim().length === 0) {
+        throw new Error("attempt_id_required");
+      }
+
+      const existing = byAttempt.get(attemptId);
+      if (existing) {
+        if (existing.confirmed || existing.released) {
+          return { ok: false, reason: "attempt_already_terminal" };
+        }
+        return {
+          ok: true,
+          reservationId: existing.reservationId,
+          idempotent: true,
+        };
+      }
+
       if (usedTotal() + units > hardBudget) {
         return { ok: false, reason: WAITING_BUDGET };
       }
-      const reservationId = `${attemptId}:${crypto.randomUUID()}`;
+
+      const reservationId = crypto.randomUUID();
+      const row: OpenRow = {
+        reservationId,
+        attemptId,
+        category,
+        units,
+        confirmed: false,
+        released: false,
+      };
       reservedTxn += units;
       if (category === "text") textTxn += units;
       else imageTxn += units;
-      open.set(reservationId, { category, units, confirmed: false });
+      byReservation.set(reservationId, row);
+      byAttempt.set(attemptId, row);
       return { ok: true, reservationId };
     },
     async confirm(reservationId) {
-      const row = open.get(reservationId);
-      if (!row || row.confirmed) return;
+      const row = byReservation.get(reservationId);
+      if (!row || row.confirmed || row.released) return;
       row.confirmed = true;
       reservedTxn -= row.units;
       consumedTxn += row.units;
     },
     async releaseIfUnused(reservationId) {
-      const row = open.get(reservationId);
-      if (!row || row.confirmed) return;
-      open.delete(reservationId);
+      const row = byReservation.get(reservationId);
+      if (!row || row.confirmed || row.released) return;
+      row.released = true;
       reservedTxn -= row.units;
       if (row.category === "text") textTxn -= row.units;
       else imageTxn -= row.units;
@@ -117,7 +154,7 @@ export async function parallelReserve(
 ): Promise<{ ok: number; exhausted: number }> {
   const results = await Promise.all(
     Array.from({ length: count }, (_, i) =>
-      ledger.reserve(category, units, `job-${i}`, `attempt-${i}`)
+      ledger.reserve(category, units, `job-${i}`, crypto.randomUUID())
     ),
   );
   let ok = 0;
