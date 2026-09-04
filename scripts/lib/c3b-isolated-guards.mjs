@@ -201,6 +201,21 @@ export function buildInternalEgressScript(cidr) {
 }
 
 /**
+ * IPv6 companion for multi-container stacks: allow lo/::1/ULA/link-local, DROP rest.
+ * Used when IPv6 is enabled inside the container.
+ */
+export const INTERNAL_IPV6_EGRESS_APPLY_SCRIPT = [
+  "command -v ip6tables >/dev/null 2>&1 || { echo 'ip6tables missing'; exit 2; }",
+  "ip6tables -F OUTPUT 2>/dev/null || true",
+  "ip6tables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT || ip6tables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT",
+  "ip6tables -A OUTPUT -o lo -j ACCEPT",
+  "ip6tables -A OUTPUT -d ::1/128 -j ACCEPT",
+  "ip6tables -A OUTPUT -d fe80::/10 -j ACCEPT",
+  "ip6tables -A OUTPUT -d fc00::/7 -j ACCEPT",
+  "ip6tables -P OUTPUT DROP",
+].join(" && ");
+
+/**
  * @param {RunFn} run
  * @param {string} network
  * @returns {Promise<{ ok: boolean, cidr: string, detail: string }>}
@@ -228,10 +243,11 @@ export async function resolveNetworkCidr(run, network) {
 }
 
 /**
- * Apply internal-allow egress lock inside a container (Postgres on authstore stack).
+ * Apply internal-allow IPv4 (+ IPv6 when present) egress lock inside a container.
  * @param {RunFn} run
  * @param {string} container
  * @param {string} cidr
+ * @returns {Promise<{ ok: boolean, detail: string, ipv6Enabled: boolean, ipv6Mode: string | null }>}
  */
 export async function blockInternalEgress(run, container, cidr) {
   await run("docker", [
@@ -239,23 +255,123 @@ export async function blockInternalEgress(run, container, cidr) {
     container,
     "sh",
     "-c",
-    "command -v iptables >/dev/null || apk add --no-cache iptables iptables-legacy ip6tables >/dev/null 2>&1; command -v iptables >/dev/null || apk add --no-cache iptables >/dev/null 2>&1 || true",
+    "command -v iptables >/dev/null || apk add --no-cache iptables iptables-legacy ip6tables >/dev/null 2>&1; command -v iptables >/dev/null || (apt-get update >/dev/null 2>&1 && apt-get install -y iptables >/dev/null 2>&1) || true; command -v ip6tables >/dev/null || apk add --no-cache ip6tables >/dev/null 2>&1 || true",
   ]);
   const has = await run("docker", ["exec", container, "sh", "-c", "command -v iptables"]);
   if (has.status !== 0) {
-    return { ok: false, detail: "iptables unavailable" };
+    return {
+      ok: false,
+      detail: "iptables unavailable",
+      ipv6Enabled: false,
+      ipv6Mode: null,
+    };
   }
   let script;
   try {
     script = buildInternalEgressScript(cidr);
   } catch (err) {
-    return { ok: false, detail: err instanceof Error ? err.message : String(err) };
+    return {
+      ok: false,
+      detail: err instanceof Error ? err.message : String(err),
+      ipv6Enabled: false,
+      ipv6Mode: null,
+    };
   }
   const r4 = await run("docker", ["exec", container, "sh", "-c", script]);
   if (r4.status !== 0) {
-    return { ok: false, detail: r4.stderr || r4.stdout || "internal egress apply failed" };
+    return {
+      ok: false,
+      detail: r4.stderr || r4.stdout || "internal egress apply failed",
+      ipv6Enabled: false,
+      ipv6Mode: null,
+    };
   }
-  return { ok: true, detail: r4.stdout };
+
+  const detect = await run("docker", [
+    "exec",
+    container,
+    "sh",
+    "-c",
+    IPV6_DETECT_SCRIPT,
+  ]);
+  if (detect.status !== 0) {
+    return {
+      ok: false,
+      detail: "cannot detect IPv6 stack state",
+      ipv6Enabled: false,
+      ipv6Mode: null,
+    };
+  }
+  const ipv6Enabled = detect.stdout.includes("IPV6_ON");
+  if (!ipv6Enabled) {
+    return {
+      ok: true,
+      detail: `${r4.stdout}\nIPV6_DISABLED_OK`,
+      ipv6Enabled: false,
+      ipv6Mode: "IPV6_DISABLED_OK",
+    };
+  }
+
+  const [has6, apply6] = await Promise.all([
+    run("docker", ["exec", container, "sh", "-c", "command -v ip6tables"]),
+    run("docker", ["exec", container, "sh", "-c", INTERNAL_IPV6_EGRESS_APPLY_SCRIPT]),
+  ]);
+  const list6 =
+    apply6.status === 0
+      ? await run("docker", ["exec", container, "sh", "-c", IPV6_EGRESS_LIST_SCRIPT])
+      : { status: 1, stdout: "", stderr: "" };
+  const decision = decideIpv6Lock({
+    ipv6Enabled: true,
+    hasIp6tables: has6.status === 0,
+    applyStatus: apply6.status,
+    listStatus: list6.status,
+  });
+  if (!decision.ok) {
+    return {
+      ok: false,
+      detail: `${decision.detail}: ${apply6.stderr || apply6.stdout || list6.stderr || ""}`,
+      ipv6Enabled: true,
+      ipv6Mode: decision.mode,
+    };
+  }
+  return {
+    ok: true,
+    detail: `${r4.stdout}\n${list6.stdout}\n${decision.mode}`,
+    ipv6Enabled: true,
+    ipv6Mode: decision.mode,
+  };
+}
+
+/**
+ * Lock egress on every container that has a shell+iptables; report which were locked.
+ * Distroless images (e.g. GoTrue) must sit on a no-masquerade network instead.
+ * @param {RunFn} run
+ * @param {string[]} containers
+ * @param {string} cidr
+ */
+export async function lockStackInternalEgress(run, containers, cidr) {
+  const locked = [];
+  const skipped = [];
+  let ipv6Enabled = false;
+  for (const container of containers) {
+    const r = await blockInternalEgress(run, container, cidr);
+    if (!r.ok) {
+      if (/iptables unavailable/i.test(r.detail)) {
+        skipped.push(container);
+        continue;
+      }
+      return {
+        ok: false,
+        detail: `${container}: ${r.detail}`,
+        locked,
+        skipped,
+        ipv6Enabled,
+      };
+    }
+    locked.push(container);
+    if (r.ipv6Enabled) ipv6Enabled = true;
+  }
+  return { ok: true, detail: `locked=${locked.length}`, locked, skipped, ipv6Enabled };
 }
 
 /**

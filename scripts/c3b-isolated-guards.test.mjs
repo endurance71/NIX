@@ -11,7 +11,9 @@ import {
   finalExitCode,
   interpretLoopbackProbe,
   interpretPublicProbe,
+  INTERNAL_IPV6_EGRESS_APPLY_SCRIPT,
   LOOPBACK_TCP_PROBE_SCRIPT,
+  lockStackInternalEgress,
   performStackTeardown,
   performTeardown,
   verifyEgress,
@@ -305,6 +307,44 @@ describe("buildInternalEgressScript", () => {
 
   it("rejects non-CIDR input", () => {
     assert.throws(() => buildInternalEgressScript("not-a-cidr"), /invalid network cidr/);
+  });
+
+  it("IPv6 internal script drops OUTPUT after ULA/link-local allow", () => {
+    assert.match(INTERNAL_IPV6_EGRESS_APPLY_SCRIPT, /fc00::\/7/);
+    assert.match(INTERNAL_IPV6_EGRESS_APPLY_SCRIPT, /ip6tables -P OUTPUT DROP/);
+  });
+});
+
+describe("lockStackInternalEgress", () => {
+  it("skips containers without iptables and locks others", async () => {
+    const run2 = async (cmd, args = []) => {
+      const key = `${cmd} ${args.join(" ")}`;
+      if (key.includes("apk add") || key.includes("apt-get")) {
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      if (args.includes("no-ipt") && key.includes("command -v iptables")) {
+        return { status: 1, stdout: "", stderr: "" };
+      }
+      if (
+        key.includes("command -v iptables") &&
+        !key.includes("ip6tables") &&
+        !key.includes("iptables -")
+      ) {
+        return { status: 0, stdout: "/sbin/iptables\n", stderr: "" };
+      }
+      if (key.includes("iptables -P OUTPUT DROP")) {
+        return { status: 0, stdout: "ok\n", stderr: "" };
+      }
+      if (key.includes("IPV6_ON") || key.includes("if_inet6")) {
+        return { status: 0, stdout: "IPV6_OFF\n", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: `unhandled ${key}` };
+    };
+    const r = await lockStackInternalEgress(run2, ["has-ipt", "no-ipt"], "172.28.0.0/16");
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.locked, ["has-ipt"]);
+    assert.deepEqual(r.skipped, ["no-ipt"]);
+    assert.equal(r.ipv6Enabled, false);
   });
 });
 

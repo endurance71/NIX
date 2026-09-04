@@ -4,15 +4,13 @@
  * NOT the everyday supabase_*_NIX project (ports 54321–54329 untouched).
  *
  * - Host ports: 127.0.0.1:15532 (db), 127.0.0.1:15521 (kong)
- * - Internal docker network (--internal) + Postgres iptables allow CIDR only
+ * - Bridge with enable_ip_masquerade=false (stack-wide no external NAT)
+ * - iptables/ip6tables CIDR lock on every container that has a shell
  * - Real GoTrue + storage-api (no storage table stubs)
  * - Path A: all migrations from zero
- * - Path B: bootstrap through 20260831150000_… then remaining
+ * - Path B: bootstrap through PATH_B_TIP, seed Auth/Storage/moderation, then remaining
  *
- * Exit 0 = PASS, 1 = FAIL, 2 = BLOCKED/PARTIAL
- * Teardown fail always → 1.
- *
- * Tests: runAuthStorageVerify({ run, path }) — CLI has no new user modes beyond path.
+ * Exit 0 = PASS, 1 = FAIL, 2 = BLOCKED/PARTIAL. Teardown fail → 1.
  */
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -21,8 +19,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  blockInternalEgress,
   finalExitCode,
+  lockStackInternalEgress,
   performStackTeardown,
   resolveNetworkCidr,
   verifyEgress,
@@ -62,6 +60,7 @@ const IMAGE_PG = "public.ecr.aws/supabase/postgres:17.6.1.165";
 const IMAGE_AUTH = "public.ecr.aws/supabase/gotrue:v2.193.0";
 const IMAGE_STORAGE = "public.ecr.aws/supabase/storage-api:v1.65.1";
 const IMAGE_KONG = "public.ecr.aws/supabase/kong:2.8.1";
+const IMAGE_PEER = "alpine:3.20";
 
 /** Local-only Supabase demo JWT material — never prod / Azure vault. */
 const JWT_SECRET = "super-secret-jwt-token-with-at-least-32-characters-long";
@@ -145,6 +144,29 @@ services:
 `;
 }
 
+/** Parse curl body + trailing HTTP code line written by -w. */
+export function splitCurlHttp(stdout) {
+  const text = String(stdout ?? "");
+  const nl = text.lastIndexOf("\n");
+  if (nl < 0) {
+    const code = Number(text.trim());
+    if (Number.isInteger(code) && code >= 100 && code <= 599) {
+      return { body: "", status: code };
+    }
+    return { body: text, status: null };
+  }
+  const body = text.slice(0, nl);
+  const status = Number(text.slice(nl + 1).trim());
+  return {
+    body,
+    status: Number.isInteger(status) ? status : null,
+  };
+}
+
+function curlEnv() {
+  return buildStrippedChildEnv({ PATH: process.env.PATH, HOME: process.env.HOME });
+}
+
 /**
  * @param {{
  *   run?: ReturnType<typeof createDefaultRun>,
@@ -162,13 +184,14 @@ export async function runAuthStorageVerify(deps = {}) {
   const authName = `c3b-authstore-${id}-auth`;
   const storageName = `c3b-authstore-${id}-storage`;
   const kongName = `c3b-authstore-${id}-kong`;
+  const peerCtr = `c3b-authstore-${id}-peer`;
   const containers = [];
   const volumes = [];
   let networkCreated = false;
   let tryExit = 1;
   let kongDir = "";
 
-  async function psqlSql(sql) {
+  async function psqlSql(sql, user = PGUSER) {
     return run(
       "psql",
       [
@@ -180,7 +203,7 @@ export async function runAuthStorageVerify(deps = {}) {
         "-p",
         String(HOST_DB_PORT),
         "-U",
-        PGUSER,
+        user,
         "-d",
         "postgres",
         "-At",
@@ -228,9 +251,11 @@ export async function runAuthStorageVerify(deps = {}) {
   async function waitHttp(url, maxMs = 120_000) {
     const start = Date.now();
     while (Date.now() - start < maxMs) {
-      const r = await run("curl", ["-sS", "-o", "/dev/null", "-w", "%{http_code}", url], {
-        env: buildStrippedChildEnv({ PATH: process.env.PATH, HOME: process.env.HOME }),
-      });
+      const r = await run(
+        "curl",
+        ["-sS", "-o", "/dev/null", "-w", "%{http_code}", url],
+        { env: curlEnv() },
+      );
       const code = Number(r.stdout.trim());
       if (r.status === 0 && code > 0 && code < 500) return true;
       await new Promise((res) => setTimeout(res, 2000));
@@ -262,13 +287,137 @@ export async function runAuthStorageVerify(deps = {}) {
     return true;
   }
 
+  async function httpJson(method, url, { headers = [], body, okStatuses }) {
+    const args = ["-sS", "-X", method, url, "-w", "\n%{http_code}"];
+    for (const h of headers) {
+      args.push("-H", h);
+    }
+    if (body !== undefined) {
+      args.push("--data-binary", body);
+    }
+    const r = await run("curl", args, { env: curlEnv() });
+    if (r.status !== 0) {
+      return { ok: false, detail: r.stderr || "curl failed", status: null, json: null, body: "" };
+    }
+    const { body: respBody, status } = splitCurlHttp(r.stdout);
+    let json = null;
+    try {
+      json = respBody.trim() ? JSON.parse(respBody) : null;
+    } catch {
+      json = null;
+    }
+    const ok = okStatuses.includes(status) && json !== null;
+    return { ok, status, json, body: respBody, detail: ok ? "ok" : `status=${status} body=${respBody.slice(0, 200)}` };
+  }
+
+  async function ensureBucket(name) {
+    const created = await httpJson(
+      "POST",
+      `http://127.0.0.1:${HOST_API_PORT}/storage/v1/bucket`,
+      {
+        headers: [
+          `apikey: ${SERVICE_KEY}`,
+          `Authorization: Bearer ${SERVICE_KEY}`,
+          "Content-Type: application/json",
+        ],
+        body: JSON.stringify({ id: name, name, public: false }),
+        okStatuses: [200, 201],
+      },
+    );
+    if (created.ok) return true;
+    // already exists → GET must succeed
+    const got = await httpJson(
+      "GET",
+      `http://127.0.0.1:${HOST_API_PORT}/storage/v1/bucket/${name}`,
+      {
+        headers: [
+          `apikey: ${SERVICE_KEY}`,
+          `Authorization: Bearer ${SERVICE_KEY}`,
+        ],
+        okStatuses: [200],
+      },
+    );
+    return got.ok;
+  }
+
+  async function uploadObject(bucket, objectPath, content) {
+    const url = `http://127.0.0.1:${HOST_API_PORT}/storage/v1/object/${bucket}/${objectPath}`;
+    const r = await run(
+      "curl",
+      [
+        "-sS",
+        "-X",
+        "POST",
+        url,
+        "-H",
+        `apikey: ${SERVICE_KEY}`,
+        "-H",
+        `Authorization: Bearer ${SERVICE_KEY}`,
+        "-H",
+        "Content-Type: text/plain",
+        "--data-binary",
+        content,
+        "-w",
+        "\n%{http_code}",
+      ],
+      { env: curlEnv() },
+    );
+    if (r.status !== 0) {
+      return { ok: false, detail: r.stderr || "upload curl failed" };
+    }
+    const { body, status } = splitCurlHttp(r.stdout);
+    let json = null;
+    try {
+      json = body.trim() ? JSON.parse(body) : null;
+    } catch {
+      json = null;
+    }
+    if (![200, 201].includes(status) || !json) {
+      return { ok: false, detail: `upload status=${status} body=${body.slice(0, 200)}` };
+    }
+    const row = await psqlSql(
+      `SELECT COUNT(*)::int FROM storage.objects WHERE bucket_id='${bucket}' AND name='${objectPath}'`,
+    );
+    if (row.status !== 0 || Number(row.stdout.trim()) !== 1) {
+      return {
+        ok: false,
+        detail: `exact object missing bucket=${bucket} name=${objectPath} count=${row.stdout.trim()}`,
+      };
+    }
+    return { ok: true, detail: objectPath };
+  }
+
+  async function signupUser(email, password) {
+    const r = await httpJson(
+      "POST",
+      `http://127.0.0.1:${HOST_API_PORT}/auth/v1/signup`,
+      {
+        headers: [`apikey: ${ANON_KEY}`, "Content-Type: application/json"],
+        body: JSON.stringify({ email, password }),
+        okStatuses: [200],
+      },
+    );
+    if (!r.ok) return { ok: false, detail: r.detail };
+    const userId = r.json?.user?.id || r.json?.id;
+    if (!userId || typeof userId !== "string") {
+      return { ok: false, detail: "signup JSON missing user.id" };
+    }
+    return { ok: true, userId, json: r.json };
+  }
+
   try {
     log(`PATH=${path} RUN_ID=${runId}`);
+    log(`PATH_B_TIP=${PATH_B_TIP}`);
     log(`IMAGES pg=${IMAGE_PG} auth=${IMAGE_AUTH} storage=${IMAGE_STORAGE} kong=${IMAGE_KONG}`);
 
-    // Do not use --internal: on Docker Desktop it blocks host→published ports
-    // (psql :15532 / kong :15521). External egress is fail-closed via iptables CIDR.
-    const net = await run("docker", ["network", "create", network]);
+    // No IP masquerade → containers cannot NAT to the public Internet; host publish still works.
+    const net = await run("docker", [
+      "network",
+      "create",
+      "--opt",
+      "com.docker.network.bridge.enable_ip_masquerade=false",
+      network,
+    ]);
     if (net.status !== 0) {
       console.error("BLOCKED: network create failed", net.stderr || net.stdout);
       tryExit = 2;
@@ -315,25 +464,9 @@ export async function runAuthStorageVerify(deps = {}) {
     }
     log("POSTGRES_READY");
 
-    // Image creates reserved roles without password until supabase_admin sets them.
-    const passInit = await run(
-      "psql",
-      [
-        "-X",
-        "-v",
-        "ON_ERROR_STOP=1",
-        "-h",
-        "127.0.0.1",
-        "-p",
-        String(HOST_DB_PORT),
-        "-U",
-        "supabase_admin",
-        "-d",
-        "postgres",
-        "-c",
-        "ALTER ROLE supabase_auth_admin WITH PASSWORD 'postgres'; ALTER ROLE supabase_storage_admin WITH PASSWORD 'postgres';",
-      ],
-      { env: buildSafePsqlEnv(PGPASSWORD) },
+    const passInit = await psqlSql(
+      "ALTER ROLE supabase_auth_admin WITH PASSWORD 'postgres'; ALTER ROLE supabase_storage_admin WITH PASSWORD 'postgres';",
+      "supabase_admin",
     );
     if (passInit.status !== 0) {
       console.error(
@@ -344,31 +477,6 @@ export async function runAuthStorageVerify(deps = {}) {
       return;
     }
     log("ROLE_PASSWORDS_OK");
-
-    const cidrInfo = await resolveNetworkCidr(run, network);
-    if (!cidrInfo.ok) {
-      console.error("BLOCKED: cannot resolve network CIDR", cidrInfo.detail);
-      tryExit = 2;
-      return;
-    }
-    const egress = await blockInternalEgress(run, dbName, cidrInfo.cidr);
-    if (!egress.ok) {
-      console.error("BLOCKED: internal egress lock failed:", egress.detail);
-      tryExit = 2;
-      return;
-    }
-    log(`EGRESS_INTERNAL_OK cidr=${cidrInfo.cidr}`);
-
-    const probe = await verifyEgress(run, dbName, { ipv6Enabled: false });
-    if (!probe.ok) {
-      console.error(
-        `BLOCKED: public egress probe failed (${probe.reason}):`,
-        probe.detail,
-      );
-      tryExit = 2;
-      return;
-    }
-    log(`EGRESS_PUBLIC_BLOCKED ${probe.detail}`);
 
     const authRun = await run("docker", [
       "run",
@@ -431,6 +539,7 @@ export async function runAuthStorageVerify(deps = {}) {
       network,
       "--network-alias",
       "storage",
+      "--cap-add=NET_ADMIN",
       "-e",
       "DATABASE_URL=postgresql://supabase_storage_admin:postgres@db:5432/postgres",
       "-e",
@@ -464,8 +573,6 @@ export async function runAuthStorageVerify(deps = {}) {
     }
     containers.push(storageName);
 
-    // GoTrue image has no shell/nc — probe peer path via alpine on the same network.
-    const peerCtr = `c3b-authstore-${id}-peer`;
     const peerRun = await run("docker", [
       "run",
       "-d",
@@ -473,9 +580,10 @@ export async function runAuthStorageVerify(deps = {}) {
       peerCtr,
       "--network",
       network,
-      "alpine:3.20",
+      "--cap-add=NET_ADMIN",
+      IMAGE_PEER,
       "sleep",
-      "30",
+      "3600",
     ]);
     if (peerRun.status !== 0) {
       console.error("BLOCKED: peer probe helper failed", peerRun.stderr || peerRun.stdout);
@@ -483,32 +591,6 @@ export async function runAuthStorageVerify(deps = {}) {
       return;
     }
     containers.push(peerCtr);
-    const peer = await verifyInternalPeerProbe(run, peerCtr, "db", 5432);
-    if (!peer.ok) {
-      console.error(`BLOCKED: internal db peer probe failed (${peer.reason}):`, peer.detail);
-      tryExit = 2;
-      return;
-    }
-    log(`PEER_OK ${peer.detail}`);
-
-    // Auth must stay up (proves DB connectivity for GoTrue).
-    await new Promise((res) => setTimeout(res, 3000));
-    const authState = await run("docker", [
-      "inspect",
-      "-f",
-      "{{.State.Running}}",
-      authName,
-    ]);
-    if (authState.status !== 0 || authState.stdout.trim() !== "true") {
-      const logs = await run("docker", ["logs", authName]);
-      console.error(
-        "BLOCKED: auth container not running",
-        logs.stderr || logs.stdout || authState.stderr,
-      );
-      tryExit = 2;
-      return;
-    }
-    log("AUTH_CONTAINER_RUNNING");
 
     kongDir = join(
       process.env.HOME || tmpdir(),
@@ -517,7 +599,6 @@ export async function runAuthStorageVerify(deps = {}) {
       `kong-cfg-${id}`,
     );
     mkdirSync(kongDir, { recursive: true });
-    // Bind-mount from $HOME (Docker Desktop shares it; /tmp often does not).
     writeFileSync(join(kongDir, "kong.yml"), buildKongYml());
 
     const kongRun = await run("docker", [
@@ -527,6 +608,7 @@ export async function runAuthStorageVerify(deps = {}) {
       kongName,
       "--network",
       network,
+      "--cap-add=NET_ADMIN",
       "-e",
       "KONG_DATABASE=off",
       "-e",
@@ -549,12 +631,84 @@ export async function runAuthStorageVerify(deps = {}) {
     containers.push(kongName);
     log("STACK_STARTED");
 
+    await new Promise((res) => setTimeout(res, 3000));
+    const authState = await run("docker", [
+      "inspect",
+      "-f",
+      "{{.State.Running}}",
+      authName,
+    ]);
+    if (authState.status !== 0 || authState.stdout.trim() !== "true") {
+      const logs = await run("docker", ["logs", authName]);
+      console.error(
+        "BLOCKED: auth container not running",
+        logs.stderr || logs.stdout || authState.stderr,
+      );
+      tryExit = 2;
+      return;
+    }
+    log("AUTH_CONTAINER_RUNNING");
+
     if (!(await waitHttp(`http://127.0.0.1:${HOST_API_PORT}/auth/v1/health`))) {
       console.error("BLOCKED: auth via kong not ready");
       tryExit = 2;
       return;
     }
     log("AUTH_HTTP_READY");
+
+    const cidrInfo = await resolveNetworkCidr(run, network);
+    if (!cidrInfo.ok) {
+      console.error("BLOCKED: cannot resolve network CIDR", cidrInfo.detail);
+      tryExit = 2;
+      return;
+    }
+
+    // Lock every shell-capable container; GoTrue is distroless → covered by no-masquerade.
+    const lockTargets = [dbName, peerCtr, storageName, kongName];
+    const locked = await lockStackInternalEgress(run, lockTargets, cidrInfo.cidr);
+    if (!locked.ok) {
+      console.error("BLOCKED: stack egress lock failed:", locked.detail);
+      tryExit = 2;
+      return;
+    }
+    log(
+      `EGRESS_STACK_OK cidr=${cidrInfo.cidr} locked=${locked.locked.join(",")} skipped=${locked.skipped.join(",") || "none"} ipv6=${locked.ipv6Enabled}`,
+    );
+    log("EGRESS_AUTH_VIA_NO_MASQUERADE (distroless GoTrue)");
+
+    const probeDb = await verifyEgress(run, dbName, {
+      ipv6Enabled: locked.ipv6Enabled,
+    });
+    if (!probeDb.ok) {
+      console.error(
+        `BLOCKED: db public egress probe failed (${probeDb.reason}):`,
+        probeDb.detail,
+      );
+      tryExit = 2;
+      return;
+    }
+    log(`EGRESS_DB_PUBLIC_BLOCKED ${probeDb.detail}`);
+
+    const probePeer = await verifyEgress(run, peerCtr, {
+      ipv6Enabled: locked.ipv6Enabled,
+    });
+    if (!probePeer.ok) {
+      console.error(
+        `BLOCKED: peer public egress probe failed (${probePeer.reason}):`,
+        probePeer.detail,
+      );
+      tryExit = 2;
+      return;
+    }
+    log(`EGRESS_PEER_PUBLIC_BLOCKED ${probePeer.detail}`);
+
+    const peer = await verifyInternalPeerProbe(run, peerCtr, "db", 5432);
+    if (!peer.ok) {
+      console.error(`BLOCKED: internal db peer probe failed (${peer.reason}):`, peer.detail);
+      tryExit = 2;
+      return;
+    }
+    log(`PEER_OK ${peer.detail}`);
 
     const cron = await psqlSql("CREATE EXTENSION IF NOT EXISTS pg_cron;");
     if (cron.status !== 0) {
@@ -576,6 +730,8 @@ export async function runAuthStorageVerify(deps = {}) {
     }
 
     const { bootstrap, remaining } = filesForPath(path);
+    let pathBSeed = null;
+
     if (bootstrap.length) {
       log(`PATH_B_BOOTSTRAP tip=${PATH_B_TIP} count=${bootstrap.length}`);
       if (!(await applyMigrations(bootstrap))) {
@@ -583,12 +739,109 @@ export async function runAuthStorageVerify(deps = {}) {
         return;
       }
       log("PATH_B_BOOTSTRAP_OK");
+
+      const emailPre = `path-b-pre-${id}@example.invalid`;
+      const emailPeer = `path-b-peer-${id}@example.invalid`;
+      const password = "c3b-path-b-password-9";
+      const userPre = await signupUser(emailPre, password);
+      if (!userPre.ok) {
+        console.error("FAIL: Path B pre-upgrade signup", userPre.detail);
+        tryExit = 1;
+        return;
+      }
+      const userPeer = await signupUser(emailPeer, password);
+      if (!userPeer.ok) {
+        console.error("FAIL: Path B pre-upgrade peer signup", userPeer.detail);
+        tryExit = 1;
+        return;
+      }
+      if (!(await ensureBucket("c3b-path-b"))) {
+        console.error("FAIL: Path B pre-upgrade bucket");
+        tryExit = 1;
+        return;
+      }
+      const objectPath = `pre/${id}.txt`;
+      const up = await uploadObject("c3b-path-b", objectPath, "path-b-pre-upgrade");
+      if (!up.ok) {
+        console.error("FAIL: Path B pre-upgrade upload", up.detail);
+        tryExit = 1;
+        return;
+      }
+      const jobMarker = `c3b-path-b-pre-${id}`;
+      const seedSql = `
+        INSERT INTO public.moderation_text_payloads(body)
+        VALUES ('path-b-pre-upgrade-text')
+        RETURNING id;
+      `;
+      const payload = await psqlSql(seedSql);
+      if (payload.status !== 0 || !payload.stdout.trim()) {
+        console.error("FAIL: Path B text payload", payload.stderr || payload.stdout);
+        tryExit = 1;
+        return;
+      }
+      const payloadId = payload.stdout.trim().split("\n")[0];
+      const jobIns = await psqlSql(`
+        INSERT INTO public.moderation_jobs(
+          content_kind, text_payload_id, sender_id, receiver_id, status, client_message_id
+        ) VALUES (
+          'text',
+          '${payloadId}'::uuid,
+          '${userPre.userId}'::uuid,
+          '${userPeer.userId}'::uuid,
+          'pending',
+          '${jobMarker}'
+        )
+        RETURNING id;
+      `);
+      if (jobIns.status !== 0 || !jobIns.stdout.trim()) {
+        console.error("FAIL: Path B moderation job", jobIns.stderr || jobIns.stdout);
+        tryExit = 1;
+        return;
+      }
+      pathBSeed = {
+        emailPre,
+        userPreId: userPre.userId,
+        userPeerId: userPeer.userId,
+        objectPath,
+        payloadId,
+        jobId: jobIns.stdout.trim().split("\n")[0],
+        jobMarker,
+      };
+      log(
+        `PATH_B_SEED_OK user=${pathBSeed.userPreId} object=${objectPath} job=${pathBSeed.jobId}`,
+      );
     }
+
     if (!(await applyMigrations(remaining))) {
       tryExit = 1;
       return;
     }
     log("MIGRATIONS_APPLIED");
+
+    if (pathBSeed) {
+      const userStill = await psqlSql(
+        `SELECT COUNT(*)::int FROM auth.users WHERE id='${pathBSeed.userPreId}' AND email='${pathBSeed.emailPre}'`,
+      );
+      const objStill = await psqlSql(
+        `SELECT COUNT(*)::int FROM storage.objects WHERE bucket_id='c3b-path-b' AND name='${pathBSeed.objectPath}'`,
+      );
+      const jobStill = await psqlSql(
+        `SELECT COUNT(*)::int FROM public.moderation_jobs WHERE id='${pathBSeed.jobId}' AND client_message_id='${pathBSeed.jobMarker}' AND sender_id='${pathBSeed.userPreId}'`,
+      );
+      if (
+        Number(userStill.stdout.trim()) !== 1 ||
+        Number(objStill.stdout.trim()) !== 1 ||
+        Number(jobStill.stdout.trim()) !== 1
+      ) {
+        console.error(
+          "FAIL: Path B post-upgrade seed integrity",
+          { userStill: userStill.stdout, objStill: objStill.stdout, jobStill: jobStill.stdout },
+        );
+        tryExit = 1;
+        return;
+      }
+      log("PATH_B_POST_UPGRADE_SEED_OK");
+    }
 
     const hasReserve = await psqlSql(
       `SELECT COUNT(*)::int FROM pg_proc p
@@ -656,87 +909,29 @@ export async function runAuthStorageVerify(deps = {}) {
 
     const email = `c3b-${id}@example.invalid`;
     const password = "c3b-test-password-9";
-    const signup = await run(
-      "curl",
-      [
-        "-sS",
-        "-X",
-        "POST",
-        `http://127.0.0.1:${HOST_API_PORT}/auth/v1/signup`,
-        "-H",
-        `apikey: ${ANON_KEY}`,
-        "-H",
-        "Content-Type: application/json",
-        "-d",
-        JSON.stringify({ email, password }),
-      ],
-      { env: buildStrippedChildEnv({ PATH: process.env.PATH, HOME: process.env.HOME }) },
-    );
-    if (signup.status !== 0 || !/access_token|"id"/.test(signup.stdout)) {
-      console.error("FAIL: auth signup", signup.stdout || signup.stderr);
+    const signup = await signupUser(email, password);
+    if (!signup.ok) {
+      console.error("FAIL: auth signup", signup.detail);
       tryExit = 1;
       return;
     }
-    log("AUTH_SIGNUP_OK");
+    log(`AUTH_SIGNUP_OK user=${signup.userId}`);
 
-    const bucket = await run(
-      "curl",
-      [
-        "-sS",
-        "-X",
-        "POST",
-        `http://127.0.0.1:${HOST_API_PORT}/storage/v1/bucket`,
-        "-H",
-        `apikey: ${SERVICE_KEY}`,
-        "-H",
-        `Authorization: Bearer ${SERVICE_KEY}`,
-        "-H",
-        "Content-Type: application/json",
-        "-d",
-        JSON.stringify({ id: "c3b-smoke", name: "c3b-smoke", public: false }),
-      ],
-      { env: buildStrippedChildEnv({ PATH: process.env.PATH, HOME: process.env.HOME }) },
-    );
-    // bucket may already exist from migrations — allow conflict-ish bodies
-    if (bucket.status !== 0) {
-      console.error("FAIL: storage bucket", bucket.stdout || bucket.stderr);
+    if (!(await ensureBucket("c3b-smoke"))) {
+      console.error("FAIL: storage bucket");
       tryExit = 1;
       return;
     }
     log("STORAGE_BUCKET_OK");
 
-    const upload = await run(
-      "curl",
-      [
-        "-sS",
-        "-X",
-        "POST",
-        `http://127.0.0.1:${HOST_API_PORT}/storage/v1/object/c3b-smoke/smoke-${id}.txt`,
-        "-H",
-        `apikey: ${SERVICE_KEY}`,
-        "-H",
-        `Authorization: Bearer ${SERVICE_KEY}`,
-        "-H",
-        "Content-Type: text/plain",
-        "--data-binary",
-        "c3b-authstore-smoke",
-      ],
-      { env: buildStrippedChildEnv({ PATH: process.env.PATH, HOME: process.env.HOME }) },
-    );
-    if (upload.status !== 0) {
-      console.error("FAIL: storage upload", upload.stdout || upload.stderr);
+    const smokeName = `smoke-${id}.txt`;
+    const upload = await uploadObject("c3b-smoke", smokeName, "c3b-authstore-smoke");
+    if (!upload.ok) {
+      console.error("FAIL: storage upload", upload.detail);
       tryExit = 1;
       return;
     }
-    const obj = await psqlSql(
-      "SELECT COUNT(*)::int FROM storage.objects WHERE bucket_id='c3b-smoke';",
-    );
-    if (Number(obj.stdout.trim()) < 1) {
-      console.error("FAIL: storage.objects row missing after upload", obj.stdout, upload.stdout);
-      tryExit = 1;
-      return;
-    }
-    log("STORAGE_UPLOAD_OK");
+    log(`STORAGE_UPLOAD_OK name=${smokeName}`);
     log(`status=PASS path=${path} auth+storage real stack`);
     tryExit = 0;
   } catch (err) {

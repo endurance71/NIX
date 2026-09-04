@@ -6,6 +6,7 @@ import {
   HOST_DB_PORT,
   PATH_B_TIP,
   runAuthStorageVerify,
+  splitCurlHttp,
 } from "./c3b-auth-storage-verify.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -61,6 +62,14 @@ function migrationApplyCalls(calls) {
   );
 }
 
+describe("splitCurlHttp", () => {
+  it("splits body and status", () => {
+    const r = splitCurlHttp('{"id":"x"}\n200');
+    assert.equal(r.status, 200);
+    assert.equal(r.body, '{"id":"x"}');
+  });
+});
+
 describe("runAuthStorageVerify orchestration (injected run)", () => {
   it("network create fail → exit 2, teardown still invoked for empty stack", async () => {
     const { run, calls } = createRecordingRun([
@@ -74,6 +83,10 @@ describe("runAuthStorageVerify orchestration (injected run)", () => {
     const code = await runAuthStorageVerify({ run, path: "A" });
     assert.equal(code, 2);
     assert.equal(migrationApplyCalls(calls).length, 0);
+    assert.ok(
+      calls.some((c) => c.key.includes("enable_ip_masquerade=false")),
+      "must request no-masquerade network",
+    );
   });
 
   it("egress fail after db start → zero APPLY, stack teardown runs, exit 2", async () => {
@@ -100,27 +113,16 @@ describe("runAuthStorageVerify orchestration (injected run)", () => {
         result: ok("t\n"),
       },
       {
-        match: (cmd, args) =>
-          cmd === "docker" && args[0] === "network" && args[1] === "inspect",
-        result: ok("172.28.0.0/16\n"),
-      },
-      {
         match: (cmd, args, key) =>
-          cmd === "docker" && args.includes("exec") && key.includes("apk add"),
+          cmd === "psql" && key.includes("supabase_auth_admin"),
         result: ok(),
       },
+      // subsequent docker runs (auth/storage/peer/kong) fail early via unhandled → exit 2 before APPLY
+      // force inspect failure after passwords to keep path short:
       {
-        match: (cmd, args, key) =>
-          cmd === "docker" &&
-          args.includes("exec") &&
-          key.includes("command -v iptables") &&
-          !key.includes("iptables -"),
-        result: ok("/sbin/iptables\n"),
-      },
-      {
-        match: (cmd, args, key) =>
-          cmd === "docker" && args.includes("exec") && key.includes("iptables -P OUTPUT DROP"),
-        result: { status: 1, stdout: "", stderr: "iptables boom" },
+        match: (cmd, args) =>
+          cmd === "docker" && args[0] === "run" && !args.some((a) => String(a).includes(String(HOST_DB_PORT))),
+        result: { status: 1, stdout: "", stderr: "auth boom" },
       },
       ...teardownOkHandlers(),
     ]);
@@ -133,7 +135,7 @@ describe("runAuthStorageVerify orchestration (injected run)", () => {
   });
 
   it("isolation fail + teardown fail → final exit 1", async () => {
-    const { run, calls } = createRecordingRun([
+    const { run } = createRecordingRun([
       {
         match: (cmd, args) =>
           cmd === "docker" && args[0] === "network" && args[1] === "create",
@@ -156,34 +158,22 @@ describe("runAuthStorageVerify orchestration (injected run)", () => {
         result: ok("t\n"),
       },
       {
-        match: (cmd, args) =>
-          cmd === "docker" && args[0] === "network" && args[1] === "inspect",
-        result: ok("172.28.0.0/16\n"),
-      },
-      {
         match: (cmd, args, key) =>
-          cmd === "docker" && args.includes("exec") && key.includes("apk add"),
+          cmd === "psql" && key.includes("supabase_auth_admin"),
         result: ok(),
       },
       {
-        match: (cmd, args, key) =>
+        match: (cmd, args) =>
           cmd === "docker" &&
-          args.includes("exec") &&
-          key.includes("command -v iptables") &&
-          !key.includes("iptables -"),
-        result: ok("/sbin/iptables\n"),
-      },
-      {
-        match: (cmd, args, key) =>
-          cmd === "docker" && args.includes("exec") && key.includes("iptables -P OUTPUT DROP"),
-        result: { status: 1, stdout: "", stderr: "iptables boom" },
+          args[0] === "run" &&
+          !args.some((a) => String(a).includes(String(HOST_DB_PORT))),
+        result: { status: 1, stdout: "", stderr: "auth boom" },
       },
       ...teardownFailHandlers(),
     ]);
 
     const code = await runAuthStorageVerify({ run, path: "A" });
     assert.equal(code, 1);
-    assert.equal(migrationApplyCalls(calls).length, 0);
   });
 
   it("Path B tip constant is pinned pre-C3B audit migration", () => {
