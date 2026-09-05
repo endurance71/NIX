@@ -1,8 +1,8 @@
 # Staging — fake provider only (zero Azure)
 
-**Date:** 2026-09-04  
-**Status:** Plan document — **not executed**. Zero runtime.  
-**Activation:** only after **Accepted C2** (owner) **and** §6 Decision 3 staging GO.  
+**Date:** 2026-09-04
+**Status:** Plan document — **not executed**. Zero runtime.
+**Activation:** only after **Accepted C2** (owner) **and** §6 Decision 3 staging GO.
 **Aligned with:** [`2026-09-03-c3b-s6-decision-gate.md`](2026-09-03-c3b-s6-decision-gate.md); sibling canary plan in PR #27 [`2026-09-04-c3b-next-gate-staging-canary.md`](2026-09-04-c3b-next-gate-staging-canary.md) once merged.
 
 ## Goal
@@ -45,5 +45,5 @@ Soak moderation worker / Edge paths on **test tenants** using the **fake** Conte
 
 ## Exit → next human decision
 
-PASS this stage only with: soak complete, rollback drilled, **0** Azure txn, prod still OFF.  
+PASS this stage only with: soak complete, rollback drilled, **0** Azure txn, prod still OFF.
 Live Azure (tiny cap) and video live remain **later** separate GO after Accepted recall confirmation in staging policy.
