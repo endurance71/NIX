@@ -51,8 +51,9 @@ block, account deletion and optional push notifications. No in-app purchases.
 
 ## App Privacy (current binary)
 
-Tracking = No. No IAP. Sentry SDK is hard-disabled and must not be declared as
-a diagnostics destination that currently receives data.
+Tracking = No. No IAP. Sentry SDK is hard-disabled (`EXPO_PUBLIC_SENTRY_ENABLED=false`)
+and must not be declared as a diagnostics destination that currently receives data.
+Product analytics is build-flag off (`EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED=false`).
 
 Declare only what this binary actually uses:
 
@@ -60,10 +61,24 @@ Declare only what this binary actually uses:
 - User Content (messages, photos, video, reports) — App Functionality, linked
 - Identifiers (user ID, installation/device token) — App Functionality, linked
 - Diagnostics — not collected while Sentry is hard-off
-- Product Interaction — do not declare unless product analytics is on
+- Product Interaction — **do not declare** while product analytics is off
 - Purchases — none
 
+Before enabling analytics: resolve audit P1-2 (Product Interaction linked vs unlink
+`installation_id`), update ASC App Privacy, then set the build flag intentionally.
+
 Used by: Apple (Sign in with Apple, APNs), Supabase (EU), Expo (builds, push relay).
+
+## Operator paste checklist (public URLs)
+
+Publish identical PL/EN content from `docs/legal/` (version **2026-09-05**) to:
+
+- Privacy: `https://nix.damianmotylinski.pl/privacy`
+- Terms: `https://nix.damianmotylinski.pl/terms`
+- Support: `https://nix.damianmotylinski.pl/support`
+
+In-app and pre-login screens use `src/lib/legalDocuments.ts` (same version). Keep ASC
+Privacy Policy URL pointing at the public HTTPS page after publish.
 
 ## Screenshots
 

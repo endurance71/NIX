@@ -1,14 +1,15 @@
 # NiX Privacy Policy
 
-**Version:** 2026-08-01
-**Effective date:** 1 August 2026
+**Version:** 2026-09-05
+**Effective date:** 5 September 2026
 
 ## Controller and contact
 
 The controller is **MT Hub Damian Motyliński**, ul. ks. Józefa Poniatowskiego 27a
 lok. 2, 76-200 Słupsk, Poland, tax ID (NIP) 8393229228. Contact
 **kontakt@damianmotylinski.pl** about privacy. You may lodge a complaint with the
-competent data-protection authority.
+competent data-protection authority (in Poland: the President of the Personal Data
+Protection Office).
 
 ## Data, purposes and legal bases
 
@@ -30,7 +31,10 @@ With separate, optional consent, we collect limited product-analytics events.
 An event contains a random installation identifier, an allowlisted event name,
 app version, language, time, and restricted properties. It does not contain
 message content, usernames, media paths, tokens, account IDs, or conversation IDs.
-No events are sent before consent, and analytics can be disabled in Profile.
+No events are sent before consent. You may refuse consent during onboarding and
+withdraw it anytime in **Profile → Privacy & security**. In the current public
+candidate, product analytics is build-flag disabled
+(`EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED=false`).
 
 Camera, microphone and photo-library permissions are used only after your
 operating-system permission for messages and avatars. Messages are ephemeral: the
@@ -41,16 +45,17 @@ absolute technical guarantee on every device.
 
 We use Supabase (authentication, database, Storage and server functions; EU
 region), Apple (Sign in with Apple and App Store), and Expo/EAS (app builds,
-distribution, and relaying push notifications to Apple APNs). The installed Sentry SDK is currently hard-disabled
-and receives no data. Transfers outside the EEA use an adequacy decision, standard contractual
-clauses, or another GDPR Chapter V mechanism.
+distribution, and relaying push notifications to Apple APNs). The installed Sentry
+SDK is hard-disabled in the public build (`EXPO_PUBLIC_SENTRY_ENABLED=false`) and
+receives no data. Transfers outside the EEA use an adequacy decision, standard
+contractual clauses, or another GDPR Chapter V mechanism.
 
 Account, profile, age confirmation, and relationship data are retained until deletion.
 Active notification tokens are retained until notifications are disabled, the user
 signs out, the account is deleted, or the device is reported as unregistered.
 Technical notification-delivery history and raw, consented product-analytics
-events are retained for up to 30 days. Daily aggregates do not contain an
-installation identifier.
+events (when enabled) are retained for up to 30 days. Daily aggregates do not
+contain an installation identifier.
 Media is removed after viewing. Ephemeral text messages are automatically deleted 24 hours after sending.
 If a recipient reports a message (media or text), an evidence copy is
 kept only for moderation and deleted after 30 days. Resolved reports and decision audit
@@ -68,7 +73,9 @@ suspend, or ban an account. Contact kontakt@damianmotylinski.pl about a decision
 
 ## Your rights and changes
 
-You may request access, rectification, erasure, restriction, objection and
-portability where applicable. Delete your account in **Profile → Account → Delete
-account**, or contact kontakt@damianmotylinski.pl if you cannot access the app. Material
-changes are announced before taking effect and carry a new version/date.
+You may request access, rectification, erasure, restriction of processing,
+objection and portability where applicable, and lodge a complaint with the
+competent supervisory authority. Delete your account in **Profile → Account →
+Delete account**, or contact kontakt@damianmotylinski.pl if you cannot access the
+app. Material changes are announced before taking effect and carry a new
+version/date.
