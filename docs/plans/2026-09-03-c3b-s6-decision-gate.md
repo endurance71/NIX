@@ -110,3 +110,20 @@ staging + observation window.
 Evidence: `~/.nix-ops/p0-3-s6/decision-signoff-20260903.md`. When humans file a
 Portal recheck or F0-after-Oct confirmation, append under `~/.nix-ops/p0-3-s6/`
 (no secrets) and update this table.
+
+## Append — 2026-09-04 (F0 Monitor/MCP read; history above unchanged)
+
+**Not** a staging/live GO. F0 month-to-date read via **authenticated Azure Monitor / MCP** (0 Content Safety API). Ops: `~/.nix-ops/p0-3-s6/F0-MONITOR-MCP-20260904.md`.
+
+| Field | Value |
+| --- | --- |
+| Historical F0 spike accounted | **3414** (pre-hybrid; history only) |
+| F0 current-month-to-date exact (MCP) | **3523** (3499 image + 24 text) |
+| Operational `external_used` floor | **3624** = `max(3523, 3624)` (hybrid ledger) |
+| Remaining to ops ceiling **4000** | **376** |
+| Remaining to F0 cap **5000** | **1376** |
+| F0 reconcile | **DONE via authenticated Azure Monitor/MCP** |
+| Open admin | Deleted **S0** exact usage unavailable; exception proposal inactive |
+| Live Azure / prod flag | **NO-GO** (budget + C2 Proposed) |
+
+Do not seed future ledgers from **3414** alone while hybrid floor **3624** stands.

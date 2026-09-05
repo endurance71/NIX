@@ -44,10 +44,10 @@ On the exact build 5 source SHA:
 
 | Gate | Status |
 | --- | --- |
-| C2 Azure F0 spike | **NO-GO** — ADR-001 stays **Proposed**. Evidence: `~/.nix-ops/p0-3-spike/decision.md` |
+| C2 Azure F0 spike | **NO-GO** — ADR-001 stays **Proposed**. F0 Monitor/MCP exact **3523**; `external_used` **3624 / 4000** (remaining **376**; to F0 5000: **1376**; historical spike **3414**). Evidence: `~/.nix-ops/p0-3-spike/` + `~/.nix-ops/p0-3-s6/F0-MONITOR-MCP-20260904.md` |
 | C3A OVH offline video runtime | **PASS** (offline benchmark; no Azure; no prod entry) |
 | C3B offline integration | **PASS (base)** — merged via [PR #18](https://github.com/endurance71/NIX/pull/18). Fake Azure; flag OFF. |
-| C3B audit fixes | **LOCAL PASS pending merge** — branch `codex/c3b-audit-fixes` (complete/lease REVOKE, attempt-id budget, local pgTAP). Evidence: `~/.nix-ops/p0-3-c3b-audit-fixes/`. **No** prod `db push`. |
+| C3B audit fixes | **MERGED** — merge SHA [`5d3cd41`](https://github.com/endurance71/NIX/commit/5d3cd410079ce1488c9c80f7248786604595da81) ([PR #24](https://github.com/endurance71/NIX/pull/24), tip `59d6721`). Complete/lease REVOKE, attempt-id budget, Auth/Storage Path A+B PASS, local verify PASS. Expo CI **exception** (quota; reset 2026-10-01 UTC). Evidence: `~/.nix-ops/p0-3-c3b-audit-fixes/`. Flag OFF; **no** prod `db push` / Azure live / App Review. Status: [`../plans/2026-09-04-c3b-auth-storage-merged.md`](../plans/2026-09-04-c3b-auth-storage-merged.md). |
 | Production pre-delivery filter | **OFF** — Guideline 1.2 still blocks public App Review |
 
 Hard stop: C3 prod / flag / Privacy Policy update / READY FOR REVIEW only after §6 decision GO **and** Accepted C2. See [`../plans/2026-09-03-c3b-s6-decision-gate.md`](../plans/2026-09-03-c3b-s6-decision-gate.md).
