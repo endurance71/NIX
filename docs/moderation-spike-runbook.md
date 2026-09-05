@@ -116,6 +116,16 @@ SPIKE_EVIDENCE_DIR="$HOME/.nix-ops/p0-3-spike-s0" \
   npm run check:moderation-spike-evidence -- --require-complete-s0
 ```
 
+### Wyjątek Portal (S0) — tylko po zgodzie ownera
+
+Gdy dokładny licznik Portal jest niedostępny, walidator obsługuje
+`usageConfirmationException` wyłącznie przy `--require-complete-s0` i aktywnym
+pliku zgody (`NIX_S0_PORTAL_EXCEPTION_ACTIVE`, domyślnie
+`~/.nix-ops/p0-3-s6/S0-PORTAL-EXCEPTION-ACTIVE.md` ze `status: ACTIVE`).
+Binding digesta: `scripts/s0-portal-exception-binding.json`. Domyślnie zgoda
+jest **INACTIVE** — bez ACTIVE ścieżka wyjątku FAIL; ścieżka exact Portal bez
+zmian. Walidator nigdy nie zapisuje Accepted w `decision.md`.
+
 Po zapisaniu metadanych usunąć tymczasowy zasób S0 i plik z kluczem. Nie
 przechodzić na Pay-As-You-Go i nie usuwać spending limitu. Produkcyjna flaga
 pozostaje wyłączona; uruchomienie C3 wymaga osobnego planu runtime z ffmpeg.
