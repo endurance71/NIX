@@ -284,8 +284,10 @@ function makeExceptionFixture(options = {}) {
   return { dir, activePath, bindingPath, digest, totalTxn, paths };
 }
 
-function validate(dir, env = {}) {
-  return spawnSync(process.execPath, [checker.pathname, '--require-complete-s0'], {
+function validate(dir, { env = {}, bindingPath = null } = {}) {
+  const args = [checker.pathname, '--require-complete-s0'];
+  if (bindingPath) args.push('--s0-exception-binding', bindingPath);
+  return spawnSync(process.execPath, args, {
     env: { ...process.env, SPIKE_EVIDENCE_DIR: dir, ...env },
     encoding: 'utf8',
   });
@@ -293,9 +295,11 @@ function validate(dir, env = {}) {
 
 function validateException(fixture, extraEnv = {}) {
   return validate(fixture.dir, {
-    NIX_S0_PORTAL_EXCEPTION_BINDING: fixture.bindingPath,
-    NIX_S0_PORTAL_EXCEPTION_ACTIVE: fixture.activePath,
-    ...extraEnv,
+    bindingPath: fixture.bindingPath,
+    env: {
+      NIX_S0_PORTAL_EXCEPTION_ACTIVE: fixture.activePath,
+      ...extraEnv,
+    },
   });
 }
 
@@ -342,8 +346,10 @@ test('exception without ACTIVE file fails', () => {
   const fixture = makeExceptionFixture({ writeActiveFile: false });
   try {
     const result = validate(fixture.dir, {
-      NIX_S0_PORTAL_EXCEPTION_BINDING: fixture.bindingPath,
-      NIX_S0_PORTAL_EXCEPTION_ACTIVE: join(fixture.dir, 'missing-ACTIVE.md'),
+      bindingPath: fixture.bindingPath,
+      env: {
+        NIX_S0_PORTAL_EXCEPTION_ACTIVE: join(fixture.dir, 'missing-ACTIVE.md'),
+      },
     });
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /ACTIVE file missing/);
@@ -358,8 +364,10 @@ test('proposal ACTIVATED text is not consent', () => {
   writeFileSync(proposalPath, '# Proposal\n\nStatus: ACTIVATED\n\n```yaml\nstatus: INACTIVE\nexperimentId: c2-s0-20260903\n```\n');
   try {
     const result = validate(fixture.dir, {
-      NIX_S0_PORTAL_EXCEPTION_BINDING: fixture.bindingPath,
-      NIX_S0_PORTAL_EXCEPTION_ACTIVE: proposalPath,
+      bindingPath: fixture.bindingPath,
+      env: {
+        NIX_S0_PORTAL_EXCEPTION_ACTIVE: proposalPath,
+      },
     });
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /ACTIVE status must be ACTIVE/);
@@ -622,4 +630,92 @@ test('parseActiveConsent reads scalar yaml fence', () => {
   assert.equal(parsed.status, 'ACTIVE');
   assert.equal(parsed.approver, 'Ada');
   assert.equal(parsed.attemptLedgerExactTxn, 1937);
+});
+
+test('duplicate consent status fields fail', () => {
+  assert.throws(
+    () => parseActiveConsent('```yaml\nstatus: INACTIVE\nstatus: ACTIVE\napprover: Ada\n```\n'),
+    /duplicate consent field: status/,
+  );
+  const fixture = makeExceptionFixture({
+    decisionText: 'Verdict: Accepted\nADR status: Accepted\n',
+  });
+  try {
+    writeFileSync(fixture.activePath, `# ACTIVE\n\n\`\`\`yaml\nstatus: INACTIVE\nstatus: ACTIVE\nexperimentId: c2-s0-20260903\ncodeSha: ${CODE_SHA}\nevidenceManifestDigest: ${fixture.digest}\nattemptLedgerExactTxn: ${fixture.totalTxn}\napprover: owner\napprovedAt: 2026-09-05T12:00:00Z\n\`\`\`\n`);
+    const result = validateException(fixture);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /duplicate consent field: status/);
+  } finally {
+    rmSync(fixture.dir, { recursive: true, force: true });
+  }
+});
+
+test('nonsense or non-UTC approvedAt fails', () => {
+  const fixture = makeExceptionFixture({
+    decisionText: 'Verdict: Accepted\nADR status: Accepted\n',
+    approvedAt: 'yesterday-ish',
+  });
+  try {
+    const result = validateException(fixture);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /approvedAt as ISO-8601 UTC/);
+  } finally {
+    rmSync(fixture.dir, { recursive: true, force: true });
+  }
+});
+
+test('approvedAt without Z suffix fails', () => {
+  const fixture = makeExceptionFixture({
+    decisionText: 'Verdict: Accepted\nADR status: Accepted\n',
+    approvedAt: '2026-09-05T12:00:00',
+  });
+  try {
+    const result = validateException(fixture);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /approvedAt as ISO-8601 UTC/);
+  } finally {
+    rmSync(fixture.dir, { recursive: true, force: true });
+  }
+});
+
+test('NIX_S0_PORTAL_EXCEPTION_BINDING env does not override CLI binding', () => {
+  const fixture = makeExceptionFixture({
+    decisionText: 'Verdict: Accepted\nADR status: Accepted\n',
+  });
+  const decoy = join(fixture.dir, 'decoy-binding.json');
+  writeFileSync(decoy, JSON.stringify({
+    experimentId: 'decoy',
+    codeSha: 'b'.repeat(40),
+    evidenceManifestDigest: '0'.repeat(64),
+    attemptLedgerExactTxn: 1,
+    paths: ['missing-on-purpose.json'],
+  }));
+  try {
+    // Without argv override, committed binding is used; decoy env must be ignored.
+    // Fixture evidence does not match committed 32-path digest → digest/path FAIL, not decoy experimentId.
+    const result = validate(fixture.dir, {
+      env: {
+        NIX_S0_PORTAL_EXCEPTION_BINDING: decoy,
+        NIX_S0_PORTAL_EXCEPTION_ACTIVE: fixture.activePath,
+      },
+    });
+    assert.notEqual(result.status, 0);
+    assert.doesNotMatch(result.stderr, /metadata\.experimentId must match binding \(decoy\)/);
+    assert.match(result.stderr, /manifest path missing|evidenceManifestDigest mismatch|metadata\.experimentId must match binding \(c2-s0-20260903\)/);
+  } finally {
+    rmSync(fixture.dir, { recursive: true, force: true });
+  }
+});
+
+test('changing validation-summary and ops report does not change digest', () => {
+  const fixture = makeExceptionFixture();
+  try {
+    const before = computeEvidenceManifestDigest(fixture.dir, fixture.paths).digest;
+    writeFileSync(join(fixture.dir, 'validation-summary.json'), JSON.stringify({ mutated: true }));
+    writeFileSync(join(fixture.dir, 'p0-3-s6-fake-report.md'), '# report mutated\n');
+    const after = computeEvidenceManifestDigest(fixture.dir, fixture.paths).digest;
+    assert.equal(before, after);
+  } finally {
+    rmSync(fixture.dir, { recursive: true, force: true });
+  }
 });

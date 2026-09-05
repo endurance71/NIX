@@ -12,13 +12,26 @@ export function defaultActivePath() {
   return join(process.env.HOME || '', '.nix-ops', 'p0-3-s6', 'S0-PORTAL-EXCEPTION-ACTIVE.md');
 }
 
-export function loadBinding(bindingPath = process.env.NIX_S0_PORTAL_EXCEPTION_BINDING || DEFAULT_BINDING_PATH) {
+export function loadBindingFromPath(bindingPath) {
   const binding = JSON.parse(readFileSync(bindingPath, 'utf8'));
   if (!binding.experimentId || !binding.codeSha || !binding.evidenceManifestDigest
     || !Number.isInteger(binding.attemptLedgerExactTxn) || !Array.isArray(binding.paths)) {
     throw new Error('invalid S0 portal exception binding');
   }
   return binding;
+}
+
+/** Always loads the committed binding. Env overrides are ignored. */
+export function loadBinding() {
+  return loadBindingFromPath(DEFAULT_BINDING_PATH);
+}
+
+export const APPROVED_AT_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+export function isApprovedAtUtc(value) {
+  return typeof value === 'string'
+    && APPROVED_AT_UTC_RE.test(value)
+    && Number.isFinite(Date.parse(value));
 }
 
 export function computeEvidenceManifestDigest(evidenceDir, paths) {
@@ -36,7 +49,7 @@ export function computeEvidenceManifestDigest(evidenceDir, paths) {
   return { digest, error: null };
 }
 
-/** Parse YAML-like fenced block from ACTIVE markdown (scalar keys only). */
+/** Parse YAML-like fenced block from ACTIVE markdown (scalar keys only). Rejects duplicate keys. */
 export function parseActiveConsent(markdown) {
   const fence = markdown.match(/```(?:ya?ml)?\s*\n([\s\S]*?)```/);
   const body = fence ? fence[1] : markdown;
@@ -51,6 +64,9 @@ export function parseActiveConsent(markdown) {
     const m = line.match(/^([A-Za-z][A-Za-z0-9_]*)\s*:\s*(.*)$/);
     if (!m) continue;
     const [, key, rest] = m;
+    if (Object.prototype.hasOwnProperty.call(out, key)) {
+      throw new Error(`duplicate consent field: ${key}`);
+    }
     if (rest === '|' || rest === '>') {
       skipMultiline = true;
       out[key] = '';
@@ -207,8 +223,8 @@ export function validateExceptionConsentAndBinding({
   if (typeof consent.approver !== 'string' || !consent.approver.trim()) {
     failures.push('S0 portal exception ACTIVE requires approver');
   }
-  if (typeof consent.approvedAt !== 'string' || !consent.approvedAt.trim()) {
-    failures.push('S0 portal exception ACTIVE requires approvedAt');
+  if (!isApprovedAtUtc(consent.approvedAt)) {
+    failures.push('S0 portal exception ACTIVE requires approvedAt as ISO-8601 UTC ending in Z');
   }
 
   const fields = ['experimentId', 'codeSha', 'evidenceManifestDigest'];

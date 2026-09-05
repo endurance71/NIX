@@ -5,15 +5,22 @@ import { extname, join } from 'node:path';
 import {
   defaultActivePath,
   loadBinding,
+  loadBindingFromPath,
   validateExceptionConsentAndBinding,
 } from './s0-portal-exception-lib.mjs';
 
 const requireComplete = process.argv.includes('--require-complete');
 const requireCompleteS0 = process.argv.includes('--require-complete-s0');
 const requireHybridDelta = process.argv.includes('--require-hybrid-delta');
+const bindingArgIdx = process.argv.indexOf('--s0-exception-binding');
+const bindingOverridePath = bindingArgIdx >= 0 ? process.argv[bindingArgIdx + 1] : null;
 const completeRequested = requireComplete || requireCompleteS0;
 if (requireComplete && requireCompleteS0) {
   console.error('choose only one complete evidence profile');
+  process.exit(2);
+}
+if (bindingArgIdx >= 0 && !bindingOverridePath) {
+  console.error('--s0-exception-binding requires a path argument');
   process.exit(2);
 }
 const spikeDir = process.env.SPIKE_EVIDENCE_DIR?.trim()
@@ -182,7 +189,7 @@ if (completeRequested && failures.length === 0) {
     } else {
       let binding;
       try {
-        binding = loadBinding();
+        binding = bindingOverridePath ? loadBindingFromPath(bindingOverridePath) : loadBinding();
       } catch (error) {
         failures.push(`S0 portal exception binding: ${error.message}`);
         binding = null;
