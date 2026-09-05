@@ -127,7 +127,7 @@ export const resources = {
         onboardingSaveFailed: 'Nie udało się zapisać nazwy użytkownika.',
         onboardingUseOtherAccount: 'Użyj innego konta',
         analyticsConsentDescription:
-          'Za Twoją zgodą NiX zapisze wyłącznie anonimowe zdarzenia użycia, bez treści wiadomości, nazw i mediów. Zgodę można później zmienić w Profilu.',
+          'Za Twoją zgodą NiX zapisze ograniczone zdarzenia użycia (identyfikator instalacji, nazwa zdarzenia, wersja, język). Zdarzenia nie zawierają treści wiadomości ani nazw, ale identyfikator instalacji może być powiązany z kontem przez tabele instalacji/push. Zgodę możesz później zmienić w Profilu.',
         analyticsConsentEnabled: 'Analityka produktu: włączona',
         analyticsConsentDisabled: 'Analityka produktu: wyłączona',
         onboardingFailure: 'Nie udało się ukończyć konfiguracji: {{message}}',
@@ -536,7 +536,7 @@ export const resources = {
         creatorValue: 'Twórca: {{creator}}',
         privacyPolicyDataTitle: 'Dane konta',
         privacyPolicyDataBody:
-          'Administratorem jest MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, NIP 8393229228. NiX przetwarza dane konta, instalacji i ustawień, aby świadczyć usługę. Dobrowolna analityka działa dopiero po zgodzie, nie zawiera treści ani ID konta, a surowe zdarzenia są usuwane po 30 dniach.',
+          'Administratorem jest MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, NIP 8393229228. NiX przetwarza dane konta, instalacji i ustawień, aby świadczyć usługę. Dobrowolna analityka działa dopiero po zgodzie, nie zawiera treści wiadomości, ale używa identyfikatora instalacji, który może być powiązany z kontem; surowe zdarzenia są usuwane po 30 dniach.',
         privacyPolicyMediaTitle: 'Zdjęcia i wideo',
         privacyPolicyMediaBody:
           'Dostęp do kamery, mikrofonu i biblioteki zdjęć służy wyłącznie do tworzenia wiadomości, nagrywania wideo oraz ustawiania awatara. Dane konta przechowujemy do usunięcia konta, a media usuwamy po odczycie zgodnie z funkcją produktu.',
@@ -835,7 +835,7 @@ export const resources = {
         onboardingSaveFailed: 'Could not save username.',
         onboardingUseOtherAccount: 'Use another account',
         analyticsConsentDescription:
-          'With your consent, NiX stores only anonymous usage events without message content, names, or media. You can change this later in Profile.',
+          'With your consent, NiX stores limited usage events (installation ID, event name, version, language). Events do not contain message content or names, but the installation ID can be linked to your account via installation/push tables. You can change this later in Profile.',
         analyticsConsentEnabled: 'Product analytics: on',
         analyticsConsentDisabled: 'Product analytics: off',
         onboardingFailure: 'Could not complete setup: {{message}}',
@@ -1241,7 +1241,7 @@ export const resources = {
         creatorValue: 'Creator: {{creator}}',
         privacyPolicyDataTitle: 'Account data',
         privacyPolicyDataBody:
-          'Controller: MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. NiX processes account, installation, and settings data to provide the service. Optional analytics starts only after consent, contains no content or account ID, and raw events are deleted after 30 days.',
+          'Controller: MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. NiX processes account, installation, and settings data to provide the service. Optional analytics starts only after consent, contains no message content, and uses an installation ID that can be linked to your account; raw events are deleted after 30 days.',
         privacyPolicyMediaTitle: 'Photos and video',
         privacyPolicyMediaBody:
           'Camera, microphone, and photo-library access are used only to create messages, record video, and set your avatar. Account data is retained until account deletion and media is removed after viewing according to the product feature.',

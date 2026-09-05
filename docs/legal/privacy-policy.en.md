@@ -28,12 +28,13 @@ in Profile or iOS Settings. A notification may contain a username and event type
 but never includes a message photo, video, or thumbnail.
 
 With separate, optional consent, we collect limited product-analytics events.
-An event contains a random installation identifier, an allowlisted event name,
+An event contains an installation identifier, an allowlisted event name,
 app version, language, time, and restricted properties. It does not contain
-message content, usernames, media paths, tokens, account IDs, or conversation IDs.
-No events are sent before consent. You may refuse consent during onboarding and
-withdraw it anytime in **Profile → Privacy & security**. In the current public
-candidate, product analytics is build-flag disabled
+message content, usernames, media paths, or tokens. The installation ID can be
+linked to your account via installation and push tables — this is not anonymous
+analytics. Before consent, the client does not send events. You may refuse consent
+during onboarding and withdraw it anytime in **Profile → Privacy & security**. In
+the current public candidate, product analytics is build-flag disabled
 (`EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED=false`).
 
 Camera, microphone and photo-library permissions are used only after your

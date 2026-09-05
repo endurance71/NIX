@@ -50,6 +50,8 @@ export async function recordProductEvent(
 ): Promise<boolean> {
   if (!iosRoadmapFeatures.analytics) return false;
   try {
+    const consent = await getProductAnalyticsConsent();
+    if (!consent) return false;
     const installationId = await getInstallationId();
     const { data, error } = await supabase.rpc('record_product_analytics_event', {
       p_installation_id: installationId,
