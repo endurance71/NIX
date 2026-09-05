@@ -20,7 +20,10 @@ if (eas.build?.preview?.channel !== 'preview') failures.push('preview build must
 if (eas.build?.development?.channel !== 'development') failures.push('development build must use the development OTA channel');
 if (production?.env?.SENTRY_DISABLE_AUTO_UPLOAD !== 'true') failures.push('Sentry source-map upload must be disabled');
 if (production?.env?.SENTRY_DISABLE_XCODE_DEBUG_UPLOAD !== 'true') failures.push('Sentry dSYM upload must be disabled');
-if (production?.env?.EXPO_PUBLIC_SENTRY_ENABLED !== 'true') failures.push('Internal TestFlight runtime diagnostics must be explicitly enabled');
+if (production?.env?.EXPO_PUBLIC_SENTRY_ENABLED !== 'false') failures.push('public production must keep EXPO_PUBLIC_SENTRY_ENABLED=false (hard-off)');
+if (production?.env?.EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED !== 'false') {
+  failures.push('public production must keep EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED=false until P1-2 App Privacy is resolved');
+}
 if ('SENTRY_DSN' in (production?.env ?? {})) failures.push('SENTRY_DSN must not be present');
 if (!/^\d{7,}$/.test(submit?.ascAppId ?? '')) failures.push('set the real numeric submit.production.ios.ascAppId before running the workflow');
 if (pkg.version !== '1.0.11') failures.push('package.json version must be 1.0.11');
@@ -65,8 +68,11 @@ for (const variableName of ['EXPO_PUBLIC_SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_AN
 if (!/^EXPO_PUBLIC_SHARE_INVITES_ENABLED=false$/m.test(productionEnv)) {
   failures.push('shared invite links must remain explicitly disabled for the current internal build');
 }
-if (!/^EXPO_PUBLIC_SENTRY_ENABLED=true$/m.test(productionEnv)) {
-  failures.push('Internal TestFlight runtime diagnostics opt-in must be present in .env.production');
+if (!/^EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED=false$/m.test(productionEnv)) {
+  failures.push('product analytics must remain explicitly disabled for the public candidate');
+}
+if (!/^EXPO_PUBLIC_SENTRY_ENABLED=false$/m.test(productionEnv)) {
+  failures.push('public candidate must keep EXPO_PUBLIC_SENTRY_ENABLED=false in .env.production');
 }
 if (!/^EXPO_PUBLIC_CHAT_PASTE_INPUT_ENABLED=true$/m.test(productionEnv)) {
   failures.push('chat paste input must be explicitly enabled for this Internal TestFlight build');
