@@ -37,12 +37,34 @@ describe('productAnalyticsService', () => {
     const { recordProductEvent } = await import('./productAnalyticsService');
     const recorded = await recordProductEvent('onboarding_completed');
     expect(recorded).toBe(false);
+    expect(from).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it('records only when analytics flag is enabled', async () => {
+  it('does not call record RPC when consent is missing', async () => {
     vi.stubEnv('EXPO_PUBLIC_INTERNAL_TESTFLIGHT_ROADMAP_ENABLED', 'false');
     vi.stubEnv('EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED', 'true');
+    maybeSingle.mockResolvedValue({ data: null, error: null });
+    const { recordProductEvent } = await import('./productAnalyticsService');
+    const recorded = await recordProductEvent('onboarding_completed', { source: 'test' });
+    expect(recorded).toBe(false);
+    expect(from).toHaveBeenCalledWith('product_analytics_preferences');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('does not call record RPC after consent revoke', async () => {
+    vi.stubEnv('EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED', 'true');
+    maybeSingle.mockResolvedValue({ data: { enabled: false }, error: null });
+    const { recordProductEvent } = await import('./productAnalyticsService');
+    const recorded = await recordProductEvent('onboarding_completed');
+    expect(recorded).toBe(false);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('records only when analytics flag and consent are enabled', async () => {
+    vi.stubEnv('EXPO_PUBLIC_INTERNAL_TESTFLIGHT_ROADMAP_ENABLED', 'false');
+    vi.stubEnv('EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED', 'true');
+    maybeSingle.mockResolvedValue({ data: { enabled: true }, error: null });
     rpc.mockResolvedValue({ data: true, error: null });
     const { recordProductEvent } = await import('./productAnalyticsService');
     const recorded = await recordProductEvent('onboarding_completed', { source: 'test' });

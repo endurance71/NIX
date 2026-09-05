@@ -33,7 +33,7 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
         },
         {
           title: 'Opcjonalna analityka produktu',
-          body: 'Za odrębną, dobrowolną zgodą możemy zbierać ograniczone zdarzenia analityki produktu: losowy identyfikator instalacji, nazwę zdarzenia z zamkniętej listy, wersję aplikacji, język, czas i ograniczone właściwości. Zdarzenia nie zawierają treści wiadomości, nazwy użytkownika, ścieżek mediów, tokenów ani identyfikatorów konta lub rozmowy. Przed zgodą zdarzenia nie są wysyłane. Zgodę możesz odmówić przy onboarding i w każdej chwili wycofać w Profil → Prywatność i bezpieczeństwo. W aktualnym publicznym kandydacie analityka produktu jest wyłączona flagą builda.',
+          body: 'Za odrębną, dobrowolną zgodą możemy zbierać ograniczone zdarzenia analityki produktu: identyfikator instalacji, nazwę zdarzenia z zamkniętej listy, wersję aplikacji, język, czas i ograniczone właściwości. Zdarzenia nie zawierają treści wiadomości, nazwy użytkownika, ścieżek mediów ani tokenów. Identyfikator instalacji może być powiązany z kontem przez tabele instalacji i powiadomień push (nie jest to anonimowa analityka). Przed zgodą klient nie wysyła zdarzeń. Zgodę możesz odmówić przy onboarding i w każdej chwili wycofać w Profil → Prywatność i bezpieczeństwo. W aktualnym publicznym kandydacie analityka produktu jest wyłączona flagą builda.',
         },
         {
           title: 'Uprawnienia urządzenia',
@@ -108,7 +108,7 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
         },
         {
           title: 'Optional product analytics',
-          body: 'With separate, optional consent we may collect limited product-analytics events: a random installation identifier, an allowlisted event name, app version, language, time, and restricted properties. Events do not contain message content, usernames, media paths, tokens, account IDs, or conversation IDs. No events are sent before consent. You may refuse consent during onboarding and withdraw it anytime in Profile → Privacy & security. In the current public candidate, product analytics is build-flag disabled.',
+          body: 'With separate, optional consent we may collect limited product-analytics events: an installation identifier, an allowlisted event name, app version, language, time, and restricted properties. Events do not contain message content, usernames, media paths, or tokens. The installation ID can be linked to your account via installation and push tables (this is not anonymous analytics). Before consent, the client does not send events. You may refuse consent during onboarding and withdraw it anytime in Profile → Privacy & security. In the current public candidate, product analytics is build-flag disabled.',
         },
         {
           title: 'Device permissions',

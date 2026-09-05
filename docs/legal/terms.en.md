@@ -1,31 +1,56 @@
 # NiX Terms of Use
 
-**Version:** 2026-08-01
-**Effective date:** 1 August 2026
+**Version:** 2026-09-05
+**Effective date:** 5 September 2026
 
-## Service and account
+## Provider
 
-NiX is a service operated by MT Hub Damian Motyliński for exchanging
-ephemeral visual media and text messages between accepted friends. You must be at least 16,
-confirm that you meet this threshold, create an account with accurate required
-information, and keep access to it secure.
+NiX is provided by MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a
+lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. Contact:
+kontakt@damianmotylinski.pl.
 
-## Acceptable use
+## Service
 
-Do not send content you lack rights to use, unlawful content, content that violates
-privacy, intellectual-property rights or safety, or attempt to bypass service
-protections. A recipient can report a message and block its sender. We may warn,
-temporarily suspend, or ban an account where needed for safety, law, or the rights
-of others. Appeal by emailing kontakt@damianmotylinski.pl; we will reassess the decision.
+NiX enables accepted friends to exchange ephemeral text, photo, and video
+messages. Use requires a compatible device, Internet access and an account.
 
-## Content, availability and termination
+## Account
 
-You retain rights in your content and grant only the technical permission needed to
-deliver it to its recipient. The service can be temporarily unavailable for
-maintenance. You may permanently delete your account in the app at any time.
+You must be 16 or older, confirm that threshold, provide accurate registration
+data, and keep your account secure. Email and Apple accounts can be separate. A
+username cannot be changed once set.
 
-## Contact and changes
+## Your content
 
-Send questions and complaints to kontakt@damianmotylinski.pl. We will notify you of material
-changes before they take effect. Polish law applies without limiting mandatory
-consumer protections.
+You retain rights in your content and grant only the non-exclusive, royalty-free
+technical permission necessary to host, process and deliver it to the selected
+recipient.
+
+## Prohibited use
+
+Do not send content you lack rights to use, unlawful content, or content that
+violates privacy, personality, copyright or safety. Harassment, impersonation,
+bypassing safeguards and disrupting the service are prohibited.
+
+## Safety and moderation
+
+A recipient can report a message and block its sender. We may warn, suspend, or
+ban an account for safety, the rights of others, or legal compliance. Appeal at
+kontakt@damianmotylinski.pl.
+
+## Availability
+
+The service is provided as is and can be temporarily unavailable because of
+maintenance, updates or events outside our control. We do not guarantee that
+messages remain available after their ephemeral lifecycle.
+
+## Complaints and termination
+
+Send complaints with a description of the issue to kontakt@damianmotylinski.pl.
+You may end the agreement by deleting the account in the app; deletion is
+irreversible.
+
+## Changes and law
+
+We announce material changes before they take effect. Polish law applies without
+limiting mandatory consumer protections.

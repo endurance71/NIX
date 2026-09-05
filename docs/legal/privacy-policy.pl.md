@@ -29,11 +29,12 @@ urządzeniu w Profilu albo w ustawieniach iOS. Powiadomienie może zawierać naz
 użytkownika oraz rodzaj zdarzenia, ale nie zawiera zdjęcia, filmu ani miniatury wiadomości.
 
 Za odrębną, dobrowolną zgodą zbieramy ograniczone zdarzenia analityki produktu.
-Zdarzenie zawiera losowy identyfikator instalacji, nazwę zdarzenia z zamkniętej
+Zdarzenie zawiera identyfikator instalacji, nazwę zdarzenia z zamkniętej
 listy, wersję aplikacji, język, czas i ograniczone właściwości. Nie zawiera treści
-wiadomości, nazwy użytkownika, ścieżek mediów, tokenów ani identyfikatorów konta
-lub rozmowy. Analitykę można wyłączyć w **Profil → Prywatność i bezpieczeństwo**;
-przed zgodą zdarzenia nie są wysyłane. W aktualnym publicznym kandydacie analityka
+wiadomości, nazwy użytkownika, ścieżek mediów ani tokenów. Identyfikator instalacji
+może być powiązany z kontem przez tabele instalacji i powiadomień push — to nie jest
+anonimowa analityka. Analitykę można wyłączyć w **Profil → Prywatność i bezpieczeństwo**;
+przed zgodą klient nie wysyła zdarzeń. W aktualnym publicznym kandydacie analityka
 produktu jest wyłączona flagą builda (`EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED=false`).
 
 Kamera, mikrofon i biblioteka zdjęć są używane wyłącznie po przyznaniu
