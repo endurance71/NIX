@@ -2,13 +2,25 @@
 /** Validate P0-3 spike evidence without reading fixture media or provider secrets. */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
+import {
+  defaultActivePath,
+  loadBinding,
+  loadBindingFromPath,
+  validateExceptionConsentAndBinding,
+} from './s0-portal-exception-lib.mjs';
 
 const requireComplete = process.argv.includes('--require-complete');
 const requireCompleteS0 = process.argv.includes('--require-complete-s0');
 const requireHybridDelta = process.argv.includes('--require-hybrid-delta');
+const bindingArgIdx = process.argv.indexOf('--s0-exception-binding');
+const bindingOverridePath = bindingArgIdx >= 0 ? process.argv[bindingArgIdx + 1] : null;
 const completeRequested = requireComplete || requireCompleteS0;
 if (requireComplete && requireCompleteS0) {
   console.error('choose only one complete evidence profile');
+  process.exit(2);
+}
+if (bindingArgIdx >= 0 && !bindingOverridePath) {
+  console.error('--s0-exception-binding requires a path argument');
   process.exit(2);
 }
 const spikeDir = process.env.SPIKE_EVIDENCE_DIR?.trim()
@@ -169,7 +181,31 @@ if (completeRequested && failures.length === 0) {
   } else if (String(metadata.sku).toUpperCase() !== 'F0' || metadata.noS0Created !== true) {
     failures.push('metadata must confirm F0 and no S0');
   }
-  if (!metadata.usageConfirmedInPortal || !isNonNegativeNumber(metadata.monthlyUsageExactTxn)) {
+  let exceptionBindingCodeSha = null;
+  const exceptionRequested = metadata.usageConfirmationException === true;
+  if (exceptionRequested) {
+    if (!requireCompleteS0) {
+      failures.push('usageConfirmationException is only valid with --require-complete-s0');
+    } else {
+      let binding;
+      try {
+        binding = bindingOverridePath ? loadBindingFromPath(bindingOverridePath) : loadBinding();
+      } catch (error) {
+        failures.push(`S0 portal exception binding: ${error.message}`);
+        binding = null;
+      }
+      if (binding) {
+        exceptionBindingCodeSha = binding.codeSha;
+        const activePath = process.env.NIX_S0_PORTAL_EXCEPTION_ACTIVE?.trim() || defaultActivePath();
+        failures.push(...validateExceptionConsentAndBinding({
+          metadata,
+          binding,
+          activePath,
+          evidenceDir: spikeDir,
+        }));
+      }
+    }
+  } else if (!metadata.usageConfirmedInPortal || !isNonNegativeNumber(metadata.monthlyUsageExactTxn)) {
     failures.push('metadata must contain exact Portal usage confirmation');
   }
   if (typeof metadata.billingOwner !== 'string' || /recorded_offline|unknown|todo/i.test(metadata.billingOwner)) {
@@ -232,6 +268,9 @@ if (completeRequested && failures.length === 0) {
   const shas = new Set(dataRows.map((row) => row.codeSha));
   if (shas.size !== 1 || !/^[0-9a-f]{40}$/.test([...shas][0] ?? '') || dataRows.some((row) => row.workingTreeClean !== true)) {
     failures.push('all live evidence must share one clean 40-character Git SHA');
+  }
+  if (exceptionBindingCodeSha && (shas.size !== 1 || [...shas][0] !== exceptionBindingCodeSha)) {
+    failures.push(`live evidence codeSha must match exception binding ${exceptionBindingCodeSha}`);
   }
 
   const textRows = dataRows.filter((row) => row.kind === 'text');
