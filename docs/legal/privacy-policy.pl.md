@@ -1,7 +1,7 @@
 # Polityka prywatności NiX
 
-**Wersja:** 2026-08-01
-**Data wejścia w życie:** 1 sierpnia 2026 r.
+**Wersja:** 2026-09-05
+**Data wejścia w życie:** 5 września 2026 r.
 
 ## Administrator i kontakt
 
@@ -29,10 +29,13 @@ urządzeniu w Profilu albo w ustawieniach iOS. Powiadomienie może zawierać naz
 użytkownika oraz rodzaj zdarzenia, ale nie zawiera zdjęcia, filmu ani miniatury wiadomości.
 
 Za odrębną, dobrowolną zgodą zbieramy ograniczone zdarzenia analityki produktu.
-Zdarzenie zawiera losowy identyfikator instalacji, nazwę zdarzenia z zamkniętej
+Zdarzenie zawiera identyfikator instalacji, nazwę zdarzenia z zamkniętej
 listy, wersję aplikacji, język, czas i ograniczone właściwości. Nie zawiera treści
-wiadomości, nazwy użytkownika, ścieżek mediów, tokenów ani identyfikatorów konta
-lub rozmowy. Analitykę można wyłączyć w Profilu; przed zgodą zdarzenia nie są wysyłane.
+wiadomości, nazwy użytkownika, ścieżek mediów ani tokenów. Identyfikator instalacji
+może być powiązany z kontem przez tabele instalacji i powiadomień push — to nie jest
+anonimowa analityka. Analitykę można wyłączyć w **Profil → Prywatność i bezpieczeństwo**;
+przed zgodą klient nie wysyła zdarzeń. W aktualnym publicznym kandydacie analityka
+produktu jest wyłączona flagą builda (`EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED=false`).
 
 Kamera, mikrofon i biblioteka zdjęć są używane wyłącznie po przyznaniu
 uprawnienia systemowego do tworzenia wiadomości i awatara. Wiadomości są
@@ -45,9 +48,10 @@ Korzystamy z Supabase (uwierzytelnianie, baza, Storage i funkcje serwerowe;
 region UE), Apple (Sign in with Apple i App Store) oraz Expo/EAS (budowa,
 dystrybucja aplikacji i pośrednictwo w dostarczaniu powiadomień push do Apple APNs).
 Logowanie Google nie jest aktywne w tej wersji i Google nie otrzymuje danych logowania.
-Zainstalowane SDK Sentry jest obecnie twardo
-wyłączone i nie otrzymuje danych. Dostawcy mogą przetwarzać dane poza EOG na podstawie decyzji o
-adekwatności, standardowych klauzul umownych lub innego mechanizmu z rozdziału V RODO.
+Zainstalowane SDK Sentry jest w publicznym buildzie twardo wyłączone
+(`EXPO_PUBLIC_SENTRY_ENABLED=false`) i nie otrzymuje danych. Dostawcy mogą przetwarzać
+dane poza EOG na podstawie decyzji o adekwatności, standardowych klauzul umownych
+lub innego mechanizmu z rozdziału V RODO.
 
 ## Retencja
 
@@ -55,8 +59,8 @@ Konto, profil, potwierdzenie wieku i relacje przechowujemy do usunięcia konta.
 Aktywne tokeny powiadomień przechowujemy do wyłączenia powiadomień, wylogowania,
 usunięcia konta albo otrzymania informacji, że urządzenie nie jest już zarejestrowane.
 Techniczną historię dostarczenia powiadomień i surowe zdarzenia dobrowolnej
-analityki przechowujemy do 30 dni. Dzienne agregaty analityczne nie zawierają
-identyfikatora instalacji.
+analityki (gdy włączona) przechowujemy do 30 dni. Dzienne agregaty analityczne nie
+zawierają identyfikatora instalacji.
 Treść mediów usuwamy po odczycie. Efemeryczne wiadomości tekstowe usuwamy automatycznie
 po 24 godzinach od wysłania. Gdy odbiorca zgłosi wiadomość (multimedialną lub tekstową),
 zabezpieczamy materiał dowodowy wyłącznie na potrzeby moderacji i usuwamy go po 30 dniach. Rozstrzygnięte
@@ -80,7 +84,7 @@ Masz prawo dostępu, sprostowania, usunięcia, ograniczenia, sprzeciwu i
 przenoszenia danych, gdy ma zastosowanie. Możesz usunąć konto w aplikacji:
 **Profil → Konto → Usuń konto**. Bez dostępu do aplikacji skontaktuj się z
 kontakt@damianmotylinski.pl; przed realizacją zweryfikujemy tożsamość proporcjonalnie do
-żądania.
+żądania. Możesz też złożyć skargę do Prezesa UODO.
 
 ## Zmiany
 

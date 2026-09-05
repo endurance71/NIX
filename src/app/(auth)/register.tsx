@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { HStack } from '@expo/ui/swift-ui';
 import type { TextInputRef } from '@expo/ui';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthRegisterCredentials } from '../../hooks/useAuthCredentials';
@@ -11,6 +12,7 @@ import {
   AuthFormLayout,
   AuthSecureField,
   AuthTextField,
+  AuthTextLink,
 } from '../../components/ui/auth-form-layout';
 import { AuthLabeledField } from '../../components/ui/auth-labeled-field';
 import { AuthLegalAcceptance } from '../../components/ui/auth-legal-acceptance';
@@ -184,6 +186,16 @@ export default function RegisterScreen() {
         }}
         testID="register-legal-acceptance"
       />
+      <HStack alignment="center" spacing={12}>
+        <AuthTextLink
+          label={t('profile.privacyPolicy')}
+          onPress={() => router.push('/(auth)/privacy-policy')}
+        />
+        <AuthTextLink
+          label={t('profile.terms')}
+          onPress={() => router.push('/(auth)/terms')}
+        />
+      </HStack>
 
       <AuthPrimaryButton
         label={t('auth.registerButton')}
