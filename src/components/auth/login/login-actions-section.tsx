@@ -1,6 +1,7 @@
-import { VStack } from '@expo/ui/swift-ui';
+import { router } from 'expo-router';
+import { HStack, VStack } from '@expo/ui/swift-ui';
 import { frame, padding } from '@expo/ui/swift-ui/modifiers';
-import { AuthFooterPrompt } from '../../ui/auth-form-layout';
+import { AuthFooterPrompt, AuthTextLink } from '../../ui/auth-form-layout';
 import { AuthPrimaryButton } from '../../ui/auth-primary-button';
 import { useAuthContentWidth } from '../../ui/auth-content-width';
 import {
@@ -35,6 +36,16 @@ export function LoginActionsSection({ vm }: LoginActionsSectionProps) {
         linkLabel={vm.t('auth.noAccountLink')}
         onPress={vm.goToRegister}
       />
+      <HStack alignment="center" spacing={12} modifiers={[frame({ width: contentWidth, minHeight: 44 })]}>
+        <AuthTextLink
+          label={vm.t('profile.privacyPolicy')}
+          onPress={() => router.push('/(auth)/privacy-policy')}
+        />
+        <AuthTextLink
+          label={vm.t('profile.terms')}
+          onPress={() => router.push('/(auth)/terms')}
+        />
+      </HStack>
     </VStack>
   );
 }

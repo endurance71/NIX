@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import type { Json, ProductAnalyticsEventName } from '../types/database.types';
+import { iosRoadmapFeatures } from '../config/iosRoadmapFeatures';
 import { getInstallationId } from './pushNotificationService';
 import { getCurrentLocale } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
@@ -47,7 +48,10 @@ export async function recordProductEvent(
   eventName: ProductAnalyticsEventName,
   properties: Record<string, Json | undefined> = {}
 ): Promise<boolean> {
+  if (!iosRoadmapFeatures.analytics) return false;
   try {
+    const consent = await getProductAnalyticsConsent();
+    if (!consent) return false;
     const installationId = await getInstallationId();
     const { data, error } = await supabase.rpc('record_product_analytics_event', {
       p_installation_id: installationId,

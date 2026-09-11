@@ -37,14 +37,25 @@ QR i dodawanie po username pozostają dostępne. Migracje, RPC, Associated
 Domains i kod zaproszeń pozostają addytywnie w projekcie, ale klient nie tworzy,
 nie obsługuje ani nie realizuje tokenów `share`.
 
-W produkcji powierzchnie są domyślnie wyłączone i można je włączać niezależnie:
+W produkcji powierzchnie są domyślnie wyłączone i można je włączać niezależnie.
+Publiczny kandydat (2026-09-05) trzyma jawnie:
 
 ```text
-EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED=true
+EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED=false
+EXPO_PUBLIC_SENTRY_ENABLED=false
+```
+
+Pozostałe powierzchnie włączać dopiero po gate:
+
+```text
 EXPO_PUBLIC_SHARE_INVITES_ENABLED=true
 EXPO_PUBLIC_COMMUNICATION_CONTROLS_ENABLED=true
 EXPO_PUBLIC_ACCOUNT_DATA_TOOLS_ENABLED=true
 ```
+
+Przed `EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED=true` zamknij audit P1-2 (App Privacy
+Product Interaction) i zaktualizuj ASC. Sentry runtime włączaj tylko osobną decyzją
+release (nie jednocześnie z publicznym hard-off).
 
 Rollback klienta polega na wyłączeniu odpowiedniej flagi. Nie cofaj migracji
 addytywnych.
