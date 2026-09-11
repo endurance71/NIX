@@ -1,8 +1,10 @@
 # Dokumentacja projektowa: NiX (v1.2)
 
-**Status:** W toku — stabilizacja MVP  
-**Stack:** React Native (Expo SDK 57) + Supabase  
-**Ostatnia aktualizacja:** 2026-07-29
+**Status:** W toku — Internal TestFlight; publiczny App Review **NO-GO**  
+**Stack:** React Native 0.86.3 (Expo SDK 57) + Supabase  
+**Ostatnia aktualizacja:** 2026-09-11
+
+Kanon wydania: [release/ios-current.md](release/ios-current.md). Ten dokument opisuje produkt i architekturę; nie zastępuje statusu binary.
 
 ---
 
@@ -72,7 +74,7 @@ NiX to ultra-prywatna aplikacja do komunikacji wizualnej. Cel: efemeryczne wiado
 | Obszar | Zasada |
 | :--- | :--- |
 | UI | `@expo/ui`/SwiftUI → RN primitive (wyjątek) |
-| Nawigacja | Expo Router + custom tabs (`expo-router/ui`, floating pill) |
+| Nawigacja | Expo Router + iOS `NativeTabs` (ikony SF Symbols, `Trigger.Label hidden`) |
 | Media / hardware | Moduły Expo (`expo-camera`, `expo-video`, `expo-screen-capture`…) |
 | Motyw | Systemowy light/dark na iOS — [theme-guidelines.md](theme-guidelines.md) |
 | Testy | Smoke manualny na dwóch iPhone’ach przed wydaniem |
@@ -83,8 +85,8 @@ Pełna hierarchia wyboru, antywzorce i checklista PR: [native-platform-guideline
 
 | Warstwa | Technologia | Uwagi |
 | :--- | :--- | :--- |
-| **Frontend** | React Native 0.86 + Expo SDK 57 | iOS only (`platforms: ["ios"]` w `app.json`) |
-| **Nawigacja** | Expo Router (`src/app`) | Stack + tabs; `experiments.typedRoutes`, `reactCompiler` |
+| **Frontend** | React Native 0.86.3 + Expo SDK 57 | iOS only (`platforms: ["ios"]` w `app.json`) |
+| **Nawigacja** | Expo Router (`src/app`) | Stack + `NativeTabs`; `experiments.typedRoutes`, `reactCompiler` |
 | **UI** | Universal `@expo/ui` + RN primitives | `FieldGroup`, `List`, `TextInput`, `AppIcon`; komponenty w `src/components/ui` |
 | **Stan sieci** | TanStack React Query v5 | Klucze w `src/lib/queryKeys.ts` |
 | **Backend** | Supabase | Postgres, Auth, Storage, Edge Functions |
@@ -171,11 +173,9 @@ Kluczowe funkcje RPC (SECURITY DEFINER, grant dla `authenticated` tam gdzie doty
 
 ### 2.5 Auth
 
-Aktywny przepływ: **e-mail + hasło** + deep link `nix://auth/callback` (hash/query z tokenami; `type=recovery` → reset hasła).
+Aktywny przepływ: **e-mail + hasło** oraz **Sign in with Apple** (`expo-apple-authentication` + Supabase `signInWithIdToken`). Deep link `nix://auth/callback` (hash/query z tokenami; `type=recovery` → reset hasła).
 
-Plan Apple Auth pozostaje jako etap przyszły (por. ostrzeżenie na górze dokumentu).
-
-Szczegóły kroków i edge cases: [auth-flow.md](auth-flow.md).
+Szczegóły kroków i edge cases: [auth-flow.md](auth-flow.md). Konfiguracja Apple: [apple-sign-in-setup.md](apple-sign-in-setup.md).
 
 ### 2.6 Animacje (120 Hz / ProMotion)
 
@@ -289,9 +289,17 @@ src/
 - Capture protection per znajomy; i18n PL/EN; lokalna telemetria; Sentry twardo wyłączone
 - Edge Function `cleanup-nix` w repozytorium
 
-### Sprint 4: Apple Auth — **oczekuje na Apple Developer Account**
+### Sprint 4: Apple Auth — **zakończony w kodzie**
 
-- `expo-apple-authentication`, provider w Supabase, migracja użytkowników (decyzja produktowa)
+- `expo-apple-authentication` + provider Supabase; usuwanie konta z revoke tokenu
+- Test urządzeniowy SIWA revoke (P0-4) pozostaje otwarty — [testing/app-review-device-smoke.md](testing/app-review-device-smoke.md)
+
+### Bieżąca brama (2026-09) — publiczny App Review
+
+Nie mylić z rolloutem flag w [ios-roadmap-rollout.md](ios-roadmap-rollout.md). Ścieżka GO: [release/ios-current.md](release/ios-current.md) oraz [plans/2026-09-04-shortest-path-to-moderation-go.md](plans/2026-09-04-shortest-path-to-moderation-go.md).
+
+- Guideline 1.2: filtr mediów przed doręczeniem — kod C3B na `main`, flaga prod **OFF**, ADR-001 **Proposed**
+- Najwcześniejszy publiczny kandydat: `1.0.11 (6+)` po Accepted C2, staging, enforcement i device QA
 
 ---
 
@@ -301,18 +309,18 @@ Wersje dokładne w repozytorium — kluczowe pakiety:
 
 | Pakiet | Wersja (npm) | Cel |
 | :--- | :--- | :--- |
-| `expo` | ~55.0.23 | SDK |
-| `expo-router` | ~55.0.14 | Nawigacja |
-| `react-native` | 0.83.6 | Runtime |
-| `react` | 19.2.0 | UI |
-| `@supabase/supabase-js` | ^2.105.1 | Backend |
-| `@tanstack/react-query` | ^5.100.7 | Cache zapytań |
-| `react-native-reanimated` | 4.2.1 | Animacje |
-| `react-native-gesture-handler` | ~2.30.0 | Gesty |
+| `expo` | ~57.0.16 | SDK |
+| `expo-router` | ~57.0.16 | Nawigacja |
+| `react-native` | 0.86.3 | Runtime |
+| `react` | 19.2.3 | UI |
+| `@supabase/supabase-js` | ^2.112.4 | Backend |
+| `@tanstack/react-query` | ^5.102.3 | Cache zapytań |
+| `react-native-reanimated` | 4.5.1 | Animacje |
+| `react-native-gesture-handler` | ~2.32.0 | Gesty |
 | `@shopify/flash-list` | 2.0.2 | Listy |
-| `@expo/ui` | ~55.0.15 | SwiftUI embedded |
-| `expo-camera` / `expo-video` / `expo-image` | ~55.x | Media |
-| `expo-screen-capture` | ^55.0.13 | Blokada capture |
+| `@expo/ui` | ~57.0.13 | SwiftUI embedded |
+| `expo-camera` / `expo-video` / `expo-image` | ~57.x | Media |
+| `expo-screen-capture` | 57.0.2 | Blokada capture |
 | `tus-js-client` | ^4.3.1 | Resumable upload |
 | `i18next` / `react-i18next` | ^26 / ^17 | Tłumaczenia |
 | `@sentry/react-native` | ~7.11.0 | Zainstalowane, runtime i upload symboli wyłączone |
