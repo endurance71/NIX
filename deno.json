@@ -1,4 +1,5 @@
 {
   "nodeModulesDir": "none",
-  "minimumDependencyAge": "0"
+  "minimumDependencyAge": "0",
+  "lock": true
 }

@@ -451,6 +451,12 @@ verify_jwt = true
 [functions.process-data-exports]
 verify_jwt = true
 
+[functions.send-text-message]
+verify_jwt = true
+
+[functions.moderation-worker]
+verify_jwt = true
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

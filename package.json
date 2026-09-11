@@ -24,14 +24,24 @@
     "check:cleanup-nix-contract": "node scripts/check-cleanup-nix-contract.mjs",
     "check:report-content-contract": "node scripts/check-report-content-contract.mjs",
     "check:media-storage-integrity": "node scripts/check-media-storage-integrity.mjs",
+    "check:media-storage-integrity:local": "node scripts/check-media-storage-integrity-local.mjs",
     "check:moderation-evidence-integrity": "node scripts/check-moderation-evidence-integrity.mjs",
+    "check:moderation-evidence-integrity:local": "node scripts/check-moderation-evidence-integrity-local.mjs",
+    "check:supabase-security-advisors": "node scripts/check-supabase-security-advisors.mjs",
+    "check:supabase-security-advisors:local": "node scripts/check-supabase-security-advisors-local.mjs",
+    "check:moderation-sla": "node scripts/check-moderation-sla.mjs",
+    "check:moderation-sla:local": "node scripts/check-moderation-sla-local.mjs",
+    "check:moderation-spike-evidence": "node scripts/check-moderation-spike-evidence.mjs",
+    "check:toolchain": "node scripts/check-toolchain.mjs",
     "test:supabase-db": "node scripts/run-supabase-tests.mjs",
     "check:internal-testflight-config": "node scripts/check-internal-testflight-config.mjs",
     "check:release-env": "node scripts/validate-release-env.mjs --mode production",
     "test:release-env": "node --test scripts/validate-release-env.test.mjs plugins/withIosReleaseEnvValidation.test.cjs",
     "sync:ios-release-env-validation": "node scripts/sync-ios-release-env-validation.cjs",
-    "deno:check": "npx -y deno check --min-dep-age=0 --lock=deno.lock supabase/functions/_shared/http.ts supabase/functions/_shared/service-auth.ts supabase/functions/_shared/push.ts supabase/functions/_shared/data-export.ts supabase/functions/begin-media-upload/index.ts supabase/functions/finalize-media-upload/index.ts supabase/functions/cancel-media-upload/index.ts supabase/functions/cleanup-media-upload-orphans/index.ts supabase/functions/cleanup-nix/index.ts supabase/functions/cleanup-nix-due/index.ts supabase/functions/delete-account/index.ts supabase/functions/delete-account/handler.ts supabase/functions/delete-account/apple.ts supabase/functions/delete-account/identity.ts supabase/functions/delete-account/storage.ts supabase/functions/report-content/index.ts supabase/functions/report-content/contract.ts supabase/functions/block-user/index.ts supabase/functions/moderation-admin/index.ts supabase/functions/moderation-admin/contract.ts supabase/functions/cleanup-moderation-evidence/index.ts supabase/functions/cleanup-moderation-evidence/contract.ts supabase/functions/push-dispatch/index.ts supabase/functions/push-receipts/index.ts supabase/functions/data-export-download/index.ts supabase/functions/process-data-exports/index.ts",
-    "deno:test": "npx -y deno test --min-dep-age=0 --lock=deno.lock supabase/functions/_shared/http_test.ts supabase/functions/_shared/service-auth_test.ts supabase/functions/_shared/push_preferences_test.ts supabase/functions/_shared/data-export_test.ts supabase/functions/report-content/contract_test.ts supabase/functions/cleanup-moderation-evidence/contract_test.ts supabase/functions/moderation-admin/contract_test.ts supabase/functions/delete-account/identity_test.ts supabase/functions/delete-account/apple_test.ts supabase/functions/delete-account/handler_test.ts supabase/functions/delete-account/storage_test.ts",
+    "deno:check": "npx -y deno@2.9.6 check --frozen-lockfile --min-dep-age=0 --lock=deno.lock supabase/functions/_shared/http.ts supabase/functions/_shared/service-auth.ts supabase/functions/_shared/push.ts supabase/functions/_shared/data-export.ts supabase/functions/_shared/moderation-policy.ts supabase/functions/_shared/moderation-video-sampling.ts supabase/functions/_shared/moderation-video-frames.ts supabase/functions/_shared/moderation-azure.ts supabase/functions/begin-media-upload/index.ts supabase/functions/finalize-media-upload/index.ts supabase/functions/cancel-media-upload/index.ts supabase/functions/cleanup-media-upload-orphans/index.ts supabase/functions/cleanup-nix/index.ts supabase/functions/cleanup-nix-due/index.ts supabase/functions/delete-account/index.ts supabase/functions/delete-account/handler.ts supabase/functions/delete-account/apple.ts supabase/functions/delete-account/identity.ts supabase/functions/delete-account/storage.ts supabase/functions/report-content/index.ts supabase/functions/report-content/contract.ts supabase/functions/block-user/index.ts supabase/functions/moderation-admin/index.ts supabase/functions/moderation-admin/contract.ts supabase/functions/cleanup-moderation-evidence/index.ts supabase/functions/cleanup-moderation-evidence/contract.ts supabase/functions/push-dispatch/index.ts supabase/functions/push-receipts/index.ts supabase/functions/data-export-download/index.ts supabase/functions/process-data-exports/index.ts supabase/functions/send-text-message/index.ts supabase/functions/moderation-worker/index.ts scripts/moderation-provider-spike.ts",
+    "deno:test": "npx -y deno@2.9.6 test --frozen-lockfile --min-dep-age=0 --lock=deno.lock supabase/functions/_shared/http_test.ts supabase/functions/_shared/service-auth_test.ts supabase/functions/_shared/push_preferences_test.ts supabase/functions/_shared/data-export_test.ts supabase/functions/_shared/moderation-policy_test.ts supabase/functions/_shared/moderation-video-sampling_test.ts supabase/functions/_shared/moderation-video-frames_test.ts supabase/functions/report-content/contract_test.ts supabase/functions/cleanup-moderation-evidence/contract_test.ts supabase/functions/moderation-admin/contract_test.ts supabase/functions/delete-account/identity_test.ts supabase/functions/delete-account/apple_test.ts supabase/functions/delete-account/handler_test.ts supabase/functions/delete-account/storage_test.ts scripts/moderation-spike-lib_test.ts scripts/moderation-spike-retry_test.ts",
+    "spike:moderation-provider": "npx -y deno@2.9.6 run --frozen-lockfile --min-dep-age=0 --lock=deno.lock --allow-net --allow-read --allow-write --allow-env --allow-run scripts/moderation-provider-spike.ts",
+    "spike:moderation-fixtures": "bash scripts/generate-moderation-spike-fixtures.sh",
     "doctor:react": "react-doctor . --verbose",
     "doctor:react:ci": "react-doctor . --blocking warning --no-color",
     "doctor:react:score": "react-doctor . --score",
@@ -87,7 +97,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-i18next": "^17.0.12",
-    "react-native": "0.86.2",
+    "react-native": "0.86.3",
     "react-native-compressor": "^1.19.4",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-image-crop-picker": "^0.51.1",
@@ -112,8 +122,8 @@
     "react-doctor": "^0.9.12",
     "sf-symbols-typescript": "^2.2.0",
     "typescript": "~6.0.3",
-    "xcode": "3.0.1",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "xcode": "3.0.1"
   },
   "private": true,
   "overrides": {
@@ -122,7 +132,10 @@
     },
     "js-yaml": "4.3.1",
     "nanoid": "3.3.18",
-    "uuid": "^11.1.1"
+    "uuid": "^11.1.1",
+    "metro": "0.84.5",
+    "metro-config": "0.84.5",
+    "metro-transform-worker": "0.84.5"
   },
   "patch-package": {
     "ignorePaths": [

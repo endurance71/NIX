@@ -58,6 +58,7 @@ function phaseForState(state: UploadJobState): RecipientUploadPhase | null {
       return 'preparing';
     case 'uploading':
     case 'finalizing':
+    case 'moderation_pending':
       return 'uploading';
     case 'completed':
     case 'partially_completed':

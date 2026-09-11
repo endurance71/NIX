@@ -40,6 +40,9 @@ const expected = [
   '20260827125000_schedule_cleanup_moderation_evidence.sql',
   '20260828100000_strengthen_text_message_safety_filter.sql',
   '20260829170422_moderation_remove_reported_content.sql',
+  '20260831120000_harden_security_definer_execute_grants.sql',
+  '20260831130000_pre_delivery_moderation_expand.sql',
+  '20260831140000_pre_delivery_moderation_contract.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
@@ -134,6 +137,8 @@ for (const name of [
   'cleanup-media-upload-orphans',
   'data-export-download',
   'process-data-exports',
+  'send-text-message',
+  'moderation-worker',
 ]) {
   const escaped = name.replaceAll('-', '\\-');
   const section = new RegExp(`\\[functions\\.${escaped}\\][\\s\\S]*?verify_jwt\\s*=\\s*true`);
@@ -311,6 +316,20 @@ for (const marker of [
 }
 if (/Storage\.remove|storage\.objects/i.test(removeReported)) {
   failures.push('moderation remove must not delete Storage objects');
+}
+
+const securityDefinerGrants = await readFile(
+  path.join(migrationsDir, '20260831120000_harden_security_definer_execute_grants.sql'),
+  'utf8'
+);
+for (const marker of [
+  'REVOKE ALL ON FUNCTION public.enqueue_push_notification_job() FROM PUBLIC, anon, authenticated',
+  'REVOKE ALL ON FUNCTION private.text_message_passes_safety_filter(text) FROM PUBLIC, anon, authenticated',
+  'GRANT EXECUTE ON FUNCTION public.can_send_nix(UUID, UUID) TO authenticated, service_role',
+]) {
+  if (!securityDefinerGrants.includes(marker)) {
+    failures.push(`security definer grants migration is missing ${marker}`);
+  }
 }
 
 const seed = await readFile(path.join(root, 'supabase', 'seed.sql'), 'utf8');

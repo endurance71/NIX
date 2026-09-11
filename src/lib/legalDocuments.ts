@@ -36,6 +36,10 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
           body: 'Wiadomości są dostępne wyłącznie wskazanemu odbiorcy. Po odczycie aplikacja podejmuje usunięcie pliku multimedialnego. Rekord techniczny wiadomości może pozostać przez okres niezbędny do wykonania usunięcia i obsługi błędów. Ograniczenie screenshotów jest funkcją systemową i nie gwarantuje całkowitego uniemożliwienia utrwalenia treści.',
         },
         {
+          title: 'Automatyczna moderacja',
+          body: 'Prywatnych wiadomości nie skanujemy automatycznie. Tekst przechodzi podstawowy filtr fraz. Zdjęcia i wideo nie są skanowane, dopóki moderacja pre-delivery nie zostanie włączona na serwerze. Odbiorca może zgłosić treść i zablokować nadawcę.',
+        },
+        {
           title: 'Odbiorcy danych',
           body: 'Dane mogą być przetwarzane przez Supabase (uwierzytelnianie, baza, Storage i funkcje serwerowe w UE), Apple (Sign in with Apple i App Store) oraz Expo/EAS (budowa, dystrybucja i powiadomienia push), tylko w zakresie koniecznym do usługi. W kontrolowanych buildach testowych Sentry może otrzymywać techniczne kategorie błędów i czasy uruchomienia bez tokenów, treści, e-maili, nazw ani identyfikatorów użytkowników.',
         },
@@ -87,6 +91,7 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
         { title: 'Purposes and legal bases', body: 'We process data to create and operate the account and deliver messages under performance of a contract (GDPR Article 6(1)(b)); for security, fraud prevention and defence of claims under legitimate interests (Article 6(1)(f)); and to comply with law where required (Article 6(1)(c)).' },
         { title: 'Device permissions', body: 'Camera, microphone and photo-library access is used only after iOS permission: to create photo/video messages and set an avatar. You can refuse or withdraw permission in device settings, but that feature will not work.' },
         { title: 'Messages and privacy', body: 'Messages are available only to their selected recipient. After viewing, the app attempts to remove the media file. A technical message record may remain only as long as necessary to complete deletion and resolve errors. Screenshot blocking is a system feature and is not an absolute guarantee.' },
+        { title: 'Automated moderation', body: 'We do not automatically scan private messages. Text passes a basic keyword filter. Photos and videos are not scanned until pre-delivery moderation is enabled on the server. A recipient can report content and block the sender.' },
         { title: 'Recipients', body: 'Data may be processed by Supabase (authentication, database, Storage and server functions in the EU), Apple (Sign in with Apple and App Store), and Expo/EAS (builds, distribution and push notifications), only as needed. In controlled test builds, Sentry may receive technical error categories and startup timings without tokens, content, emails, names, or user identifiers.' },
         { title: 'International transfers', body: 'If a provider processes data outside the EEA, we use an appropriate legal transfer mechanism, such as an adequacy decision or standard contractual clauses. Contact us for current details.' },
         { title: 'Retention', body: 'Account, profile, and age confirmation remain until account deletion. Media is removed after viewing. Report evidence is deleted after 30 days; resolved reports and decision audit after up to 365 days; technical logs after up to 30 days. Open reports remain until resolved.' },

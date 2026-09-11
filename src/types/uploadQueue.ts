@@ -60,6 +60,7 @@ export type UploadJobState =
   | 'waiting_for_auth'
   | 'retry_scheduled'
   | 'finalizing'
+  | 'moderation_pending'
   | 'completed'
   | 'partially_completed'
   | 'failed'

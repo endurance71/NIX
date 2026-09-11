@@ -11,11 +11,13 @@ const {
   mockSupabaseRpc,
   mockInsertSelectSingle,
   mockSelectOrGtOrderLimit,
+  mockFunctionsInvoke,
 } = vi.hoisted(() => ({
   mockGetCurrentUser: vi.fn(),
   mockSupabaseRpc: vi.fn(),
   mockInsertSelectSingle: vi.fn(),
   mockSelectOrGtOrderLimit: vi.fn(),
+  mockFunctionsInvoke: vi.fn(),
 }));
 
 vi.mock('./profileService', () => ({
@@ -25,6 +27,9 @@ vi.mock('./profileService', () => ({
 vi.mock('../lib/supabase', () => ({
   supabase: {
     rpc: mockSupabaseRpc,
+    functions: {
+      invoke: mockFunctionsInvoke,
+    },
     from: (table: string) => {
       if (table === 'text_messages') {
         return {
@@ -49,10 +54,31 @@ vi.mock('../lib/supabase', () => ({
   },
 }));
 
+function functionsError(code: string, status = 503) {
+  return {
+    data: null,
+    error: {
+      message: 'Edge Function error',
+      context: new Response(JSON.stringify({ code }), { status }),
+    },
+  };
+}
+
+const mockMessage = {
+  id: 'msg-1',
+  sender_id: 'user-123',
+  receiver_id: 'peer-456',
+  body: 'Cześć!',
+  created_at: '2026-07-24T12:00:00Z',
+  expires_at: '2026-07-25T12:00:00Z',
+  client_message_id: 'client-1',
+};
+
 describe('textMessageService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetCurrentUser.mockResolvedValue({ id: 'user-123', email: 'test@example.com' });
+    mockFunctionsInvoke.mockResolvedValue(functionsError('MODERATION_DISABLED'));
   });
 
   describe('sendTextMessage', () => {
@@ -60,6 +86,8 @@ describe('textMessageService', () => {
       await expect(
         sendTextMessage({ receiverId: 'peer-456', body: '   ' })
       ).rejects.toThrow('Wiadomość nie może być pusta');
+      expect(mockFunctionsInvoke).not.toHaveBeenCalled();
+      expect(mockInsertSelectSingle).not.toHaveBeenCalled();
     });
 
     it('rzuca błąd gdy treść przekracza 2000 znaków', async () => {
@@ -67,19 +95,11 @@ describe('textMessageService', () => {
       await expect(
         sendTextMessage({ receiverId: 'peer-456', body: longBody })
       ).rejects.toThrow('Wiadomość przekracza limit 2000 znaków');
+      expect(mockInsertSelectSingle).not.toHaveBeenCalled();
     });
 
-    it('wysyła poprawnie wiadomość i zwraca stworzony obiekt', async () => {
-      const mockResult = {
-        id: 'msg-1',
-        sender_id: 'user-123',
-        receiver_id: 'peer-456',
-        body: 'Cześć!',
-        created_at: '2026-07-24T12:00:00Z',
-        expires_at: '2026-07-25T12:00:00Z',
-        client_message_id: 'client-1',
-      };
-      mockInsertSelectSingle.mockResolvedValue({ data: mockResult, error: null });
+    it('przy MODERATION_DISABLED wstawia wiadomość bezpośrednim INSERT', async () => {
+      mockInsertSelectSingle.mockResolvedValue({ data: mockMessage, error: null });
 
       const result = await sendTextMessage({
         receiverId: 'peer-456',
@@ -87,7 +107,9 @@ describe('textMessageService', () => {
         clientMessageId: 'client-1',
       });
 
-      expect(result).toEqual(mockResult);
+      expect(result).toEqual(mockMessage);
+      expect(mockFunctionsInvoke).toHaveBeenCalledOnce();
+      expect(mockInsertSelectSingle).toHaveBeenCalledOnce();
     });
 
     it('mapuje naruszenie filtra na CONTENT_NOT_ALLOWED bez treści wiadomości', async () => {
@@ -121,6 +143,58 @@ describe('textMessageService', () => {
       ).rejects.toMatchObject({
         code: 'UNKNOWN',
       });
+    });
+
+    it('przy włączonej fladze nie robi INSERT po MODERATION_RETRYABLE', async () => {
+      mockFunctionsInvoke.mockResolvedValue(functionsError('MODERATION_RETRYABLE', 503));
+
+      await expect(
+        sendTextMessage({ receiverId: 'peer-456', body: 'Cześć!' })
+      ).rejects.toMatchObject({
+        code: 'MODERATION_RETRYABLE',
+      });
+      expect(mockInsertSelectSingle).not.toHaveBeenCalled();
+    });
+
+    it('przy włączonej fladze nie robi INSERT po CONTENT_NOT_ALLOWED z Edge', async () => {
+      mockFunctionsInvoke.mockResolvedValue(functionsError('CONTENT_NOT_ALLOWED', 403));
+
+      await expect(
+        sendTextMessage({ receiverId: 'peer-456', body: 'blokowana-tresc-testowa' })
+      ).rejects.toMatchObject({
+        code: 'CONTENT_NOT_ALLOWED',
+      });
+      expect(mockInsertSelectSingle).not.toHaveBeenCalled();
+    });
+
+    it('przy włączonej fladze nie robi INSERT w stanie MODERATION_PENDING', async () => {
+      mockFunctionsInvoke.mockResolvedValue({
+        data: { ok: true, status: 'moderation_pending', jobId: 'job-1' },
+        error: null,
+      });
+
+      await expect(
+        sendTextMessage({ receiverId: 'peer-456', body: 'Cześć!' })
+      ).rejects.toMatchObject({
+        code: 'MODERATION_PENDING',
+      });
+      expect(mockInsertSelectSingle).not.toHaveBeenCalled();
+    });
+
+    it('zwraca wiadomość z Edge bez INSERT gdy moderacja zatwierdziła treść', async () => {
+      mockFunctionsInvoke.mockResolvedValue({
+        data: { ok: true, status: 'approved', message: mockMessage },
+        error: null,
+      });
+
+      const result = await sendTextMessage({
+        receiverId: 'peer-456',
+        body: 'Cześć!',
+        clientMessageId: 'client-1',
+      });
+
+      expect(result).toEqual(mockMessage);
+      expect(mockInsertSelectSingle).not.toHaveBeenCalled();
     });
   });
 

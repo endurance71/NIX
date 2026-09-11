@@ -5,6 +5,7 @@
   },
   "build": {
     "development": {
+      "node": "24.18.0",
       "developmentClient": true,
       "distribution": "internal",
       "env": {
@@ -14,6 +15,7 @@
       "channel": "development"
     },
     "preview": {
+      "node": "24.18.0",
       "distribution": "internal",
       "env": {
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
@@ -25,6 +27,7 @@
       "channel": "preview"
     },
     "production": {
+      "node": "24.18.0",
       "autoIncrement": false,
       "environment": "production",
       "env": {

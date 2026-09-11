@@ -42,6 +42,8 @@ for (const marker of [
   'npm run check:supabase-migrations',
   'npm run check:report-content-contract',
   'npm run check:release-env',
+  'npm run check:toolchain',
+  'npm run check:supabase-security-advisors:local',
 ]) {
   if (!workflow.includes(marker)) failures.push(`internal workflow is missing: ${marker}`);
 }

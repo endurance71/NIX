@@ -725,6 +725,7 @@ function uploadStatusLabel(job: DurableUploadJob, t: ChatScreenViewModel['t']): 
       return t('chat.uploadPreparing');
     case 'uploading':
     case 'finalizing':
+    case 'moderation_pending':
       return t('chat.uploadActive');
     case 'waiting_network':
       return t('chat.uploadWaitingNetwork');

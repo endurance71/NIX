@@ -711,6 +711,9 @@ export const resources = {
         CANCELLED: 'Operacja została anulowana.',
         NOT_FOUND: 'Nie znaleziono.',
         CONTENT_NOT_ALLOWED: 'Ta wiadomość nie może zostać wysłana.',
+        MODERATION_PENDING: 'Wiadomość oczekuje na weryfikację.',
+        MODERATION_RETRYABLE: 'Weryfikacja treści jest chwilowo niedostępna.',
+        MODERATION_DISABLED: 'Moderacja pre-delivery jest wyłączona.',
         UNKNOWN: 'Wystąpił nieoczekiwany błąd.',
       },
       sentStatus: {
@@ -1416,6 +1419,9 @@ export const resources = {
         CANCELLED: 'Operation was cancelled.',
         NOT_FOUND: 'Not found.',
         CONTENT_NOT_ALLOWED: 'This message cannot be sent.',
+        MODERATION_PENDING: 'The message is waiting for verification.',
+        MODERATION_RETRYABLE: 'Content verification is temporarily unavailable.',
+        MODERATION_DISABLED: 'Pre-delivery moderation is disabled.',
         UNKNOWN: 'Unexpected error occurred.',
       },
       sentStatus: {

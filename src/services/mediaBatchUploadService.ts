@@ -25,7 +25,8 @@ export type FinalizeMediaUploadResponse = {
   ok: boolean;
   batchId: string;
   assetId: string;
-  status: 'completed' | 'partially_completed' | 'failed';
+  status: 'completed' | 'partially_completed' | 'failed' | 'moderation_pending';
+  jobId?: string;
   sentCount?: number;
   rejectedCount?: number;
   recipients?: {
@@ -63,6 +64,15 @@ async function edgeError(
     return new DomainError('NOT_FRIEND', 'Co najmniej jeden odbiorca jest niedostępny.');
   }
   if (message.includes('INVALID_MEDIA')) return new DomainError('INVALID_MEDIA', 'Nieprawidłowy plik multimedialny.');
+  if (message.includes('CONTENT_NOT_ALLOWED')) {
+    return new DomainError('CONTENT_NOT_ALLOWED', 'Ta treść nie może zostać wysłana.');
+  }
+  if (message.includes('MODERATION_PENDING')) {
+    return new DomainError('MODERATION_PENDING', 'Treść oczekuje na weryfikację.');
+  }
+  if (message.includes('MODERATION_RETRYABLE')) {
+    return new DomainError('MODERATION_RETRYABLE', 'Weryfikacja treści jest chwilowo niedostępna.');
+  }
   return new DomainError('UNKNOWN', message);
 }
 
@@ -116,6 +126,13 @@ export async function finalizeMediaUploadBatch(input: {
       error?: string;
       code?: string;
     } | null;
+    const code = errorPayload?.code ?? '';
+    if (code === 'CONTENT_NOT_ALLOWED') {
+      throw new DomainError('CONTENT_NOT_ALLOWED', 'Ta treść nie może zostać wysłana.');
+    }
+    if (code === 'MODERATION_RETRYABLE') {
+      throw new DomainError('MODERATION_RETRYABLE', 'Weryfikacja treści jest chwilowo niedostępna.');
+    }
     throw new DomainError(
       'UNKNOWN',
       errorPayload?.error || `Finalizacja wysyłki nie powiodła się (${response.status}).`

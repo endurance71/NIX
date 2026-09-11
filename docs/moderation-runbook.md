@@ -38,6 +38,21 @@ każdy błąd `evidence_failed` eskaluje do właściciela produktu. W bezpośred
 zagrożeniu życia należy skontaktować się z właściwymi służbami; aplikacja nie jest
 usługą ratunkową.
 
+**Właściciel dyżuru:** Damian Motyliński (`kontakt@damianmotylinski.pl`).
+Alert SLA: `SUPABASE_DB_URL=… npm run check:moderation-sla` (produkcja) albo
+`npm run check:moderation-sla:local` (lokalny stack). Skrypt kończy się błędem,
+gdy otwarte raporty przekraczają okno 2h/12h (critical) albo 24h/72h (normal).
+Zapisz wyłącznie liczby w `~/.nix-ops/c4-sla-YYYY-MM-DD.md` — nigdy treści,
+nazw użytkowników ani ścieżek dowodów.
+
+Smoke 1.2 (poza Git, te same trzy konta A/B/C):
+
+1. B zgłasza treść A (`report-content`).
+2. Dyżurny `list` → `remove` albo `decide`/`dismiss`.
+3. B odwołuje się (`appeal`); druga osoba potwierdza audit log.
+4. Potwierdź retencję dowodu (30 dni) bez kopiowania pliku do Git.
+
+
 ## Dostęp operacyjny
 
 1. W sekretach funkcji ustaw silne, niezależne wartości `MODERATOR_API_SECRET`

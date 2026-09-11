@@ -9,6 +9,9 @@ export type DomainErrorCode =
   | 'CANCELLED'
   | 'NOT_FOUND'
   | 'CONTENT_NOT_ALLOWED'
+  | 'MODERATION_PENDING'
+  | 'MODERATION_RETRYABLE'
+  | 'MODERATION_DISABLED'
   | 'UNKNOWN';
 
 export class DomainError extends Error {

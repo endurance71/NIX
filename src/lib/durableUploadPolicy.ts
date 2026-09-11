@@ -42,7 +42,8 @@ const STATE_TRANSITIONS: Record<UploadJobState, ReadonlySet<UploadJobState>> = {
   waiting_network: new Set(['queued', 'uploading', 'retry_scheduled', 'paused', 'cancelled', 'expired']),
   waiting_for_auth: new Set(['queued', 'requesting_target', 'paused', 'failed', 'cancelled', 'expired']),
   retry_scheduled: new Set(['queued', 'preparing', 'requesting_target', 'uploading', 'waiting_network', 'paused', 'failed', 'cancelled', 'expired']),
-  finalizing: new Set(['completed', 'partially_completed', 'retry_scheduled', 'waiting_network', 'waiting_for_auth', 'failed', 'cancelled', 'expired']),
+  finalizing: new Set(['completed', 'partially_completed', 'moderation_pending', 'retry_scheduled', 'waiting_network', 'waiting_for_auth', 'failed', 'cancelled', 'expired']),
+  moderation_pending: new Set(['completed', 'partially_completed', 'failed', 'cancelled', 'expired']),
   completed: new Set(),
   partially_completed: new Set(),
   failed: new Set(['queued', 'paused', 'cancelled', 'expired']),
@@ -74,6 +75,7 @@ export function mapNativeUploadState(state: string): UploadJobState {
     case 'waiting_network':
     case 'waiting_for_auth':
     case 'finalizing':
+    case 'moderation_pending':
     case 'completed':
     case 'failed':
     case 'paused':
