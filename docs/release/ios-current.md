@@ -111,6 +111,7 @@ Workspace synced to `origin/main`. Local dirty C1–C8 tree was snapshotted on
 | PR [#32](https://github.com/endurance71/NIX/pull/32) S0 binding | Merged `6d8bcc9` — does **not** activate S0 exception or Accept ADR |
 | PR [#31](https://github.com/endurance71/NIX/pull/31) privacy / Sentry | Merged `9f52de8` after rebase onto `main` |
 | ADR-001 | Still **Proposed** — Faza 2 owner decision remains the unlock |
+| C2 `--require-complete-s0` (2026-09-11) | FAIL as expected: ACTIVE INACTIVE, no approver, `decision.md` not Accepted. Ops: `~/.nix-ops/p0-3-s6/C2-DECISION-PACKAGE-20260911.md` |
 | Public App Review | **NO-GO** |
 
-Next human gate: [`../plans/2026-09-03-c3b-s6-decision-gate.md`](../plans/2026-09-03-c3b-s6-decision-gate.md) (Accepted C2). Do not staging-live, prod flag, Archive 6+, or READY FOR REVIEW before that signature.
+Fazy 3–7 (staging live, prod flag, device QA, Archive 6+, READY FOR REVIEW) were **not** executed. Next human gate: [`../plans/2026-09-03-c3b-s6-decision-gate.md`](../plans/2026-09-03-c3b-s6-decision-gate.md) (Accepted C2). Do not staging-live, prod flag, Archive 6+, or READY FOR REVIEW before that signature.
