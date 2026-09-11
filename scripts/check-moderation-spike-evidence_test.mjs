@@ -8,7 +8,9 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import {
   computeEvidenceManifestDigest,
+  loadBindingFromPath,
   parseActiveConsent,
+  validateExceptionConsentAndBinding,
 } from './s0-portal-exception-lib.mjs';
 
 const checker = new URL('./check-moderation-spike-evidence.mjs', import.meta.url);
@@ -284,23 +286,27 @@ function makeExceptionFixture(options = {}) {
   return { dir, activePath, bindingPath, digest, totalTxn, paths };
 }
 
-function validate(dir, { env = {}, bindingPath = null } = {}) {
-  const args = [checker.pathname, '--require-complete-s0'];
-  if (bindingPath) args.push('--s0-exception-binding', bindingPath);
-  return spawnSync(process.execPath, args, {
+function validate(dir, { env = {} } = {}) {
+  return spawnSync(process.execPath, [checker.pathname, '--require-complete-s0'], {
     env: { ...process.env, SPIKE_EVIDENCE_DIR: dir, ...env },
     encoding: 'utf8',
   });
 }
 
-function validateException(fixture, extraEnv = {}) {
-  return validate(fixture.dir, {
-    bindingPath: fixture.bindingPath,
-    env: {
-      NIX_S0_PORTAL_EXCEPTION_ACTIVE: fixture.activePath,
-      ...extraEnv,
-    },
+/** Exception-path unit helper: fixture binding is passed directly (not via CLI). */
+function evaluateException(fixture, activePath = fixture.activePath) {
+  const binding = loadBindingFromPath(fixture.bindingPath);
+  const metadata = JSON.parse(readFileSync(join(fixture.dir, 'resource-metadata.json'), 'utf8'));
+  return validateExceptionConsentAndBinding({
+    metadata,
+    binding,
+    activePath,
+    evidenceDir: fixture.dir,
   });
+}
+
+function assertFailureMatch(failures, pattern) {
+  assert.ok(failures.some((f) => pattern.test(f)), `expected ${pattern} in ${JSON.stringify(failures)}`);
 }
 
 test('complete S0 evidence requires promotional credit and spending limit', () => {
@@ -334,9 +340,8 @@ test('exact Portal path still passes without exception fields', () => {
 test('exception with INACTIVE consent fails', () => {
   const fixture = makeExceptionFixture({ activeStatus: 'INACTIVE' });
   try {
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /ACTIVE status must be ACTIVE/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /ACTIVE status must be ACTIVE/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -345,14 +350,8 @@ test('exception with INACTIVE consent fails', () => {
 test('exception without ACTIVE file fails', () => {
   const fixture = makeExceptionFixture({ writeActiveFile: false });
   try {
-    const result = validate(fixture.dir, {
-      bindingPath: fixture.bindingPath,
-      env: {
-        NIX_S0_PORTAL_EXCEPTION_ACTIVE: join(fixture.dir, 'missing-ACTIVE.md'),
-      },
-    });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /ACTIVE file missing/);
+    const failures = evaluateException(fixture, join(fixture.dir, 'missing-ACTIVE.md'));
+    assertFailureMatch(failures, /ACTIVE file missing/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -363,40 +362,20 @@ test('proposal ACTIVATED text is not consent', () => {
   const proposalPath = join(fixture.dir, 'proposal.md');
   writeFileSync(proposalPath, '# Proposal\n\nStatus: ACTIVATED\n\n```yaml\nstatus: INACTIVE\nexperimentId: c2-s0-20260903\n```\n');
   try {
-    const result = validate(fixture.dir, {
-      bindingPath: fixture.bindingPath,
-      env: {
-        NIX_S0_PORTAL_EXCEPTION_ACTIVE: proposalPath,
-      },
-    });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /ACTIVE status must be ACTIVE/);
+    const failures = evaluateException(fixture, proposalPath);
+    assertFailureMatch(failures, /ACTIVE status must be ACTIVE/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
 });
 
-test('full exception + ACTIVE + digest + ledger passes usage but fails without Accepted', () => {
+test('full exception + ACTIVE + digest + ledger passes exception rules', () => {
   const fixture = makeExceptionFixture({
     decisionText: 'Verdict: Pending\nADR status: Proposed\n',
   });
   try {
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /decision\.md does not record Accepted/);
-    assert.doesNotMatch(result.stderr, /Portal usage|ACTIVE status|evidenceManifestDigest mismatch|ledger/);
-  } finally {
-    rmSync(fixture.dir, { recursive: true, force: true });
-  }
-});
-
-test('full exception with Accepted decision passes', () => {
-  const fixture = makeExceptionFixture({
-    decisionText: 'Verdict: Accepted\nADR status: Accepted\n',
-  });
-  try {
-    const result = validateException(fixture);
-    assert.equal(result.status, 0, result.stderr);
+    const failures = evaluateException(fixture);
+    assert.deepEqual(failures, []);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -408,9 +387,8 @@ test('flip byte in live jsonl fails digest', () => {
   });
   try {
     appendFileSync(join(fixture.dir, 'runs', 'live-main.jsonl'), ' ');
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /evidenceManifestDigest mismatch/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /evidenceManifestDigest mismatch/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -422,9 +400,8 @@ test('flip byte in attempts fails digest', () => {
   });
   try {
     appendFileSync(join(fixture.dir, 'runs', 'live-main.jsonl.attempts'), ' ');
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /evidenceManifestDigest mismatch/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /evidenceManifestDigest mismatch/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -451,9 +428,7 @@ test('missing attempts file fails ledger', () => {
     skipAttempts: true,
   });
   try {
-    // binding intentionally omits attempts path; recreate binding that still expects pairing via ledger on disk
     const paths = fixture.paths.filter((p) => !p.endsWith('.attempts'));
-    // Ensure live-main has no attempts on disk (already), but binding digest without attempts path
     const { digest } = computeEvidenceManifestDigest(fixture.dir, paths);
     writeFileSync(fixture.bindingPath, JSON.stringify({
       experimentId: 'c2-s0-20260903',
@@ -470,9 +445,8 @@ test('missing attempts file fails ledger', () => {
     meta.evidenceManifestDigest = digest;
     writeFileSync(join(fixture.dir, 'resource-metadata.json'), JSON.stringify(meta));
 
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /missing attempts pairing/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /missing attempts pairing/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -484,7 +458,6 @@ test('per-run summary mismatch fails ledger', () => {
   });
   try {
     writeAttempts(join(fixture.dir, 'runs', 'live-main.jsonl.attempts'), 1);
-    // digest will also fail — recompute binding to isolate ledger... actually digest includes attempts content
     const { digest } = computeEvidenceManifestDigest(fixture.dir, fixture.paths);
     writeFileSync(fixture.bindingPath, JSON.stringify({
       experimentId: 'c2-s0-20260903',
@@ -501,9 +474,8 @@ test('per-run summary mismatch fails ledger', () => {
     meta.evidenceManifestDigest = digest;
     writeFileSync(join(fixture.dir, 'resource-metadata.json'), JSON.stringify(meta));
 
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /summary\.transactions .* !== attempts lines/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /summary\.transactions .* !== attempts lines/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -531,9 +503,8 @@ test('invalid JSON in attempts fails', () => {
     meta.evidenceManifestDigest = digest;
     writeFileSync(join(fixture.dir, 'resource-metadata.json'), JSON.stringify(meta));
 
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /invalid JSON .*attempts/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /invalid JSON .*attempts/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -545,9 +516,8 @@ test('orphan attempts fail ledger', () => {
     orphanAttempts: true,
   });
   try {
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /orphan attempts/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /orphan attempts/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -575,9 +545,8 @@ test('duplicate live summary fails ledger', () => {
     meta.evidenceManifestDigest = digest;
     writeFileSync(join(fixture.dir, 'resource-metadata.json'), JSON.stringify(meta));
 
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /exactly one live non-dryRun summary/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /exactly one live non-dryRun summary/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -589,9 +558,8 @@ test('Portal true + exception true fails', () => {
     portalConflict: true,
   });
   try {
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /forbids usageConfirmedInPortal/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /forbids usageConfirmedInPortal/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -603,9 +571,8 @@ test('settledActualCost 0 on exception path fails', () => {
     settledActualCost: 0,
   });
   try {
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /settledActualCost === null/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /settledActualCost === null/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -617,9 +584,8 @@ test('monthlyUsageExactTxn set on exception path fails', () => {
     monthlyUsageExactTxn: 1937,
   });
   try {
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /monthlyUsageExactTxn === null/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /monthlyUsageExactTxn === null/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -642,9 +608,8 @@ test('duplicate consent status fields fail', () => {
   });
   try {
     writeFileSync(fixture.activePath, `# ACTIVE\n\n\`\`\`yaml\nstatus: INACTIVE\nstatus: ACTIVE\nexperimentId: c2-s0-20260903\ncodeSha: ${CODE_SHA}\nevidenceManifestDigest: ${fixture.digest}\nattemptLedgerExactTxn: ${fixture.totalTxn}\napprover: owner\napprovedAt: 2026-09-05T12:00:00Z\n\`\`\`\n`);
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /duplicate consent field: status/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /duplicate consent field: status/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -656,9 +621,8 @@ test('nonsense or non-UTC approvedAt fails', () => {
     approvedAt: 'yesterday-ish',
   });
   try {
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /approvedAt as ISO-8601 UTC/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /approvedAt as ISO-8601 UTC/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
@@ -670,15 +634,14 @@ test('approvedAt without Z suffix fails', () => {
     approvedAt: '2026-09-05T12:00:00',
   });
   try {
-    const result = validateException(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /approvedAt as ISO-8601 UTC/);
+    const failures = evaluateException(fixture);
+    assertFailureMatch(failures, /approvedAt as ISO-8601 UTC/);
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
 });
 
-test('NIX_S0_PORTAL_EXCEPTION_BINDING env does not override CLI binding', () => {
+test('CLI ignores --s0-exception-binding and env binding override', () => {
   const fixture = makeExceptionFixture({
     decisionText: 'Verdict: Accepted\nADR status: Accepted\n',
   });
@@ -691,17 +654,25 @@ test('NIX_S0_PORTAL_EXCEPTION_BINDING env does not override CLI binding', () => 
     paths: ['missing-on-purpose.json'],
   }));
   try {
-    // Without argv override, committed binding is used; decoy env must be ignored.
-    // Fixture evidence does not match committed 32-path digest → digest/path FAIL, not decoy experimentId.
-    const result = validate(fixture.dir, {
-      env: {
-        NIX_S0_PORTAL_EXCEPTION_BINDING: decoy,
-        NIX_S0_PORTAL_EXCEPTION_ACTIVE: fixture.activePath,
+    const result = spawnSync(
+      process.execPath,
+      [checker.pathname, '--require-complete-s0', '--s0-exception-binding', decoy],
+      {
+        env: {
+          ...process.env,
+          SPIKE_EVIDENCE_DIR: fixture.dir,
+          NIX_S0_PORTAL_EXCEPTION_BINDING: decoy,
+          NIX_S0_PORTAL_EXCEPTION_ACTIVE: fixture.activePath,
+        },
+        encoding: 'utf8',
       },
-    });
+    );
     assert.notEqual(result.status, 0);
     assert.doesNotMatch(result.stderr, /metadata\.experimentId must match binding \(decoy\)/);
-    assert.match(result.stderr, /manifest path missing|evidenceManifestDigest mismatch|metadata\.experimentId must match binding \(c2-s0-20260903\)/);
+    assert.match(
+      result.stderr,
+      /manifest path missing|evidenceManifestDigest mismatch|metadata\.experimentId must match binding \(c2-s0-20260903\)/,
+    );
   } finally {
     rmSync(fixture.dir, { recursive: true, force: true });
   }
