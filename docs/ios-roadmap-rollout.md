@@ -1,5 +1,7 @@
 # Rollout roadmapy iOS
 
+Dokument **flag produktowych** (analityka, share-invites, kontrola komunikacji, narzędzia konta). Nie jest ścieżką do publicznego App Review — kanon wydania: [release/ios-current.md](release/ios-current.md).
+
 Wszystkie migracje są addytywne. Klienta wdrażaj dopiero po bazie i Edge Functions.
 
 ## Kolejność backendu

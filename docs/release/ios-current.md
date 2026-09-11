@@ -59,8 +59,9 @@ Hard stop: C3 prod / flag / Privacy Policy update / READY FOR REVIEW only after 
    compliance until Accepted C2, authorized staging, then production enforcement.
    ADR remains Proposed / NO-GO.
 2. **Physical-device QA:** execute
-   [`../testing/testflight-chat-paste-input.md`](../testing/testflight-chat-paste-input.md)
-   on an iPhone and record the result outside Git.
+   [`../testing/app-review-device-smoke.md`](../testing/app-review-device-smoke.md)
+   (and chat paste [`../testing/testflight-chat-paste-input.md`](../testing/testflight-chat-paste-input.md))
+   on an iPhone and iPad; record the result outside Git.
 3. **P0-4/P0-5 device gates:** verify Sign in with Apple, Apple credential
    revocation during account deletion, clean install, upgrade, offline/retry,
    IPv6/NAT64 and iPad compatibility.
@@ -97,3 +98,19 @@ NO-GO / INTERNAL TESTFLIGHT
 
 Uploading a binary or attaching it to TestFlight never advances the public App
 Review status by itself.
+
+## GO path progress (2026-09-11)
+
+Workspace synced to `origin/main`. Local dirty C1–C8 tree was snapshotted on
+`wip/local-pre-sync-20260911` (do not merge) and discarded from `main`.
+
+| Item | Result |
+| --- | --- |
+| PR [#9](https://github.com/endurance71/NIX/pull/9) spike | Closed obsolete — already on `main` via later C3B PRs |
+| Issue [#29](https://github.com/endurance71/NIX/issues/29) JWT | Closed not_planned — local Supabase **demo** keys (`iss=supabase-demo`), not prod |
+| PR [#32](https://github.com/endurance71/NIX/pull/32) S0 binding | Merged `6d8bcc9` — does **not** activate S0 exception or Accept ADR |
+| PR [#31](https://github.com/endurance71/NIX/pull/31) privacy / Sentry | Merged `9f52de8` after rebase onto `main` |
+| ADR-001 | Still **Proposed** — Faza 2 owner decision remains the unlock |
+| Public App Review | **NO-GO** |
+
+Next human gate: [`../plans/2026-09-03-c3b-s6-decision-gate.md`](../plans/2026-09-03-c3b-s6-decision-gate.md) (Accepted C2). Do not staging-live, prod flag, Archive 6+, or READY FOR REVIEW before that signature.
