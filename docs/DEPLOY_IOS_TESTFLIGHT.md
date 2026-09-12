@@ -652,6 +652,7 @@ Kopiuj wiersz po każdym uploadzie binary **lub** po OTA:
 
 | Data | Wersja | Build / Update | Commit | Ścieżka (A OTA / B Xcode) | Środowisko | Status | Uwagi |
 | ---- | ------ | -------------- | ------ | ------------------------ | ---------- | ------ | ----- |
+| 2026-09-12 | 1.0.11 | 6 | `063530f` | B | production | uploaded ASC, processing | enqueue_own + INSERT fallback; RN 0.86.3 lockfile; flag OFF; Internal QA after Processing; evidence `~/.nix-ops/p0-3-s6/DECISION4-IOS-BUILD6-ARCHIVE-20260912.md` |
 | 2026-08-20 | 1.0.10 | — | working tree (preview chrome hotfix) | A | production | OTA shipped | preview: mediaChrome gaps + horizontal gutters; NativePreviewSendButton Host maxWidth; duration menu Host frame |
 | 2026-08-20 | 1.0.10 | — | working tree (camera Liquid Glass hotfix) | A | production | OTA shipped | JS hotfix: icon-only NativeTabs, camera tab clearance 96, Host hit frames, lens spacing; ASC: keep 1.0.9 available, remove 1.0.10 from Internal if still assigned |
 | 2026-08-13 | 1.0.9 | 1 | `2da2247` | B | production | uploaded ASC, processing | native drawing and text overlays; runtime 1.0.9; React Doctor 100/100; production APNs; non-blocking missing-dSYM warnings for precompiled frameworks; Internal QA after Processing |
