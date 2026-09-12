@@ -3,7 +3,8 @@
 **Wersja:** 2026-09-12
 **Status:** treść zsynchronizowana z in-app (`src/lib/legalDocuments.ts`); HTTPS
 opublikowany 2026-09-12 (`https://nix.damianmotylinski.pl/privacy/`, `/terms/`,
-oraz `/en/`). Public App Review nadal **NO-GO**.
+oraz `/en/`). Public App Review: **WAITING FOR REVIEW** 2026-09-12
+(kanon: [`../release/ios-current.md`](../release/ios-current.md)).
 
 Ten katalog jest źródłem wersjonowanych treści dla aplikacji i przyszłej strony HTTPS:
 

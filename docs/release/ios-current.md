@@ -14,17 +14,17 @@
 | Source SHA | `063530f49418b6fc7e99ed857e8556306d03e867` |
 | Source branch at upload | `feat/ios-1.0.11-build-6` |
 | Previous Internal TF evidence | build `5` on `c2175ce8902161bceefd86668e98955e1487b12c` |
-| Distribution | Internal TestFlight only |
-| Public App Review | **NO-GO / not submitted** |
+| Distribution | Internal TestFlight + public App Review |
+| Public App Review | **WAITING FOR REVIEW** (submitted 2026-09-12) |
+| Submission | `8db797c3-1620-4294-8af2-8d3e688ba4f3` — iOS App `1.0.11 (6)` |
+| Release type | Manual (`Manually release this version`) |
 
 Build `1.0.11 (6)` was uploaded to App Store Connect on 2026-09-12 via local
 Xcode Archive (not EAS). Owner recorded Internal TestFlight device **PASS**
 the same day (`pass wszystko`: navigation, lists, camera, media upload,
-background upload). Confirm **6** remains the active build on **NiX Internal QA**.
-Build 5 remains prior Internal TestFlight evidence.
-
-Uploading a binary never advances public App Review. Build 6 is Internal
-TestFlight only.
+background upload). Owner GO Submit the same day. ASC accepted the version;
+status is **Waiting for Review**. Build 5 remains prior Internal TestFlight
+evidence. Evidence: `~/.nix-ops/p0-3-s6/ASC-SUBMIT-20260912.md`.
 
 ## Verified gates
 
@@ -66,9 +66,9 @@ On the exact build 6 archive SHA (`063530f`):
 | §6 Decision 3 fake-only staging | **PASS** 2026-09-12 — owner `zatwierdzam GO staging canary`. Deno 2.9.6 worker suite **41 passed / 0 failed** on SHA `d146bba`; ffmpeg/ffprobe 8.1.2; **0** Azure Analyze. Rollback drilled. Evidence: `~/.nix-ops/p0-3-s6/DECISION3-STAGING-FAKE-SOAK-PASS-20260912.md`. |
 | §6 Decision 3 live Azure canary | **PASS** 2026-09-12 — owner `ruszaj`. Cap **50**; used **6** (5 safe text + 1 safe JPEG, all `approved` severity 0); video live **off**. SHA `3482e65`, clean tree. `external_used` **3630 / 4000** (remaining **370**). Evidence: `~/.nix-ops/p0-3-s6/DECISION3-LIVE-AZURE-CANARY-PASS-20260912.md`. |
 | §6 Decision 4 | **GO recorded** 2026-09-12 (`zgoda`). C3 schema **on prod**. Storage download + OVH idle worker. `enqueue_own` + `get_own` on prod. Archive **1.0.11 (6)**; owner Internal TF device **PASS** 2026-09-12 (`pass wszystko`; issue [#15](https://github.com/endurance71/NIX/issues/15) closed). Owner `wlacz flage` 2026-09-12: Privacy Policy Azure wording, OTA `874edb39` (`8688bfb`, runtime `1.0.11`), then flag **TRUE**. INSERT fallback blocked. **Not** READY FOR REVIEW. Evidence: `~/.nix-ops/p0-3-s6/DECISION4-GO-20260912.md` + `DECISION4-PROD-SCHEMA-FLAG-OFF-20260912.md` + `DECISION4-STORAGE-DOWNLOAD-SMOKE-20260912.md` + `DECISION4-OVH-HOST-IDLE-20260912.md` + `DECISION4-IOS-ENQUEUE-FALLBACK-20260912.md` + `DECISION4-IOS-BUILD6-ARCHIVE-20260912.md` + `DECISION4-IOS-BUILD6-DEVICE-SMOKE-20260912.md` + `DECISION4-IOS-BUILD6-DEVICE-PASS-20260912.md` + `DECISION4-FLAG-ON-20260912.md`. |
-| Production pre-delivery filter | **ON** 2026-09-12 — flag TRUE after OTA. Hotfix [PR #48](https://github.com/endurance71/NIX/pull/48) (`e1d73cf`) delivers approved text and finalizes photos. HTTPS privacy/terms **2026-09-12** live. Photo wait loop [PR #50](https://github.com/endurance71/NIX/pull/50) (`ae943fb`) + OTA `4f1fcd22`. Owner allowed **text + photo + video** delivered 2026-09-12. Public App Review still **NO-GO** (no Submit GO). |
+| Production pre-delivery filter | **ON** 2026-09-12 — flag TRUE after OTA. Hotfix [PR #48](https://github.com/endurance71/NIX/pull/48) (`e1d73cf`) delivers approved text and finalizes photos. HTTPS privacy/terms **2026-09-12** live. Photo wait loop [PR #50](https://github.com/endurance71/NIX/pull/50) (`ae943fb`) + OTA `4f1fcd22`. Owner allowed **text + photo + video** delivered 2026-09-12. Public App Review **WAITING FOR REVIEW** 2026-09-12 (owner Submit GO). |
 
-Flag `pre_delivery_moderation_enabled` is **TRUE** on production after owner `wlacz flage` (2026-09-12). HTTPS privacy/terms **2026-09-12** (Azure wording) are live at `https://nix.damianmotylinski.pl/privacy/` and `/terms/` (PL + EN). READY FOR REVIEW stays blocked until a separate owner Submit GO. Build **6** + OTA `4f1fcd22` (runtime `1.0.11`; prior send-PASS OTA was `874edb39`). OVH worker image `nix-moderation-worker:e1d73cf` (try/catch from PR #48). Rollback is `UPDATE … = false`, not a migration. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
+Flag `pre_delivery_moderation_enabled` is **TRUE** on production after owner `wlacz flage` (2026-09-12). HTTPS privacy/terms **2026-09-12** (Azure wording) are live at `https://nix.damianmotylinski.pl/privacy/` and `/terms/` (PL + EN). Public App Review is **WAITING FOR REVIEW** (submitted 2026-09-12; build **6**; manual release). Build **6** + OTA `4f1fcd22` (runtime `1.0.11`; prior send-PASS OTA was `874edb39`). OVH worker image `nix-moderation-worker:e1d73cf` (try/catch from PR #48). Rollback is `UPDATE … = false`, not a migration. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
 
 ## Open release blockers
 
@@ -78,6 +78,7 @@ Flag `pre_delivery_moderation_enabled` is **TRUE** on production after owner `wl
    HTTPS privacy/terms **2026-09-12** published (PL + EN). Owner live send on
    OTA `4f1fcd22`: allowed **text, photo, and video all delivered** 2026-09-12.
    F0 ledger **3649 / 4000** (`external_used` 3630 + `consumed_txn` 19).
+   Public App Review **WAITING FOR REVIEW** 2026-09-12.
 2. **Physical-device QA (iPhone):** owner Internal TF **PASS** on `1.0.11 (6)`
    plus remaining 1.2 (reject / report / block / paste / offline / permissions)
    attested 2026-09-12. Allowed text/photo/video delivery confirmed the same
@@ -102,11 +103,12 @@ Flag `pre_delivery_moderation_enabled` is **TRUE** on production after owner `wl
 
 ## Next eligible App Review candidate
 
-Build 6 is the current Internal TestFlight binary (enqueue + wait loop via OTA
-`4f1fcd22`, runtime `1.0.11`). HTTPS privacy/terms match in-app version
-**2026-09-12**. Public App Review stays **NO-GO** (iPad/IPv6 deferred by owner;
-no Submit GO). Do **not** set READY FOR REVIEW or Submit without a separate
-owner GO. Build 5 stays as prior evidence.
+Build 6 is the submitted binary (enqueue + wait loop via OTA `4f1fcd22`,
+runtime `1.0.11`). HTTPS privacy/terms match in-app version **2026-09-12**.
+Public App Review is **WAITING FOR REVIEW** after owner Submit GO 2026-09-12.
+Do **not** cancel the submission or attach a new IPA unless Apple rejects or
+the owner asks. Build 5 stays as prior Internal TestFlight evidence. Release
+after approval is **manual**.
 
 Allowed status progression:
 
@@ -135,7 +137,7 @@ Workspace synced to `origin/main`. Local dirty C1–C8 tree was snapshotted on
 | C2 `--require-complete-s0` | PASS after ACTIVE + Accepted `decision.md` |
 | §6 Decision 3 fake-only | **PASS** 2026-09-12 (`zatwierdzam GO staging canary`; 41 tests; 0 Analyze) |
 | §6 Decision 3 live Azure canary | **PASS** 2026-09-12 (`ruszaj`; 6/50 txn; video off; `external_used` **3630**) |
-| §6 Decision 4 | **Flag TRUE** 2026-09-12 (`wlacz flage`); OTA `874edb39` then `4f1fcd22`; INSERT blocked; App Review **NO-GO** |
+| §6 Decision 4 | **Flag TRUE** 2026-09-12 (`wlacz flage`); OTA `874edb39` then `4f1fcd22`; INSERT blocked; later same day App Review **WAITING FOR REVIEW** |
 | Production flag | **ON** — hotfix [PR #48](https://github.com/endurance71/NIX/pull/48) `e1d73cf`; owner **allowed** send PASS after flag ON |
 | Photo wait OTA | [PR #50](https://github.com/endurance71/NIX/pull/50) `ae943fb`; group `4f1fcd22`; RPC `get_own_media_moderation_job` |
 | OVH worker | image `nix-moderation-worker:e1d73cf`; try/catch live; RestartCount 0 |
@@ -145,8 +147,8 @@ Workspace synced to `origin/main`. Local dirty C1–C8 tree was snapshotted on
 | Allowed text / photo / video | **PASS** 2026-09-12 — owner `wszystko doszlo`; jobs 4 text + 2 image + 1 video approved |
 | iPad / IPv6 | deferred by owner (`tylko iPhone`); `supportsTablet: false` |
 | F0 | **3649 / 4000** remaining **351** |
-| Public App Review | **NO-GO** |
+| Public App Review | **WAITING FOR REVIEW** 2026-09-12 — submission `8db797c3-1620-4294-8af2-8d3e688ba4f3`, build **6**, manual release |
 
 Production flag is TRUE. Binary **6** + OTA `4f1fcd22` + SQL `20260912150000` +
 `20260912160000`. `push-dispatch` v15. HTTPS privacy matches in-app 2026-09-12.
-Do not READY FOR REVIEW without a separate owner GO.
+Public App Review submitted 2026-09-12.

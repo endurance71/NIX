@@ -1,8 +1,8 @@
 # Dokumentacja projektowa: NiX (v1.2)
 
-**Status:** W toku — Internal TestFlight; publiczny App Review **NO-GO**  
+**Status:** Internal TestFlight + publiczny App Review **WAITING FOR REVIEW**  
 **Stack:** React Native 0.86.3 (Expo SDK 57) + Supabase  
-**Ostatnia aktualizacja:** 2026-09-11
+**Ostatnia aktualizacja:** 2026-09-12
 
 Kanon wydania: [release/ios-current.md](release/ios-current.md). Ten dokument opisuje produkt i architekturę; nie zastępuje statusu binary.
 
