@@ -1,7 +1,7 @@
 # Polityka prywatności NiX
 
-**Wersja:** 2026-09-05
-**Data wejścia w życie:** 5 września 2026 r.
+**Wersja:** 2026-09-12
+**Data wejścia w życie:** 12 września 2026 r.
 
 ## Administrator i kontakt
 
@@ -45,8 +45,10 @@ zrzutem ekranu nie jest gwarancją techniczną na każdym urządzeniu.
 ## Odbiorcy i transfery
 
 Korzystamy z Supabase (uwierzytelnianie, baza, Storage i funkcje serwerowe;
-region UE), Apple (Sign in with Apple i App Store) oraz Expo/EAS (budowa,
-dystrybucja aplikacji i pośrednictwo w dostarczaniu powiadomień push do Apple APNs).
+region UE), Apple (Sign in with Apple i App Store), Expo/EAS (budowa,
+dystrybucja aplikacji i pośrednictwo w dostarczaniu powiadomień push do Apple APNs)
+oraz Microsoft Azure AI Content Safety (skan tekstu, zdjęć i wybranych klatek
+wideo przed doręczeniem).
 Logowanie Google nie jest aktywne w tej wersji i Google nie otrzymuje danych logowania.
 Zainstalowane SDK Sentry jest w publicznym buildzie twardo wyłączone
 (`EXPO_PUBLIC_SENTRY_ENABLED=false`) i nie otrzymuje danych. Dostawcy mogą przetwarzać
@@ -73,9 +75,12 @@ danych koniecznych do obsługi zgłoszenia, obowiązku prawnego lub obrony roszc
 
 ## Bezpieczeństwo i moderacja
 
-Prywatnych wiadomości nie skanujemy automatycznie. Odbiorca może zgłosić
-konkretną wiadomość i zablokować nadawcę. Zgłoszenie jest oceniane przez
-upoważnioną osobę; możemy ostrzec, czasowo zawiesić albo zablokować konto.
+Przed doręczeniem automatycznie skanujemy wiadomości tekstowe, zdjęcia i wideo.
+Dla wideo używamy wybranych klatek, nie pełnego skanu pliku. Skan wykonuje
+Microsoft Azure AI Content Safety wyłącznie po to, by zablokować treści
+niedozwolone. Kopię roboczą użytą do skanu usuwamy po decyzji. Odbiorca nadal
+może zgłosić konkretną wiadomość i zablokować nadawcę. Zgłoszenie jest oceniane
+przez upoważnioną osobę; możemy ostrzec, czasowo zawiesić albo zablokować konto.
 W sprawie wyniku lub odwołania napisz na kontakt@damianmotylinski.pl.
 
 ## Twoje prawa

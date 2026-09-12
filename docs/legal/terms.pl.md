@@ -1,7 +1,7 @@
 # Regulamin NiX
 
-**Wersja:** 2026-09-05
-**Data wejścia w życie:** 5 września 2026 r.
+**Wersja:** 2026-09-12
+**Data wejścia w życie:** 12 września 2026 r.
 
 ## Usługodawca
 
@@ -35,7 +35,9 @@ działania usługi.
 
 ## Bezpieczeństwo i moderacja
 
-Odbiorca może zgłosić wiadomość i zablokować nadawcę. Możemy ostrzec, czasowo
+Odbiorca może zgłosić wiadomość i zablokować nadawcę. Przed doręczeniem
+automatycznie skanujemy tekst, zdjęcia i wideo (dla wideo: wybrane klatki)
+przez Microsoft Azure AI Content Safety. Możemy ostrzec, czasowo
 zawiesić lub zablokować konto dla bezpieczeństwa, ochrony innych osób lub zgodności
 z prawem. Odwołanie wyślij na kontakt@damianmotylinski.pl.
 

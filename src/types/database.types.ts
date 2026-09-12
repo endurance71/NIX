@@ -617,6 +617,15 @@ export interface Database {
         };
         Returns: { jobId: string; status: string; decision?: string | null };
       };
+      get_own_text_moderation_job: {
+        Args: { p_job_id: string };
+        Returns: {
+          jobId: string;
+          status: string;
+          decision?: string | null;
+          messageId?: string | null;
+        };
+      };
       mark_text_conversation_read: {
         Args: { peer_id: string; read_through: string };
         Returns: string;

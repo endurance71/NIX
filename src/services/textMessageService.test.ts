@@ -12,12 +12,14 @@ const {
   mockInsert,
   mockInsertSelectSingle,
   mockSelectOrGtOrderLimit,
+  mockSelectMaybeSingle,
 } = vi.hoisted(() => ({
   mockGetCurrentUser: vi.fn(),
   mockSupabaseRpc: vi.fn(),
   mockInsert: vi.fn(),
   mockInsertSelectSingle: vi.fn(),
   mockSelectOrGtOrderLimit: vi.fn(),
+  mockSelectMaybeSingle: vi.fn(),
 }));
 
 vi.mock('./profileService', () => ({
@@ -29,9 +31,14 @@ vi.mock('../lib/supabase', () => ({
     rpc: mockSupabaseRpc,
     from: (table: string) => {
       if (table === 'text_messages') {
+        const eqChain = {
+          eq: () => eqChain,
+          maybeSingle: mockSelectMaybeSingle,
+        };
         return {
           insert: mockInsert,
           select: () => ({
+            eq: () => eqChain,
             or: () => ({
               gt: () => ({
                 order: () => ({
@@ -165,17 +172,55 @@ describe('textMessageService', () => {
       expect(mockInsert).not.toHaveBeenCalled();
     });
 
-    it('pending z RPC nie udaje TextMessage i nie robi INSERT', async () => {
-      mockSupabaseRpc.mockResolvedValue({
-        data: { jobId: 'job-1', status: 'pending' },
-        error: null,
+    it('pending z RPC czeka na approved i nie robi INSERT', async () => {
+      const mockResult = {
+        id: 'msg-1',
+        sender_id: 'user-123',
+        receiver_id: 'peer-456',
+        body: 'Cześć',
+        created_at: '2026-07-24T12:00:00Z',
+        expires_at: '2026-07-25T12:00:00Z',
+        client_message_id: 'client-1',
+      };
+      mockSupabaseRpc.mockImplementation(async (name: string) => {
+        if (name === 'enqueue_own_text_moderation_job') {
+          return { data: { jobId: 'job-1', status: 'pending' }, error: null };
+        }
+        if (name === 'get_own_text_moderation_job') {
+          return {
+            data: { jobId: 'job-1', status: 'approved', messageId: 'msg-1' },
+            error: null,
+          };
+        }
+        return { data: null, error: { message: `unexpected rpc ${name}` } };
+      });
+      mockSelectMaybeSingle.mockResolvedValue({ data: mockResult, error: null });
+
+      const result = await sendTextMessage({ receiverId: 'peer-456', body: 'Cześć' });
+
+      expect(mockSupabaseRpc).toHaveBeenCalledWith('get_own_text_moderation_job', {
+        p_job_id: 'job-1',
+      });
+      expect(mockInsert).not.toHaveBeenCalled();
+      expect(result).toEqual(mockResult);
+    });
+
+    it('rejected z polla mapuje na CONTENT_NOT_ALLOWED bez INSERT', async () => {
+      mockSupabaseRpc.mockImplementation(async (name: string) => {
+        if (name === 'enqueue_own_text_moderation_job') {
+          return { data: { jobId: 'job-1', status: 'pending' }, error: null };
+        }
+        if (name === 'get_own_text_moderation_job') {
+          return { data: { jobId: 'job-1', status: 'rejected', decision: 'CONTENT_NOT_ALLOWED' }, error: null };
+        }
+        return { data: null, error: { message: `unexpected rpc ${name}` } };
       });
 
       await expect(
         sendTextMessage({ receiverId: 'peer-456', body: 'Cześć' })
       ).rejects.toMatchObject({
-        code: 'UNKNOWN',
-        message: 'Wiadomość oczekuje na moderację.',
+        code: 'CONTENT_NOT_ALLOWED',
+        message: 'Ta wiadomość nie może zostać wysłana.',
       });
       expect(mockInsert).not.toHaveBeenCalled();
     });

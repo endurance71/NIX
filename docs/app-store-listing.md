@@ -67,11 +67,11 @@ Declare only what this binary actually uses:
 Before enabling analytics: resolve audit P1-2 (Product Interaction linked vs unlink
 `installation_id`), update ASC App Privacy, then set the build flag intentionally.
 
-Used by: Apple (Sign in with Apple, APNs), Supabase (EU), Expo (builds, push relay).
+Used by: Apple (Sign in with Apple, APNs), Supabase (EU), Expo (builds, push relay), Microsoft Azure AI Content Safety (pre-delivery screening).
 
 ## Operator paste checklist (public URLs)
 
-Publish identical PL/EN content from `docs/legal/` (version **2026-09-05**) to:
+Publish identical PL/EN content from `docs/legal/` (version **2026-09-12**) to:
 
 - Privacy: `https://nix.damianmotylinski.pl/privacy`
 - Terms: `https://nix.damianmotylinski.pl/terms`

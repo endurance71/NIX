@@ -1,6 +1,6 @@
 # NiX — pakiet prawny przed publikacją
 
-**Wersja:** 2026-09-05
+**Wersja:** 2026-09-12
 **Status:** treść zsynchronizowana z in-app (`src/lib/legalDocuments.ts`); wymaga
 akceptacji prawnej i publikacji HTTPS.
 

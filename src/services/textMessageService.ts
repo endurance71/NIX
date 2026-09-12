@@ -15,8 +15,81 @@ export type FetchTextMessagesParams = {
   limit?: number;
 };
 
+const MODERATION_POLL_INTERVAL_MS = 400;
+const MODERATION_POLL_TIMEOUT_MS = 30_000;
+
+type TextModerationJobView = {
+  jobId?: string;
+  status?: string;
+  decision?: string | null;
+  messageId?: string | null;
+};
+
 function errorText(error: { message?: string; code?: string } | null | undefined): string {
   return `${error?.code ?? ''} ${error?.message ?? ''}`;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function asJobView(data: unknown): TextModerationJobView | null {
+  if (!data || typeof data !== 'object') return null;
+  return data as TextModerationJobView;
+}
+
+async function loadTextMessageById(id: string): Promise<TextMessage | null> {
+  const { data, error } = await supabase
+    .from('text_messages')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data;
+}
+
+async function waitForOwnTextJob(jobId: string): Promise<TextMessage> {
+  const deadline = Date.now() + MODERATION_POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const { data, error } = await supabase.rpc('get_own_text_moderation_job', {
+      p_job_id: jobId,
+    });
+    if (error) {
+      const text = errorText(error);
+      if (text.includes('UNAUTHORIZED')) {
+        throw new DomainError('UNAUTHORIZED', 'Wymagane logowanie.');
+      }
+      throw new DomainError('UNKNOWN', error.message || 'Nie udało się sprawdzić moderacji.');
+    }
+
+    const job = asJobView(data);
+    const status = job?.status ?? '';
+    switch (status) {
+      case 'pending':
+      case 'processing':
+        await sleep(MODERATION_POLL_INTERVAL_MS);
+        break;
+      case 'approved': {
+        const messageId = job?.messageId;
+        if (typeof messageId === 'string' && messageId.length > 0) {
+          const message = await loadTextMessageById(messageId);
+          if (message) return message;
+        }
+        await sleep(MODERATION_POLL_INTERVAL_MS);
+        break;
+      }
+      case 'rejected':
+        throw new DomainError('CONTENT_NOT_ALLOWED', 'Ta wiadomość nie może zostać wysłana.');
+      case 'error':
+        throw new DomainError('UNKNOWN', 'Moderacja nie powiodła się. Spróbuj ponownie.');
+      default:
+        throw new DomainError('UNKNOWN', 'Nie udało się wysłać wiadomości.');
+    }
+  }
+
+  throw new DomainError('UNKNOWN', 'Moderacja trwa zbyt długo. Spróbuj ponownie.');
 }
 
 export async function sendTextMessage({
@@ -65,13 +138,22 @@ export async function sendTextMessage({
     if (!text.includes('MODERATION_DISABLED')) {
       throw new DomainError('UNKNOWN', enqueueError.message || 'Nie udało się wysłać wiadomości.');
     }
-  } else if (
-    enqueueData &&
-    typeof enqueueData === 'object' &&
-    'status' in enqueueData &&
-    (enqueueData as { status?: unknown }).status === 'pending'
-  ) {
-    throw new DomainError('UNKNOWN', 'Wiadomość oczekuje na moderację.');
+  } else {
+    const job = asJobView(enqueueData);
+    const status = job?.status;
+    const jobId = job?.jobId;
+    if (status === 'rejected') {
+      throw new DomainError('CONTENT_NOT_ALLOWED', 'Ta wiadomość nie może zostać wysłana.');
+    }
+    if (status === 'error') {
+      throw new DomainError('UNKNOWN', 'Moderacja nie powiodła się. Spróbuj ponownie.');
+    }
+    if (status === 'pending' || status === 'processing' || status === 'approved') {
+      if (typeof jobId !== 'string' || jobId.length === 0) {
+        throw new DomainError('UNKNOWN', 'Nie udało się wysłać wiadomości.');
+      }
+      return waitForOwnTextJob(jobId);
+    }
   }
 
   const { data, error } = await supabase
