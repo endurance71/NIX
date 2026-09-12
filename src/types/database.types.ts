@@ -609,6 +609,14 @@ export interface Database {
     };
     Functions: {
       get_unread_inbox_count: { Args: Record<string, never>; Returns: number };
+      enqueue_own_text_moderation_job: {
+        Args: {
+          p_receiver_id: string;
+          p_body: string;
+          p_client_message_id?: string | null;
+        };
+        Returns: { jobId: string; status: string; decision?: string | null };
+      };
       mark_text_conversation_read: {
         Args: { peer_id: string; read_through: string };
         Returns: string;

@@ -15,6 +15,10 @@ export type FetchTextMessagesParams = {
   limit?: number;
 };
 
+function errorText(error: { message?: string; code?: string } | null | undefined): string {
+  return `${error?.code ?? ''} ${error?.message ?? ''}`;
+}
+
 export async function sendTextMessage({
   receiverId,
   body,
@@ -33,6 +37,41 @@ export async function sendTextMessage({
 
   if (trimmedBody.length > 2000) {
     throw new DomainError('INVALID_INPUT', 'Wiadomość przekracza limit 2000 znaków.');
+  }
+
+  const { data: enqueueData, error: enqueueError } = await supabase.rpc(
+    'enqueue_own_text_moderation_job',
+    {
+      p_receiver_id: receiverId,
+      p_body: trimmedBody,
+      p_client_message_id: clientMessageId ?? null,
+    }
+  );
+
+  if (enqueueError) {
+    const text = errorText(enqueueError);
+    if (text.includes('NOT_FRIEND')) {
+      throw new DomainError(
+        'NOT_FRIEND',
+        'Nie możesz wysłać wiadomości do tego użytkownika (wymagana relacja znajomości).'
+      );
+    }
+    if (text.includes('CONTENT_NOT_ALLOWED')) {
+      throw new DomainError('CONTENT_NOT_ALLOWED', 'Ta wiadomość nie może zostać wysłana.');
+    }
+    if (text.includes('UNAUTHORIZED')) {
+      throw new DomainError('UNAUTHORIZED', 'Wymagane logowanie.');
+    }
+    if (!text.includes('MODERATION_DISABLED')) {
+      throw new DomainError('UNKNOWN', enqueueError.message || 'Nie udało się wysłać wiadomości.');
+    }
+  } else if (
+    enqueueData &&
+    typeof enqueueData === 'object' &&
+    'status' in enqueueData &&
+    (enqueueData as { status?: unknown }).status === 'pending'
+  ) {
+    throw new DomainError('UNKNOWN', 'Wiadomość oczekuje na moderację.');
   }
 
   const { data, error } = await supabase

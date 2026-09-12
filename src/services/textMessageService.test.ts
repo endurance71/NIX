@@ -9,11 +9,13 @@ import {
 const {
   mockGetCurrentUser,
   mockSupabaseRpc,
+  mockInsert,
   mockInsertSelectSingle,
   mockSelectOrGtOrderLimit,
 } = vi.hoisted(() => ({
   mockGetCurrentUser: vi.fn(),
   mockSupabaseRpc: vi.fn(),
+  mockInsert: vi.fn(),
   mockInsertSelectSingle: vi.fn(),
   mockSelectOrGtOrderLimit: vi.fn(),
 }));
@@ -28,11 +30,7 @@ vi.mock('../lib/supabase', () => ({
     from: (table: string) => {
       if (table === 'text_messages') {
         return {
-          insert: () => ({
-            select: () => ({
-              single: mockInsertSelectSingle,
-            }),
-          }),
+          insert: mockInsert,
           select: () => ({
             or: () => ({
               gt: () => ({
@@ -56,10 +54,23 @@ describe('textMessageService', () => {
   });
 
   describe('sendTextMessage', () => {
+    beforeEach(() => {
+      mockInsert.mockReturnValue({
+        select: () => ({
+          single: mockInsertSelectSingle,
+        }),
+      });
+      mockSupabaseRpc.mockResolvedValue({
+        data: null,
+        error: { code: 'P0001', message: 'MODERATION_DISABLED' },
+      });
+    });
+
     it('rzuca błąd gdy treść jest pusta', async () => {
       await expect(
         sendTextMessage({ receiverId: 'peer-456', body: '   ' })
       ).rejects.toThrow('Wiadomość nie może być pusta');
+      expect(mockSupabaseRpc).not.toHaveBeenCalled();
     });
 
     it('rzuca błąd gdy treść przekracza 2000 znaków', async () => {
@@ -67,9 +78,10 @@ describe('textMessageService', () => {
       await expect(
         sendTextMessage({ receiverId: 'peer-456', body: longBody })
       ).rejects.toThrow('Wiadomość przekracza limit 2000 znaków');
+      expect(mockSupabaseRpc).not.toHaveBeenCalled();
     });
 
-    it('wysyła poprawnie wiadomość i zwraca stworzony obiekt', async () => {
+    it('przy MODERATION_DISABLED woła enqueue i wpada na INSERT', async () => {
       const mockResult = {
         id: 'msg-1',
         sender_id: 'user-123',
@@ -87,6 +99,12 @@ describe('textMessageService', () => {
         clientMessageId: 'client-1',
       });
 
+      expect(mockSupabaseRpc).toHaveBeenCalledWith('enqueue_own_text_moderation_job', {
+        p_receiver_id: 'peer-456',
+        p_body: 'Cześć!',
+        p_client_message_id: 'client-1',
+      });
+      expect(mockInsert).toHaveBeenCalled();
       expect(result).toEqual(mockResult);
     });
 
@@ -121,6 +139,45 @@ describe('textMessageService', () => {
       ).rejects.toMatchObject({
         code: 'UNKNOWN',
       });
+    });
+
+    it('NOT_FRIEND z RPC nie robi INSERT', async () => {
+      mockSupabaseRpc.mockResolvedValue({
+        data: null,
+        error: { code: 'P0001', message: 'NOT_FRIEND' },
+      });
+
+      await expect(
+        sendTextMessage({ receiverId: 'peer-456', body: 'Cześć' })
+      ).rejects.toMatchObject({ code: 'NOT_FRIEND' });
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
+
+    it('CONTENT_NOT_ALLOWED z RPC nie robi INSERT', async () => {
+      mockSupabaseRpc.mockResolvedValue({
+        data: null,
+        error: { code: 'P0001', message: 'CONTENT_NOT_ALLOWED' },
+      });
+
+      await expect(
+        sendTextMessage({ receiverId: 'peer-456', body: 'Cześć' })
+      ).rejects.toMatchObject({ code: 'CONTENT_NOT_ALLOWED' });
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
+
+    it('pending z RPC nie udaje TextMessage i nie robi INSERT', async () => {
+      mockSupabaseRpc.mockResolvedValue({
+        data: { jobId: 'job-1', status: 'pending' },
+        error: null,
+      });
+
+      await expect(
+        sendTextMessage({ receiverId: 'peer-456', body: 'Cześć' })
+      ).rejects.toMatchObject({
+        code: 'UNKNOWN',
+        message: 'Wiadomość oczekuje na moderację.',
+      });
+      expect(mockInsert).not.toHaveBeenCalled();
     });
   });
 
