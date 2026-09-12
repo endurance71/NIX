@@ -12,8 +12,8 @@ type LegalDocument = {
 export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms: LegalDocument }> = {
   pl: {
     privacy: {
-      version: '2026-09-05',
-      effectiveDate: '5 września 2026 r.',
+      version: '2026-09-12',
+      effectiveDate: '12 września 2026 r.',
       sections: [
         {
           title: 'Administrator danych i kontakt',
@@ -45,7 +45,11 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
         },
         {
           title: 'Odbiorcy danych',
-          body: 'Dane mogą być przetwarzane przez Supabase (uwierzytelnianie, baza, Storage i funkcje serwerowe w UE), Apple (Sign in with Apple i App Store) oraz Expo/EAS (budowa, dystrybucja i powiadomienia push), tylko w zakresie koniecznym do usługi. Zainstalowane SDK Sentry jest w publicznym buildzie twardo wyłączone i nie otrzymuje danych, dopóki nie zostanie jawnie włączone osobną decyzją release.',
+          body: 'Dane mogą być przetwarzane przez Supabase (uwierzytelnianie, baza, Storage i funkcje serwerowe w UE), Apple (Sign in with Apple i App Store), Expo/EAS (budowa, dystrybucja i powiadomienia push) oraz Microsoft Azure AI Content Safety (skan tekstu, zdjęć i wybranych klatek wideo przed doręczeniem), tylko w zakresie koniecznym do usługi. Zainstalowane SDK Sentry jest w publicznym buildzie twardo wyłączone i nie otrzymuje danych, dopóki nie zostanie jawnie włączone osobną decyzją release.',
+        },
+        {
+          title: 'Bezpieczeństwo i moderacja',
+          body: 'Przed doręczeniem automatycznie skanujemy wiadomości tekstowe, zdjęcia i wideo. Dla wideo używamy wybranych klatek, nie pełnego skanu pliku. Skan wykonuje Microsoft Azure AI Content Safety wyłącznie po to, by zablokować treści niedozwolone. Kopię roboczą użytą do skanu usuwamy po decyzji. Odbiorca nadal może zgłosić konkretną wiadomość i zablokować nadawcę.',
         },
         {
           title: 'Transfery poza EOG',
@@ -70,15 +74,15 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
       ],
     },
     terms: {
-      version: '2026-09-05',
-      effectiveDate: '5 września 2026 r.',
+      version: '2026-09-12',
+      effectiveDate: '12 września 2026 r.',
       sections: [
         { title: 'Usługodawca', body: 'Usługę NiX świadczy MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, NIP 8393229228. Kontakt: kontakt@damianmotylinski.pl.' },
         { title: 'Usługa', body: 'NiX umożliwia zaakceptowanym znajomym wymianę efemerycznych wiadomości tekstowych, zdjęciowych i wideo. Do korzystania wymagane są kompatybilne urządzenie, dostęp do Internetu oraz konto.' },
         { title: 'Konto', body: 'Musisz mieć ukończone 16 lat, potwierdzić ten próg, podać prawdziwe dane wymagane przy rejestracji i chronić dostęp do konta. Konto e-mail i konto Apple mogą być odrębne. Nazwy użytkownika nie można zmienić po jej ustawieniu.' },
         { title: 'Treści użytkownika', body: 'Zachowujesz prawa do własnych treści. Udzielasz nam wyłącznie niewyłącznego, nieodpłatnego upoważnienia technicznego koniecznego do hostowania, przetworzenia i doręczenia treści wybranemu odbiorcy.' },
         { title: 'Zakazane działania', body: 'Nie wolno przesyłać treści bez prawa do ich użycia, niezgodnych z prawem, naruszających cudzą prywatność, dobra osobiste, prawa autorskie lub bezpieczeństwo. Zakazane jest nękanie, podszywanie się, obchodzenie zabezpieczeń i zakłócanie działania usługi.' },
-        { title: 'Bezpieczeństwo i moderacja', body: 'Odbiorca może zgłosić wiadomość i zablokować nadawcę. Możemy ostrzec, czasowo zawiesić lub zablokować konto dla bezpieczeństwa, ochrony innych osób lub zgodności z prawem. Odwołanie wyślij na kontakt@damianmotylinski.pl.' },
+        { title: 'Bezpieczeństwo i moderacja', body: 'Przed doręczeniem automatycznie skanujemy tekst, zdjęcia i wideo (dla wideo: wybrane klatki) przez Microsoft Azure AI Content Safety, żeby zablokować treści niedozwolone. Kopię roboczą skanu usuwamy po decyzji. Odbiorca może zgłosić wiadomość i zablokować nadawcę. Możemy ostrzec, czasowo zawiesić lub zablokować konto dla bezpieczeństwa, ochrony innych osób lub zgodności z prawem. Odwołanie wyślij na kontakt@damianmotylinski.pl.' },
         { title: 'Dostępność', body: 'Usługa jest świadczona w modelu „as is” i może być czasowo niedostępna z powodu konserwacji, aktualizacji lub zdarzeń niezależnych. Nie gwarantujemy zachowania wiadomości po zakończeniu ich cyklu efemerycznego.' },
         { title: 'Reklamacje i rozwiązanie umowy', body: 'Reklamacje wyślij na kontakt@damianmotylinski.pl wraz z opisem problemu. Odpowiemy w terminie przewidzianym przez prawo. Możesz rozwiązać umowę przez usunięcie konta w aplikacji; usunięcie jest nieodwracalne.' },
         { title: 'Zmiany regulaminu i prawo', body: 'O istotnej zmianie regulaminu poinformujemy przed jej wejściem w życie. Stosuje się prawo polskie z zachowaniem bezwzględnie obowiązujących praw konsumenta.' },
@@ -87,8 +91,8 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
   },
   en: {
     privacy: {
-      version: '2026-09-05',
-      effectiveDate: '5 September 2026',
+      version: '2026-09-12',
+      effectiveDate: '12 September 2026',
       sections: [
         {
           title: 'Controller and contact',
@@ -120,7 +124,11 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
         },
         {
           title: 'Recipients',
-          body: 'Data may be processed by Supabase (authentication, database, Storage and server functions in the EU), Apple (Sign in with Apple and App Store), and Expo/EAS (builds, distribution and push notifications), only as needed. The installed Sentry SDK is hard-disabled in the public build and receives no data until an explicit release decision turns it on.',
+          body: 'Data may be processed by Supabase (authentication, database, Storage and server functions in the EU), Apple (Sign in with Apple and App Store), Expo/EAS (builds, distribution and push notifications), and Microsoft Azure AI Content Safety (pre-delivery screening of text, photos and sampled video frames), only as needed. The installed Sentry SDK is hard-disabled in the public build and receives no data until an explicit release decision turns it on.',
+        },
+        {
+          title: 'Safety and moderation',
+          body: 'Before delivery we automatically screen text, photo, and video messages. For video we use sampled frames, not a full-file scan. Screening is performed by Microsoft Azure AI Content Safety solely to block prohibited content. The working copy used for screening is deleted after the decision. A recipient can still report a specific message and block its sender.',
         },
         {
           title: 'International transfers',
@@ -145,15 +153,15 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
       ],
     },
     terms: {
-      version: '2026-09-05',
-      effectiveDate: '5 September 2026',
+      version: '2026-09-12',
+      effectiveDate: '12 September 2026',
       sections: [
         { title: 'Provider', body: 'NiX is provided by MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. Contact: kontakt@damianmotylinski.pl.' },
         { title: 'Service', body: 'NiX enables accepted friends to exchange ephemeral text, photo, and video messages. Use requires a compatible device, Internet access and an account.' },
         { title: 'Account', body: 'You must be 16 or older, confirm that threshold, provide accurate registration data, and keep your account secure. Email and Apple accounts can be separate. A username cannot be changed once set.' },
         { title: 'Your content', body: 'You retain rights in your content and grant only the non-exclusive, royalty-free technical permission necessary to host, process and deliver it to the selected recipient.' },
         { title: 'Prohibited use', body: 'Do not send content you lack rights to use, unlawful content, or content that violates privacy, personality, copyright or safety. Harassment, impersonation, bypassing safeguards and disrupting the service are prohibited.' },
-        { title: 'Safety and moderation', body: 'A recipient can report a message and block its sender. We may warn, suspend, or ban an account for safety, the rights of others, or legal compliance. Appeal at kontakt@damianmotylinski.pl.' },
+        { title: 'Safety and moderation', body: 'Before delivery we automatically screen text, photos, and video (sampled frames for video) with Microsoft Azure AI Content Safety to block prohibited content. The working copy used for screening is deleted after the decision. A recipient can report a message and block its sender. We may warn, suspend, or ban an account for safety, the rights of others, or legal compliance. Appeal at kontakt@damianmotylinski.pl.' },
         { title: 'Availability', body: 'The service is provided as is and can be temporarily unavailable because of maintenance, updates or events outside our control. We do not guarantee that messages remain available after their ephemeral lifecycle.' },
         { title: 'Complaints and termination', body: 'Send complaints with a description of the issue to kontakt@damianmotylinski.pl. You may end the agreement by deleting the account in the app; deletion is irreversible.' },
         { title: 'Changes and law', body: 'We announce material changes before they take effect. Polish law applies without limiting mandatory consumer protections.' },

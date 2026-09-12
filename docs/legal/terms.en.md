@@ -1,7 +1,7 @@
 # NiX Terms of Use
 
-**Version:** 2026-09-05
-**Effective date:** 5 September 2026
+**Version:** 2026-09-12
+**Effective date:** 12 September 2026
 
 ## Provider
 
@@ -34,7 +34,9 @@ bypassing safeguards and disrupting the service are prohibited.
 
 ## Safety and moderation
 
-A recipient can report a message and block its sender. We may warn, suspend, or
+A recipient can report a message and block its sender. Before delivery we
+automatically screen text, photos, and video (sampled frames for video) with
+Microsoft Azure AI Content Safety. We may warn, suspend, or
 ban an account for safety, the rights of others, or legal compliance. Appeal at
 kontakt@damianmotylinski.pl.
 

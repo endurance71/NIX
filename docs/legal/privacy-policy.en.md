@@ -1,7 +1,7 @@
 # NiX Privacy Policy
 
-**Version:** 2026-09-05
-**Effective date:** 5 September 2026
+**Version:** 2026-09-12
+**Effective date:** 12 September 2026
 
 ## Controller and contact
 
@@ -45,8 +45,10 @@ absolute technical guarantee on every device.
 ## Recipients, transfers and retention
 
 We use Supabase (authentication, database, Storage and server functions; EU
-region), Apple (Sign in with Apple and App Store), and Expo/EAS (app builds,
-distribution, and relaying push notifications to Apple APNs). The installed Sentry
+region), Apple (Sign in with Apple and App Store), Expo/EAS (app builds,
+distribution, and relaying push notifications to Apple APNs), and Microsoft Azure
+AI Content Safety (pre-delivery screening of text, photos, and sampled video
+frames). The installed Sentry
 SDK is hard-disabled in the public build (`EXPO_PUBLIC_SENTRY_ENABLED=false`) and
 receives no data. Transfers outside the EEA use an adequacy decision, standard
 contractual clauses, or another GDPR Chapter V mechanism.
@@ -68,9 +70,13 @@ Storage objects except minimal data required for a report, law, or legal claims.
 
 ## Safety and moderation
 
-We do not automatically scan private messages. A recipient can report a specific
-message and block its sender. An authorized person reviews reports and may warn,
-suspend, or ban an account. Contact kontakt@damianmotylinski.pl about a decision or appeal.
+Before a message is delivered to the recipient we automatically screen text,
+photos, and video. Video uses sampled frames, not a full-file scan. Screening uses
+Microsoft Azure AI Content Safety solely to block prohibited content. The working
+copy used for screening is deleted after the decision. A recipient can still
+report a specific message and block its sender. An authorized person reviews
+reports and may warn, suspend, or ban an account. Contact
+kontakt@damianmotylinski.pl about a decision or appeal.
 
 ## Your rights and changes
 
