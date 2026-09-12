@@ -1,8 +1,9 @@
 # Polityka moderacji pre-delivery (wersja `2026.08.27-p0`)
 
 **Status:** Accepted — wiąże się z [ADR-001](./adr/ADR-001-pre-delivery-content-moderation-provider.md) (2026-09-12).
-Nie włączać enforcement na produkcji, dopóki nie będzie osobnego GO staging + flaga
-`pre_delivery_moderation_enabled`. Spike 3A (tekst/JPEG/MP4 15/60/180) jest w dowodach S0/F0.
+Decision 4 GO (2026-09-12) nie włącza jeszcze enforcement na produkcji.
+`pre_delivery_moderation_enabled` pozostaje wyłączone, dopóki schemat C3, worker
+live i klient enqueue nie są na produkcji.
 
 Źródło progów: serwer (ten dokument + kod `moderation-policy.ts`). Klient nie zna
 progów i nie może ich nadpisać.

@@ -119,6 +119,8 @@ export default {
           'workers/moderation/core.ts',
           'workers/moderation/rpc-queue.ts',
           'workers/moderation/benchmark.ts',
+          'workers/moderation/azure-provider.ts',
+          'workers/moderation/main.ts',
         ],
         rules: ['react-doctor/async-await-in-loop'],
       },

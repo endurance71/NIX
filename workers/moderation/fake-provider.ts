@@ -1,5 +1,6 @@
 import type { ProviderAnalysis } from "../../supabase/functions/_shared/moderation-policy.ts";
 import { F0_MIN_REQUEST_GAP_MS } from "./constants.ts";
+import type { ModerationProvider } from "./provider.ts";
 
 export type FakeMode =
   | "safe"
@@ -9,23 +10,7 @@ export type FakeMode =
   | "http_5xx"
   | "invalid";
 
-export type FakeProvider = {
-  analyzeText: (
-    text: string,
-    signal: AbortSignal,
-  ) => Promise<ProviderAnalysis>;
-  analyzeImage: (
-    bytes: Uint8Array,
-    signal: AbortSignal,
-  ) => Promise<ProviderAnalysis>;
-  /** Frame provider compatible with video.ts */
-  asFrameProvider: () => (
-    frame: Uint8Array,
-    signal: AbortSignal,
-  ) => Promise<ProviderAnalysis>;
-  azureRequestCount: () => number;
-  reset: () => void;
-};
+export type { ModerationProvider as FakeProvider } from "./provider.ts";
 
 const SAFE: ProviderAnalysis = {
   categoriesAnalysis: [
@@ -64,7 +49,7 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 export function createFakeProvider(
   mode: FakeMode = "safe",
   options: { gapMs?: number; rejectSubstring?: string } = {},
-): FakeProvider {
+): ModerationProvider {
   let calls = 0;
   let lastAt = 0;
   const gapMs = options.gapMs ?? F0_MIN_REQUEST_GAP_MS;

@@ -6,4 +6,4 @@ COPY workers/moderation/*.ts ./workers/moderation/
 COPY supabase/functions/_shared/moderation-video-sampling.ts supabase/functions/_shared/moderation-video-scenes.ts supabase/functions/_shared/moderation-policy.ts ./supabase/functions/_shared/
 ENV DENO_DIR=/tmp/deno DENO_NO_UPDATE_CHECK=1
 USER 10001:10001
-ENTRYPOINT ["deno", "run", "--no-config", "--no-remote", "--allow-read=/app,/tmp", "--allow-write=/tmp", "--allow-run=ffmpeg,ffprobe", "/app/workers/moderation/benchmark.ts"]
+ENTRYPOINT ["deno", "run", "--no-config", "--no-remote", "--allow-net", "--allow-env", "--allow-read=/app,/tmp", "--allow-write=/tmp", "--allow-run=ffmpeg,ffprobe", "/app/workers/moderation/main.ts"]
