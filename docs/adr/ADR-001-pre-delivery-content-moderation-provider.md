@@ -139,9 +139,9 @@ osobnego GO staging/C3. Hosted Supabase Edge nie dostarcza ffmpeg — brak binar
 kończy job jako `error`, nigdy `approved`.
 
 Flaga `pre_delivery_moderation_enabled` na produkcji pozostaje **OFF**.
-§6 Decision 3 fake-only staging **PASS** 2026-09-12 (`zatwierdzam GO staging canary`;
-41 testów workera; 0 Azure Analyze). Live Azure canary i Decision 4 / App Review
-nadal **NO-GO** do osobnego GO z zapisanym cap txn.
+§6 Decision 3 fake-only staging **PASS** 2026-09-12. Live Azure canary **PASS**
+2026-09-12 (`ruszaj`; 6 txn z cap 50; video off; `external_used` 3630).
+Decision 4 / App Review nadal **NO-GO**. Dalsze live Analyze zamrożone do nowego GO.
 
 ## Bramka 3A (DoR historii B / expand)
 
