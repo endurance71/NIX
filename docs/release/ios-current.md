@@ -10,25 +10,24 @@
 | --- | --- |
 | App Store Connect app | NiX (`6791332379`) |
 | Version | `1.0.11` |
-| Latest build | `5` |
-| Source SHA | `c2175ce8902161bceefd86668e98955e1487b12c` |
-| Source branch at upload | `codex/sprint-4-minimal-app-review` |
-| Main integration | merge commit `2e173c034627c800224f40c88ddad90d7d4e7d27` |
+| Latest build | `6` (uploaded 2026-09-12; ASC Processing) |
+| Source SHA | `063530f49418b6fc7e99ed857e8556306d03e867` |
+| Source branch at upload | `feat/ios-1.0.11-build-6` |
+| Previous Internal TF evidence | build `5` on `c2175ce8902161bceefd86668e98955e1487b12c` |
 | Distribution | Internal TestFlight only |
 | Public App Review | **NO-GO / not submitted** |
 
-App Store Connect reported builds `1.0.11 (4)` and `1.0.11 (5)` as
-`IN_BETA_TESTING` on 2026-08-31. Build 5 was also
-`READY_FOR_BETA_SUBMISSION`; this is a TestFlight state and does not mean the
-binary was submitted to public App Review.
+Build `1.0.11 (6)` was uploaded to App Store Connect on 2026-09-12 via local
+Xcode Archive (not EAS). Wait for Processing, then attach **6** to
+**NiX Internal QA**. Build 5 remains Internal TestFlight evidence until 6 is
+the active group build.
 
-The intended internal group is **NiX Internal QA**. Before treating group
-assignment as complete, verify in App Store Connect that build 5 is the only
-active build attached to that group.
+Uploading a binary never advances public App Review. Build 6 is Internal
+TestFlight only.
 
 ## Verified gates
 
-On the exact build 5 source SHA:
+On the exact build 5 source SHA (`c2175ce`):
 
 - TypeScript: PASS;
 - ESLint: PASS;
@@ -40,6 +39,17 @@ On the exact build 5 source SHA:
 - Xcode Archive, export, signing and App Store upload: PASS, recorded outside
   Git in `~/.nix-ops/sprint5-paste-input/INTERNAL-TESTFLIGHT-5.md`.
 
+On the exact build 6 archive SHA (`063530f`):
+
+- iOS config synchronization: PASS;
+- Sentry default-off: PASS;
+- production release environment validation: PASS;
+- Vitest: 78 files / 440 tests PASS;
+- Xcode Archive, export, signing and App Store Connect upload: PASS, recorded
+  outside Git in `~/.nix-ops/p0-3-s6/DECISION4-IOS-BUILD6-ARCHIVE-20260912.md`.
+- TypeScript `tsc --noEmit` still fails on pre-existing auth route types and
+  `productAnalyticsService.test.ts` (unchanged by the build-number bump).
+
 ## P0-3 / moderation progress (2026-09-03)
 
 | Gate | Status |
@@ -50,10 +60,10 @@ On the exact build 5 source SHA:
 | C3B audit fixes | **MERGED** — merge SHA [`5d3cd41`](https://github.com/endurance71/NIX/commit/5d3cd410079ce1488c9c80f7248786604595da81) ([PR #24](https://github.com/endurance71/NIX/pull/24), tip `59d6721`). Complete/lease REVOKE, attempt-id budget, Auth/Storage Path A+B PASS, local verify PASS. Expo CI **exception** (quota; reset 2026-10-01 UTC). Evidence: `~/.nix-ops/p0-3-c3b-audit-fixes/`. Flag OFF; **no** prod `db push` / App Review. Status: [`../plans/2026-09-04-c3b-auth-storage-merged.md`](../plans/2026-09-04-c3b-auth-storage-merged.md). |
 | §6 Decision 3 fake-only staging | **PASS** 2026-09-12 — owner `zatwierdzam GO staging canary`. Deno 2.9.6 worker suite **41 passed / 0 failed** on SHA `d146bba`; ffmpeg/ffprobe 8.1.2; **0** Azure Analyze. Rollback drilled. Evidence: `~/.nix-ops/p0-3-s6/DECISION3-STAGING-FAKE-SOAK-PASS-20260912.md`. |
 | §6 Decision 3 live Azure canary | **PASS** 2026-09-12 — owner `ruszaj`. Cap **50**; used **6** (5 safe text + 1 safe JPEG, all `approved` severity 0); video live **off**. SHA `3482e65`, clean tree. `external_used` **3630 / 4000** (remaining **370**). Evidence: `~/.nix-ops/p0-3-s6/DECISION3-LIVE-AZURE-CANARY-PASS-20260912.md`. |
-| §6 Decision 4 | **GO recorded** 2026-09-12 (`zgoda`). C3 schema **on prod**; flag **FALSE**. Storage download + OVH idle worker. `enqueue_own_text_moderation_job` on prod 2026-09-12 (`20260912120000`); authenticated EXECUTE; 4-arg enqueue still service_role-only. iOS `sendTextMessage` calls that RPC then INSERT on `MODERATION_DISABLED`. Empty queue, 0 Analyze. **Not** Guideline 1.2. No Privacy Policy scan claim, no Archive 6+, no READY FOR REVIEW. Evidence: `~/.nix-ops/p0-3-s6/DECISION4-GO-20260912.md` + `DECISION4-PROD-SCHEMA-FLAG-OFF-20260912.md` + `DECISION4-STORAGE-DOWNLOAD-SMOKE-20260912.md` + `DECISION4-OVH-HOST-IDLE-20260912.md` + `DECISION4-IOS-ENQUEUE-FALLBACK-20260912.md`. |
+| §6 Decision 4 | **GO recorded** 2026-09-12 (`zgoda`). C3 schema **on prod**; flag **FALSE**. Storage download + OVH idle worker. `enqueue_own_text_moderation_job` on prod; iOS INSERT fallback. Archive **1.0.11 (6)** uploaded 2026-09-12 (SHA `063530f`, local Xcode, not EAS). Empty queue, 0 Analyze. **Not** Guideline 1.2. No Privacy Policy scan claim, no READY FOR REVIEW. Evidence: `~/.nix-ops/p0-3-s6/DECISION4-GO-20260912.md` + `DECISION4-PROD-SCHEMA-FLAG-OFF-20260912.md` + `DECISION4-STORAGE-DOWNLOAD-SMOKE-20260912.md` + `DECISION4-OVH-HOST-IDLE-20260912.md` + `DECISION4-IOS-ENQUEUE-FALLBACK-20260912.md` + `DECISION4-IOS-BUILD6-ARCHIVE-20260912.md`. |
 | Production pre-delivery filter | **OFF** — Guideline 1.2 still blocks public App Review |
 
-Hard stop: flipping `pre_delivery_moderation_enabled`, Privacy Policy „po C3”, Archive 6+, and READY FOR REVIEW stay blocked until binary **6+** (enqueue client on device). The worker is hosted idle with the flag **FALSE**. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
+Hard stop: flipping `pre_delivery_moderation_enabled`, Privacy Policy „po C3”, and READY FOR REVIEW stay blocked until Internal QA devices run build **6** and a separate owner GO enables the flag. The worker is hosted idle with the flag **FALSE**. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
 
 ## Open release blockers
 
@@ -76,19 +86,18 @@ Hard stop: flipping `pre_delivery_moderation_enabled`, Privacy Policy „po C3�
 5. **Release tag:** create a signed tag
    `testflight/ios-1.0.11-build.5` on `c2175ce` after the repository signing key
    is unlocked.
-6. **Native dependency security:** React Native `0.86.3` + patch is on `main`
-   via [PR #19](https://github.com/endurance71/NIX/pull/19) (C6). A new native
-   binary (`1.0.11` build `6+`) is still required before closing issue #15 on
-   devices. Do not apply `npm audit fix --force`.
+6. **Native dependency security:** React Native `0.86.3` + patch is in binary
+   `1.0.11 (6)` (Podfile.lock synced at Archive). Close GitHub issue #15 only
+   after a physical-device smoke on that build. Do not apply `npm audit fix --force`.
 7. **Reproducible Deno gate:** Node `24.18` / Deno `2.9.6` pins + frozen
    `deno.lock` are on `main` via PR #19. Close GitHub issue #16 after confirming
    CI/toolchain on a green Lint/test run.
 
 ## Next eligible App Review candidate
 
-Build 5 is retained as Internal TestFlight evidence. P0-3 changes require a new
-binary, so the earliest public candidate is `1.0.11 (6)` or higher, built from a
-tagged `main` SHA after every blocker above passes.
+Build 6 is the current Internal TestFlight binary (enqueue client + RN 0.86.3).
+Public App Review stays **NO-GO** until production filtering is on (flag TRUE +
+Privacy Policy) and the remaining blockers pass. Build 5 stays as prior evidence.
 
 Allowed status progression:
 
@@ -117,8 +126,8 @@ Workspace synced to `origin/main`. Local dirty C1–C8 tree was snapshotted on
 | C2 `--require-complete-s0` | PASS after ACTIVE + Accepted `decision.md` |
 | §6 Decision 3 fake-only | **PASS** 2026-09-12 (`zatwierdzam GO staging canary`; 41 tests; 0 Analyze) |
 | §6 Decision 3 live Azure canary | **PASS** 2026-09-12 (`ruszaj`; 6/50 txn; video off; `external_used` **3630**) |
-| §6 Decision 4 | **GO recorded** (`zgoda`); schema+enqueue_own on prod; flag **OFF**; OVH idle; iOS INSERT fallback; App Review **NO-GO** |
+| §6 Decision 4 | **GO recorded** (`zgoda`); schema+enqueue_own on prod; flag **OFF**; OVH idle; iOS INSERT fallback; binary **6** uploaded; App Review **NO-GO** |
 | Production flag | **OFF** |
 | Public App Review | **NO-GO** |
 
-Faza 4 schema and `enqueue_own_text_moderation_job` are on production with the flag still FALSE. iOS falls back to INSERT while the flag is off. Next: binary 6+ (local Xcode Archive, not EAS), then flag TRUE. Do not Archive 6+ or READY FOR REVIEW in this slice.
+Faza 4 schema and `enqueue_own_text_moderation_job` are on production with the flag still FALSE. Binary **6** is on App Store Connect (Processing). Next: attach 6 to NiX Internal QA, then a separate GO for flag TRUE + Privacy Policy. Do not READY FOR REVIEW in this slice.
