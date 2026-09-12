@@ -8,7 +8,8 @@ do Git** — wyłącznie App Store Connect.
 NiX is a private visual messenger for people aged 16 and older. Accepted friends
 can exchange ephemeral text, photo and video messages. The beta validates sign-in,
 friend invitations, profile editing, media capture/upload/view cleanup, report,
-block, and moderator content removal. Messages are not automatically scanned.
+block, and moderator content removal. Text, photos and selected video frames
+are screened before delivery.
 
 ## What to Test
 
@@ -46,11 +47,11 @@ Pełny copy (subtitle, description PL/EN, keywords, App Privacy, Review Notes):
 - Age rating: Messaging = Yes, 16+, not Kids.
 - Export compliance consistent with `ITSAppUsesNonExemptEncryption=false`.
 - Screenshots 6.9" use fictional data.
-- Description, subtitle, keywords and What's New do not mention RevenueCat, NiX Circle, subscriptions, or automatic media scanning.
+- Description, subtitle, keywords and What's New do not mention RevenueCat, NiX Circle, or subscriptions. Screening copy must match privacy **2026-09-12**.
 
 ## Review notes
 
-See `docs/APP_STORE_REVIEW_AUDIT_2026-08-26.md` section 12. The app is iPhone-only
+See `docs/app-store-listing.md` Review Notes. The app is iPhone-only
 (`supportsTablet=false`) and may run in iPhone compatibility mode on iPad.
-The backend must remain available during review. Moderation is manual.
+The backend must remain available during review. Pre-delivery screening is on.
 No purchases, subscriptions, advertising, or tracking.
