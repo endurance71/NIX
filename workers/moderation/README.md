@@ -16,7 +16,8 @@ deno test --no-config --allow-read --allow-write --allow-run workers/moderation
 
 Status: **offline tests cover live F0 client + Storage download**. Live daemon
 `main.ts` must not run against production Analyze until a host with ffmpeg is
-authorized. `pre_delivery_moderation_enabled` remains **FALSE**. Media jobs
+authorized. `pre_delivery_moderation_enabled` is **TRUE** on production
+(2026-09-12, owner `wlacz flage`) after OTA `874edb39`. Media jobs
 download from private bucket `media-vault` to `$TMPDIR/nix-moderation/<jobId>`
 (never a URL to ffmpeg). Fail-closed: missing asset, deleted object, traversal,
 remote URL, 404, empty or oversized body.
@@ -56,19 +57,17 @@ Zobacz też [`docs/plans/2026-09-04-c3b-audit-fixes.md`](../../docs/plans/2026-0
 
 Rate: F0 Moderation APIs = **5 RPS**; worker używa min. odstępu 200 ms.
 
-### Rollback (C3B)
+### Rollback (flaga ON)
 
-1. Nie włączać flagi `pre_delivery_moderation_enabled`.
-2. Zatrzymać proces `workers/moderation` (shutdown → brak nowych claim).
-3. **Nie** aplikować migracji C3B na produkcję; lokalnie:
-   `supabase db reset` albo ręczne `DROP` ledger/RPC z migracji `…150000`.
-4. Contract SQL (`…140000`) pozostaje niewdrożony na prod w tej fazie.
-5. Historyczne dowody C2/C3A w `~/.nix-ops/` zostawić bez zmian.
+1. `UPDATE private.safety_policy_config SET pre_delivery_moderation_enabled = false WHERE singleton;`
+2. Opcjonalnie zatrzymać `workers/moderation` (shutdown → brak nowych claim).
+3. Historyczne dowody C2/C3A w `~/.nix-ops/` zostawić bez zmian.
+   Nie piec `DEFAULT true` w migracji.
 
-### Host (flaga nadal OFF)
+### Host (flaga ON 2026-09-12)
 
-C3 schema jest na produkcji. Benchmark C3A był `network=none` / 0 Azure.
-Idle daemon (egress do PostgREST + Azure, **bez** publikacji portów):
+C3 schema i RPC `get_own`/`enqueue_own` są na produkcji. Idle daemon
+(egress do PostgREST + Azure, **bez** publikacji portów):
 
 ```sh
 # env-file mode 600 poza Git: AZURE_*, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
@@ -78,8 +77,8 @@ export NIX_MODERATION_IMAGE_TAG=local
 docker compose -f workers/moderation/compose.yaml up -d --build
 ```
 
-Pusta `moderation_jobs` + flaga FALSE = 0 Azure Analyze. Nie włączać flagi
-tylko dlatego, że kontener wstaje.
+Pusta `moderation_jobs` = 0 Azure Analyze do pierwszego enqueue. Flaga jest
+TRUE — INSERT klienta jest zablokowany.
 
 ### Poza C3B (osobna zgoda)
 
