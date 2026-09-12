@@ -72,32 +72,22 @@ Flag `pre_delivery_moderation_enabled` is **TRUE** on production after owner `wl
 
 ## Open release blockers
 
-1. **P0-3 — UGC filtering:** Flag **TRUE** 2026-09-12 (owner `wlacz flage`).
-   Text/photo enqueue is fail-closed pending Azure. Hotfix [PR #48](https://github.com/endurance71/NIX/pull/48)
-   and photo wait [PR #50](https://github.com/endurance71/NIX/pull/50) are on prod.
-   HTTPS privacy/terms **2026-09-12** published (PL + EN). Remaining before
-   public App Review: the rest of the device matrix.
-2. **Physical-device QA:** owner Internal TF **PASS** on `1.0.11 (6)` 2026-09-12
-   (navigation, lists, camera, media upload, background upload; flag was OFF).
-   After OTA `874edb39` + flag TRUE + hotfix: owner confirmed **allowed** text
-   and photo send. Current JS is OTA `4f1fcd22` (`ae943fb`) — force quit ×2
-   before remaining cases. Still OPEN: rejected text/photo (`CONTENT_NOT_ALLOWED`,
-   no message, no push), report/block, chat paste, offline/retry, permission
-   deny. Live video only after a short GO (F0 ~3630/4000). Runbook:
+1. **P0-3 — live video:** Flag **TRUE**. Text/photo enqueue is fail-closed pending
+   Azure. Hotfix [PR #48](https://github.com/endurance71/NIX/pull/48) and photo
+   wait [PR #50](https://github.com/endurance71/NIX/pull/50) are on prod. HTTPS
+   privacy/terms **2026-09-12** published (PL + EN). Live **video** still HELD
+   (no owner GO; F0 ~3630/4000).
+2. **Physical-device QA (iPhone):** owner Internal TF **PASS** on `1.0.11 (6)`
+   plus remaining 1.2 (reject / report / block / paste / offline / permissions)
+   attested 2026-09-12. Current JS is OTA `4f1fcd22`. Runbook:
    `~/.nix-ops/c8-device-2026-09-12.md`. Matrix:
    [`../testing/app-review-device-smoke.md`](../testing/app-review-device-smoke.md).
-   Chat paste:
-   [`../testing/testflight-chat-paste-input.md`](../testing/testflight-chat-paste-input.md).
-3. **P0-4/P0-5 device gates:** verify Sign in with Apple, Apple credential
-   revocation during account deletion, clean install, upgrade, offline/retry,
-   IPv6/NAT64 and iPad compatibility. `delete-account` remains prod v6 with
-   `verify_jwt=true`; device test is still OPEN.
-4. **Push JWT consistency:** production `push-dispatch` **v14** still has
-   `verify_jwt=false` (confirmed 2026-09-12; v15 **held**, no owner GO).
-   Read-only verification confirmed that active cron callers send the
-   Vault-backed service-role JWT and currently receive HTTP 200. Close
-   GitHub issue #7 only after an authorized v15 deployment with
-   `verify_jwt=true` and a repeated cron/webhook smoke.
+3. **iPad / IPv6:** owner excluded from this C8 slice (`tylko iPhone`). App is
+   `supportsTablet: false`. Residual Apple Review risk (iPad compatibility mode
+   and IPv6 NAT64) stays documented; not a C8 execute item.
+4. **Push JWT:** production `push-dispatch` **v15** `verify_jwt=true` (owner GO
+   2026-09-12). Vault cron path HTTP 200; unauthenticated POST 401. Issue
+   [#7](https://github.com/endurance71/NIX/issues/7) closed completed.
 5. **Release tag:** create a signed tag
    `testflight/ios-1.0.11-build.5` on `c2175ce` after the repository signing key
    is unlocked.
@@ -112,9 +102,9 @@ Flag `pre_delivery_moderation_enabled` is **TRUE** on production after owner `wl
 
 Build 6 is the current Internal TestFlight binary (enqueue + wait loop via OTA
 `4f1fcd22`, runtime `1.0.11`). HTTPS privacy/terms match in-app version
-**2026-09-12**. Public App Review stays **NO-GO** until remaining device
-blockers pass. Do **not** set READY FOR REVIEW or Submit without a separate
-owner GO. Build 5 stays as prior evidence.
+**2026-09-12**. Public App Review stays **NO-GO** (live video held; iPad/IPv6
+deferred by owner; no Submit GO). Do **not** set READY FOR REVIEW or Submit
+without a separate owner GO. Build 5 stays as prior evidence.
 
 Allowed status progression:
 
@@ -148,9 +138,12 @@ Workspace synced to `origin/main`. Local dirty C1–C8 tree was snapshotted on
 | Photo wait OTA | [PR #50](https://github.com/endurance71/NIX/pull/50) `ae943fb`; group `4f1fcd22`; RPC `get_own_media_moderation_job` |
 | OVH worker | image `nix-moderation-worker:e1d73cf`; try/catch live; RestartCount 0 |
 | HTTPS privacy/terms | **2026-09-12** live (`/privacy`, `/terms`, `/privacy/en`, `/terms/en`) |
-| `push-dispatch` | prod **v14** `verify_jwt=false` — v15 held pending GO |
+| `push-dispatch` | prod **v15** `verify_jwt=true` — Vault cron HTTP 200; issue #7 closed |
+| C8 iPhone + SIWA | owner PASS 2026-09-12 (attestation; no PII in Git) |
+| iPad / IPv6 | deferred by owner (`tylko iPhone`); `supportsTablet: false` |
+| Live video | HELD (F0 ~3630/4000) |
 | Public App Review | **NO-GO** |
 
 Production flag is TRUE. Binary **6** + OTA `4f1fcd22` + SQL `20260912150000` +
-`20260912160000`. HTTPS privacy matches in-app 2026-09-12. Do not READY FOR
-REVIEW until the remaining device matrix in this document passes.
+`20260912160000`. `push-dispatch` v15. HTTPS privacy matches in-app 2026-09-12.
+Do not READY FOR REVIEW without a separate owner GO.
