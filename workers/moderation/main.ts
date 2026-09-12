@@ -1,6 +1,12 @@
 import { F0_HARD_BUDGET, F0_MIN_REQUEST_GAP_MS } from "./constants.ts";
 import { createAzureProvider, requireLiveWorkerEnv } from "./azure-provider.ts";
 import { createIntegrationWorker } from "./core.ts";
+import {
+  downloadMediaVaultObject,
+  jobDestPath,
+  jobTempDir,
+  loadMediaAsset,
+} from "./download.ts";
 import { integrationRpcQueue, type Rpc } from "./rpc-queue.ts";
 import { createShutdownController } from "./shutdown.ts";
 import { sqlBudgetLedger } from "./sql-budget.ts";
@@ -59,12 +65,19 @@ export async function loadTextPayload(
   return json.body;
 }
 
+export type ResolveClaimedJobOptions = {
+  fetchImpl?: typeof fetch;
+  destDir?: string;
+  signal?: AbortSignal;
+};
+
 export async function resolveClaimedJob(
   supabaseUrl: string,
   serviceRoleKey: string,
   row: Record<string, unknown>,
-  fetchImpl: typeof fetch = fetch,
+  options: ResolveClaimedJobOptions = {},
 ): Promise<{ path?: string; text?: string; kind?: "text" | "image" | "video" }> {
+  const fetchImpl = options.fetchImpl ?? fetch;
   if (row.content_kind === "text") {
     const text = await loadTextPayload(
       supabaseUrl,
@@ -74,8 +87,28 @@ export async function resolveClaimedJob(
     );
     return { text, kind: "text" };
   }
-  // Storage download for image/video is a follow-up. Fail-closed, never approve.
-  throw new Error("media_resolve_not_wired");
+  if (row.content_kind !== "media") {
+    throw new Error("content_kind_invalid");
+  }
+  const asset = await loadMediaAsset(
+    supabaseUrl,
+    serviceRoleKey,
+    row.asset_id,
+    fetchImpl,
+  );
+  const destPath = await jobDestPath(jobTempDir(options.destDir), row.id);
+  const downloaded = await downloadMediaVaultObject(
+    supabaseUrl,
+    serviceRoleKey,
+    asset.storagePath,
+    destPath,
+    {
+      fetchImpl,
+      signal: options.signal,
+      knownSize: asset.sizeBytes,
+    },
+  );
+  return { path: downloaded.path, kind: asset.mediaType };
 }
 
 /**
@@ -92,6 +125,7 @@ export async function runLiveWorker(
     gapMs: F0_MIN_REQUEST_GAP_MS,
   });
   const rpc = createSupabaseRpc(cfg.supabaseUrl, cfg.supabaseServiceRoleKey);
+  const destDir = env.MODERATION_JOB_TEMP_DIR?.trim() || undefined;
   const queue = integrationRpcQueue(
     rpc,
     (row) =>
@@ -99,6 +133,7 @@ export async function runLiveWorker(
         cfg.supabaseUrl,
         cfg.supabaseServiceRoleKey,
         row,
+        { destDir },
       ),
   );
   const ledger = sqlBudgetLedger(rpc, {
@@ -107,10 +142,11 @@ export async function runLiveWorker(
   });
   const shutdown = createShutdownController();
   const worker = createIntegrationWorker(queue, provider, ledger, { shutdown });
+  const once = options.once ?? env.MODERATION_WORKER_ONCE === "1";
 
   do {
     await worker.tick();
-    if (options.once) return;
+    if (once) return;
     await new Promise((resolve) =>
       setTimeout(resolve, options.sleepMs ?? TICK_IDLE_MS)
     );

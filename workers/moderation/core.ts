@@ -6,6 +6,7 @@ import {
   PROCESS_TIMEOUT_MS,
   WAITING_BUDGET,
 } from "./constants.ts";
+import { removeLocalJobFile } from "./download.ts";
 import type { ModerationProvider } from "./provider.ts";
 import {
   processIntegrationJob,
@@ -162,6 +163,7 @@ export function createIntegrationWorker(
         );
       } finally {
         clearTimeout(timer);
+        if (job.path) await removeLocalJobFile(job.path);
       }
 
       if (outcome.waitingReason === WAITING_BUDGET) {

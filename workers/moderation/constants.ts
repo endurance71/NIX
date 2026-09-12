@@ -16,3 +16,6 @@ export const PROCESS_TIMEOUT_MS = 600_000;
 export const RETRY_SECONDS = [30, 120, 600, 3600] as const;
 export const WAITING_BUDGET = "f0_budget_exhausted" as const;
 export const TEMP_PREFIX = "nix-frame-";
+/** Local dir under TMPDIR for claimed Storage objects. Never a URL. */
+export const JOB_TEMP_DIRNAME = "nix-moderation";
+export const MEDIA_VAULT_BUCKET = "media-vault";
