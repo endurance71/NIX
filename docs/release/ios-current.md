@@ -48,15 +48,17 @@ On the exact build 5 source SHA:
 | C3A OVH offline video runtime | **PASS** (offline benchmark; no Azure; no prod entry) |
 | C3B offline integration | **PASS (base)** — merged via [PR #18](https://github.com/endurance71/NIX/pull/18). Fake Azure; flag OFF. |
 | C3B audit fixes | **MERGED** — merge SHA [`5d3cd41`](https://github.com/endurance71/NIX/commit/5d3cd410079ce1488c9c80f7248786604595da81) ([PR #24](https://github.com/endurance71/NIX/pull/24), tip `59d6721`). Complete/lease REVOKE, attempt-id budget, Auth/Storage Path A+B PASS, local verify PASS. Expo CI **exception** (quota; reset 2026-10-01 UTC). Evidence: `~/.nix-ops/p0-3-c3b-audit-fixes/`. Flag OFF; **no** prod `db push` / Azure live / App Review. Status: [`../plans/2026-09-04-c3b-auth-storage-merged.md`](../plans/2026-09-04-c3b-auth-storage-merged.md). |
+| §6 Decision 3 fake-only staging | **PASS** 2026-09-12 — owner `zatwierdzam GO staging canary`. Deno 2.9.6 worker suite **41 passed / 0 failed** on SHA `d146bba`; ffmpeg/ffprobe 8.1.2; **0** Azure Analyze. Rollback drilled (process exit; prod flag never on). Evidence: `~/.nix-ops/p0-3-s6/DECISION3-STAGING-FAKE-SOAK-PASS-20260912.md`. Live Azure still **NO-GO**. |
 | Production pre-delivery filter | **OFF** — Guideline 1.2 still blocks public App Review |
 
-Hard stop: C3 prod / flag / Privacy Policy „po C3” / READY FOR REVIEW only after **§6 Decision 3 staging GO** (separate). C2 Accepted does **not** turn the production flag on. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
+Hard stop: C3 prod / flag / Privacy Policy „po C3” / READY FOR REVIEW only after **live Azure canary + Decision 4** (separate GO, written txn cap). Decision 3 fake-only PASS does **not** authorize live Analyze, prod flag, or App Review. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
 
 ## Open release blockers
 
-1. **P0-3 — UGC filtering:** C2 provider is **Accepted**; photos and video are still
-   not filtered on production (flag OFF). Guideline 1.2 still requires authorized
-   staging, then production enforcement, before public App Review.
+1. **P0-3 — UGC filtering:** C2 provider is **Accepted**; Decision 3 fake-only
+   soak is **PASS**. Photos and video are still not filtered on production
+   (flag OFF). Guideline 1.2 still requires authorized **live** staging, then
+   production enforcement, before public App Review.
 2. **Physical-device QA:** execute
    [`../testing/app-review-device-smoke.md`](../testing/app-review-device-smoke.md)
    (and chat paste [`../testing/testflight-chat-paste-input.md`](../testing/testflight-chat-paste-input.md))
@@ -111,7 +113,8 @@ Workspace synced to `origin/main`. Local dirty C1–C8 tree was snapshotted on
 | PR [#31](https://github.com/endurance71/NIX/pull/31) privacy / Sentry | Merged `9f52de8` after rebase onto `main` |
 | ADR-001 | **Accepted** 2026-09-12 (owner GO S0 exception + `zatwierdzam Accepted`) |
 | C2 `--require-complete-s0` | PASS after ACTIVE + Accepted `decision.md` |
+| §6 Decision 3 fake-only | **PASS** 2026-09-12 (`zatwierdzam GO staging canary`; 41 tests; 0 Analyze) |
 | Production flag | **OFF** |
 | Public App Review | **NO-GO** |
 
-Fazy 3–7 remain blocked. Next human gate: staging/canary GO ([`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md)). Do not staging-live, prod flag, Archive 6+, or READY FOR REVIEW without that signature.
+Fazy 3–7 remain blocked. Next human gate: **live Azure canary** with a written txn cap `min(50, 376)`, safe text+JPEG only, video live off ([`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md)). Do not live Analyze, prod flag, Archive 6+, or READY FOR REVIEW without that signature.

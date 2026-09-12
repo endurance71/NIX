@@ -138,8 +138,10 @@ kod `uniform` nie jest strategią Accepted. Zmiana runtime i flaga prod należą
 osobnego GO staging/C3. Hosted Supabase Edge nie dostarcza ffmpeg — brak binarki
 kończy job jako `error`, nigdy `approved`.
 
-Flaga `pre_delivery_moderation_enabled` i staging live pozostają **OFF / NO-GO**
-do osobnego podpisu §6 Decision 3.
+Flaga `pre_delivery_moderation_enabled` na produkcji pozostaje **OFF**.
+§6 Decision 3 fake-only staging **PASS** 2026-09-12 (`zatwierdzam GO staging canary`;
+41 testów workera; 0 Azure Analyze). Live Azure canary i Decision 4 / App Review
+nadal **NO-GO** do osobnego GO z zapisanym cap txn.
 
 ## Bramka 3A (DoR historii B / expand)
 
