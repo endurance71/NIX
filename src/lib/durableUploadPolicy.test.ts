@@ -10,6 +10,7 @@ import {
   isPermanentUploadError,
   mapNativeUploadState,
   selectVideoCompressionProfile,
+  parseFinalizeUploadStatus,
   uploadRetryDelay,
 } from './durableUploadPolicy';
 
@@ -39,6 +40,7 @@ function job(state: UploadJobState, progress = 0): DurableUploadJob {
     finalizeUrl: null,
     finalizeHeaders: null,
     finalizeToken: null,
+    moderationJobId: null,
     progress,
     bytesSent: 0,
     bytesTotal: 0,
@@ -110,10 +112,27 @@ describe('durable upload state policy', () => {
     expect(isPermanentUploadError({ code: 'INVALID_RECEIVER' })).toBe(true);
     expect(isPermanentUploadError({ code: 'FILE_TOO_LARGE_PERMANENT' })).toBe(true);
     expect(isPermanentUploadError({ code: 'FILE_NOT_RECOVERABLE' })).toBe(true);
+    expect(isPermanentUploadError({ code: 'CONTENT_NOT_ALLOWED' })).toBe(true);
     expect(isPermanentUploadError({ code: 'NETWORK_ERROR' })).toBe(false);
     expect(isPermanentUploadError(new Error('timeout'))).toBe(false);
     expect(isMissingStagedUploadError(new Error('Staged upload file does not exist.'))).toBe(true);
     expect(isMissingStagedUploadError({ code: 'STAGED_FILE_MISSING' })).toBe(true);
+  });
+
+  it('does not treat moderation_pending finalize as delivered', () => {
+    expect(parseFinalizeUploadStatus(JSON.stringify({
+      ok: true,
+      status: 'moderation_pending',
+      jobId: 'job-1',
+    }))).toEqual({ state: 'finalizing', jobId: 'job-1' });
+    expect(parseFinalizeUploadStatus(JSON.stringify({
+      ok: true,
+      status: 'completed',
+    }))).toEqual({ state: 'completed', jobId: null });
+    expect(parseFinalizeUploadStatus(JSON.stringify({
+      ok: true,
+      status: 'partially_completed',
+    }))).toEqual({ state: 'partially_completed', jobId: null });
   });
 
   it('maps native queued to uploading so JS does not re-pick the job', () => {

@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 
 const AUTH_REDIRECT_URL = 'nix://auth/callback';
-export const LEGAL_DOCUMENT_VERSION = '2026-08-01';
+export const LEGAL_DOCUMENT_VERSION = '2026-09-12';
 
 export async function signInWithPassword(email: string, password: string) {
   return supabase.auth.signInWithPassword({ email, password });

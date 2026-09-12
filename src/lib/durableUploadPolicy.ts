@@ -63,6 +63,30 @@ export function initialDurableUploadState(physicalOnline: boolean, hasNetworkSes
   return physicalOnline && hasNetworkSession ? 'queued' : 'waiting_network';
 }
 
+export function parseFinalizeUploadStatus(
+  responseBody: string | null | undefined
+): { state: UploadJobState; jobId: string | null } {
+  if (!responseBody) return { state: 'completed', jobId: null };
+  try {
+    const payload = JSON.parse(responseBody) as { status?: unknown; jobId?: unknown };
+    const jobId = typeof payload.jobId === 'string' && payload.jobId.length > 0
+      ? payload.jobId
+      : null;
+    if (payload.status === 'partially_completed') {
+      return { state: 'partially_completed', jobId };
+    }
+    if (payload.status === 'moderation_pending') {
+      return { state: 'finalizing', jobId };
+    }
+    if (payload.status === 'failed') {
+      return { state: 'failed', jobId };
+    }
+    return { state: 'completed', jobId };
+  } catch {
+    return { state: 'completed', jobId: null };
+  }
+}
+
 export function mapNativeUploadState(state: string): UploadJobState {
   switch (state) {
     case 'queued':
@@ -143,6 +167,7 @@ export function isPermanentUploadError(error: unknown) {
     'INVALID_RECEIVER',
     'NOT_FRIEND',
     'CANCELLED',
+    'CONTENT_NOT_ALLOWED',
     'FILE_TOO_LARGE_PERMANENT',
     'FILE_NOT_RECOVERABLE',
   ].includes(code);
