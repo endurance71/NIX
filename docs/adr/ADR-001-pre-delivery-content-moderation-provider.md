@@ -138,10 +138,10 @@ kod `uniform` nie jest strategią Accepted. Zmiana runtime i flaga prod należą
 osobnego GO staging/C3. Hosted Supabase Edge nie dostarcza ffmpeg — brak binarki
 kończy job jako `error`, nigdy `approved`.
 
-Flaga `pre_delivery_moderation_enabled` na produkcji pozostaje **OFF**.
-Schemat C3 jest na prod (head `20260904120100`, 2026-09-12). §6 Decision 4 **GO**
-(`zgoda`) otwiera ścieżkę enforcement, nie App Review. Live Azure canary **PASS**
-(6 txn / cap 50). Worker live jeszcze niehostowany.
+Flaga `pre_delivery_moderation_enabled` na produkcji jest **ON** (2026-09-12,
+owner `wlacz flage`) po OTA `874edb39` / SHA `8688bfb`. Head migracji
+`20260912140000`. Rollback: `UPDATE … = false`. READY FOR REVIEW osobno.
+Worker OVH hostowany; kolejka startuje pusta.
 
 ## Bramka 3A (DoR historii B / expand)
 

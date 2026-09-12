@@ -1,9 +1,9 @@
 # Polityka moderacji pre-delivery (wersja `2026.08.27-p0`)
 
 **Status:** Accepted — wiąże się z [ADR-001](./adr/ADR-001-pre-delivery-content-moderation-provider.md) (2026-09-12).
-Decision 4 GO (2026-09-12) nie włącza jeszcze enforcement na produkcji.
-`pre_delivery_moderation_enabled` pozostaje wyłączone, dopóki schemat C3, worker
-live i klient enqueue nie są na produkcji.
+Decision 4 GO (2026-09-12) + owner `wlacz flage` włącza enforcement na produkcji.
+`pre_delivery_moderation_enabled` jest **włączone** (2026-09-12). Rollback to
+`UPDATE … = false`, nie nowa migracja z `DEFAULT true`.
 
 Źródło progów: serwer (ten dokument + kod `moderation-policy.ts`). Klient nie zna
 progów i nie może ich nadpisać.
