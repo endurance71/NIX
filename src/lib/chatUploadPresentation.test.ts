@@ -37,6 +37,7 @@ function job(
     finalizeUrl: null,
     finalizeHeaders: null,
     finalizeToken: null,
+    moderationJobId: null,
     progress: 0.3,
     bytesSent: 30,
     bytesTotal: 100,

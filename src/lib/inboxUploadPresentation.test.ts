@@ -54,6 +54,7 @@ function job(
     finalizeUrl: null,
     finalizeHeaders: null,
     finalizeToken: null,
+    moderationJobId: null,
     progress,
     bytesSent: progress * bytesTotal,
     bytesTotal,

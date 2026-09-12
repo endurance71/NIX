@@ -25,7 +25,8 @@ export type FinalizeMediaUploadResponse = {
   ok: boolean;
   batchId: string;
   assetId: string;
-  status: 'completed' | 'partially_completed' | 'failed';
+  status: 'completed' | 'partially_completed' | 'failed' | 'moderation_pending';
+  jobId?: string | null;
   sentCount?: number;
   rejectedCount?: number;
   recipients?: {
@@ -35,6 +36,81 @@ export type FinalizeMediaUploadResponse = {
     errorCode?: string;
   }[];
 };
+
+const MODERATION_POLL_INTERVAL_MS = 400;
+const MODERATION_POLL_TIMEOUT_MS = 30_000;
+
+type MediaModerationJobView = {
+  jobId?: string;
+  status?: string;
+  decision?: string | null;
+  nixId?: string | null;
+  batchStatus?: string | null;
+};
+
+function errorText(error: { message?: string; code?: string } | null | undefined): string {
+  return `${error?.code ?? ''} ${error?.message ?? ''}`;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function asMediaJobView(data: unknown): MediaModerationJobView | null {
+  if (!data || typeof data !== 'object') return null;
+  return data as MediaModerationJobView;
+}
+
+export type SettledMediaModeration = {
+  status: 'completed' | 'partially_completed';
+  nixId: string | null;
+};
+
+export async function waitForOwnMediaJob(jobId: string): Promise<SettledMediaModeration> {
+  const deadline = Date.now() + MODERATION_POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const { data, error } = await supabase.rpc('get_own_media_moderation_job', {
+      p_job_id: jobId,
+    });
+    if (error) {
+      const text = errorText(error);
+      if (text.includes('UNAUTHORIZED')) {
+        throw new DomainError('UNAUTHORIZED', 'Wymagane logowanie.');
+      }
+      throw new DomainError('UNKNOWN', error.message || 'Nie udało się sprawdzić moderacji.');
+    }
+
+    const job = asMediaJobView(data);
+    const status = job?.status ?? '';
+    switch (status) {
+      case 'pending':
+      case 'processing':
+        await sleep(MODERATION_POLL_INTERVAL_MS);
+        break;
+      case 'approved': {
+        const batchStatus = job?.batchStatus;
+        if (batchStatus === 'completed' || batchStatus === 'partially_completed') {
+          return {
+            status: batchStatus,
+            nixId: typeof job?.nixId === 'string' ? job.nixId : null,
+          };
+        }
+        await sleep(MODERATION_POLL_INTERVAL_MS);
+        break;
+      }
+      case 'rejected':
+        throw new DomainError('CONTENT_NOT_ALLOWED', 'Ta wiadomość nie może zostać wysłana.');
+      case 'error':
+        throw new DomainError('UNKNOWN', 'Moderacja nie powiodła się. Spróbuj ponownie.');
+      default:
+        throw new DomainError('UNKNOWN', 'Nie udało się wysłać wiadomości.');
+    }
+  }
+
+  throw new DomainError('UNKNOWN', 'Moderacja trwa zbyt długo. Spróbuj ponownie.');
+}
 
 async function edgeError(
   error: { message?: string; context?: unknown } | null,

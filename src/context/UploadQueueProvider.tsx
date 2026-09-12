@@ -35,6 +35,7 @@ import {
   initialDurableUploadState,
   isMissingStagedUploadError,
   isPermanentUploadError,
+  parseFinalizeUploadStatus,
   mapNativeUploadState,
   uploadRetryDelay,
 } from '../lib/durableUploadPolicy';
@@ -55,6 +56,7 @@ import {
   beginMediaUploadBatch,
   cancelMediaUploadBatch,
   finalizeMediaUploadBatch,
+  waitForOwnMediaJob,
 } from '../services/mediaBatchUploadService';
 import { backgroundUploader } from '../services/backgroundUploader';
 import {
@@ -68,6 +70,7 @@ import type {
 } from '../types/uploadQueue';
 import { UploadQueueContext, type UploadQueueContextValue } from './uploadQueue';
 import { useAuth } from '../hooks/useAuth';
+import { toDomainError } from '../services/errors';
 
 const RECOVERY_TASK_NAME = 'nix-upload-queue-recovery';
 const PREPARE_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -112,16 +115,6 @@ function errorCode(error: unknown) {
     && typeof error.code === 'string'
     ? error.code
     : null;
-}
-
-function parseFinalStatus(responseBody: string | null | undefined) {
-  if (!responseBody) return 'completed' as const;
-  try {
-    const payload = JSON.parse(responseBody) as { status?: unknown };
-    return payload.status === 'partially_completed' ? 'partially_completed' as const : 'completed' as const;
-  } catch {
-    return 'completed' as const;
-  }
 }
 
 type UploadReadyForNativeTransfer = DurableUploadJob & {
@@ -206,6 +199,7 @@ async function stageAndInsertUpload(
     finalizeUrl: null,
     finalizeHeaders: null,
     finalizeToken: null,
+    moderationJobId: null,
     progress: 0,
     bytesSent: 0,
     bytesTotal: 0,
@@ -275,6 +269,7 @@ function useUploadQueueController(): UploadQueueContextValue {
   const [stagingCount, setStagingCount] = useState(0);
   const [online, setOnline] = useState(true);
   const processingRef = useRef(false);
+  const mediaModerationWaitRef = useRef(new Set<string>());
   const jobsRef = useRef<DurableUploadJob[]>([]);
   const ownerIdRef = useRef<string | null>(null);
   const liveActivityStartedRef = useRef(false);
@@ -289,6 +284,37 @@ function useUploadQueueController(): UploadQueueContextValue {
     const nextJobs = await listDurableUploadJobs(currentOwnerId);
     jobsRef.current = nextJobs;
     setJobs(nextJobs);
+  });
+
+  const settleMediaModeration = useLatestCallback(async (
+    jobId: string,
+    moderationJobId: string,
+  ) => {
+    if (mediaModerationWaitRef.current.has(jobId)) return;
+    mediaModerationWaitRef.current.add(jobId);
+    try {
+      const settled = await waitForOwnMediaJob(moderationJobId);
+      await patchDurableUploadJob(jobId, {
+        state: settled.status,
+        progress: 1,
+        finishedAt: Date.now(),
+        errorCode: null,
+        errorMessage: null,
+      });
+      await deleteStagedUploadJob(jobId).catch(() => undefined);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
+    } catch (error) {
+      const domain = toDomainError(error, 'Moderacja nie powiodła się. Spróbuj ponownie.');
+      await patchDurableUploadJob(jobId, {
+        state: 'failed',
+        errorCode: domain.code,
+        errorMessage: domain.message,
+        finishedAt: Date.now(),
+      });
+    } finally {
+      mediaModerationWaitRef.current.delete(jobId);
+      await refresh();
+    }
   });
 
   const enqueueMediaBatch = async (input: EnqueueMediaBatchInput) => {
@@ -479,14 +505,42 @@ function useUploadQueueController(): UploadQueueContextValue {
             batchId: target.batchId,
             token: target.finalize.token,
           });
+          const parsed = parseFinalizeUploadStatus(JSON.stringify(finalized));
+          if (parsed.state === 'finalizing') {
+            if (!parsed.jobId) {
+              await patchDurableUploadJob(job.id, {
+                batchId: target.batchId,
+                assetId: target.assetId,
+                storagePath: target.storagePath,
+                state: 'failed',
+                errorCode: 'UNKNOWN',
+                errorMessage: 'Brak kolejki moderacji po finalizacji.',
+                finishedAt: Date.now(),
+              });
+              return;
+            }
+            await patchDurableUploadJob(job.id, {
+              batchId: target.batchId,
+              assetId: target.assetId,
+              storagePath: target.storagePath,
+              state: 'finalizing',
+              moderationJobId: parsed.jobId,
+              progress: 0.97,
+              finishedAt: null,
+              errorCode: null,
+              errorMessage: null,
+            });
+            void settleMediaModeration(job.id, parsed.jobId);
+            return;
+          }
           await patchDurableUploadJob(job.id, {
             batchId: target.batchId,
             assetId: target.assetId,
             storagePath: target.storagePath,
-            state: finalized.status,
+            state: finalized.status === 'moderation_pending' ? 'failed' : finalized.status,
             progress: 1,
             finishedAt: Date.now(),
-            errorCode: null,
+            errorCode: finalized.status === 'failed' ? 'UNKNOWN' : null,
             errorMessage: null,
           });
           await deleteStagedUploadJob(job.id).catch(() => undefined);
@@ -869,6 +923,7 @@ function useUploadQueueController(): UploadQueueContextValue {
       const recoveredJobs = await listDurableUploadJobs(ownerId);
       await Promise.all(recoveredJobs.map(async (job) => {
         if (nativeJobIds.has(job.id)) return;
+        if (job.moderationJobId && job.state === 'finalizing') return;
         if (['preparing', 'requesting_target', 'uploading', 'finalizing'].includes(job.state)) {
           await patchDurableUploadJob(job.id, {
             state: 'queued',
@@ -921,9 +976,34 @@ function useUploadQueueController(): UploadQueueContextValue {
         const current = await getDurableUploadJob(snapshot.jobId);
         if (!current) return;
         const nativeState = mapNativeUploadState(snapshot.state);
-        const finalState = snapshot.state === 'completed'
-          ? parseFinalStatus(snapshot.responseBody)
-          : nativeState;
+        const parsedFinalize = snapshot.state === 'completed'
+          ? parseFinalizeUploadStatus(snapshot.responseBody)
+          : null;
+        const finalState = parsedFinalize?.state ?? nativeState;
+
+        if (snapshot.state === 'completed' && parsedFinalize?.state === 'finalizing') {
+          if (!parsedFinalize.jobId) {
+            await patchDurableUploadJob(snapshot.jobId, {
+              state: 'failed',
+              errorCode: 'UNKNOWN',
+              errorMessage: 'Brak kolejki moderacji po finalizacji.',
+              finishedAt: Date.now(),
+            });
+            await refresh();
+            return;
+          }
+          await patchDurableUploadJob(snapshot.jobId, {
+            state: 'finalizing',
+            moderationJobId: parsedFinalize.jobId,
+            progress: 0.97,
+            finishedAt: null,
+            errorCode: null,
+            errorMessage: null,
+          });
+          void settleMediaModeration(snapshot.jobId, parsedFinalize.jobId);
+          await refresh();
+          return;
+        }
 
         if (snapshot.errorCode === 'UPLOAD_URL_EXPIRED') {
           await patchDurableUploadJob(snapshot.jobId, {
@@ -1036,7 +1116,20 @@ function useUploadQueueController(): UploadQueueContextValue {
       for (const snapshot of snapshots) handleSnapshot(snapshot);
     });
     return unsubscribe;
-  }, [queryClient, refresh]);
+  }, [queryClient, refresh, settleMediaModeration]);
+
+  useEffect(() => {
+    if (!ready || !ownerId) return;
+    for (const job of jobs) {
+      if (
+        job.ownerId === ownerId
+        && job.state === 'finalizing'
+        && job.moderationJobId
+      ) {
+        void settleMediaModeration(job.id, job.moderationJobId);
+      }
+    }
+  }, [jobs, ownerId, ready, settleMediaModeration]);
 
   useEffect(() => {
     if (!ready || processingRef.current || !ownerId || !canUseNetworkSession || !online) return;

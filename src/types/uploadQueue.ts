@@ -98,6 +98,7 @@ export type DurableUploadJob = {
   finalizeUrl: string | null;
   finalizeHeaders: Record<string, string> | null;
   finalizeToken: string | null;
+  moderationJobId: string | null;
   progress: number;
   bytesSent: number;
   bytesTotal: number;

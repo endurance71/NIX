@@ -7,7 +7,7 @@ import type {
 } from '../types/uploadQueue';
 
 const DATABASE_NAME = 'nix-upload-queue.db';
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 
 type UploadJobRow = {
   id: string;
@@ -34,6 +34,7 @@ type UploadJobRow = {
   finalize_url: string | null;
   finalize_headers_json: string | null;
   finalize_token: string | null;
+  moderation_job_id: string | null;
   progress: number;
   bytes_sent: number;
   bytes_total: number;
@@ -148,6 +149,9 @@ async function initializeDatabase(db: SQLiteDatabase) {
       'ALTER TABLE upload_jobs ADD COLUMN auth_refresh_attempted INTEGER NOT NULL DEFAULT 0;'
     );
   }
+  if (!columns.some((column) => column.name === 'moderation_job_id')) {
+    await db.execAsync('ALTER TABLE upload_jobs ADD COLUMN moderation_job_id TEXT;');
+  }
   await db.runAsync(
     `UPDATE upload_jobs
      SET idempotency_key = id
@@ -197,6 +201,7 @@ function toJob(row: UploadJobRow, recipients: DurableUploadRecipient[]): Durable
     finalizeUrl: row.finalize_url,
     finalizeHeaders: parseHeaders(row.finalize_headers_json),
     finalizeToken: row.finalize_token,
+    moderationJobId: row.moderation_job_id,
     progress: row.progress,
     bytesSent: row.bytes_sent,
     bytesTotal: row.bytes_total,
@@ -272,12 +277,12 @@ export async function insertDurableUploadJob(job: DurableUploadJob) {
         file_extension, original_size_bytes, final_size_bytes, playback_duration_ms,
         source_width, source_height, thumbnail_b64, batch_id, asset_id, storage_path,
         upload_url, upload_headers_json, upload_url_expires_at, finalize_url,
-        finalize_headers_json, finalize_token, progress, bytes_sent, bytes_total,
+        finalize_headers_json, finalize_token, moderation_job_id, progress, bytes_sent, bytes_total,
         retry_count, auth_refresh_attempted, next_attempt_at, error_code, error_message, created_at, updated_at,
         expires_at, started_at, finished_at
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )`,
       job.id,
       job.idempotencyKey,
@@ -303,6 +308,7 @@ export async function insertDurableUploadJob(job: DurableUploadJob) {
       job.finalizeUrl,
       job.finalizeHeaders ? JSON.stringify(job.finalizeHeaders) : null,
       job.finalizeToken,
+      job.moderationJobId,
       job.progress,
       job.bytesSent,
       job.bytesTotal,
@@ -363,6 +369,7 @@ const fieldToColumn: Record<keyof DurableUploadJob, string | null> = {
   finalizeUrl: 'finalize_url',
   finalizeHeaders: 'finalize_headers_json',
   finalizeToken: 'finalize_token',
+  moderationJobId: 'moderation_job_id',
   progress: 'progress',
   bytesSent: 'bytes_sent',
   bytesTotal: 'bytes_total',
