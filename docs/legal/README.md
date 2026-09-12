@@ -1,8 +1,9 @@
 # NiX — pakiet prawny przed publikacją
 
 **Wersja:** 2026-09-12
-**Status:** treść zsynchronizowana z in-app (`src/lib/legalDocuments.ts`); wymaga
-akceptacji prawnej i publikacji HTTPS.
+**Status:** treść zsynchronizowana z in-app (`src/lib/legalDocuments.ts`); HTTPS
+opublikowany 2026-09-12 (`https://nix.damianmotylinski.pl/privacy/`, `/terms/`,
+oraz `/en/`). Public App Review nadal **NO-GO**.
 
 Ten katalog jest źródłem wersjonowanych treści dla aplikacji i przyszłej strony HTTPS:
 

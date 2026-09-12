@@ -66,21 +66,20 @@ On the exact build 6 archive SHA (`063530f`):
 | §6 Decision 3 fake-only staging | **PASS** 2026-09-12 — owner `zatwierdzam GO staging canary`. Deno 2.9.6 worker suite **41 passed / 0 failed** on SHA `d146bba`; ffmpeg/ffprobe 8.1.2; **0** Azure Analyze. Rollback drilled. Evidence: `~/.nix-ops/p0-3-s6/DECISION3-STAGING-FAKE-SOAK-PASS-20260912.md`. |
 | §6 Decision 3 live Azure canary | **PASS** 2026-09-12 — owner `ruszaj`. Cap **50**; used **6** (5 safe text + 1 safe JPEG, all `approved` severity 0); video live **off**. SHA `3482e65`, clean tree. `external_used` **3630 / 4000** (remaining **370**). Evidence: `~/.nix-ops/p0-3-s6/DECISION3-LIVE-AZURE-CANARY-PASS-20260912.md`. |
 | §6 Decision 4 | **GO recorded** 2026-09-12 (`zgoda`). C3 schema **on prod**. Storage download + OVH idle worker. `enqueue_own` + `get_own` on prod. Archive **1.0.11 (6)**; owner Internal TF device **PASS** 2026-09-12 (`pass wszystko`; issue [#15](https://github.com/endurance71/NIX/issues/15) closed). Owner `wlacz flage` 2026-09-12: Privacy Policy Azure wording, OTA `874edb39` (`8688bfb`, runtime `1.0.11`), then flag **TRUE**. INSERT fallback blocked. **Not** READY FOR REVIEW. Evidence: `~/.nix-ops/p0-3-s6/DECISION4-GO-20260912.md` + `DECISION4-PROD-SCHEMA-FLAG-OFF-20260912.md` + `DECISION4-STORAGE-DOWNLOAD-SMOKE-20260912.md` + `DECISION4-OVH-HOST-IDLE-20260912.md` + `DECISION4-IOS-ENQUEUE-FALLBACK-20260912.md` + `DECISION4-IOS-BUILD6-ARCHIVE-20260912.md` + `DECISION4-IOS-BUILD6-DEVICE-SMOKE-20260912.md` + `DECISION4-IOS-BUILD6-DEVICE-PASS-20260912.md` + `DECISION4-FLAG-ON-20260912.md`. |
-| Production pre-delivery filter | **ON** 2026-09-12 — flag TRUE after OTA. Public App Review still **NO-GO** (HTTPS privacy page stale; remaining device matrix). |
+| Production pre-delivery filter | **ON** 2026-09-12 — flag TRUE after OTA. Hotfix [PR #48](https://github.com/endurance71/NIX/pull/48) (`e1d73cf`) delivers approved text and finalizes photos. HTTPS privacy/terms **2026-09-12** live. Public App Review still **NO-GO** (remaining device matrix). |
 
-Flag `pre_delivery_moderation_enabled` is **TRUE** on production after owner `wlacz flage` (2026-09-12). READY FOR REVIEW stays blocked until the public HTTPS privacy page matches in-app 2026-09-12 and remaining device gates pass. Build **6** + OTA `874edb39`. Rollback is `UPDATE … = false`, not a migration. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
+Flag `pre_delivery_moderation_enabled` is **TRUE** on production after owner `wlacz flage` (2026-09-12). HTTPS privacy/terms **2026-09-12** (Azure wording) are live at `https://nix.damianmotylinski.pl/privacy/` and `/terms/` (PL + EN). READY FOR REVIEW stays blocked until remaining device gates pass. Build **6** + OTA `874edb39`. Rollback is `UPDATE … = false`, not a migration. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
 
 ## Open release blockers
 
 1. **P0-3 — UGC filtering:** Flag **TRUE** 2026-09-12 (owner `wlacz flage`).
-   Text/photo/video enqueue is fail-closed pending Azure. Remaining before
-   public App Review: publish HTTPS privacy 2026-09-12 (live page is still
-   2026-08-25), owner TF smoke of the wait loop after two force-quits, and
-   the rest of the device matrix.
+   Text/photo enqueue is fail-closed pending Azure. Hotfix [PR #48](https://github.com/endurance71/NIX/pull/48)
+   is on prod. HTTPS privacy/terms **2026-09-12** published (PL + EN). Remaining
+   before public App Review: the rest of the device matrix.
 2. **Physical-device QA:** owner Internal TF **PASS** on `1.0.11 (6)` 2026-09-12
    (navigation, lists, camera, media upload, background upload; flag was OFF).
-   After OTA `874edb39` + flag TRUE: force quit ×2, then send a text. Remaining
-   App Review matrix:
+   After OTA `874edb39` + flag TRUE + hotfix: owner confirmed text and photo
+   send (`poszlo wszystko teraz`). Remaining App Review matrix:
    [`../testing/app-review-device-smoke.md`](../testing/app-review-device-smoke.md)
    (iPad, IPv6/NAT64, SIWA revoke, live 1.2). Chat paste:
    [`../testing/testflight-chat-paste-input.md`](../testing/testflight-chat-paste-input.md).
@@ -105,9 +104,9 @@ Flag `pre_delivery_moderation_enabled` is **TRUE** on production after owner `wl
 ## Next eligible App Review candidate
 
 Build 6 is the current Internal TestFlight binary (enqueue + wait loop via OTA
-`874edb39`). Public App Review stays **NO-GO** until the HTTPS privacy page
-matches version 2026-09-12 and remaining blockers pass. Build 5 stays as prior
-evidence.
+`874edb39`). HTTPS privacy/terms match in-app version **2026-09-12**. Public App
+Review stays **NO-GO** until remaining device blockers pass. Build 5 stays as
+prior evidence.
 
 Allowed status progression:
 
@@ -137,7 +136,10 @@ Workspace synced to `origin/main`. Local dirty C1–C8 tree was snapshotted on
 | §6 Decision 3 fake-only | **PASS** 2026-09-12 (`zatwierdzam GO staging canary`; 41 tests; 0 Analyze) |
 | §6 Decision 3 live Azure canary | **PASS** 2026-09-12 (`ruszaj`; 6/50 txn; video off; `external_used` **3630**) |
 | §6 Decision 4 | **Flag TRUE** 2026-09-12 (`wlacz flage`); OTA `874edb39`; INSERT blocked; App Review **NO-GO** |
-| Production flag | **ON** |
+| Production flag | **ON** — hotfix [PR #48](https://github.com/endurance71/NIX/pull/48) `e1d73cf`; owner send PASS after flag ON |
+| HTTPS privacy/terms | **2026-09-12** live (`/privacy`, `/terms`, `/privacy/en`, `/terms/en`) |
 | Public App Review | **NO-GO** |
 
-Faza 4 schema and `enqueue_own_text_moderation_job` are on production with the flag still FALSE. Binary **6** is on Internal TestFlight with owner device PASS (issue #15 closed). Next: separate GO for flag TRUE + Privacy Policy. Do not READY FOR REVIEW in this slice.
+Production flag is TRUE. Binary **6** + OTA `874edb39` + SQL hotfix `20260912150000`.
+HTTPS privacy matches in-app 2026-09-12. Do not READY FOR REVIEW until the
+remaining device matrix in this document passes.

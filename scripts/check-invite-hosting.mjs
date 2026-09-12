@@ -30,11 +30,17 @@ if (JSON.stringify(aasa?.applinks?.details ?? []).includes('/invite/*') === fals
 if (!/ForceType\s+application\/json/.test(htaccess)) failures.push('AASA JSON content type rule is missing');
 if (!/RewriteRule\s+\^invite\//.test(htaccess)) failures.push('/invite/* rewrite is missing');
 if (!/Referrer-Policy\s+"no-referrer"/.test(htaccess)) failures.push('Referrer-Policy header is missing');
-if (!privacy.includes('2026-08-01') || !privacy.includes('kontakt@damianmotylinski.pl')) {
+if (!privacy.includes('2026-09-12') || !privacy.includes('kontakt@damianmotylinski.pl')) {
   failures.push('privacy page is missing the current legal version or contact');
 }
-if (!terms.includes('2026-08-01') || !terms.includes('kontakt@damianmotylinski.pl')) {
+if (!privacy.includes('Azure')) {
+  failures.push('privacy page must disclose Azure screening');
+}
+if (!terms.includes('2026-09-12') || !terms.includes('kontakt@damianmotylinski.pl')) {
   failures.push('terms page is missing the current legal version or contact');
+}
+if (!terms.includes('Azure')) {
+  failures.push('terms page must disclose Azure screening');
 }
 
 if (baseUrl) {
@@ -62,12 +68,23 @@ if (baseUrl) {
     failures.push('remote /invite/* route returned unexpected content');
   }
 
-  for (const [path, marker] of [['privacy/', '2026-08-01'], ['terms/', '2026-08-01']]) {
+  for (const [path, marker] of [
+    ['privacy/', '2026-09-12'],
+    ['terms/', '2026-09-12'],
+    ['privacy/en/', '2026-09-12'],
+    ['terms/en/', '2026-09-12'],
+  ]) {
     const response = await fetch(`${baseUrl}/${path}`, { redirect: 'manual' }).catch(() => null);
     if (!response || response.status !== 200) {
       failures.push(`remote /${path} does not return HTTP 200`);
-    } else if (!(await response.text()).includes(marker)) {
-      failures.push(`remote /${path} contains an outdated legal version`);
+    } else {
+      const text = await response.text();
+      if (!text.includes(marker)) {
+        failures.push(`remote /${path} contains an outdated legal version`);
+      }
+      if (!text.includes('Azure')) {
+        failures.push(`remote /${path} must disclose Azure screening`);
+      }
     }
   }
 }
