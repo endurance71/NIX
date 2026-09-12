@@ -46,6 +46,7 @@ VALUES
   ('public', 'disable_push_device', ARRAY['authenticated', 'service_role']),
   ('public', 'enqueue_push_notification_job', ARRAY[]::text[]),
   ('public', 'enqueue_text_moderation_job', ARRAY['service_role']),
+  ('public', 'enqueue_own_text_moderation_job', ARRAY['authenticated', 'service_role']),
   ('public', 'fetch_inbox_nixes_paginated', ARRAY['authenticated', 'service_role']),
   ('public', 'fetch_message_reactions_with_peer', ARRAY['authenticated', 'service_role']),
   ('public', 'fetch_sent_nixes_paginated', ARRAY['authenticated', 'service_role']),

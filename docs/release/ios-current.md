@@ -50,10 +50,10 @@ On the exact build 5 source SHA:
 | C3B audit fixes | **MERGED** — merge SHA [`5d3cd41`](https://github.com/endurance71/NIX/commit/5d3cd410079ce1488c9c80f7248786604595da81) ([PR #24](https://github.com/endurance71/NIX/pull/24), tip `59d6721`). Complete/lease REVOKE, attempt-id budget, Auth/Storage Path A+B PASS, local verify PASS. Expo CI **exception** (quota; reset 2026-10-01 UTC). Evidence: `~/.nix-ops/p0-3-c3b-audit-fixes/`. Flag OFF; **no** prod `db push` / App Review. Status: [`../plans/2026-09-04-c3b-auth-storage-merged.md`](../plans/2026-09-04-c3b-auth-storage-merged.md). |
 | §6 Decision 3 fake-only staging | **PASS** 2026-09-12 — owner `zatwierdzam GO staging canary`. Deno 2.9.6 worker suite **41 passed / 0 failed** on SHA `d146bba`; ffmpeg/ffprobe 8.1.2; **0** Azure Analyze. Rollback drilled. Evidence: `~/.nix-ops/p0-3-s6/DECISION3-STAGING-FAKE-SOAK-PASS-20260912.md`. |
 | §6 Decision 3 live Azure canary | **PASS** 2026-09-12 — owner `ruszaj`. Cap **50**; used **6** (5 safe text + 1 safe JPEG, all `approved` severity 0); video live **off**. SHA `3482e65`, clean tree. `external_used` **3630 / 4000** (remaining **370**). Evidence: `~/.nix-ops/p0-3-s6/DECISION3-LIVE-AZURE-CANARY-PASS-20260912.md`. |
-| §6 Decision 4 | **GO recorded** 2026-09-12 (`zgoda`). C3 schema **on prod** 2026-09-12 (head `20260904120100`); `pre_delivery_moderation_enabled` **FALSE**. Storage download on `main` ([PR #40](https://github.com/endurance71/NIX/pull/40), `003c6e1`). Idle worker **hosted** on OVH 2026-09-12 (`nix-moderation-worker:003c6e1`, ffmpeg 7.1.5, no published ports, empty queue, 0 Analyze). This is **not** Guideline 1.2 enforcement. No Privacy Policy scan claim, no Archive 6+, no READY FOR REVIEW. Evidence: `~/.nix-ops/p0-3-s6/DECISION4-GO-20260912.md` + `DECISION4-PROD-SCHEMA-FLAG-OFF-20260912.md` + `DECISION4-STORAGE-DOWNLOAD-SMOKE-20260912.md` + `DECISION4-OVH-HOST-IDLE-20260912.md`. |
+| §6 Decision 4 | **GO recorded** 2026-09-12 (`zgoda`). C3 schema **on prod**; flag **FALSE**. Storage download + OVH idle worker. `enqueue_own_text_moderation_job` on prod 2026-09-12 (`20260912120000`); authenticated EXECUTE; 4-arg enqueue still service_role-only. iOS `sendTextMessage` calls that RPC then INSERT on `MODERATION_DISABLED`. Empty queue, 0 Analyze. **Not** Guideline 1.2. No Privacy Policy scan claim, no Archive 6+, no READY FOR REVIEW. Evidence: `~/.nix-ops/p0-3-s6/DECISION4-GO-20260912.md` + `DECISION4-PROD-SCHEMA-FLAG-OFF-20260912.md` + `DECISION4-STORAGE-DOWNLOAD-SMOKE-20260912.md` + `DECISION4-OVH-HOST-IDLE-20260912.md` + `DECISION4-IOS-ENQUEUE-FALLBACK-20260912.md`. |
 | Production pre-delivery filter | **OFF** — Guideline 1.2 still blocks public App Review |
 
-Hard stop: flipping `pre_delivery_moderation_enabled`, Privacy Policy „po C3”, Archive 6+, and READY FOR REVIEW stay blocked until the iOS client uses enqueue (binary **6+**). The worker is hosted idle with the flag **FALSE**. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
+Hard stop: flipping `pre_delivery_moderation_enabled`, Privacy Policy „po C3”, Archive 6+, and READY FOR REVIEW stay blocked until binary **6+** (enqueue client on device). The worker is hosted idle with the flag **FALSE**. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
 
 ## Open release blockers
 
@@ -117,8 +117,8 @@ Workspace synced to `origin/main`. Local dirty C1–C8 tree was snapshotted on
 | C2 `--require-complete-s0` | PASS after ACTIVE + Accepted `decision.md` |
 | §6 Decision 3 fake-only | **PASS** 2026-09-12 (`zatwierdzam GO staging canary`; 41 tests; 0 Analyze) |
 | §6 Decision 3 live Azure canary | **PASS** 2026-09-12 (`ruszaj`; 6/50 txn; video off; `external_used` **3630**) |
-| §6 Decision 4 | **GO recorded** (`zgoda`); C3 schema on prod; flag **OFF**; Storage download on `main`; OVH idle worker hosted (0 Analyze); App Review **NO-GO** |
+| §6 Decision 4 | **GO recorded** (`zgoda`); schema+enqueue_own on prod; flag **OFF**; OVH idle; iOS INSERT fallback; App Review **NO-GO** |
 | Production flag | **OFF** |
 | Public App Review | **NO-GO** |
 
-Faza 4 schema is on production with the flag still FALSE. The live worker is hosted idle on OVH (empty queue, 0 Analyze). Next: iOS enqueue with INSERT fallback, then binary 6+, then flag TRUE. Do not Archive 6+ or READY FOR REVIEW while Guideline 1.2 is unmet on production.
+Faza 4 schema and `enqueue_own_text_moderation_job` are on production with the flag still FALSE. iOS falls back to INSERT while the flag is off. Next: binary 6+ (local Xcode Archive, not EAS), then flag TRUE. Do not Archive 6+ or READY FOR REVIEW in this slice.

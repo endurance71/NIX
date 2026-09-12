@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(10);
+SELECT plan(14);
 
 SELECT is(
   has_table_privilege('anon', 'public.moderation_jobs', 'SELECT'),
@@ -97,6 +97,37 @@ SELECT is(
   has_function_privilege('authenticated', 'public.materialize_approved_media_batch(uuid)', 'EXECUTE'),
   FALSE,
   'clients cannot materialize approved media themselves'
+);
+
+SELECT is(
+  has_function_privilege('anon', 'public.enqueue_own_text_moderation_job(uuid, text, text)', 'EXECUTE'),
+  FALSE,
+  'anon cannot enqueue own text moderation'
+);
+
+SELECT is(
+  has_function_privilege('authenticated', 'public.enqueue_own_text_moderation_job(uuid, text, text)', 'EXECUTE'),
+  TRUE,
+  'authenticated can enqueue own text moderation'
+);
+
+SELECT is(
+  has_function_privilege('authenticated', 'public.enqueue_text_moderation_job(uuid, uuid, text, text)', 'EXECUTE'),
+  FALSE,
+  'authenticated cannot call sender-spoofable enqueue_text_moderation_job'
+);
+
+SELECT is(
+  (
+    SELECT p.pronargs::integer
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'enqueue_own_text_moderation_job'
+      AND p.prosecdef
+  ),
+  3,
+  'own enqueue has no p_sender_id argument'
 );
 
 SELECT finish();
