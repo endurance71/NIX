@@ -145,7 +145,12 @@ export async function runLiveWorker(
   const once = options.once ?? env.MODERATION_WORKER_ONCE === "1";
 
   do {
-    await worker.tick();
+    try {
+      await worker.tick();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "tick_failed";
+      console.error(message);
+    }
     if (once) return;
     await new Promise((resolve) =>
       setTimeout(resolve, options.sleepMs ?? TICK_IDLE_MS)
