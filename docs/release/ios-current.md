@@ -49,10 +49,11 @@ On the exact build 5 source SHA:
 | C3B offline integration | **PASS (base)** — merged via [PR #18](https://github.com/endurance71/NIX/pull/18). Fake Azure; flag OFF. |
 | C3B audit fixes | **MERGED** — merge SHA [`5d3cd41`](https://github.com/endurance71/NIX/commit/5d3cd410079ce1488c9c80f7248786604595da81) ([PR #24](https://github.com/endurance71/NIX/pull/24), tip `59d6721`). Complete/lease REVOKE, attempt-id budget, Auth/Storage Path A+B PASS, local verify PASS. Expo CI **exception** (quota; reset 2026-10-01 UTC). Evidence: `~/.nix-ops/p0-3-c3b-audit-fixes/`. Flag OFF; **no** prod `db push` / App Review. Status: [`../plans/2026-09-04-c3b-auth-storage-merged.md`](../plans/2026-09-04-c3b-auth-storage-merged.md). |
 | §6 Decision 3 fake-only staging | **PASS** 2026-09-12 — owner `zatwierdzam GO staging canary`. Deno 2.9.6 worker suite **41 passed / 0 failed** on SHA `d146bba`; ffmpeg/ffprobe 8.1.2; **0** Azure Analyze. Rollback drilled. Evidence: `~/.nix-ops/p0-3-s6/DECISION3-STAGING-FAKE-SOAK-PASS-20260912.md`. |
-| §6 Decision 3 live Azure canary | **PASS** 2026-09-12 — owner `ruszaj`. Cap **50**; used **6** (5 safe text + 1 safe JPEG, all `approved` severity 0); video live **off**. SHA `3482e65`, clean tree. `external_used` **3630 / 4000** (remaining **370**). Further live frozen until a new GO. Evidence: `~/.nix-ops/p0-3-s6/DECISION3-LIVE-AZURE-CANARY-PASS-20260912.md`. |
+| §6 Decision 3 live Azure canary | **PASS** 2026-09-12 — owner `ruszaj`. Cap **50**; used **6** (5 safe text + 1 safe JPEG, all `approved` severity 0); video live **off**. SHA `3482e65`, clean tree. `external_used` **3630 / 4000** (remaining **370**). Evidence: `~/.nix-ops/p0-3-s6/DECISION3-LIVE-AZURE-CANARY-PASS-20260912.md`. |
+| §6 Decision 4 | **GO recorded** 2026-09-12 (`zgoda`). Production schema still on `20260829170422` (no `moderation_jobs`). Flag **OFF** / column absent. Live worker client is being added; **not** deployed. No prod `db push`, no Privacy Policy scan claim, no Archive 6+, no READY FOR REVIEW. Evidence: `~/.nix-ops/p0-3-s6/DECISION4-GO-20260912.md`. |
 | Production pre-delivery filter | **OFF** — Guideline 1.2 still blocks public App Review |
 
-Hard stop: C3 prod / flag / Privacy Policy „po C3” / READY FOR REVIEW only after **Decision 4** (separate GO). Live canary PASS does **not** turn the production flag on, apply prod `db push`, or authorize App Review. Further live Analyze is frozen until a new written GO. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
+Hard stop: flipping `pre_delivery_moderation_enabled`, prod `db push`, Privacy Policy „po C3”, Archive 6+, and READY FOR REVIEW stay blocked until C3 schema is on production, a live worker with ffmpeg is hosted, and the iOS client uses enqueue (binary **6+**). Decision 4 GO does **not** skip those. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
 
 ## Open release blockers
 
@@ -116,7 +117,8 @@ Workspace synced to `origin/main`. Local dirty C1–C8 tree was snapshotted on
 | C2 `--require-complete-s0` | PASS after ACTIVE + Accepted `decision.md` |
 | §6 Decision 3 fake-only | **PASS** 2026-09-12 (`zatwierdzam GO staging canary`; 41 tests; 0 Analyze) |
 | §6 Decision 3 live Azure canary | **PASS** 2026-09-12 (`ruszaj`; 6/50 txn; video off; `external_used` **3630**) |
+| §6 Decision 4 | **GO recorded** (`zgoda`); flag **OFF**; no prod `db push`; App Review **NO-GO** |
 | Production flag | **OFF** |
 | Public App Review | **NO-GO** |
 
-Fazy 3–7 remain blocked. Next human gate: **Decision 4** — production flag / prod `db push` / Privacy Policy „po C3” / READY FOR REVIEW. Further live Analyze is frozen until a new written GO. Do not enable `pre_delivery_moderation_enabled`, Archive 6+, or App Review without that signature.
+Faza 4 started: live Azure worker client in repo. Next: prod C3 migrations with flag still FALSE, worker host (ffmpeg + secrets), iOS enqueue path in binary 6+, then flag TRUE. Do not Archive 6+ or READY FOR REVIEW while Guideline 1.2 is unmet on production.

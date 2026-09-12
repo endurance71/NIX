@@ -5,7 +5,7 @@ import {
 import type { BudgetLedger } from "./budget.ts";
 import { WAITING_BUDGET } from "./constants.ts";
 import { assertLocalMediaPath } from "./download.ts";
-import type { FakeProvider } from "./fake-provider.ts";
+import type { ModerationProvider } from "./provider.ts";
 import { processVideo } from "./video.ts";
 
 export type ContentKind = "text" | "image" | "video";
@@ -77,7 +77,7 @@ async function withBudgetedCall(
 
 export async function processIntegrationJob(
   job: IntegrationJob,
-  provider: FakeProvider,
+  provider: ModerationProvider,
   ledger: BudgetLedger,
   signal: AbortSignal,
 ): Promise<ProcessOutcome> {

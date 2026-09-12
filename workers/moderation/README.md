@@ -14,9 +14,12 @@ deno test --no-config --allow-read --allow-write --allow-run workers/moderation
 
 ## C3B — offline integration (ta gałąź)
 
-Status: **offline only**. `pre_delivery_moderation_enabled` pozostaje **FALSE**.
-ADR-001 pozostaje **Proposed**. Zero wywołań Azure w testach
-(`FakeAzureProvider` / `createFakeProvider`).
+Status: **offline tests still fake-only**. Live F0 client exists in
+`azure-provider.ts` / `main.ts` but **must not** run against production until
+C3 migrations are on prod, the flag is still FALSE, and a host with ffmpeg is
+authorized. `pre_delivery_moderation_enabled` remains **FALSE**. Media
+`resolveClaimedJob` is fail-closed (`media_resolve_not_wired`) until Storage
+download is wired.
 
 Dodane:
 

@@ -6,7 +6,7 @@ import {
   PROCESS_TIMEOUT_MS,
   WAITING_BUDGET,
 } from "./constants.ts";
-import type { FakeProvider } from "./fake-provider.ts";
+import type { ModerationProvider } from "./provider.ts";
 import {
   processIntegrationJob,
   type ContentKind,
@@ -113,7 +113,7 @@ export function createWorker(
  */
 export function createIntegrationWorker(
   queue: IntegrationQueue,
-  provider: FakeProvider,
+  provider: ModerationProvider,
   ledger: BudgetLedger,
   options: {
     timeoutMs?: number;
