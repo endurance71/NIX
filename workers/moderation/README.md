@@ -67,17 +67,19 @@ Rate: F0 Moderation APIs = **5 RPS**; worker używa min. odstępu 200 ms.
 
 ### Host (flaga nadal OFF)
 
-C3 schema jest na produkcji; worker **nie** jest hostem produkcyjnym (OVH C3A
-był tylko offline benchmark). Lokalny smoke pustej kolejki:
+C3 schema jest na produkcji. Benchmark C3A był `network=none` / 0 Azure.
+Idle daemon (egress do PostgREST + Azure, **bez** publikacji portów):
 
 ```sh
-# env poza Git: AZURE_*, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MODERATION_EXTERNAL_USED=3630
-MODERATION_WORKER_ONCE=1 deno run --no-config --allow-net --allow-env \
-  --allow-read --allow-write=/tmp --allow-run=ffmpeg,ffprobe \
-  workers/moderation/main.ts
+# env-file mode 600 poza Git: AZURE_*, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+# MODERATION_EXTERNAL_USED=3630 — bez MODERATION_WORKER_ONCE
+export NIX_MODERATION_ENV_FILE=/path/to/moderation-worker.env
+export NIX_MODERATION_IMAGE_TAG=local
+docker compose -f workers/moderation/compose.yaml up -d --build
 ```
 
-Pusta `moderation_jobs` + flaga FALSE = 0 Azure Analyze. Docker: `workers/moderation/Dockerfile` (ENTRYPOINT `main.ts`).
+Pusta `moderation_jobs` + flaga FALSE = 0 Azure Analyze. Nie włączać flagi
+tylko dlatego, że kontener wstaje.
 
 ### Poza C3B (osobna zgoda)
 
