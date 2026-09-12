@@ -10,7 +10,7 @@
 | --- | --- |
 | App Store Connect app | NiX (`6791332379`) |
 | Version | `1.0.11` |
-| Latest build | `6` (uploaded 2026-09-12; ASC Processing) |
+| Latest build | `6` (Internal TestFlight; owner device smoke 2026-09-12) |
 | Source SHA | `063530f49418b6fc7e99ed857e8556306d03e867` |
 | Source branch at upload | `feat/ios-1.0.11-build-6` |
 | Previous Internal TF evidence | build `5` on `c2175ce8902161bceefd86668e98955e1487b12c` |
@@ -18,9 +18,9 @@
 | Public App Review | **NO-GO / not submitted** |
 
 Build `1.0.11 (6)` was uploaded to App Store Connect on 2026-09-12 via local
-Xcode Archive (not EAS). Wait for Processing, then attach **6** to
-**NiX Internal QA**. Build 5 remains Internal TestFlight evidence until 6 is
-the active group build.
+Xcode Archive (not EAS). Owner recorded an Internal TestFlight physical-device
+smoke the same day (`wykonalem smoke`). Confirm **6** is the active build on
+**NiX Internal QA**. Build 5 remains prior Internal TestFlight evidence.
 
 Uploading a binary never advances public App Review. Build 6 is Internal
 TestFlight only.
@@ -47,6 +47,9 @@ On the exact build 6 archive SHA (`063530f`):
 - Vitest: 78 files / 440 tests PASS;
 - Xcode Archive, export, signing and App Store Connect upload: PASS, recorded
   outside Git in `~/.nix-ops/p0-3-s6/DECISION4-IOS-BUILD6-ARCHIVE-20260912.md`.
+- Owner Internal TestFlight physical-device smoke: recorded 2026-09-12
+  (`DECISION4-IOS-BUILD6-DEVICE-SMOKE-20260912.md`); flag OFF, not the full C8
+  App Review matrix.
 - TypeScript `tsc --noEmit` still fails on pre-existing auth route types and
   `productAnalyticsService.test.ts` (unchanged by the build-number bump).
 
@@ -60,10 +63,10 @@ On the exact build 6 archive SHA (`063530f`):
 | C3B audit fixes | **MERGED** — merge SHA [`5d3cd41`](https://github.com/endurance71/NIX/commit/5d3cd410079ce1488c9c80f7248786604595da81) ([PR #24](https://github.com/endurance71/NIX/pull/24), tip `59d6721`). Complete/lease REVOKE, attempt-id budget, Auth/Storage Path A+B PASS, local verify PASS. Expo CI **exception** (quota; reset 2026-10-01 UTC). Evidence: `~/.nix-ops/p0-3-c3b-audit-fixes/`. Flag OFF; **no** prod `db push` / App Review. Status: [`../plans/2026-09-04-c3b-auth-storage-merged.md`](../plans/2026-09-04-c3b-auth-storage-merged.md). |
 | §6 Decision 3 fake-only staging | **PASS** 2026-09-12 — owner `zatwierdzam GO staging canary`. Deno 2.9.6 worker suite **41 passed / 0 failed** on SHA `d146bba`; ffmpeg/ffprobe 8.1.2; **0** Azure Analyze. Rollback drilled. Evidence: `~/.nix-ops/p0-3-s6/DECISION3-STAGING-FAKE-SOAK-PASS-20260912.md`. |
 | §6 Decision 3 live Azure canary | **PASS** 2026-09-12 — owner `ruszaj`. Cap **50**; used **6** (5 safe text + 1 safe JPEG, all `approved` severity 0); video live **off**. SHA `3482e65`, clean tree. `external_used` **3630 / 4000** (remaining **370**). Evidence: `~/.nix-ops/p0-3-s6/DECISION3-LIVE-AZURE-CANARY-PASS-20260912.md`. |
-| §6 Decision 4 | **GO recorded** 2026-09-12 (`zgoda`). C3 schema **on prod**; flag **FALSE**. Storage download + OVH idle worker. `enqueue_own_text_moderation_job` on prod; iOS INSERT fallback. Archive **1.0.11 (6)** uploaded 2026-09-12 (SHA `063530f`, local Xcode, not EAS). Empty queue, 0 Analyze. **Not** Guideline 1.2. No Privacy Policy scan claim, no READY FOR REVIEW. Evidence: `~/.nix-ops/p0-3-s6/DECISION4-GO-20260912.md` + `DECISION4-PROD-SCHEMA-FLAG-OFF-20260912.md` + `DECISION4-STORAGE-DOWNLOAD-SMOKE-20260912.md` + `DECISION4-OVH-HOST-IDLE-20260912.md` + `DECISION4-IOS-ENQUEUE-FALLBACK-20260912.md` + `DECISION4-IOS-BUILD6-ARCHIVE-20260912.md`. |
+| §6 Decision 4 | **GO recorded** 2026-09-12 (`zgoda`). C3 schema **on prod**; flag **FALSE**. Storage download + OVH idle worker. `enqueue_own_text_moderation_job` on prod; iOS INSERT fallback. Archive **1.0.11 (6)** uploaded; owner Internal TF device smoke 2026-09-12. Empty queue, 0 Analyze. **Not** Guideline 1.2. No Privacy Policy scan claim, no READY FOR REVIEW. Evidence: `~/.nix-ops/p0-3-s6/DECISION4-GO-20260912.md` + `DECISION4-PROD-SCHEMA-FLAG-OFF-20260912.md` + `DECISION4-STORAGE-DOWNLOAD-SMOKE-20260912.md` + `DECISION4-OVH-HOST-IDLE-20260912.md` + `DECISION4-IOS-ENQUEUE-FALLBACK-20260912.md` + `DECISION4-IOS-BUILD6-ARCHIVE-20260912.md` + `DECISION4-IOS-BUILD6-DEVICE-SMOKE-20260912.md`. |
 | Production pre-delivery filter | **OFF** — Guideline 1.2 still blocks public App Review |
 
-Hard stop: flipping `pre_delivery_moderation_enabled`, Privacy Policy „po C3”, and READY FOR REVIEW stay blocked until Internal QA devices run build **6** and a separate owner GO enables the flag. The worker is hosted idle with the flag **FALSE**. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
+Hard stop: flipping `pre_delivery_moderation_enabled`, Privacy Policy „po C3”, and READY FOR REVIEW stay blocked until a separate owner GO enables the flag. Build **6** is on Internal TestFlight with an owner device smoke (flag still **FALSE**). See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
 
 ## Open release blockers
 
@@ -71,10 +74,11 @@ Hard stop: flipping `pre_delivery_moderation_enabled`, Privacy Policy „po C3�
    soak and live Azure canary (6 txn, cap 50) are **PASS**. Photos and video are
    still not filtered on production (flag OFF). Guideline 1.2 still requires
    authorized production enforcement before public App Review.
-2. **Physical-device QA:** execute
+2. **Physical-device QA:** owner Internal TF smoke on `1.0.11 (6)` recorded
+   2026-09-12 (flag OFF). The full matrix in
    [`../testing/app-review-device-smoke.md`](../testing/app-review-device-smoke.md)
-   (and chat paste [`../testing/testflight-chat-paste-input.md`](../testing/testflight-chat-paste-input.md))
-   on an iPhone and iPad; record the result outside Git.
+   (iPad, IPv6/NAT64, SIWA revoke, live 1.2) is still open. Chat paste:
+   [`../testing/testflight-chat-paste-input.md`](../testing/testflight-chat-paste-input.md).
 3. **P0-4/P0-5 device gates:** verify Sign in with Apple, Apple credential
    revocation during account deletion, clean install, upgrade, offline/retry,
    IPv6/NAT64 and iPad compatibility.
@@ -87,8 +91,10 @@ Hard stop: flipping `pre_delivery_moderation_enabled`, Privacy Policy „po C3�
    `testflight/ios-1.0.11-build.5` on `c2175ce` after the repository signing key
    is unlocked.
 6. **Native dependency security:** React Native `0.86.3` + patch is in binary
-   `1.0.11 (6)` (Podfile.lock synced at Archive). Close GitHub issue #15 only
-   after a physical-device smoke on that build. Do not apply `npm audit fix --force`.
+   `1.0.11 (6)`. Owner Internal TF smoke 2026-09-12 covers install/launch with
+   the flag OFF. Close GitHub issue #15 only after the camera / media upload /
+   lists / navigation / background-upload items named in that issue. Do not
+   apply `npm audit fix --force`.
 7. **Reproducible Deno gate:** Node `24.18` / Deno `2.9.6` pins + frozen
    `deno.lock` are on `main` via PR #19. Close GitHub issue #16 after confirming
    CI/toolchain on a green Lint/test run.
@@ -126,8 +132,8 @@ Workspace synced to `origin/main`. Local dirty C1–C8 tree was snapshotted on
 | C2 `--require-complete-s0` | PASS after ACTIVE + Accepted `decision.md` |
 | §6 Decision 3 fake-only | **PASS** 2026-09-12 (`zatwierdzam GO staging canary`; 41 tests; 0 Analyze) |
 | §6 Decision 3 live Azure canary | **PASS** 2026-09-12 (`ruszaj`; 6/50 txn; video off; `external_used` **3630**) |
-| §6 Decision 4 | **GO recorded** (`zgoda`); schema+enqueue_own on prod; flag **OFF**; OVH idle; iOS INSERT fallback; binary **6** uploaded; App Review **NO-GO** |
+| §6 Decision 4 | **GO recorded** (`zgoda`); schema+enqueue_own on prod; flag **OFF**; OVH idle; iOS INSERT fallback; binary **6** uploaded; owner TF smoke 2026-09-12; App Review **NO-GO** |
 | Production flag | **OFF** |
 | Public App Review | **NO-GO** |
 
-Faza 4 schema and `enqueue_own_text_moderation_job` are on production with the flag still FALSE. Binary **6** is on App Store Connect (Processing). Next: attach 6 to NiX Internal QA, then a separate GO for flag TRUE + Privacy Policy. Do not READY FOR REVIEW in this slice.
+Faza 4 schema and `enqueue_own_text_moderation_job` are on production with the flag still FALSE. Binary **6** is on Internal TestFlight with an owner device smoke. Next: separate GO for flag TRUE + Privacy Policy. Do not READY FOR REVIEW in this slice.
