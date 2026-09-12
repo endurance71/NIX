@@ -1,8 +1,9 @@
 # ADR-001: Dostawca moderacji pre-delivery (P0-3)
 
 **Date**: 2026-08-27
-**Status**: Proposed
-**Deciders**: właściciel produktu / jedyny deweloper (do akceptacji)
+**Accepted**: 2026-09-12
+**Status**: Accepted
+**Deciders**: właściciel produktu / jedyny deweloper (Damian Motyliński)
 
 ## Context
 
@@ -112,7 +113,7 @@ Pierwszy rollout: **severity 4 = `rejected`**. Human review jest **wyłączone**
 - Shadow na prawdziwych prywatnych treściach bez podstawy i nowej Privacy
   Policy jest zakazane.
 
-## Implementation strategy (worker; ADR still Proposed)
+## Implementation strategy (worker)
 
 Spiki F0 oraz hybrydowy delta mają niezmienione historyczne dowody. Pełna
 macierz C2 na izolowanym S0 w Sweden Central (2026-09-03) osiągnęła
@@ -124,42 +125,36 @@ dla `baseline_1fps` i `uniform_scene_guard`, wszystkie safe severity 0.
 z buforem 20%, wobec limitu operacyjnego 4000. Szacowany koszt testu:
 1.450125 USD z kredytu; rozliczenie Azure jeszcze niepotwierdzone.
 
-ADR pozostaje **Proposed** do uzgodnienia dokładnej sumy z portalu.
-Po odblokowaniu Maca S0 usunięto (odświeżona grupa: zero zasobów), a Azure Home
-potwierdził wstrzymanie usług po wyczerpaniu/wygaśnięciu kredytu. Ostatni
-licznik portalu pozostaje opóźniony i zaokrąglony; lokalny ledger ma 1937 prób. Dowody:
-`~/.nix-ops/p0-3-spike-s0/decision.md`. **Nie powtarzać live.**
-Po domknięciu uruchomić `--require-complete-s0`; dopiero PASS pozwala
-zaakceptować wybór dostawcy. Produkcja i C3 pozostają wyłączone.
+**Accepted 2026-09-12** po GO S0 portal exception (digest
+`4fc9457046308ed5be2cb4970c18533002b1db60006dbf965d6935cb027d08a4`) i
+`zatwierdzam Accepted`. Exact Portal txn usuniętego S0 pozostaje niedostępne;
+zamknięcie admin to ścieżka wyjątku, nie wymyślony licznik. Live SKU produkcji:
+**F0**. S0 nie odtwarzać. Dowody: `~/.nix-ops/p0-3-spike-s0/decision.md`.
+**Nie powtarzać live matrix** (F0 remaining 376).
 
-Worker **nie** używa miniatury. Domyślna strategia runtime to `uniform`
-(12/24/60 klatek + start/środek/koniec, `MODERATION_VIDEO_STRATEGY`).
-`thumbnail` jest odrzucane. Sam `uniform` nie został zaakceptowany;
-kandydatem po C2 jest `uniform_scene_guard`, zawsze z etykietą
-`sampled_timeline_not_a_full_video_scan` i limitem 120 klatek. Zmiana
-domyślnej strategii oraz runtime należy do osobnego C3. Hosted Supabase Edge nie dostarcza
-ffmpeg — brak binarki kończy job jako `error`, nigdy `approved`.
+Worker **nie** używa miniatury. Zaakceptowana strategia klatek: **`uniform_scene_guard`**
+(etykieta `sampled_timeline_not_a_full_video_scan`, limit 120 klatek). Domyślny
+kod `uniform` nie jest strategią Accepted. Zmiana runtime i flaga prod należą do
+osobnego GO staging/C3. Hosted Supabase Edge nie dostarcza ffmpeg — brak binarki
+kończy job jako `error`, nigdy `approved`.
 
-Nie ustawiać `Accepted`, dopóki dowody nie mają pełnego recall
-(tekst+JPEG+12×MP4: start/mid/end/scene), p95 całej decyzji wideo, prognozy z
-buforem 20% ≤ 4000, czystego SHA oraz potwierdzonych metadanych zasobu bez sekretów.
+Flaga `pre_delivery_moderation_enabled` i staging live pozostają **OFF / NO-GO**
+do osobnego podpisu §6 Decision 3.
 
 ## Bramka 3A (DoR historii B / expand)
 
-Status tego ADR zostaje **Proposed**, dopóki A3–A5 nie zwrócą rzeczywistych
-decyzji i liczby transakcji. A6 ustawia `Accepted`, `Superseded` albo `Rejected`.
+A6 = **Accepted** (2026-09-12). Bramka B (OSS) i C (NO-GO) nieotwarte.
 
-- [ ] Issue #6 T+24 wykonane nie wcześniej niż 2026-08-28 10:41 CEST
-- [ ] PR #9 zielony; jedna strategia i te same limity w ADR, spike i planie;
-      brak twierdzenia „full video scan” dla strategii innych niż baseline 1 fps
-- [ ] Produkcyjny zasób Content Safety Sweden Central, **sku F0**; testowy S0 usunięty
-- [ ] Spike tekst PL/EN + JPEG na prawdziwym API (`scripts/moderation-provider-spike.ts`)
-- [ ] Spike MP4 15/60/180 s: start/środek/koniec; porównanie baseline / uniform /
+- [x] Issue #6 T+24 wykonane nie wcześniej niż 2026-08-28 10:41 CEST
+- [x] Spike/ADR/policy: jedna strategia Accepted (`uniform_scene_guard`); brak
+      twierdzenia „full video scan” dla strategii innych niż baseline 1 fps
+- [x] Produkcyjny zasób Content Safety Sweden Central, **sku F0**; testowy S0 usunięty
+- [x] Spike tekst PL/EN + JPEG na prawdziwym API (`scripts/moderation-provider-spike.ts`)
+- [x] Spike MP4 15/60/180 s: start/środek/koniec; porównanie baseline / uniform /
       scene / contact sheet; zapis txn vs cap 5000
-- [ ] A6: Accepted tylko gdy jakość przechodzi **i** prognoza mieści się w F0
-      (bramka A). Bramka B = osobny spike OSS, bez expand. Bramka C = NO-GO.
-- [ ] Świadome `severity 4 = rejected`; human review wyłączone
-- [ ] Właściciel billingu F0 (nawet przy 0 USD)
+- [x] A6: jakość PASS i prognoza ≤ 4000 (S0 641 / worst 2860); admin via portal exception
+- [x] Świadome `severity 4 = rejected`; human review wyłączone
+- [x] Właściciel billingu F0 (nawet przy 0 USD)
 
 ## Related Decisions
 

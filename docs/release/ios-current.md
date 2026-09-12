@@ -44,20 +44,19 @@ On the exact build 5 source SHA:
 
 | Gate | Status |
 | --- | --- |
-| C2 Azure F0 spike | **NO-GO** — ADR-001 stays **Proposed**. F0 Monitor/MCP exact **3523**; `external_used` **3624 / 4000** (remaining **376**; to F0 5000: **1376**; historical spike **3414**). Evidence: `~/.nix-ops/p0-3-spike/` + `~/.nix-ops/p0-3-s6/F0-MONITOR-MCP-20260904.md` |
+| C2 Azure F0 spike | **Accepted** 2026-09-12 — ADR-001 **Accepted**. Strategy `uniform_scene_guard` (not full video scan). F0 Monitor/MCP exact **3523**; `external_used` **3624 / 4000** (remaining **376**). S0 portal exception ACTIVE. Evidence: `~/.nix-ops/p0-3-spike-s0/decision.md` + `~/.nix-ops/p0-3-s6/S0-EXCEPTION-ACTIVATED-20260912.md`. **No** staging live / prod flag. |
 | C3A OVH offline video runtime | **PASS** (offline benchmark; no Azure; no prod entry) |
 | C3B offline integration | **PASS (base)** — merged via [PR #18](https://github.com/endurance71/NIX/pull/18). Fake Azure; flag OFF. |
 | C3B audit fixes | **MERGED** — merge SHA [`5d3cd41`](https://github.com/endurance71/NIX/commit/5d3cd410079ce1488c9c80f7248786604595da81) ([PR #24](https://github.com/endurance71/NIX/pull/24), tip `59d6721`). Complete/lease REVOKE, attempt-id budget, Auth/Storage Path A+B PASS, local verify PASS. Expo CI **exception** (quota; reset 2026-10-01 UTC). Evidence: `~/.nix-ops/p0-3-c3b-audit-fixes/`. Flag OFF; **no** prod `db push` / Azure live / App Review. Status: [`../plans/2026-09-04-c3b-auth-storage-merged.md`](../plans/2026-09-04-c3b-auth-storage-merged.md). |
 | Production pre-delivery filter | **OFF** — Guideline 1.2 still blocks public App Review |
 
-Hard stop: C3 prod / flag / Privacy Policy update / READY FOR REVIEW only after §6 decision GO **and** Accepted C2. See [`../plans/2026-09-03-c3b-s6-decision-gate.md`](../plans/2026-09-03-c3b-s6-decision-gate.md).
+Hard stop: C3 prod / flag / Privacy Policy „po C3” / READY FOR REVIEW only after **§6 Decision 3 staging GO** (separate). C2 Accepted does **not** turn the production flag on. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
 
 ## Open release blockers
 
-1. **P0-3 — UGC filtering:** photos and video are not filtered before delivery on
-   production. C3B offline + audit-fix code must not be treated as Guideline 1.2
-   compliance until Accepted C2, authorized staging, then production enforcement.
-   ADR remains Proposed / NO-GO.
+1. **P0-3 — UGC filtering:** C2 provider is **Accepted**; photos and video are still
+   not filtered on production (flag OFF). Guideline 1.2 still requires authorized
+   staging, then production enforcement, before public App Review.
 2. **Physical-device QA:** execute
    [`../testing/app-review-device-smoke.md`](../testing/app-review-device-smoke.md)
    (and chat paste [`../testing/testflight-chat-paste-input.md`](../testing/testflight-chat-paste-input.md))
@@ -110,8 +109,9 @@ Workspace synced to `origin/main`. Local dirty C1–C8 tree was snapshotted on
 | Issue [#29](https://github.com/endurance71/NIX/issues/29) JWT | Closed not_planned — local Supabase **demo** keys (`iss=supabase-demo`), not prod |
 | PR [#32](https://github.com/endurance71/NIX/pull/32) S0 binding | Merged `6d8bcc9` — does **not** activate S0 exception or Accept ADR |
 | PR [#31](https://github.com/endurance71/NIX/pull/31) privacy / Sentry | Merged `9f52de8` after rebase onto `main` |
-| ADR-001 | Still **Proposed** — Faza 2 owner decision remains the unlock |
-| C2 `--require-complete-s0` (2026-09-11) | FAIL as expected: ACTIVE INACTIVE, no approver, `decision.md` not Accepted. Ops: `~/.nix-ops/p0-3-s6/C2-DECISION-PACKAGE-20260911.md` |
+| ADR-001 | **Accepted** 2026-09-12 (owner GO S0 exception + `zatwierdzam Accepted`) |
+| C2 `--require-complete-s0` | PASS after ACTIVE + Accepted `decision.md` |
+| Production flag | **OFF** |
 | Public App Review | **NO-GO** |
 
-Fazy 3–7 (staging live, prod flag, device QA, Archive 6+, READY FOR REVIEW) were **not** executed. Next human gate: [`../plans/2026-09-03-c3b-s6-decision-gate.md`](../plans/2026-09-03-c3b-s6-decision-gate.md) (Accepted C2). Do not staging-live, prod flag, Archive 6+, or READY FOR REVIEW before that signature.
+Fazy 3–7 remain blocked. Next human gate: staging/canary GO ([`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md)). Do not staging-live, prod flag, Archive 6+, or READY FOR REVIEW without that signature.
