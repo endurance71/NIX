@@ -28,6 +28,13 @@ function validatePublicPage(path, text, marker, location) {
   if (!text.includes(`<html lang="${language}">`)) failures.push(`${location} /${path} has the wrong language`);
 }
 
+function validateRemoteHeaders(response, path) {
+  if (response.headers.get('x-content-type-options') !== 'nosniff') failures.push(`remote /${path} must disable MIME sniffing`);
+  if (response.headers.get('referrer-policy') !== 'no-referrer') failures.push(`remote /${path} must prevent referrer disclosure`);
+  if (!response.headers.get('content-security-policy')?.includes("frame-ancestors 'none'")) failures.push(`remote /${path} must prevent framing`);
+  if (!response.headers.get('permissions-policy')?.includes('camera=()')) failures.push(`remote /${path} must disable camera access`);
+}
+
 let aasa;
 try {
   aasa = JSON.parse(association);
@@ -57,6 +64,7 @@ if (baseUrl) {
   if (!aasaResponse) {
     failures.push(`could not connect to ${baseUrl}`);
   } else {
+    validateRemoteHeaders(aasaResponse, '.well-known/apple-app-site-association');
     if (aasaResponse.status !== 200) failures.push(`remote AASA returned HTTP ${aasaResponse.status}`);
     if (aasaResponse.status >= 300 && aasaResponse.status < 400) failures.push('remote AASA must not redirect');
     if (!aasaResponse.headers.get('content-type')?.toLowerCase().includes('application/json')) {
@@ -71,8 +79,9 @@ if (baseUrl) {
   }).catch(() => null);
   if (!inviteResponse || inviteResponse.status !== 200) {
     failures.push('remote /invite/* route does not return the landing page');
-  } else if (!(await inviteResponse.text()).includes('Private NiX invitation')) {
-    failures.push('remote /invite/* route returned unexpected content');
+  } else {
+    validateRemoteHeaders(inviteResponse, 'invite/*');
+    if (!(await inviteResponse.text()).includes('Private NiX invitation')) failures.push('remote /invite/* route returned unexpected content');
   }
 
   for (const [path, marker] of publicPages) {
@@ -80,6 +89,7 @@ if (baseUrl) {
     if (!response || response.status !== 200) {
       failures.push(`remote /${path} does not return HTTP 200`);
     } else {
+      validateRemoteHeaders(response, path);
       validatePublicPage(path, await response.text(), marker, 'remote');
       if (!response.headers.get('content-type')?.includes('text/html')) failures.push(`remote /${path} must use text/html`);
     }

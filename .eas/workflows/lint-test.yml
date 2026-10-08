@@ -32,6 +32,8 @@ jobs:
         run: npm run check:supabase-migrations
       - name: Edge types and tests
         run: npm run deno:check && npm run deno:test
+      - name: Install FFmpeg for real video tests
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Moderation worker tests
         run: npm run test:moderation-worker
       - name: Dependency compatibility and reviewed audit
