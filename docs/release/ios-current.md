@@ -6,7 +6,11 @@
 
 ## Local stabilization candidate — 2026-10-08
 
-The current checkout prepares **1.0.12 (7)**, runtime **1.0.12**, on `codex/nix-stabilization`. It includes native uploader changes, private photo downloads and updated native dependencies, so it requires a new binary. This candidate has not been uploaded or submitted. Validation and rollout conditions: [implementation report](../IMPLEMENTATION_2026-10-08.pl.md).
+The current checkout prepares **1.0.12 (7)**, runtime **1.0.12**, on `codex/nix-stabilization`. It includes native uploader changes, private photo downloads and updated native dependencies, so it requires a new binary. Source commit [`27595e2`](https://github.com/endurance71/NIX/commit/27595e28a5913631acf6a01ebb3db261c30bc3a9) is committed and pushed. A local **Release Archive succeeded** on 2026-10-08. The owner selected **Internal TestFlight / NiX Internal QA** as the deployment target; production backend deployment is outside this operation.
+
+**Upload pending:** export returned `No Accounts` and `No signing certificate "iOS Distribution" found`. Xcode's Apple Account session must be restored before automatic distribution signing can finish. App Store Connect also requires sign-in to verify build availability and group assignment. No IPA was uploaded, and no TestFlight distribution or public submission has been performed for this candidate. Export options restrict it to **Internal TestFlight only** and preserve build number 7. Local archive and export logs are in `~/.nix-ops/release-2026-10-08/`.
+
+Validation and rollout conditions: [implementation report](../IMPLEMENTATION_2026-10-08.pl.md), [React Doctor zero report](../REACT_DOCTOR_ZERO_2026-10-08.pl.md).
 
 The production/ASC entries below are historical observations from **2026-09-12**, not live status checks on 2026-10-08. Current ASC state, installed OTA and moderation budget must be verified before a production rollout. No release action was taken during stabilization.
 
