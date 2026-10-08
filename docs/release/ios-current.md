@@ -4,6 +4,12 @@
 > Dated sprint plans and audit snapshots are historical evidence and must link
 > here instead of presenting their old binary state as current.
 
+## Next public candidate — preparation 2026-10-08
+
+Candidate **1.0.12 (8)**, runtime **1.0.12**, production channel, is being prepared for public App Review. The number was available in ASC and app/widget build settings are synchronized. This is not yet a processed or submitted build. Public legal/support PL/EN pages, AASA and invite routes have been restored and remotely verified. Mac and Vision Pro distribution have been disabled in ASC; 175 regions remain selected. App Review status for **1.0.11 (6)** is still **Rejected / Information Needed**.
+
+No **READY FOR APP REVIEW** claim is made before backend backup/staging/rollout, final device QA, recording and metadata checks. See the [preparation report](APP_REVIEW_PREPARATION_2026-10-08.pl.md) for current evidence and pending gates. Public submission/reply and publication remain separate operations.
+
 ## Current Internal TestFlight build — 2026-10-08
 
 The current Internal TestFlight build is **1.0.12 (7)**, runtime **1.0.12**, on `codex/nix-stabilization`. It includes native uploader changes, private photo downloads and updated native dependencies, so it requires a new binary. Source commit [`27595e2`](https://github.com/endurance71/NIX/commit/27595e28a5913631acf6a01ebb3db261c30bc3a9) is committed and pushed. A local **Release Archive succeeded** on 2026-10-08. The owner selected **Internal TestFlight / NiX Internal QA** as the deployment target; production backend deployment is outside this operation.
@@ -14,7 +20,13 @@ IPA checks confirmed version/build/runtime, production Expo channel, production 
 
 Validation and rollout conditions: [implementation report](../IMPLEMENTATION_2026-10-08.pl.md), [React Doctor zero report](../REACT_DOCTOR_ZERO_2026-10-08.pl.md).
 
-The production/ASC entries below are historical observations from **2026-09-12**, not live status checks on 2026-10-08. Current ASC state, installed OTA and moderation budget must be verified before a production rollout. No release action was taken during stabilization.
+## Current public App Review status — verified 2026-10-08
+
+Public submission **1.0.11 (6)**, `8db797c3-1620-4294-8af2-8d3e688ba4f3`, is **Rejected / Unresolved Issues**. Apple’s sole visible message, dated 2026-09-13, requests additional information under **2.1 — Information Needed — New App Submission**: a physical-device recording and answers about purpose, access, external services, regions and regulated/protected material. No developer reply is visible. The newer Internal-only build **1.0.12 (7)** does not replace this submission and cannot be submitted for public App Review.
+
+Today's audit also found **HTTP 404** at the configured public privacy and support URLs and the documented terms URL; Mac and Vision Pro distribution are enabled despite iPhone-only Review Notes. These are additional current audit findings, not reasons stated in Apple's September message. No response, metadata changes, public resubmission or production deployment was performed. See the [detailed feedback analysis](../APP_REVIEW_FEEDBACK_ANALYSIS_2026-10-08.pl.md) and [unsent reply draft](apple-review-response-draft-2026-10-08.en.md).
+
+The production/ASC entries below are historical observations from **2026-09-12**. Their Waiting for Review state is superseded by the verified rejection above. Installed OTA, live backend behavior and moderation budget still require verification before a production rollout. No release action was taken during stabilization.
 
 ## Last recorded distributed binary (2026-09-12)
 
@@ -38,7 +50,7 @@ background upload). Owner GO Submit the same day. ASC accepted the version;
 status is **Waiting for Review**. Build 5 remains prior Internal TestFlight
 evidence. Evidence: `~/.nix-ops/p0-3-s6/ASC-SUBMIT-20260912.md`.
 
-## Verified gates
+## Historical verified gates — builds 5 and 6
 
 On the exact build 5 source SHA (`c2175ce`):
 
@@ -82,7 +94,7 @@ On the exact build 6 archive SHA (`063530f`):
 
 Flag `pre_delivery_moderation_enabled` is **TRUE** on production after owner `wlacz flage` (2026-09-12). HTTPS privacy/terms **2026-09-12** (Azure wording) are live at `https://nix.damianmotylinski.pl/privacy/` and `/terms/` (PL + EN). Public App Review is **WAITING FOR REVIEW** (submitted 2026-09-12; build **6**; manual release). Build **6** + OTA `4f1fcd22` (runtime `1.0.11`; prior send-PASS OTA was `874edb39`). OVH worker image `nix-moderation-worker:e1d73cf` (try/catch from PR #48). Rollback is `UPDATE … = false`, not a migration. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
 
-## Open release blockers
+## Historical release blockers — recorded 2026-09-12
 
 1. **P0-3 — pre-delivery filter:** Flag **TRUE**. Text/photo/video enqueue is
    fail-closed pending Azure. Hotfix [PR #48](https://github.com/endurance71/NIX/pull/48)
@@ -115,20 +127,27 @@ Flag `pre_delivery_moderation_enabled` is **TRUE** on production after owner `wl
 
 ## Next eligible App Review candidate
 
-Build 6 is the submitted binary (enqueue + wait loop via OTA `4f1fcd22`,
-runtime `1.0.11`). HTTPS privacy/terms match in-app version **2026-09-12**.
-Public App Review is **WAITING FOR REVIEW** after owner Submit GO 2026-09-12.
-Do **not** cancel the submission or attach a new IPA unless Apple rejects or
-the owner asks. Build 5 stays as prior Internal TestFlight evidence. Release
-after approval is **manual**.
+Build **1.0.11 (6)** remains attached to the rejected public submission. The
+information request alone does not require a replacement binary: it can be
+answered for that candidate after confirming its actual behavior, supplying
+the requested recording and repairing the public URLs.
 
-Allowed status progression:
+To ship the current stabilization changes, prepare a new public-eligible
+binary, for example **1.0.12 (8)** after checking build-number availability.
+Internal-only **1.0.12 (7)** cannot be used for this purpose. The recording,
+review Notes, tested backend and selected binary must match. Resolve platform
+scope and the six requested information items before resubmission. No candidate
+was submitted during this analysis; publication remains a separate operation
+and release after approval remains **manual**.
+
+Illustrative public status progression (current state is **Rejected**):
 
 ```text
 NO-GO / INTERNAL TESTFLIGHT
   -> READY FOR REVIEW
   -> WAITING FOR REVIEW
   -> IN REVIEW
+  -> APPROVED or REJECTED / UNRESOLVED ISSUES
 ```
 
 Uploading a binary or attaching it to TestFlight never advances the public App

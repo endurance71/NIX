@@ -1,7 +1,7 @@
 # NiX Privacy Policy
 
-**Version:** 2026-09-12
-**Effective date:** 12 September 2026
+**Version:** 2026-10-08
+**Effective date:** 8 October 2026
 
 ## Controller and contact
 
@@ -46,7 +46,7 @@ absolute technical guarantee on every device.
 
 We use Supabase (authentication, database, Storage and server functions; EU
 region), Apple (Sign in with Apple and App Store), Expo/EAS (app builds,
-distribution, and relaying push notifications to Apple APNs), and Microsoft Azure
+distribution, and relaying push notifications to Apple APNs), OVHcloud (hosting the video moderation worker), and Microsoft Azure
 AI Content Safety (pre-delivery screening of text, photos, and sampled video
 frames). The installed Sentry
 SDK is hard-disabled in the public build (`EXPO_PUBLIC_SENTRY_ENABLED=false`) and
