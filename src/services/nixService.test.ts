@@ -5,7 +5,6 @@ import {
   fetchInboxNixes,
   fetchSentNixes,
   flushCleanupQueue,
-  insertNix,
   markNixReplayedWithCleanup,
 } from './nixService';
 
@@ -75,8 +74,10 @@ vi.mock('./profileService', () => ({
   getCurrentUser: mockGetCurrentUser,
 }));
 
-vi.mock('../lib/supabase', () => ({
-  supabase: {
+vi.mock('../lib/encryptedPhotoCache', () => ({ encryptedPhotoCache: { remove: vi.fn().mockResolvedValue(undefined) } }));
+vi.mock('./photoCacheService', () => ({ retainPrivatePhotoForReplay: vi.fn() }));
+vi.mock('../lib/supabase', () => {
+  const client = {
     rpc: mockRpc,
     functions: {
       invoke: mockInvoke,
@@ -107,8 +108,9 @@ vi.mock('../lib/supabase', () => ({
 
       throw new Error(`Unexpected table: ${table}`);
     },
-  },
-}));
+  };
+  return { supabase: client, captureAccountTransport: async () => ({ ownerId: 'receiver-1', client, assertActive() {}, signal: new AbortController().signal }) };
+});
 
 describe('nixService cleanup flow', () => {
   beforeEach(() => {
@@ -129,102 +131,39 @@ describe('nixService cleanup flow', () => {
     });
   });
 
-  it('wywołuje edge cleanup i usuwa job z kolejki', async () => {
+  it('requests canonical cleanup by NiX id without client queue mutations', async () => {
     mockInvoke.mockResolvedValue({ data: { ok: true }, error: null });
-    mockRpc.mockResolvedValue({ error: null });
-
-    await markNixReplayedWithCleanup('nix-1', 'nixes/receiver-1/file.jpg');
-
-    expect(mockRpc).toHaveBeenCalledWith('mark_nix_replayed', {
-      p_nix_id: 'nix-1',
-    });
-    expect(mockInvoke).toHaveBeenCalledWith('cleanup-nix', {
-      body: { nixId: 'nix-1', mediaPath: 'nixes/receiver-1/file.jpg' },
-    });
-    expect(mockQueueDeleteEq).toHaveBeenCalledWith('nix_id', 'nix-1');
+    await markNixReplayedWithCleanup('nix-1', 'untrusted/legacy/path.jpg');
+    expect(mockRpc).toHaveBeenCalledWith('mark_nix_replayed', { p_nix_id: 'nix-1' });
+    expect(mockRpc).toHaveBeenCalledWith('request_nix_cleanup', { p_nix_id: 'nix-1' });
+    expect(mockInvoke).toHaveBeenCalledWith('cleanup-nix', { body: { nixId: 'nix-1' } });
+    expect(mockQueueUpsert).not.toHaveBeenCalled();
+    expect(mockQueueUpdate).not.toHaveBeenCalled();
+    expect(mockQueueDelete).not.toHaveBeenCalled();
   });
 
-  it('zapisuje retry gdy cleanup edge nie działa', async () => {
-    mockInvoke.mockResolvedValue({ data: null, error: new Error('network') });
-    mockRpc.mockResolvedValue({ error: null });
-
-    // Cleanup failure is non-critical — function resolves but enqueues retry.
-    await markNixReplayedWithCleanup('nix-2', 'nixes/receiver-1/file2.jpg');
-    expect(mockQueueUpdate).toHaveBeenCalled();
+  it('keeps server queue authoritative when Edge cleanup fails', async () => {
+    mockInvoke.mockResolvedValue({ error: new Error('offline') });
+    await expect(markNixReplayedWithCleanup('nix-1', 'arbitrary/path.jpg')).resolves.toBeUndefined();
+    expect(mockRpc).toHaveBeenCalledWith('request_nix_cleanup', { p_nix_id: 'nix-1' });
+    expect(mockQueueUpdate).not.toHaveBeenCalled();
   });
 
-  it('flushCleanupQueue ponawia oczekujące zadania', async () => {
-    mockInvoke.mockResolvedValue({ data: { ok: true }, error: null });
-    mockQueueSelectEq.mockReturnValue({
-      lte: mockQueueSelectLte,
-    });
-    mockQueueSelectLte.mockReturnValue({
-      order: mockQueueSelectOrder,
-    });
-    mockQueueSelectOrder.mockReturnValue({
-      limit: mockQueueSelectLimit,
-    });
-    mockQueueSelectLimit.mockResolvedValue({
-      error: null,
-      data: [
-        {
-          nix_id: 'nix-queued',
-          media_path: 'nixes/receiver-1/queued.jpg',
-          receiver_id: 'receiver-1',
-          attempt_count: 1,
-        },
-      ],
-    });
+  it('does not invoke Edge if the canonical queue request rejects', async () => {
+    mockRpc.mockResolvedValueOnce({ error: null }).mockResolvedValueOnce({ error: { message: 'REPLAY_WINDOW_ACTIVE' } });
+    await expect(markNixReplayedWithCleanup('nix-1')).rejects.toThrow('REPLAY_WINDOW_ACTIVE');
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
 
+  it('flushes pending canonical ids without changing attempt counts or paths', async () => {
+    mockQueueSelectLte.mockReturnValue({ order: mockQueueSelectOrder });
+    mockQueueSelectOrder.mockReturnValue({ limit: mockQueueSelectLimit });
+    mockQueueSelectLimit.mockResolvedValue({ data: [{ nix_id: 'nix-1' }], error: null });
+    mockInvoke.mockResolvedValue({ data: { ok: true }, error: null });
     await flushCleanupQueue();
-
-    expect(mockInvoke).toHaveBeenCalledWith('cleanup-nix', {
-      body: { nixId: 'nix-queued', mediaPath: 'nixes/receiver-1/queued.jpg' },
-    });
-  });
-
-  it('flushCleanupQueue zwiększa attempt_count po błędzie cleanup', async () => {
-    mockInvoke.mockResolvedValue({ data: null, error: new Error('cleanup failed') });
-    mockQueueSelectEq.mockReturnValue({
-      lte: mockQueueSelectLte,
-    });
-    mockQueueSelectLte.mockReturnValue({
-      order: mockQueueSelectOrder,
-    });
-    mockQueueSelectOrder.mockReturnValue({
-      limit: mockQueueSelectLimit,
-    });
-    mockQueueSelectLimit.mockResolvedValue({
-      error: null,
-      data: [
-        {
-          nix_id: 'nix-retry',
-          media_path: 'nixes/receiver-1/retry.jpg',
-          receiver_id: 'receiver-1',
-          attempt_count: 2,
-        },
-      ],
-    });
-
-    await flushCleanupQueue();
-
-    expect(mockQueueUpdate).toHaveBeenCalled();
-    expect(mockQueueUpdateEq).toHaveBeenCalledWith('nix_id', 'nix-retry');
-  });
-
-  it('markNixReplayedWithCleanup dodaje job do kolejki przed cleanup', async () => {
-    mockInvoke.mockResolvedValue({ data: { ok: true }, error: null });
-    mockRpc.mockResolvedValue({ error: null });
-
-    await markNixReplayedWithCleanup('nix-3', 'nixes/receiver-1/queued2.jpg');
-    expect(mockQueueUpsert).toHaveBeenCalled();
-  });
-
-  it('markNixReplayedWithCleanup zgłasza błąd cleanup edge przy niepoprawnej odpowiedzi', async () => {
-    mockInvoke.mockResolvedValue({ data: { ok: false }, error: null });
-    mockRpc.mockResolvedValue({ error: null });
-    await markNixReplayedWithCleanup('nix-4', 'nixes/receiver-1/a.jpg');
-    expect(mockQueueUpdate).toHaveBeenCalled();
+    expect(mockInvoke).toHaveBeenCalledWith('cleanup-nix', { body: { nixId: 'nix-1' } });
+    expect(mockQueueUpdate).not.toHaveBeenCalled();
+    expect(mockQueueDelete).not.toHaveBeenCalled();
   });
 
   it('deleteConversationWithPeer wywołuje poprawne RPC', async () => {
@@ -259,120 +198,17 @@ describe('nixService cleanup flow', () => {
     expect(mockCreateSignedUrl).toHaveBeenCalledWith('nixes/receiver-1/video.mp4', 95);
   });
 
-  it('insertNix zapisuje thumbnail_b64 dla wideo', async () => {
-    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
-    mockNixesUpsert.mockResolvedValue({ error: null });
 
-    await insertNix('receiver-1', 'nixes/sender-1/v.mp4', 15, {
-      mediaType: 'video',
-      playbackDurationMs: 12_000,
-      clientUploadId: 'abc',
-      thumbnailB64: 'data:image/jpeg;base64,Zm9v',
-    });
 
-    expect(mockNixesUpsert).toHaveBeenCalledTimes(1);
-    const [payload, opts] = mockNixesUpsert.mock.calls[0];
-    expect(payload.media_type).toBe('video');
-    expect(payload.thumbnail_b64).toBe('data:image/jpeg;base64,Zm9v');
-    expect(payload.playback_duration_ms).toBe(12_000);
-    expect(opts).toMatchObject({ onConflict: 'sender_id,receiver_id,client_upload_id' });
-  });
 
-  it('insertNix retry-uje bez thumbnail_b64, gdy kolumna nie istnieje', async () => {
-    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
-    mockNixesUpsert
-      .mockResolvedValueOnce({
-        error: { message: "Could not find the 'thumbnail_b64' column of 'nixes'" },
-      })
-      .mockResolvedValueOnce({ error: null });
 
-    await insertNix('receiver-1', 'nixes/sender-1/v2.mp4', 5, {
-      mediaType: 'video',
-      playbackDurationMs: 8_000,
-      clientUploadId: 'def',
-      thumbnailB64: 'data:image/jpeg;base64,Zm9v',
-    });
 
-    expect(mockNixesUpsert).toHaveBeenCalledTimes(2);
-    const [retryPayload] = mockNixesUpsert.mock.calls[1];
-    expect('thumbnail_b64' in retryPayload).toBe(false);
-    expect(retryPayload.media_type).toBe('video');
-  });
 
-  it('insertNix pomija thumbnail_b64 dla obrazków', async () => {
-    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
-    mockNixesUpsert.mockResolvedValue({ error: null });
 
-    await insertNix('receiver-1', 'nixes/sender-1/img.jpg', 5, {
-      mediaType: 'image',
-      clientUploadId: 'img-1',
-      // Wartość niedozwolona dla obrazów — powinna zostać zignorowana.
-      thumbnailB64: 'data:image/jpeg;base64,XXX',
-    });
 
-    expect(mockNixesUpsert).toHaveBeenCalledTimes(1);
-    const [payload] = mockNixesUpsert.mock.calls[0];
-    expect('thumbnail_b64' in payload).toBe(false);
-  });
 
-  it('insertNix używa zwykłego insertu, gdy baza nie obsługuje celu ON CONFLICT', async () => {
-    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
-    mockNixesUpsert.mockResolvedValue({
-      error: {
-        code: '42P10',
-        message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification',
-      },
-    });
-    mockNixesInsert.mockResolvedValue({ error: null });
 
-    await insertNix('receiver-1', 'nixes/sender-1/fallback.jpg', 5, {
-      mediaType: 'image',
-      clientUploadId: 'fallback-1',
-    });
 
-    expect(mockNixesInsert).toHaveBeenCalledTimes(1);
-    expect(mockNixesInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sender_id: 'sender-1',
-        receiver_id: 'receiver-1',
-        client_upload_id: 'fallback-1',
-      })
-    );
-  });
-
-  it('insertNix uznaje duplikat fallbacku za zakończoną wcześniej wysyłkę', async () => {
-    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
-    mockNixesUpsert.mockResolvedValue({
-      error: {
-        code: '42P10',
-        message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification',
-      },
-    });
-    mockNixesInsert.mockResolvedValue({
-      error: { code: '23505', message: 'duplicate key value violates unique constraint' },
-    });
-
-    await expect(
-      insertNix('receiver-1', 'nixes/sender-1/already-sent.jpg', 5, {
-        mediaType: 'image',
-        clientUploadId: 'already-sent-1',
-      })
-    ).resolves.toBeUndefined();
-  });
-
-  it('insertNix nie przedstawia błędu uprawnień funkcji jako błędnego odbiorcy', async () => {
-    mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });
-    mockNixesUpsert.mockResolvedValue({
-      error: { message: 'permission denied for function can_send_nix' },
-    });
-
-    await expect(
-      insertNix('receiver-1', 'nixes/sender-1/config-error.jpg', 5, {
-        mediaType: 'image',
-        clientUploadId: 'config-error-1',
-      })
-    ).rejects.toThrow('Konfiguracja wysyłki jest nieprawidłowa');
-  });
 
   it('fetchSentNixes zwraca historię wysłanych z mapowaniem odbiorcy', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'sender-1' });

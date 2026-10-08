@@ -1,25 +1,21 @@
 import {
-  AESEncryptionKey,
-  AESKeySize,
   AESSealedData,
   aesDecryptAsync,
   aesEncryptAsync,
 } from 'expo-crypto';
-import * as SecureStore from 'expo-secure-store';
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 import {
   describeOfflineCacheQuery,
   sanitizeOfflineQueryData,
   type OfflineCacheCategory,
 } from './offlineCachePolicy';
+import { accountEncryptionKeys, AccountStorageCancelledError } from './accountEncryptionKeys';
+import { createOwnerOperations } from './ownerOperations';
 
 const DATABASE_NAME = 'nix-offline-cache.db';
 const KEY_PREFIX = 'nix.offline-cache.key.v1';
 const PAYLOAD_VERSION = 1;
 const MAX_CHAT_PEERS = 20;
-const SECURE_OPTIONS: SecureStore.SecureStoreOptions = {
-  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
-};
 
 export type OfflineCacheEntry = {
   queryKey: readonly unknown[];
@@ -46,6 +42,7 @@ export type OfflineCacheBackend = {
   upsert(row: StoredRow): Promise<void>;
   list(ownerId: string): Promise<StoredRow[]>;
   deleteOwner(ownerId: string): Promise<void>;
+  deleteEntry(ownerId: string, queryKey: string): Promise<void>;
   deleteScope(ownerId: string, category: OfflineCacheCategory, scopeId: string): Promise<void>;
 };
 
@@ -66,12 +63,14 @@ export function createOfflineCacheStore(
   codec: OfflineCacheCodec,
   now: () => number = Date.now
 ) {
+  const operations = createOwnerOperations();
   const write = async (
     ownerId: string,
     queryKey: readonly unknown[],
     data: unknown,
     dataUpdatedAt: number
   ) => {
+    return operations.run(ownerId, async (assertActive) => {
     const descriptor = describeOfflineCacheQuery(queryKey);
     if (!descriptor) return false;
     const sanitized = sanitizeOfflineQueryData(queryKey, data, now());
@@ -79,6 +78,7 @@ export function createOfflineCacheStore(
       version: PAYLOAD_VERSION,
       data: sanitized,
     } satisfies StoredEnvelope));
+    assertActive();
     const cachedAt = now();
     await backend.upsert({
       owner_id: ownerId,
@@ -104,21 +104,26 @@ export function createOfflineCacheStore(
       await Promise.all(staleScopes.map((scopeId) => backend.deleteScope(ownerId, 'chat', scopeId)));
     }
     return true;
+    });
   };
 
-  const clear = async (ownerId: string) => {
-    await backend.deleteOwner(ownerId);
-    await codec.clear(ownerId);
-  };
+  const clear = (ownerId: string) => operations.clear(ownerId, async () => {
+    try { await backend.deleteOwner(ownerId); }
+    finally { await codec.clear(ownerId); }
+  });
 
   const read = async (ownerId: string): Promise<OfflineCacheEntry[]> => {
-    const rows = await backend.list(ownerId);
-    try {
-      return await Promise.all(rows.map(async (row) => {
+    return operations.run(ownerId, async (assertActive) => {
+      const rows = await backend.list(ownerId);
+      assertActive();
+      const entries: OfflineCacheEntry[] = [];
+      for (const row of rows) {
+        try {
         const queryKey = parseQueryKey(row.query_key);
         const envelope = JSON.parse(
           await codec.decrypt(ownerId, row.encrypted_payload)
         ) as Partial<StoredEnvelope>;
+        assertActive();
         if (envelope.version !== PAYLOAD_VERSION || !('data' in envelope)) {
           throw new Error('Unsupported offline cache payload');
         }
@@ -128,21 +133,26 @@ export function createOfflineCacheStore(
             version: PAYLOAD_VERSION,
             data: sanitized,
           } satisfies StoredEnvelope));
+          assertActive();
           await backend.upsert({ ...row, encrypted_payload: encryptedPayload });
         }
-        return {
+        entries.push({
           queryKey,
           data: sanitized,
           category: row.category,
           scopeId: row.scope_id,
           dataUpdatedAt: row.data_updated_at,
           cachedAt: row.cached_at,
-        };
-      }));
-    } catch (error) {
-      await clear(ownerId);
-      throw error;
-    }
+        });
+        } catch (error) {
+          if (error instanceof AccountStorageCancelledError) throw error;
+          assertActive();
+          await backend.deleteEntry(ownerId, row.query_key);
+        }
+      }
+      assertActive();
+      return entries;
+    });
   };
 
   return { write, read, clear };
@@ -208,6 +218,10 @@ const sqliteBackend: OfflineCacheBackend = {
     const db = await database();
     await db.runAsync('DELETE FROM offline_query_cache WHERE owner_id = ?', ownerId);
   },
+  async deleteEntry(ownerId, queryKey) {
+    const db = await database();
+    await db.runAsync('DELETE FROM offline_query_cache WHERE owner_id = ? AND query_key = ?', ownerId, queryKey);
+  },
   async deleteScope(ownerId, category, scopeId) {
     const db = await database();
     await db.runAsync(
@@ -224,11 +238,7 @@ function keyName(ownerId: string) {
 }
 
 async function encryptionKey(ownerId: string) {
-  const stored = await SecureStore.getItemAsync(keyName(ownerId), SECURE_OPTIONS);
-  if (stored) return AESEncryptionKey.import(stored, 'base64');
-  const key = await AESEncryptionKey.generate(AESKeySize.AES256);
-  await SecureStore.setItemAsync(keyName(ownerId), await key.encoded('base64'), SECURE_OPTIONS);
-  return key;
+  return accountEncryptionKeys.get(keyName(ownerId));
 }
 
 const nativeCodec: OfflineCacheCodec = {
@@ -245,7 +255,7 @@ const nativeCodec: OfflineCacheCodec = {
     return new TextDecoder().decode(bytes);
   },
   async clear(ownerId) {
-    await SecureStore.deleteItemAsync(keyName(ownerId), SECURE_OPTIONS);
+    await accountEncryptionKeys.clear(keyName(ownerId));
   },
 };
 

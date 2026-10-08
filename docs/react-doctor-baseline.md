@@ -13,4 +13,14 @@
 - Skan tylko regresji względem `origin/main`: `npm run doctor:react:changed`.
 - Regresje dead code (pliki): `npm run check-knip` — konfiguracja w [`knip.json`](../knip.json) (eksporty typów wyłączone z gate’a).
 
-Próg regresji: utrzymać wynik **≥ 100** (lub nie zejść poniżej ostatniego zapisu w tym pliku po kolejnych audytach).
+Aktualna bramka wymaga **0 błędów i 0 ostrzeżeń** w pełnym skanie. Historyczne wyniki punktowe dotyczą podanych wersji narzędzia; nie zastępują kontroli diagnostyki i kompletności skanu.
+
+## Aktualizacja 2026-10-08
+
+React Doctor 0.9.17 dodał analizę złożoności funkcji. Początkowy pełny skan wykrył 24 ostrzeżenia w 20 plikach. Refaktoryzacja wszystkich wskazanych funkcji zakończyła się wynikiem **0 błędów, 0 ostrzeżeń**: 546 plików, `complete: true`, brak pominiętych kontroli. Zachowano konfigurację wyjątków i hash filtrów źródeł; wszystkie 534 pliki początkowego skanu są nadal analizowane. Nowe funkcje i testy również obejmuje skan.
+
+`doctor:react:ci` oraz `doctor:react:changed` działają bez `--baseline` i blokują ostrzeżenia przez `--blocking warning`. Workflowy nie nadpisują już tego progu wartością `error`. Plik `quality/react-doctor-complexity-baseline.json` pozostaje wyłącznie historycznym dowodem audytu. W tym uruchomieniu `--no-telemetry` wyłącza API punktacji, dlatego `score: null`; nie deklarujemy wyniku 100/100.
+
+Raport wdrożenia i zakres QA: [REACT_DOCTOR_ZERO_2026-10-08.pl.md](./REACT_DOCTOR_ZERO_2026-10-08.pl.md). Surowe raporty: [przed refaktoryzacją](./quality/react-doctor-before-2026-10-08.json), [końcowy pełny skan](./quality/react-doctor-zero-2026-10-08.json).
+
+Nowe wyjątki dla sekwencyjnych operacji zostały przejrzane w kodzie: usuwanie wpisów SQLite i izolacja kluczy, autoryzacja przed odszyfrowaniem, uporządkowane RPC czyszczenia oraz walidacja pliku przed utworzeniem lokalnego miejsca pobrania. Konfiguracja opisuje każdy zakres. Samo równoległe wykonanie tych operacji zmieniłoby zachowanie.

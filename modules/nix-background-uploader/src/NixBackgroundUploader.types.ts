@@ -27,6 +27,10 @@ export type NativeUploadSnapshot = {
   putEndedAt?: number | null;
   finalizeStartedAt?: number | null;
   finalizeEndedAt?: number | null;
+  attemptId?: string | null;
+  hasActiveTask?: boolean;
+  nextRetryAt?: number | null;
+  locale?: 'pl' | 'en' | null;
 };
 
 export type NativeEnqueueOptions = {
@@ -41,12 +45,16 @@ export type NativeEnqueueOptions = {
   expiresAt: number;
   mediaType: 'image' | 'video';
   sizeBytes: number;
+  locale?: 'pl' | 'en';
+  nextRetryAt?: number;
 };
 
 export type NativeBackgroundUploaderEvents = {
   onUploadProgress: (event: {
     jobId: string;
     batchId: string;
+    attemptId?: string;
+    updatedAt?: number;
     progress: number;
     bytesSent: number;
     bytesTotal: number;

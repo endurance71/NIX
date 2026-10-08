@@ -1,12 +1,14 @@
-import { supabase } from '../lib/supabase';
+import { supabase, captureAccountTransport, type AccountTransport } from '../lib/supabase';
 import { getCurrentUser } from './profileService';
 import { DomainError } from './errors';
 import type { TextMessage } from '../types/database.types';
+import { SessionScopeCancelledError } from '../lib/sessionScope';
 
 export type SendTextMessageParams = {
   receiverId: string;
   body: string;
   clientMessageId?: string;
+  transport?: AccountTransport;
 };
 
 export type FetchTextMessagesParams = {
@@ -29,9 +31,12 @@ function errorText(error: { message?: string; code?: string } | null | undefined
   return `${error?.code ?? ''} ${error?.message ?? ''}`;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+function sleep(ms: number, transport: AccountTransport): Promise<void> {
+  transport.assertActive();
+  return new Promise((resolve, reject) => {
+    const abort = () => { clearTimeout(timer); reject(new SessionScopeCancelledError()); };
+    const timer = setTimeout(() => { transport.signal.removeEventListener('abort', abort); resolve(); }, ms);
+    transport.signal.addEventListener('abort', abort, { once: true });
   });
 }
 
@@ -40,22 +45,32 @@ function asJobView(data: unknown): TextModerationJobView | null {
   return data as TextModerationJobView;
 }
 
-async function loadTextMessageById(id: string): Promise<TextMessage | null> {
-  const { data, error } = await supabase
+function normalizeMessage<T extends { metadata: unknown }>(message: T) {
+  const metadata = message.metadata;
+  return { ...message, metadata: metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+    ? Object.fromEntries(Object.entries(metadata)) : null };
+}
+
+async function loadTextMessageById(id: string, transport: AccountTransport): Promise<TextMessage | null> {
+  transport.assertActive();
+  const { data, error } = await transport.client
     .from('text_messages')
     .select('*')
     .eq('id', id)
     .maybeSingle();
+  transport.assertActive();
   if (error || !data) return null;
-  return data;
+  return normalizeMessage(data);
 }
 
-async function waitForOwnTextJob(jobId: string): Promise<TextMessage> {
+async function waitForOwnTextJob(jobId: string, transport: AccountTransport): Promise<TextMessage> {
   const deadline = Date.now() + MODERATION_POLL_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    const { data, error } = await supabase.rpc('get_own_text_moderation_job', {
+    transport.assertActive();
+    const { data, error } = await transport.client.rpc('get_own_text_moderation_job', {
       p_job_id: jobId,
     });
+    transport.assertActive();
     if (error) {
       const text = errorText(error);
       if (text.includes('UNAUTHORIZED')) {
@@ -69,15 +84,15 @@ async function waitForOwnTextJob(jobId: string): Promise<TextMessage> {
     switch (status) {
       case 'pending':
       case 'processing':
-        await sleep(MODERATION_POLL_INTERVAL_MS);
+        await sleep(MODERATION_POLL_INTERVAL_MS, transport);
         break;
       case 'approved': {
         const messageId = job?.messageId;
         if (typeof messageId === 'string' && messageId.length > 0) {
-          const message = await loadTextMessageById(messageId);
+          const message = await loadTextMessageById(messageId, transport);
           if (message) return message;
         }
-        await sleep(MODERATION_POLL_INTERVAL_MS);
+        await sleep(MODERATION_POLL_INTERVAL_MS, transport);
         break;
       }
       case 'rejected':
@@ -96,12 +111,8 @@ export async function sendTextMessage({
   receiverId,
   body,
   clientMessageId,
+  transport: suppliedTransport,
 }: SendTextMessageParams): Promise<TextMessage> {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new DomainError('UNAUTHORIZED', 'Wymagane logowanie.');
-  }
-
   const trimmedBody = body.trim();
 
   if (!trimmedBody) {
@@ -112,7 +123,10 @@ export async function sendTextMessage({
     throw new DomainError('INVALID_INPUT', 'Wiadomość przekracza limit 2000 znaków.');
   }
 
-  const { data: enqueueData, error: enqueueError } = await supabase.rpc(
+  const transport = suppliedTransport ?? await captureAccountTransport();
+  transport.assertActive();
+
+  const { data: enqueueData, error: enqueueError } = await transport.client.rpc(
     'enqueue_own_text_moderation_job',
     {
       p_receiver_id: receiverId,
@@ -120,6 +134,7 @@ export async function sendTextMessage({
       p_client_message_id: clientMessageId ?? null,
     }
   );
+  transport.assertActive();
 
   if (enqueueError) {
     const text = errorText(enqueueError);
@@ -152,32 +167,35 @@ export async function sendTextMessage({
       if (typeof jobId !== 'string' || jobId.length === 0) {
         throw new DomainError('UNKNOWN', 'Nie udało się wysłać wiadomości.');
       }
-      return waitForOwnTextJob(jobId);
+      return waitForOwnTextJob(jobId, transport);
     }
   }
 
-  const { data, error } = await supabase
+  transport.assertActive();
+  const { data, error } = await transport.client
     .from('text_messages')
     .insert({
-      sender_id: user.id,
+      sender_id: transport.ownerId,
       receiver_id: receiverId,
       body: trimmedBody,
       client_message_id: clientMessageId ?? null,
     })
     .select('*')
     .single();
+  transport.assertActive();
 
   if (error) {
     if (error.code === '23505' && clientMessageId) {
-      const { data: existing } = await supabase
+      const { data: existing } = await transport.client
         .from('text_messages')
         .select('*')
-        .eq('sender_id', user.id)
+        .eq('sender_id', transport.ownerId)
         .eq('receiver_id', receiverId)
         .eq('client_message_id', clientMessageId)
         .maybeSingle();
+      transport.assertActive();
 
-      if (existing) return existing;
+      if (existing) return normalizeMessage(existing);
     }
 
     if (error.message.includes('can_send_text_message') || error.code === '42501') {
@@ -194,7 +212,7 @@ export async function sendTextMessage({
     throw new DomainError('UNKNOWN', error.message || 'Nie udało się wysłać wiadomości.');
   }
 
-  return data;
+  return normalizeMessage(data);
 }
 
 export async function fetchTextMessagesWithPeer({
@@ -212,27 +230,7 @@ export async function fetchTextMessagesWithPeer({
     throw new DomainError('UNKNOWN', error.message || 'Błąd pobierania wiadomości.');
   }
 
-  return (data || []).map((row: {
-    id: string;
-    sender_id: string;
-    receiver_id: string;
-    body: string;
-    created_at: string;
-    expires_at: string;
-    client_message_id: string | null;
-    metadata: any;
-    is_system: boolean;
-  }) => ({
-    id: row.id,
-    sender_id: row.sender_id,
-    receiver_id: row.receiver_id,
-    body: row.body,
-    created_at: row.created_at,
-    expires_at: row.expires_at,
-    client_message_id: row.client_message_id,
-    metadata: row.metadata,
-    is_system: row.is_system,
-  }));
+  return (data || []).map(normalizeMessage);
 }
 
 export async function deleteTextMessageConversation(peerId: string): Promise<number> {
@@ -272,7 +270,7 @@ export async function fetchRecentTextMessagesForInbox(): Promise<RecentTextMessa
   }
 
   return (data || []).map((msg) => ({
-    ...msg,
+    ...normalizeMessage(msg),
     peer_id: msg.sender_id === user.id ? msg.receiver_id : msg.sender_id,
   }));
 }

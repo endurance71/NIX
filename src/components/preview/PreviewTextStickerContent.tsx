@@ -32,6 +32,75 @@ type PreviewTextStickerContentProps = Pick<
     controller: ReturnType<typeof usePreviewTextStickerController>;
   };
 
+function StickerTextInput({
+  text,
+  fontSize,
+  textColor,
+  bold,
+  onChangeText,
+  onConfirm,
+  exiting,
+  controller,
+}: Pick<
+  PreviewTextStickerContentProps,
+  | 'text'
+  | 'fontSize'
+  | 'textColor'
+  | 'bold'
+  | 'onChangeText'
+  | 'onConfirm'
+  | 'exiting'
+  | 'controller'
+>) {
+  const {
+    inputRef,
+    inputTextStyle,
+    emptyCaretPaddingLeft,
+    textAlign,
+    textStyleExtras,
+    emptyEditing,
+    isEditing,
+    placeholderText,
+  } = controller;
+  const fontWeight = bold ? '700' : '400';
+  return (
+    <AnimatedTextInput
+      ref={inputRef}
+      value={text}
+      onChangeText={onChangeText}
+      placeholder=""
+      style={[
+        styles.input,
+        styles.inputLayer,
+        inputTextStyle,
+        emptyCaretPaddingLeft != null
+          ? {
+              paddingLeft: emptyCaretPaddingLeft,
+              paddingRight: BAR_TEXT_HORIZONTAL_PADDING,
+            }
+          : null,
+        {
+          color: textColor,
+          fontSize,
+          fontWeight,
+          textAlign: emptyEditing ? 'left' : textAlign,
+          ...textStyleExtras,
+        },
+      ]}
+      editable={isEditing && !controller.sheetPresented}
+      pointerEvents={isEditing && !controller.sheetPresented && !exiting ? 'auto' : 'none'}
+      multiline
+      maxLength={200}
+      textAlign={textAlign}
+      returnKeyType="done"
+      blurOnSubmit
+      onSubmitEditing={onConfirm}
+      accessibilityLabel={placeholderText}
+      showSoftInputOnFocus={isEditing && !controller.sheetPresented && !exiting}
+    />
+  );
+}
+
 export function PreviewTextStickerContent({
   text,
   fontSize,
@@ -53,10 +122,7 @@ export function PreviewTextStickerContent({
     composed,
     contentPresenceStyle,
     displayTextStyle,
-    emptyCaretPaddingLeft,
     emptyEditing,
-    inputRef,
-    inputTextStyle,
     isEditing,
     minimumBarHeight,
     openFormatSheet,
@@ -163,43 +229,15 @@ export function PreviewTextStickerContent({
                   pointerEvents={isEditing ? 'none' : 'auto'}>
                   {text || ' '}
                 </Animated.Text>
-                <AnimatedTextInput
-                  ref={inputRef}
-                  value={text}
+                <StickerTextInput
+                  text={text}
+                  fontSize={fontSize}
+                  textColor={textColor}
+                  bold={bold}
                   onChangeText={onChangeText}
-                  placeholder=""
-                  style={[
-                    styles.input,
-                    styles.inputLayer,
-                    inputTextStyle,
-                    emptyCaretPaddingLeft != null
-                      ? {
-                          paddingLeft: emptyCaretPaddingLeft,
-                          paddingRight: BAR_TEXT_HORIZONTAL_PADDING,
-                        }
-                      : null,
-                    {
-                      color: textColor,
-                      fontSize,
-                      fontWeight,
-                      textAlign: emptyEditing ? 'left' : textAlign,
-                      ...textStyleExtras,
-                    },
-                  ]}
-                  editable={isEditing && !controller.sheetPresented}
-                  pointerEvents={
-                    isEditing && !controller.sheetPresented && !exiting ? 'auto' : 'none'
-                  }
-                  multiline
-                  maxLength={200}
-                  textAlign={textAlign}
-                  returnKeyType="done"
-                  blurOnSubmit
-                  onSubmitEditing={onConfirm}
-                  accessibilityLabel={placeholderText}
-                  showSoftInputOnFocus={
-                    isEditing && !controller.sheetPresented && !exiting
-                  }
+                  onConfirm={onConfirm}
+                  exiting={exiting}
+                  controller={controller}
                 />
               </Animated.View>
             </View>

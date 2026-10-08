@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.5';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import { getBearerToken, json } from '../_shared/http.ts';
 import {
   DATA_EXPORT_SIGNED_URL_TTL_SECONDS,

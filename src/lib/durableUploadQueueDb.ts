@@ -388,7 +388,8 @@ const fieldToColumn: Record<keyof DurableUploadJob, string | null> = {
 
 export async function patchDurableUploadJob(
   jobId: string,
-  patch: Partial<Omit<DurableUploadJob, 'id' | 'recipients'>>
+  patch: Partial<Omit<DurableUploadJob, 'id' | 'recipients'>>,
+  guard: { unlessStates?: UploadJobState[] } = {}
 ) {
   const entries = Object.entries(patch) as [
     keyof DurableUploadJob,
@@ -410,9 +411,14 @@ export async function patchDurableUploadJob(
   }
   assignments.push('updated_at = ?');
   values.push(Date.now(), jobId);
+  const excluded = guard.unlessStates ?? [];
+  const stateGuard = excluded.length > 0
+    ? ` AND state NOT IN (${excluded.map(() => '?').join(', ')})`
+    : '';
+  values.push(...excluded);
   const db = await getUploadQueueDatabase();
-  await db.runAsync(
-    `UPDATE upload_jobs SET ${assignments.join(', ')} WHERE id = ?`,
+  return db.runAsync(
+    `UPDATE upload_jobs SET ${assignments.join(', ')} WHERE id = ?${stateGuard}`,
     ...values
   );
 }

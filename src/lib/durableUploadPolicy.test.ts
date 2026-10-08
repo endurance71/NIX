@@ -9,6 +9,7 @@ import {
   isMissingStagedUploadError,
   isPermanentUploadError,
   mapNativeUploadState,
+  needsNativeTransferRecovery,
   selectVideoCompressionProfile,
   parseFinalizeUploadStatus,
   uploadRetryDelay,
@@ -65,7 +66,19 @@ describe('durable upload state policy', () => {
     expect(isAllowedUploadTransition('uploading', 'waiting_network')).toBe(true);
     expect(isAllowedUploadTransition('failed', 'queued')).toBe(true);
     expect(isAllowedUploadTransition('completed', 'queued')).toBe(false);
+    expect(isAllowedUploadTransition('finalizing', 'paused')).toBe(true);
     expect(isAllowedUploadTransition('cancelled', 'uploading')).toBe(false);
+  });
+
+  it('reconstructs disappeared ephemeral tasks while retaining terminal/control snapshots', () => {
+    for (const state of ['queued', 'uploading', 'finalizing', 'retry_scheduled', 'waiting_network']) {
+      expect(needsNativeTransferRecovery({ state, hasActiveTask: false })).toBe(true);
+      expect(needsNativeTransferRecovery({ state, hasActiveTask: true })).toBe(false);
+    }
+    for (const state of ['completed', 'failed', 'waiting_for_auth', 'paused', 'cancelled']) {
+      expect(needsNativeTransferRecovery({ state, hasActiveTask: false })).toBe(false);
+    }
+    expect(needsNativeTransferRecovery({ state: 'uploading' })).toBe(false);
   });
 
   it('queues offline captures without making them processable', () => {

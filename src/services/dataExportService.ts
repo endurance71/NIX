@@ -1,6 +1,21 @@
 import { supabase } from '../lib/supabase';
 import type { DataExportJob } from '../types/database.types';
+import type { Database } from '../types/database.generated';
 import { recordProductEvent } from './productAnalyticsService';
+
+function decodeExportJob(job: Database['public']['Tables']['data_export_jobs']['Row']): DataExportJob {
+  const status = job.status;
+  switch (status) {
+    case 'queued':
+    case 'processing':
+    case 'ready':
+    case 'failed':
+    case 'expired':
+      return { ...job, status };
+    default:
+      throw new Error('EXPORT_STATUS_INVALID');
+  }
+}
 
 export async function listDataExportJobs(): Promise<DataExportJob[]> {
   const { data, error } = await supabase
@@ -9,14 +24,14 @@ export async function listDataExportJobs(): Promise<DataExportJob[]> {
     .order('requested_at', { ascending: false })
     .limit(10);
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map(decodeExportJob);
 }
 
 export async function requestDataExport(): Promise<DataExportJob> {
   const { data, error } = await supabase.rpc('request_data_export');
   if (error) throw error;
   void recordProductEvent('data_export_requested');
-  return data;
+  return decodeExportJob(data);
 }
 
 export async function createDataExportDownloadUrl(jobId: string): Promise<string> {

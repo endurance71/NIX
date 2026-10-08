@@ -122,25 +122,25 @@ export async function sendProfileInvite(
   Keyboard.dismiss();
   const normalized = searchUsername.trim();
   if (!normalized) {
-    notifyInfo('Podaj nazwę użytkownika.', { message: 'Np. @nix_friend.' });
+    notifyInfo(i18n.t('notify.usernameRequired'), { message: i18n.t('notify.usernameExample') });
     return;
   }
 
   const profile = await findProfileByUsername(normalized);
   if (!profile) {
-    notifyError('Nie znaleziono użytkownika o takiej nazwie.');
+    notifyError(i18n.t('notify.userNotFound'));
     return;
   }
 
   const result = await sendFriendRequest(profile.id);
   if (result === 'request_sent') {
-    notifySuccess('Zaproszenie wysłane.', { message: `Do @${profile.username}.` });
+    notifySuccess(i18n.t('notify.inviteSent'), { message: i18n.t('notify.inviteTo', { username: profile.username }) });
   } else if (result === 'already_requested') {
-    notifyInfo('Zaproszenie już wysłane.', { message: 'Oczekuje na akceptację.' });
+    notifyInfo(i18n.t('notify.inviteAlreadySent'), { message: i18n.t('notify.invitePending') });
   } else if (result === 'already_friends') {
-    notifyInfo('Już znajomi.', { message: `Z @${profile.username}.` });
+    notifyInfo(i18n.t('notify.alreadyFriends'), { message: i18n.t('notify.friendsWith', { username: profile.username }) });
   } else if (result === 'accepted_reverse_request') {
-    notifySuccess('Zaproszenie zaakceptowane.', { message: `Od @${profile.username}.` });
+    notifySuccess(i18n.t('notify.inviteAccepted'), { message: i18n.t('notify.inviteFrom', { username: profile.username }) });
   }
 
   onSuccess();
@@ -154,7 +154,7 @@ export async function acceptProfileFriendRequest(
 ): Promise<void> {
   await acceptFriendRequest(requestId);
   await invalidateSocialQueries();
-  notifySuccess('Zaproszenie zaakceptowane.');
+  notifySuccess(i18n.t('notify.inviteAccepted'));
 }
 
 export async function rejectProfileFriendRequest(
@@ -163,7 +163,7 @@ export async function rejectProfileFriendRequest(
 ): Promise<void> {
   await rejectFriendRequest(requestId);
   await invalidateSocialQueries();
-  notifyInfo('Zaproszenie usunięte.');
+  notifyInfo(i18n.t('notify.inviteRemoved'));
 }
 
 export async function cancelProfileOutgoingRequest(
@@ -172,7 +172,7 @@ export async function cancelProfileOutgoingRequest(
 ): Promise<void> {
   await cancelOutgoingFriendRequest(requestId);
   await invalidateSocialQueries();
-  notifyInfo('Zaproszenie usunięte.');
+  notifyInfo(i18n.t('notify.inviteRemoved'));
 }
 
 export async function removeProfileFriend(
@@ -182,7 +182,7 @@ export async function removeProfileFriend(
 ): Promise<void> {
   await removeFriend(friendId);
   await invalidateSocialQueries();
-  notifySuccess(`Usunięto @${username} ze znajomych.`);
+  notifySuccess(i18n.t('notify.friendRemoved', { username }));
 }
 
 export async function toggleProfileFriendCapture(
@@ -203,7 +203,7 @@ export async function toggleProfileFriendCapture(
     await queryClient.invalidateQueries({ queryKey: friendCapturePoliciesQueryKey });
   } catch (err: unknown) {
     queryClient.setQueryData(friendCapturePoliciesQueryKey, previousPolicies);
-    notifyError((err as { message?: string })?.message ?? 'Nie udało się zapisać preferencji screenshotów.');
+    notifyError((err as { message?: string })?.message ?? i18n.t('notify.capturePreferencesFailed'));
     throw err;
   }
 }
@@ -212,5 +212,5 @@ export function handleProfileAvatarPickError(err: unknown): void {
   if ((err as { code?: string })?.code === 'E_PICKER_CANCELLED') {
     return;
   }
-  notifyDomainError(err, 'Nie udało się zapisać zdjęcia.');
+  notifyDomainError(err, i18n.t('notify.avatarSaveFailed'));
 }

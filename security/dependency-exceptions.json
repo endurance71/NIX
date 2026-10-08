@@ -1,0 +1,20 @@
+{
+  "reviewedAt": "2026-10-08",
+  "reviewBy": "2026-11-08T00:00:00Z",
+  "exceptions": [
+    {
+      "package": "node-forge",
+      "version": "1.4.0",
+      "advisory": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
+      "scope": "Expo CLI and Node code-signing tooling; not imported by application code. Expo Updates certificate signing is not configured. Native verification does not execute this JS implementation.",
+      "upstream": "https://github.com/digitalbazaar/forge/issues/1149"
+    },
+    {
+      "package": "braces",
+      "version": "3.0.3",
+      "advisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+      "scope": "Build and developer glob matching via patch-package, React Doctor and Metro. The iOS application does not import these packages or accept external glob patterns.",
+      "upstream": "https://github.com/micromatch/braces/issues/70"
+    }
+  ]
+}

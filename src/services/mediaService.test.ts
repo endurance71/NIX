@@ -2,8 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MAX_IMAGE_FILE_SIZE_BYTES,
   MAX_VIDEO_FILE_SIZE_BYTES,
-  uploadImageAndCreateNix,
-  uploadVideoAndCreateNix,
   isFastPathEligible,
   prepareVideoForUpload,
 } from './mediaService';
@@ -81,10 +79,10 @@ vi.mock('./resumableUploadService', () => ({
 }));
 
 describe('mediaService', () => {
-  it('eksportuje ten sam limit obrazu co wklejanie do czatu', async () => {
+  it('limits prepared images to 4 MiB while allowing larger source images', async () => {
     const { CHAT_PASTE_MAX_IMAGE_BYTES } = await import('../lib/chatPaste');
-    expect(MAX_IMAGE_FILE_SIZE_BYTES).toBe(10 * 1024 * 1024);
-    expect(MAX_IMAGE_FILE_SIZE_BYTES).toBe(CHAT_PASTE_MAX_IMAGE_BYTES);
+    expect(MAX_IMAGE_FILE_SIZE_BYTES).toBe(4 * 1024 * 1024);
+    expect(CHAT_PASTE_MAX_IMAGE_BYTES).toBeGreaterThanOrEqual(MAX_IMAGE_FILE_SIZE_BYTES);
   });
 
   beforeEach(() => {
@@ -94,112 +92,15 @@ describe('mediaService', () => {
     mockVideoCompress.mockResolvedValue('file:///tmp/compressed.mp4');
   });
 
-  it('wgrywa plik i tworzy rekord nixa', async () => {
-    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
-    mockUploadResumable.mockResolvedValue(undefined);
-    mockInsertNix.mockResolvedValue(undefined);
 
-    const blob = new Blob(['test'], { type: 'image/jpeg' });
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        blob: async () => blob,
-        arrayBuffer: async () => blob.arrayBuffer(),
-      })
-    );
 
-    await uploadImageAndCreateNix('file:///tmp/image.jpg', 'receiver-1');
 
-    expect(mockUploadResumable).toHaveBeenCalledTimes(1);
-    expect(mockUploadResumable).toHaveBeenCalledWith(
-      expect.objectContaining({
-        bucket: 'media-vault',
-        contentType: 'image/jpeg',
-      })
-    );
-    expect(mockInsertNix).toHaveBeenCalledWith(
-      'receiver-1',
-      expect.stringContaining('nixes/user-1/'),
-      5,
-      expect.objectContaining({ clientUploadId: expect.any(String) })
-    );
-  });
 
-  it('przekazuje niestandardowy czas wyświetlania do rekordu nixa', async () => {
-    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
-    mockUploadResumable.mockResolvedValue(undefined);
-    mockInsertNix.mockResolvedValue(undefined);
 
-    const blob = new Blob(['test'], { type: 'image/jpeg' });
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        blob: async () => blob,
-        arrayBuffer: async () => blob.arrayBuffer(),
-      })
-    );
 
-    await uploadImageAndCreateNix('file:///tmp/image.jpg', 'receiver-1', 180);
 
-    expect(mockInsertNix).toHaveBeenCalledWith(
-      'receiver-1',
-      expect.stringContaining('nixes/user-1/'),
-      180,
-      expect.objectContaining({ clientUploadId: expect.any(String) })
-    );
-  });
 
-  it('rzuca błąd gdy brak zalogowanego użytkownika', async () => {
-    mockGetCurrentUser.mockResolvedValue(null);
 
-    await expect(uploadImageAndCreateNix('file:///tmp/image.jpg', 'receiver-1')).rejects.toThrow(
-      'Brak autoryzacji.'
-    );
-  });
-
-  it('rzuca błąd gdy obraz jest pusty', async () => {
-    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
-    mockGetInfoAsync.mockResolvedValue({ exists: true, size: 0 });
-
-    await expect(uploadImageAndCreateNix('file:///tmp/image.jpg', 'receiver-1')).rejects.toThrow(
-      'Plik jest pusty lub uszkodzony.'
-    );
-  });
-
-  it('wgrywa wideo strumieniowo (resumable) i tworzy rekord nixa', async () => {
-    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
-    mockGetInfoAsync.mockResolvedValue({ exists: true, size: 8 * 1024 * 1024 });
-    mockInsertNix.mockResolvedValue(undefined);
-    mockUploadResumable.mockResolvedValue(undefined);
-
-    await uploadVideoAndCreateNix('file:///tmp/video.mp4', 'receiver-1', 12_000, 15);
-
-    expect(mockUploadResumable).toHaveBeenCalledTimes(1);
-    expect(mockUploadResumable).toHaveBeenCalledWith(
-      expect.objectContaining({
-        bucket: 'media-vault',
-        contentType: 'video/mp4',
-        fileSizeBytes: 8 * 1024 * 1024,
-        upsert: false,
-      })
-    );
-    // Klasyczny upload przez storage SDK nie powinien być wywołany dla wideo.
-    expect(mockUpload).not.toHaveBeenCalled();
-    expect(mockInsertNix).toHaveBeenCalledWith(
-      'receiver-1',
-      expect.stringMatching(/^nixes\/user-1\/.+\.mp4$/),
-      15,
-      expect.objectContaining({
-        mediaType: 'video',
-        playbackDurationMs: 12_000,
-        thumbnailB64: null,
-      })
-    );
-  });
 
   it('przekazuje audioBitrate 96 kbps do Video.compress na syntetycznym materiale', async () => {
     // isTestRuntime() omija native compress — tymczasowo wyłącz skrót.
@@ -269,40 +170,11 @@ describe('mediaService', () => {
     );
   });
 
-  it('rzuca czytelny błąd, gdy plik wideo przekracza limit', async () => {
-    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
-    mockGetInfoAsync.mockResolvedValue({ exists: true, size: MAX_VIDEO_FILE_SIZE_BYTES + 1 });
 
-    const overLimitMb = ((MAX_VIDEO_FILE_SIZE_BYTES + 1) / (1024 * 1024)).toFixed(1);
-    await expect(uploadVideoAndCreateNix('file:///tmp/video.mp4', 'receiver-1', 8_000)).rejects.toThrow(
-      `Plik nadal jest za duży po kompresji (${overLimitMb} MB). Maksymalny rozmiar to ${Math.round(MAX_VIDEO_FILE_SIZE_BYTES / (1024 * 1024))} MB — wybierz krótsze wideo.`
-    );
-    expect(mockUploadResumable).not.toHaveBeenCalled();
-  });
 
-  it('rzuca czytelny błąd, gdy plik wideo jest pusty', async () => {
-    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
-    mockGetInfoAsync.mockResolvedValue({ exists: true, size: 0 });
 
-    await expect(uploadVideoAndCreateNix('file:///tmp/video.mp4', 'receiver-1', 5_000)).rejects.toThrow(
-      'Plik jest pusty lub uszkodzony.'
-    );
-    expect(mockUploadResumable).not.toHaveBeenCalled();
-  });
 
-  it('mapuje błąd serwera o przekroczeniu rozmiaru na komunikat domenowy', async () => {
-    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
-    mockGetInfoAsync.mockResolvedValue({ exists: true, size: 4 * 1024 * 1024 });
-    mockUploadResumable.mockRejectedValue(
-      new Error('The object exceeded the maximum allowed size')
-    );
 
-    await expect(uploadVideoAndCreateNix('file:///tmp/video.mp4', 'receiver-1', 5_000)).rejects.toThrow(
-      `Plik wideo przekracza limit uploadu serwera. Utrzymaj plik poniżej ${Math.round(
-        MAX_VIDEO_FILE_SIZE_BYTES / (1024 * 1024)
-      )} MB.`
-    );
-  });
 });
 
 describe('isFastPathEligible', () => {

@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.5';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import { corsHeaders, getBearerToken, json, notifySentry } from '../_shared/http.ts';
 import { statusForRpcError, validateReportPayload } from './contract.ts';
 

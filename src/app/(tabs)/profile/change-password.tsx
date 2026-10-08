@@ -5,6 +5,7 @@ import { Stack, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAppTheme } from '../../../hooks/useAppTheme';
+import { getPasswordFormDecision } from '../../../lib/passwordForm';
 import { notifySuccess } from '../../../lib/appNotify';
 import {
   NativeSettingsActionRow,
@@ -85,8 +86,11 @@ export default function ChangePasswordScreen() {
     reauthenticatePasswordChange,
     canUseNetworkSession,
   } = useAuth();
-  const [form, dispatchForm] = useReducer(changePasswordFormReducer, initialChangePasswordFormState);
-  const { currentPassword, newPassword, confirmPassword, nonce, requiresNonce, loading, error } = form;
+  const [form, dispatchForm] = useReducer(
+    changePasswordFormReducer,
+    initialChangePasswordFormState,
+  );
+  const { currentPassword, newPassword, nonce, requiresNonce, loading, error } = form;
 
   useEffect(() => {
     if (!authLoading && !session) router.replace('/(auth)/login');
@@ -96,39 +100,14 @@ export default function ChangePasswordScreen() {
     if (error) void AccessibilityInfo.announceForAccessibility(error);
   }, [error]);
 
-  const checks = {
-    length: newPassword.length >= 8,
-    digit: /\d/.test(newPassword),
-    upper: /[A-Z]/.test(newPassword),
-    lower: /[a-z]/.test(newPassword),
-    match: confirmPassword.length > 0 && newPassword === confirmPassword,
-  };
-  const isSubmitDisabled =
-    !canUseNetworkSession ||
-    loading ||
-    !currentPassword ||
-    !checks.length ||
-    !checks.digit ||
-    !checks.upper ||
-    !checks.lower ||
-    !checks.match ||
-    (requiresNonce && !nonce.trim());
+  const { checks, validationError, isSubmitDisabled } = getPasswordFormDecision(
+    form,
+    canUseNetworkSession,
+  );
 
   const handleSubmit = async () => {
-    if (!currentPassword) {
-      dispatchForm({ type: 'error', error: t('profile.currentPasswordRequired') });
-      return;
-    }
-    if (!checks.length || !checks.digit || !checks.upper || !checks.lower) {
-      dispatchForm({ type: 'error', error: t('profile.passwordRequirementsError') });
-      return;
-    }
-    if (!checks.match) {
-      dispatchForm({ type: 'error', error: t('profile.passwordMismatchError') });
-      return;
-    }
-    if (requiresNonce && !nonce.trim()) {
-      dispatchForm({ type: 'error', error: t('profile.verificationCodeRequired') });
+    if (validationError) {
+      dispatchForm({ type: 'error', error: t(validationError) });
       return;
     }
 
@@ -137,7 +116,7 @@ export default function ChangePasswordScreen() {
     const { error: updateError } = await updatePassword(
       newPassword,
       currentPassword,
-      requiresNonce ? nonce.trim() : undefined
+      requiresNonce ? nonce.trim() : undefined,
     );
 
     if (updateError) {
@@ -173,7 +152,9 @@ export default function ChangePasswordScreen() {
             secureTextEntry
             autoComplete="current-password"
             editable={canUseNetworkSession && !loading}
-            onChangeText={(value) => dispatchForm({ type: 'field', field: 'currentPassword', value })}
+            onChangeText={(value) =>
+              dispatchForm({ type: 'field', field: 'currentPassword', value })
+            }
             testID="current-password"
           />
           <TextInput
@@ -189,7 +170,9 @@ export default function ChangePasswordScreen() {
             secureTextEntry
             autoComplete="new-password"
             editable={canUseNetworkSession && !loading}
-            onChangeText={(value) => dispatchForm({ type: 'field', field: 'confirmPassword', value })}
+            onChangeText={(value) =>
+              dispatchForm({ type: 'field', field: 'confirmPassword', value })
+            }
             testID="confirm-password"
           />
           {requiresNonce ? (
@@ -254,7 +237,9 @@ export default function ChangePasswordScreen() {
           ) : null}
         </FieldGroup.Section>
       </SettingsListScreen>
-      <Stack.Screen.Title style={{ color: colors.label }}>{t('profile.changePassword')}</Stack.Screen.Title>
+      <Stack.Screen.Title style={{ color: colors.label }}>
+        {t('profile.changePassword')}
+      </Stack.Screen.Title>
     </>
   );
 }

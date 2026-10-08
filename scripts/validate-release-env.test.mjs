@@ -39,3 +39,25 @@ test('accepts a valid release configuration without printing values', () => {
   assert.match(result.stdout, /validation passed/);
   assert.doesNotMatch(`${result.stdout}${result.stderr}`, /project-ref|test-public-anon-key/);
 });
+
+test('loads project dotenv when invoked from ios using an explicit root', async () => {
+  const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const root = await mkdtemp(join(tmpdir(), 'nix-release-env-'));
+  try {
+    await mkdir(join(root, 'ios'));
+    await writeFile(join(root, '.env.production'),
+      `EXPO_PUBLIC_SUPABASE_URL=${secretUrl}\nEXPO_PUBLIC_SUPABASE_ANON_KEY=${secretKey}\n`);
+    const result = spawnSync(process.execPath,
+      [validator, '--mode', 'production', '--project-root', root], {
+        cwd: join(root, 'ios'),
+        env: { PATH: process.env.PATH },
+        encoding: 'utf8',
+      });
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(`${result.stdout}${result.stderr}`, /project-ref|test-public-anon-key/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

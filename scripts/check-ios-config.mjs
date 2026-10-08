@@ -4,6 +4,7 @@ import { assertSentryDisabled } from './check-sentry-disabled.mjs';
 const app = JSON.parse(readFileSync(new URL('../app.json', import.meta.url), 'utf8')).expo;
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const plist = readFileSync(new URL('../ios/NiX/Info.plist', import.meta.url), 'utf8');
+const appDelegate = readFileSync(new URL('../ios/NiX/AppDelegate.swift', import.meta.url), 'utf8');
 const widgetPlist = readFileSync(new URL('../ios/ExpoWidgetsTarget/Info.plist', import.meta.url), 'utf8');
 const expoPlist = readFileSync(new URL('../ios/NiX/Supporting/Expo.plist', import.meta.url), 'utf8');
 const en = readFileSync(new URL('../ios/NiX/Supporting/en.lproj/InfoPlist.strings', import.meta.url), 'utf8');
@@ -109,6 +110,18 @@ if (app.ios.infoPlist.UIBackgroundModes) {
   fail('UIBackgroundModes must remain plugin-managed instead of being duplicated in app.json');
 }
 if (!app.plugins?.includes('expo-notifications')) fail('expo-notifications plugin is missing in app.json');
+const buildProperties = app.plugins?.find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-build-properties')?.[1];
+if (buildProperties?.ios?.enableSceneSupport !== true) {
+  fail('expo-build-properties must enable scene support for Xcode 27');
+}
+if (
+  !plist.includes('<key>UIApplicationSceneManifest</key>')
+  || !plist.includes('<string>EXExpoAppSceneDelegate</string>')
+  || !appDelegate.includes('class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {')
+  || /factory\.startReactNative\(/.test(appDelegate)
+) {
+  fail('native scene support must use ExpoAppSceneDelegate to create the window and start React Native');
+}
 if (!entitlements.includes('<key>aps-environment</key>')) fail('aps-environment is missing from NiX.entitlements');
 if (app.ios.usesAppleSignIn && !entitlements.includes('<key>com.apple.developer.applesignin</key>')) {
   fail('Sign in with Apple entitlement is missing from NiX.entitlements');

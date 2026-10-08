@@ -4,7 +4,7 @@ const PHASE_NAME = 'Bundle React Native code and images';
 const MARKER = '# NiX release environment preflight';
 const VALIDATION = `${MARKER}
 if [[ "$CONFIGURATION" != *Debug* ]]; then
-  "$NODE_BINARY" "$PROJECT_ROOT/scripts/validate-release-env.mjs" --mode production || exit 1
+  "$NODE_BINARY" "$PROJECT_ROOT/scripts/validate-release-env.mjs" --mode production --project-root "$PROJECT_ROOT" || exit 1
 fi`;
 
 function readShellScript(buildPhase) {
@@ -21,7 +21,10 @@ function readShellScript(buildPhase) {
 }
 
 function ensureReleaseEnvValidation(script) {
-  if (!script || script.includes(MARKER)) return script;
+  if (!script) return script;
+  if (script.includes(MARKER)) {
+    return script.replace(/("\$PROJECT_ROOT\/scripts\/validate-release-env\.mjs" --mode production)(?! --project-root)/g, '$1 --project-root "$PROJECT_ROOT"');
+  }
   const projectRootPattern = /export PROJECT_ROOT=(?:"\$PROJECT_DIR\/\.\."|"\$PROJECT_DIR"\/\.\.)/;
   const match = script.match(projectRootPattern);
   if (!match) {

@@ -21,12 +21,13 @@ export type UploadStatusActivityProps = UploadLiveActivityProps;
 
 const UploadStatusActivity = (
   props: UploadStatusActivityProps,
-  _environment: LiveActivityEnvironment
+  _environment: LiveActivityEnvironment,
 ) => {
   'widget';
   // Live Activity layouts are serialized and evaluated inside the widget
   // extension. Keep every value and view in this function — module-level
   // constants and helper components are not available in that runtime.
+  const pl = props.locale === 'pl';
   const accent = '#0A84FF';
   const muted = '#A1A1AA';
   const error = '#FF453A';
@@ -34,55 +35,133 @@ const UploadStatusActivity = (
   const warning = '#FF9F0A';
   const progress = Math.max(0, Math.min(1, props.progress));
   const percent = `${Math.round(progress * 100)}%`;
-  const isFailed = props.phase === 'failed';
-  const isCompleted = props.phase === 'completed';
-  const isOffline = props.phase === 'waiting_network';
-  const isPaused = props.phase === 'paused';
-  const isPreparing = props.phase === 'preparing';
-  const statusColor = isFailed
-    ? error
-    : isCompleted
-      ? success
-      : isOffline
-        ? warning
-        : accent;
-  const title = props.phase === 'completed'
-    ? 'Wysłano'
-    : props.phase === 'failed'
-        ? 'Błąd wysyłania'
-        : props.phase === 'waiting_network'
-          ? 'Czeka na sieć'
-          : props.phase === 'paused'
-            ? 'Wysyłka wstrzymana'
-          : props.phase === 'preparing'
-            ? 'Przygotowywanie NiX'
-          : props.phase === 'finalizing'
-            ? 'Finalizowanie wysyłki'
-            : 'Wysyłanie NiX';
-  const subtitle = isFailed
-    ? 'Stuknij, aby spróbować ponownie'
-    : isCompleted
-      ? 'NiX został wysłany'
-      : isOffline
-        ? 'Wznowimy po połączeniu z siecią'
-        : isPaused
-          ? 'Otwórz Skrzynkę, aby wznowić'
-        : isPreparing
-          ? 'Optymalizowanie pliku'
-          : props.phase === 'finalizing'
-            ? 'Jeszcze chwila'
-            : props.remainingCount > 1
-              ? `Pozostało: ${props.remainingCount}`
-              : 'Wysyłanie bezpiecznie w tle';
-  const icon = props.phase === 'completed'
-    ? 'checkmark.circle.fill'
-    : props.phase === 'failed'
-        ? 'exclamationmark.triangle.fill'
-        : props.phase === 'waiting_network'
-          ? 'wifi.slash'
-          : props.phase === 'paused'
-            ? 'pause.circle.fill'
-          : 'arrow.up.circle.fill';
+  const copy = pl
+    ? {
+        completed: ['Wysłano', 'NiX został wysłany', '', ''],
+        failed: ['Błąd wysyłania', 'Stuknij, aby spróbować ponownie', 'Błąd', 'Błąd'],
+        waiting_network: ['Czeka na sieć', 'Wznowimy po połączeniu z siecią', 'Sieć', 'Brak sieci'],
+        paused: ['Wysyłka wstrzymana', 'Otwórz Skrzynkę, aby wznowić', 'Pauza', 'Pauza'],
+        preparing: ['Przygotowywanie NiX', 'Optymalizowanie pliku', '', ''],
+        finalizing: ['Finalizowanie wysyłki', 'Jeszcze chwila', '', ''],
+        uploading: [
+          'Wysyłanie NiX',
+          props.remainingCount > 1
+            ? `Pozostało: ${props.remainingCount}`
+            : 'Wysyłanie bezpiecznie w tle',
+          '',
+          '',
+        ],
+      }
+    : {
+        completed: ['Sent', 'NiX was sent', '', ''],
+        failed: ['Upload failed', 'Tap to try again', 'Error', 'Error'],
+        waiting_network: [
+          'Waiting for network',
+          'Will resume when connected',
+          'Network',
+          'Offline',
+        ],
+        paused: ['Upload paused', 'Open Inbox to resume', 'Paused', 'Paused'],
+        preparing: ['Preparing NiX', 'Optimizing file', '', ''],
+        finalizing: ['Finalizing upload', 'Almost done', '', ''],
+        uploading: [
+          'Sending NiX',
+          props.remainingCount > 1
+            ? `Remaining: ${props.remainingCount}`
+            : 'Sending securely in the background',
+          '',
+          '',
+        ],
+      };
+  const phases = {
+    completed: {
+      icon: 'checkmark.circle.fill',
+      color: success,
+      numericColor: success,
+      showIcon: true,
+      showPercent: true,
+      showProgress: false,
+    },
+    failed: {
+      icon: 'exclamationmark.triangle.fill',
+      color: error,
+      numericColor: error,
+      showIcon: true,
+      showPercent: false,
+      showProgress: false,
+    },
+    waiting_network: {
+      icon: 'wifi.slash',
+      color: warning,
+      numericColor: warning,
+      showIcon: true,
+      showPercent: false,
+      showProgress: true,
+    },
+    paused: {
+      icon: 'pause.circle.fill',
+      color: accent,
+      numericColor: muted,
+      showIcon: true,
+      showPercent: false,
+      showProgress: false,
+    },
+    preparing: {
+      icon: 'arrow.up.circle.fill',
+      color: accent,
+      numericColor: '#FFFFFF',
+      showIcon: false,
+      showPercent: true,
+      showProgress: true,
+    },
+    finalizing: {
+      icon: 'arrow.up.circle.fill',
+      color: accent,
+      numericColor: '#FFFFFF',
+      showIcon: false,
+      showPercent: true,
+      showProgress: true,
+    },
+    uploading: {
+      icon: 'arrow.up.circle.fill',
+      color: accent,
+      numericColor: '#FFFFFF',
+      showIcon: false,
+      showPercent: true,
+      showProgress: true,
+    },
+  } as const;
+  const phase = phases[props.phase];
+  const [title, subtitle, compactLabel, expandedLabel] = copy[props.phase];
+  const statusColor = phase.color;
+  const progressValue = props.phase === 'preparing' ? null : progress;
+  const leadingIndicator = phase.showIcon ? (
+    <Image systemName={phase.icon} size={18} color={statusColor} />
+  ) : (
+    <ProgressView
+      value={progressValue}
+      modifiers={[
+        progressViewStyle('circular'),
+        tint(statusColor),
+        frame({ width: 22, height: 22 }),
+      ]}
+    />
+  );
+  const trailingText = (expanded: boolean) => (
+    <Text
+      modifiers={[
+        ...(expanded ? [padding({ trailing: 6 })] : []),
+        font({
+          weight: 'semibold',
+          design: 'rounded',
+          size: expanded ? (phase.showPercent ? 14 : 13) : phase.showPercent ? 13 : 12,
+        }),
+        ...(phase.showPercent ? [monospacedDigit(), contentTransition('numericText')] : []),
+        foregroundStyle(phase.numericColor),
+      ]}>
+      {phase.showPercent ? percent : expanded ? expandedLabel : compactLabel}
+    </Text>
+  );
 
   return {
     banner: (
@@ -103,23 +182,19 @@ const UploadStatusActivity = (
           ]}
         />
         <VStack alignment="leading" spacing={3}>
-          <Text
-            modifiers={[
-              font({ weight: 'semibold', size: 16 }),
-              foregroundStyle('#FFFFFF'),
-            ]}>
+          <Text modifiers={[font({ weight: 'semibold', size: 16 }), foregroundStyle('#FFFFFF')]}>
             {title}
           </Text>
           <Text modifiers={[font({ size: 12 }), foregroundStyle(muted)]}>{subtitle}</Text>
         </VStack>
         <Spacer />
-        {!isFailed && !isOffline && !isPaused ? (
+        {phase.showPercent ? (
           <Text
             modifiers={[
               font({ weight: 'semibold', design: 'rounded', size: 17 }),
               monospacedDigit(),
               contentTransition('numericText'),
-              foregroundStyle(isCompleted ? success : '#FFFFFF'),
+              foregroundStyle(phase.numericColor),
             ]}>
             {percent}
           </Text>
@@ -128,61 +203,9 @@ const UploadStatusActivity = (
         )}
       </HStack>
     ),
-    compactLeading: isCompleted || isFailed || isOffline || isPaused ? (
-      <Image
-        systemName={icon}
-        size={18}
-        color={statusColor}
-      />
-    ) : (
-      <ProgressView
-        value={isPreparing ? null : progress}
-        modifiers={[
-          progressViewStyle('circular'),
-          tint(statusColor),
-          frame({ width: 22, height: 22 }),
-        ]}
-      />
-    ),
-    compactTrailing: isFailed ? (
-      <Text modifiers={[font({ weight: 'semibold', design: 'rounded', size: 12 }), foregroundStyle(error)]}>
-        Błąd
-      </Text>
-    ) : isOffline ? (
-      <Text modifiers={[font({ weight: 'semibold', design: 'rounded', size: 12 }), foregroundStyle(warning)]}>
-        Sieć
-      </Text>
-    ) : isPaused ? (
-      <Text modifiers={[font({ weight: 'semibold', design: 'rounded', size: 12 }), foregroundStyle(muted)]}>
-        Pauza
-      </Text>
-    ) : (
-      <Text
-        modifiers={[
-          font({ weight: 'semibold', design: 'rounded', size: 13 }),
-          monospacedDigit(),
-          contentTransition('numericText'),
-          foregroundStyle(isCompleted ? success : '#FFFFFF'),
-        ]}>
-        {percent}
-      </Text>
-    ),
-    minimal: isCompleted || isFailed || isOffline || isPaused ? (
-      <Image
-        systemName={icon}
-        size={18}
-        color={statusColor}
-      />
-    ) : (
-      <ProgressView
-        value={isPreparing ? null : progress}
-        modifiers={[
-          progressViewStyle('circular'),
-          tint(statusColor),
-          frame({ width: 22, height: 22 }),
-        ]}
-      />
-    ),
+    compactLeading: leadingIndicator,
+    compactTrailing: trailingText(false),
+    minimal: leadingIndicator,
     expandedLeading: (
       <HStack spacing={6} modifiers={[padding({ leading: 6 })]}>
         <Image
@@ -198,60 +221,15 @@ const UploadStatusActivity = (
         </Text>
       </HStack>
     ),
-    expandedTrailing: isFailed ? (
-      <Text
-        modifiers={[
-          padding({ trailing: 6 }),
-          font({ weight: 'semibold', design: 'rounded', size: 13 }),
-          foregroundStyle(error),
-        ]}>
-        Błąd
-      </Text>
-    ) : isOffline ? (
-      <Text
-        modifiers={[
-          padding({ trailing: 6 }),
-          font({ weight: 'semibold', design: 'rounded', size: 13 }),
-          foregroundStyle(warning),
-        ]}>
-        Brak sieci
-      </Text>
-    ) : isPaused ? (
-      <Text
-        modifiers={[
-          padding({ trailing: 6 }),
-          font({ weight: 'semibold', design: 'rounded', size: 13 }),
-          foregroundStyle(muted),
-        ]}>
-        Pauza
-      </Text>
-    ) : (
-      <Text
-        modifiers={[
-          padding({ trailing: 6 }),
-          font({ weight: 'semibold', design: 'rounded', size: 14 }),
-          monospacedDigit(),
-          contentTransition('numericText'),
-          foregroundStyle(isCompleted ? success : '#FFFFFF'),
-        ]}>
-        {percent}
-      </Text>
-    ),
+    expandedTrailing: trailingText(true),
     expandedBottom: (
-      <VStack
-        alignment="leading"
-        spacing={7}
-        modifiers={[padding({ horizontal: 6, bottom: 5 })]}>
-        <Text
-          modifiers={[
-            font({ weight: 'semibold', size: 15 }),
-            foregroundStyle('#FFFFFF'),
-          ]}>
+      <VStack alignment="leading" spacing={7} modifiers={[padding({ horizontal: 6, bottom: 5 })]}>
+        <Text modifiers={[font({ weight: 'semibold', size: 15 }), foregroundStyle('#FFFFFF')]}>
           {title}
         </Text>
-        {!isFailed && !isCompleted && !isPaused ? (
+        {phase.showProgress ? (
           <ProgressView
-            value={isPreparing ? null : progress}
+            value={progressValue}
             modifiers={[
               progressViewStyle('linear'),
               tint(statusColor),

@@ -131,6 +131,8 @@ async function edgeError(
     }
   }
   const message = `${serverCode} ${serverMessage} ${error?.message ?? fallback}`.trim();
+  const sizeError = mediaSizeError(message);
+  if (sizeError) return sizeError;
   if (message.includes('RATE_LIMITED')) return new DomainError('RATE_LIMITED', 'Limit wysyłek został przekroczony.');
   if (message.includes('AUTH_REQUIRED') || message.includes('INVALID_FINALIZE_TOKEN')) {
     return new DomainError('UNAUTHORIZED', 'Sesja użytkownika wygasła.');
@@ -140,6 +142,13 @@ async function edgeError(
   }
   if (message.includes('INVALID_MEDIA')) return new DomainError('INVALID_MEDIA', 'Nieprawidłowy plik multimedialny.');
   return new DomainError('UNKNOWN', message);
+}
+
+function mediaSizeError(message: string): DomainError | null {
+  if (message.includes('OBJECT_SIZE_MISMATCH')) return new DomainError('OBJECT_SIZE_MISMATCH', 'Rozmiar przesłanego pliku nie zgadza się ze zgłoszonym.');
+  if (message.includes('MEDIA_TOO_LARGE')) return new DomainError('MEDIA_TOO_LARGE', 'Zdjęcie przekracza 4 MiB lub wideo przekracza 100 MiB.');
+  if (message.includes('INVALID_SIZE')) return new DomainError('INVALID_SIZE', 'Nieprawidłowy rozmiar pliku.');
+  return null;
 }
 
 export async function beginMediaUploadBatch(input: {
@@ -192,10 +201,8 @@ export async function finalizeMediaUploadBatch(input: {
       error?: string;
       code?: string;
     } | null;
-    throw new DomainError(
-      'UNKNOWN',
-      errorPayload?.error || `Finalizacja wysyłki nie powiodła się (${response.status}).`
-    );
+    const message = `${errorPayload?.code ?? ''} ${errorPayload?.error ?? ''}`;
+    throw mediaSizeError(message) ?? new DomainError('UNKNOWN', errorPayload?.error || `Finalizacja wysyłki nie powiodła się (${response.status}).`);
   }
   const payload = await response.json().catch(() => null) as FinalizeMediaUploadResponse | null;
   if (!payload || !('ok' in payload)) {

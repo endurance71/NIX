@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.5';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import { json } from '../_shared/http.ts';
 import { hasServiceRoleBearer } from '../_shared/service-auth.ts';
 
@@ -14,6 +14,8 @@ Deno.serve(async (req) => {
     return json({ error: 'AUTH_REQUIRED', code: 'AUTH_REQUIRED' }, 401);
   }
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const { error: quarantineError } = await serviceClient.rpc('cleanup_expired_moderation_quarantine');
+  if (quarantineError) return json({ error: 'QUARANTINE_CLEANUP_FAILED' }, 500);
   const { data, error } = await serviceClient.rpc('mark_expired_media_uploads');
   if (error) return json({ error: error.message, code: 'ORPHAN_QUERY_FAILED' }, 500);
 
@@ -24,10 +26,11 @@ Deno.serve(async (req) => {
   if (paths.length > 0) {
     const { error: removeError } = await serviceClient.storage.from('media-vault').remove(paths);
     if (removeError) return json({ error: removeError.message, code: 'ORPHAN_DELETE_FAILED' }, 500);
-    await serviceClient
+    const { error: updateError } = await serviceClient
       .from('media_assets')
       .update({ status: 'deleted', deleted_at: new Date().toISOString() })
       .in('id', rows.map((row) => row.asset_id));
+    if (updateError) return json({ error: 'ORPHAN_ACK_FAILED' }, 500);
   }
   return json({ ok: true, deleted: paths.length });
 });

@@ -42,7 +42,7 @@ const STATE_TRANSITIONS: Record<UploadJobState, ReadonlySet<UploadJobState>> = {
   waiting_network: new Set(['queued', 'uploading', 'retry_scheduled', 'paused', 'cancelled', 'expired']),
   waiting_for_auth: new Set(['queued', 'requesting_target', 'paused', 'failed', 'cancelled', 'expired']),
   retry_scheduled: new Set(['queued', 'preparing', 'requesting_target', 'uploading', 'waiting_network', 'paused', 'failed', 'cancelled', 'expired']),
-  finalizing: new Set(['completed', 'partially_completed', 'retry_scheduled', 'waiting_network', 'waiting_for_auth', 'failed', 'cancelled', 'expired']),
+  finalizing: new Set(['completed', 'partially_completed', 'retry_scheduled', 'waiting_network', 'waiting_for_auth', 'failed', 'paused', 'cancelled', 'expired']),
   completed: new Set(),
   partially_completed: new Set(),
   failed: new Set(['queued', 'paused', 'cancelled', 'expired']),
@@ -61,6 +61,11 @@ export function isAllowedUploadTransition(from: UploadJobState, to: UploadJobSta
 
 export function initialDurableUploadState(physicalOnline: boolean, hasNetworkSession: boolean): UploadJobState {
   return physicalOnline && hasNetworkSession ? 'queued' : 'waiting_network';
+}
+
+export function needsNativeTransferRecovery(snapshot: { state: string; hasActiveTask?: boolean }) {
+  return snapshot.hasActiveTask === false
+    && ['queued', 'uploading', 'finalizing', 'retry_scheduled', 'waiting_network'].includes(snapshot.state);
 }
 
 export function parseFinalizeUploadStatus(
@@ -164,6 +169,9 @@ export function isPermanentUploadError(error: unknown) {
       : '';
   return [
     'INVALID_MEDIA',
+    'INVALID_SIZE',
+    'MEDIA_TOO_LARGE',
+    'OBJECT_SIZE_MISMATCH',
     'INVALID_RECEIVER',
     'NOT_FRIEND',
     'CANCELLED',

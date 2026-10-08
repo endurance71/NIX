@@ -28,7 +28,17 @@ jobs:
         run: npm run check:ios-config
       - name: Sentry hard-off policy
         run: npm run check:sentry-disabled
-      - name: React Doctor (full, zero warnings)
+      - name: Supabase migration manifest
+        run: npm run check:supabase-migrations
+      - name: Edge types and tests
+        run: npm run deno:check && npm run deno:test
+      - name: Moderation worker tests
+        run: npm run test:moderation-worker
+      - name: Dependency compatibility and reviewed audit
+        run: npm run test:dependency-compat && npm run audit:reviewed
+      - name: Release environment regressions
+        run: npm run test:release-env
+      - name: React Doctor (zero warnings)
         run: npm run doctor:react:ci
       - name: React Doctor (new issues)
         run: npm run doctor:react:changed

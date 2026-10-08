@@ -2,6 +2,42 @@ export default {
   ignore: {
     overrides: [
       {
+        // Standalone browser preview: document/clientWidth resize measurement is
+        // DOM code, with no React Native Dimensions import or Dimensions.get call.
+        files: ['docs/previews/notifications.html'],
+        rules: ['react-doctor/rn-no-dimensions-get'],
+      },
+      {
+        // The Storage trust probe requires POST -> PUT -> approval -> denied PUT
+        // in that order; parallel requests would invalidate the security test.
+        files: ['scripts/lib/media-storage-trust-check.mjs'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // AES cache eviction and corruption recovery serialize SQLite deletes/key
+        // ownership transitions. Parallel deletion would race account clear.
+        files: ['src/lib/encryptedPhotoCache.ts', 'src/lib/offlineCacheStore.ts', 'src/services/photoCacheService.ts'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Cache reads require an online owner check before decrypting; outbox captures
+        // the owner token after loading its SQLite queue, with generation checks.
+        files: ['src/services/photoCacheService.ts', 'src/services/textOutboxService.ts'],
+        rules: ['react-doctor/server-sequential-independent-await'],
+      },
+      {
+        // Cleanup awaits each server RPC before the next to bound storage pressure
+        // and to keep shared-reference deletion ordered, including partial failures.
+        files: ['src/services/nixService.ts', 'supabase/functions/_shared/export-cleanup.ts'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Canonical export cleanup completes before claiming new exports. Input
+        // validation completes before the worker creates a local destination path.
+        files: ['supabase/functions/process-data-exports/index.ts', 'workers/moderation/main.ts'],
+        rules: ['react-doctor/server-sequential-independent-await'],
+      },
+      {
         // Historical SQL is retained for auditability and never applied. Active
         // migrations deliberately remain covered by the security scanner.
         files: ['docs/supabase_setup.sql', 'supabase/migrations_legacy/**'],

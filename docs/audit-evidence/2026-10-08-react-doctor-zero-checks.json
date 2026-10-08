@@ -1,0 +1,145 @@
+{
+  "date": "2026-10-08",
+  "reactDoctorVersion": "0.9.17",
+  "nodeVersion": "24.18.0",
+  "result": {
+    "errorCount": 0,
+    "warningCount": 0,
+    "affectedFileCount": 0,
+    "totalDiagnosticCount": 0,
+    "score": null,
+    "scoreLabel": null
+  },
+  "sourceFilterConfigHash": "bccba9af786c396a5fb90c4b05d568dfa2361741e7b91c1c423877cbaa48bf12",
+  "scope": {
+    "mode": "full",
+    "complete": true,
+    "skippedChecks": [],
+    "beforeFiles": 534,
+    "afterFiles": 546,
+    "removedSourceFiles": []
+  },
+  "checks": {
+    "typecheck": {
+      "command": "npm run typecheck",
+      "status": "passed",
+      "logSha256": "5e4119f7c96852e0614744f99a8171ddbffd17695b17bf3300e711c9f3c69037"
+    },
+    "lint": {
+      "command": "npm run lint",
+      "status": "passed",
+      "logSha256": "8e559ab07803d104b9fa9521c8587a1a106f598ed02af4015164f66894f3994f"
+    },
+    "tests": {
+      "command": "npm test -- --run",
+      "status": "passed",
+      "logSha256": "6facc4b86a6bed1ef017d09291475956a1f65af18b8477d295cf9300e5ffcfe3"
+    },
+    "knip": {
+      "command": "npm run check-knip",
+      "status": "passed",
+      "logSha256": "f0a56af09c93fef1ffdd835eec8e6d26f88d7eeb2a660a079bbcf3667784b02d"
+    },
+    "reactDoctorFullGate": {
+      "command": "npm run doctor:react:ci",
+      "status": "passed",
+      "logSha256": "b8c4e2489cd103608cd83ccea90208842f2c3562fb594f373f30c0a5ef24a207"
+    },
+    "reactDoctorChangedGate": {
+      "command": "npm run doctor:react:changed",
+      "status": "passed",
+      "logSha256": "cb093ba3696d1de8cae455ee27f265c4c6866c5f86b5e109b3bea3e1e8300e9c"
+    },
+    "expoDoctor": {
+      "command": "npm run expo-doctor",
+      "status": "passed",
+      "logSha256": "1d51c77dd9cdcb6a31009fd61335c260987d64ddcba48b673b419a9eccc93c14"
+    },
+    "reviewedAudit": {
+      "command": "npm run audit:reviewed",
+      "status": "passed",
+      "logSha256": "30ca47ca30ebee54e6ae96d68475c81a1694855ebea21a10a9aabb49236f8e8b"
+    },
+    "hermes": {
+      "command": "npm run export:production",
+      "status": "passed",
+      "logSha256": "fee890a88a29c211d0ec35aad9d5eda0b5fac694f4539cd05e71d9d6f25b73d4"
+    },
+    "iosSimulatorBuild": {
+      "command": "xcodebuild -workspace ios/NiX.xcworkspace -scheme NiX -configuration Debug -destination generic/platform=iOS Simulator",
+      "status": "passed",
+      "logSha256": "7089ca4261fa6b2e524b522c29f58ea81346fbd4716510ebb95982462b3fd4ec"
+    },
+    "iosDeviceBuild": {
+      "command": "xcodebuild -workspace ios/NiX.xcworkspace -scheme NiX -configuration Debug -destination generic/platform=iOS",
+      "status": "passed",
+      "logSha256": "66d4d741fe3c14e7045389ab37660ade49d2293c3b59ad60f1e72f1902d00544"
+    },
+    "reactDoctorRawFull": {
+      "command": "./node_modules/.bin/react-doctor . --json --blocking warning --no-color --no-telemetry",
+      "status": "passed",
+      "report": "docs/quality/react-doctor-zero-2026-10-08.json"
+    },
+    "gitDiffCheck": {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  },
+  "nativeQA": {
+    "simulator": "iPhone 18 Pro, iOS 27.0",
+    "observed": [
+      "bootstrap and camera controls",
+      "profile and inbox light/dark",
+      "profile editor with keyboard light/dark",
+      "QR light",
+      "password form dark, save disabled with empty values",
+      "chat light/dark and keyboard",
+      "photo preview, local text sticker and formatting sheet",
+      "recipient sheet, zero selected and send disabled",
+      "invalid viewer route error"
+    ],
+    "physicalDevice": "iPhone (Damian), iPhone 16 Pro Max, iOS 27.0.1",
+    "physicalCameraResult": "User confirmed photo, video and previews work",
+    "remaining": [
+      "full swipe/drag gesture matrix: Device Hub coordinate input unavailable",
+      "live widget on-device rendering for all seven phases",
+      "real upload/retry/cancel flows and session-change races on native device",
+      "valid received photo/video viewer playback and all overlay states",
+      "complete native PL/EN and large-font matrix"
+    ],
+    "writes": "No messages/uploads/profile/password changes submitted during agent QA; temporary local photo draft discarded."
+  },
+  "knownLimitations": {
+    "dependencyFindings": 23,
+    "dependencyGate": "reviewed exceptions passed; findings remain visible",
+    "score": null,
+    "expoDoctorExistingException": "appConfigFieldsNotSyncedCheck disabled for bare workflow"
+  },
+  "sourceSha256": {
+    "docs/quality/react-doctor-complexity-baseline.json": "5c82128e9baa3b9a34b037df9d8fb5f75c7b33bbd809f022d66b579a5d22fda8",
+    "doctor.config.ts": "2b67616b37b9bd86c6dfaa2815498a749cbd8a143f70c09750aab0de98a2c6be",
+    "package-lock.json": "2a7b76152e347e53dde75c66e964e3dd9257eb52474226460bd7d9d98c684ce8",
+    "package.json": "06025306abc1b842990b295ab61d0c7550ec19a0618d9fe151d3e96d15a5874b",
+    "src/app/(tabs)/profile/change-password.tsx": "2ca8f8b5f7a20f78ffe53f5f960068279806f04bf3b693f0b0c2899381318a5f",
+    "src/app/_layout.tsx": "043cc2f0ff4a01b9b248a1c9eb04de71c1fe7bc367d6e19d24f2be15cf34ab1e",
+    "src/app/friend-my-code.tsx": "701a22fc441c3c1098573877a0b212292b8ccda67723cebf54a33ff6cd4da48f",
+    "src/app/preview.tsx": "aa5dbcefaeed78fc01367e4794a828034f6748e525739523b56a17586f458423",
+    "src/app/send-to.tsx": "ecbaae76adc5dbf3f58ff4f008eff64c83bac321c825a3bb93eb0b5afd0e1699",
+    "src/components/camera/CameraCaptureSurface.tsx": "7ce648e1d717cd02056108b7aa65e4117cd13d8620e1fd996fffe38865b32383",
+    "src/components/chat/ChatScreenSurface.tsx": "0f82458ececdd834a0fface4370907c1c6c2a000c14f9f8eaa67bba43d2b391f",
+    "src/components/friend/friend-invite-confirm-content.tsx": "54460f955c13d422f09422b0f39d08dd9ae1c750605a10df70df05bad622962f",
+    "src/components/friend/my-profile-qr-card.tsx": "abddefb6b4e417702242a17f742f51f2820c59df66b156743e9b586cf0d58a07",
+    "src/components/inbox/InboxScreenSurface.tsx": "67ed9aeb3e391a86fa777e121cfa6fcef6cbc0323b2b5921290f590f30f4be87",
+    "src/components/preview/PreviewTextControls.tsx": "bd6f1b60f90d219b996dd9d357cc932d4d6a4ec0e13c780a477a4e5dd473d3b5",
+    "src/components/preview/PreviewTextStickerContent.tsx": "7ba711f9ea73abdc80ccc61453be6aefd59076873e4b70cd14d9d6a6e32663fe",
+    "src/components/preview/usePreviewTextStickerController.ts": "4cd6e60a6f6fc4acb6b7148af87477e4b6bcf6da388415d4d3e6b42f3730188d",
+    "src/components/profile/EditProfileScreenSurface.tsx": "7d6a33ecc41b4db338befd6c3d7ae6967ec0fb40079740241fd910d48d025be4",
+    "src/components/ui/app-bottom-sheet.ios.tsx": "ff3b3ec08e46c065946b88f570ed7a832cb6ecffde9cd387a5aad6bb2e75e366",
+    "src/components/ui/native-settings.tsx": "f2bb00d1942313048487cd97dfe97871e857d16d18c5af924fb6297640115e3e",
+    "src/components/viewer/ViewerScreenSurface.tsx": "068d7addcec91b86484f34bdf80632da9603d07432bec044ad2afc12e6f89dd9",
+    "src/hooks/useChatScreen.ts": "24571606c5d5344562fa3e4001ecc5610a14e48a0705aa35067cb1d349e6c6e5",
+    "src/hooks/useInboxScreen.ts": "e11b1846c2143ac15d87994e0f37f1147b7999c0eac5788c992a61c8c241e8ca",
+    "src/hooks/useViewerScreen.ts": "aabbca2fd01cdd6a8afc0d5e59db8159a6fbd6d35c24143ad1dc3cc5f559cd00",
+    "src/widgets/UploadStatusActivity.tsx": "1173912e14bbbb33ad48da461b12eb0409189a2a2093e3fb58275d07e0b60c80"
+  }
+}

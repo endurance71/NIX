@@ -1,0 +1,281 @@
+{
+  "observedDate": "2026-10-07",
+  "parentDirectory": "/Volumes/External-drive-lexar/Dev/Projects",
+  "referenceMain": "884abe1953e0a20db62a31f2bcfef8365763b404",
+  "remoteFetched": false,
+  "scope": "NIX-prefixed direct child directories; local Git history and filesystem only",
+  "mutations": "analysis artifacts in main worktree only; no worktree removals or source edits",
+  "sizesNote": "sum of du -sk results; not a guarantee of physically reclaimable disk blocks",
+  "totals": {
+    "allKiB": 12702784,
+    "mainKiB": 2490944,
+    "additionalWorktreesKiB": 10211840
+  },
+  "folders": [
+    {
+      "name": "NIX",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX",
+      "head": "884abe1953e0a20db62a31f2bcfef8365763b404",
+      "branch": "main",
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 0,
+      "worktreeOnlyCommits": 0,
+      "isAncestorOfMain": true,
+      "nonIgnoredStatusAtStart": [
+        "?? docs/PROJECT_ANALYSIS_2026-10-07.pl.md",
+        "?? docs/audit-evidence/2026-10-07-client-races.cjs"
+      ],
+      "sizeKiB": 2490944,
+      "subdirectorySizesKiB": {
+        "node_modules": 1330884,
+        "ios/Pods": 212144,
+        "ios/build": 1140,
+        "build": 780432,
+        "dist": 24872,
+        ".expo": 65536,
+        ".git": 57576
+      },
+      "localIgnoredConfigPaths": [
+        ".env",
+        ".env.local",
+        "ios/.xcode.env.local"
+      ]
+    },
+    {
+      "name": "NIX-build5-release",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX-build5-release",
+      "head": "c2175ce8902161bceefd86668e98955e1487b12c",
+      "branch": null,
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 88,
+      "worktreeOnlyCommits": 0,
+      "isAncestorOfMain": true,
+      "nonIgnoredStatusAtStart": [],
+      "sizeKiB": 1538244,
+      "subdirectorySizesKiB": {
+        "node_modules": 1312004,
+        "ios/Pods": 212004,
+        "ios/build": 1140,
+        ".expo": 152
+      },
+      "localIgnoredConfigPaths": [
+        ".env",
+        ".env.production.local",
+        "ios/.xcode.env.local"
+      ]
+    },
+    {
+      "name": "NIX-c3b-audit-fixes",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX-c3b-audit-fixes",
+      "head": "300113c3e7adf1a0f73df6c2a5040eeef928f3c2",
+      "branch": null,
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 44,
+      "worktreeOnlyCommits": 0,
+      "isAncestorOfMain": true,
+      "nonIgnoredStatusAtStart": [],
+      "sizeKiB": 1415224,
+      "subdirectorySizesKiB": {
+        "node_modules": 1179480,
+        "ios/Pods": 212140,
+        "ios/build": 1140,
+        "dist": 8916,
+        ".expo": 168
+      },
+      "localIgnoredConfigPaths": [
+        "ios/.xcode.env.local"
+      ]
+    },
+    {
+      "name": "NIX-c3b-landed",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX-c3b-landed",
+      "head": "e69ed9983ebebe20ba2758fed72777ffd3fc208e",
+      "branch": "docs/c3b-landed",
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 66,
+      "worktreeOnlyCommits": 0,
+      "isAncestorOfMain": true,
+      "nonIgnoredStatusAtStart": [],
+      "sizeKiB": 13232,
+      "subdirectorySizesKiB": {},
+      "localIgnoredConfigPaths": []
+    },
+    {
+      "name": "NIX-c3b-main-verify",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX-c3b-main-verify",
+      "head": "c2a7b25f17bb5af5b2ccbd40db98f2d3e7bf6bc6",
+      "branch": "fix/s0-binding-no-cli-override",
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 25,
+      "worktreeOnlyCommits": 1,
+      "isAncestorOfMain": false,
+      "nonIgnoredStatusAtStart": [],
+      "sizeKiB": 1192944,
+      "subdirectorySizesKiB": {
+        "node_modules": 1179488
+      },
+      "localIgnoredConfigPaths": [],
+      "historyResolution": {
+        "type": "patch_equivalent",
+        "mainCommit": "6d8bcc9",
+        "detail": "git cherry marks the only unique commit as equivalent; changed files match main"
+      }
+    },
+    {
+      "name": "NIX-c6-landed",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX-c6-landed",
+      "head": "22a7e0f12bcc2706b3e97e6c6f1b271c6f39c152",
+      "branch": "docs/c6-landed",
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 60,
+      "worktreeOnlyCommits": 0,
+      "isAncestorOfMain": true,
+      "nonIgnoredStatusAtStart": [],
+      "sizeKiB": 13228,
+      "subdirectorySizesKiB": {},
+      "localIgnoredConfigPaths": []
+    },
+    {
+      "name": "NIX-c6-toolchain",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX-c6-toolchain",
+      "head": "ea3864756642cd9a6d6773320e659dacc06641a3",
+      "branch": "codex/c6-toolchain",
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 62,
+      "worktreeOnlyCommits": 0,
+      "isAncestorOfMain": true,
+      "nonIgnoredStatusAtStart": [],
+      "sizeKiB": 1193136,
+      "subdirectorySizesKiB": {
+        "node_modules": 1179756,
+        ".expo": 152
+      },
+      "localIgnoredConfigPaths": []
+    },
+    {
+      "name": "NIX-p0-3-c3b-integration",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX-p0-3-c3b-integration",
+      "head": "daa760641d8326863e2551b93e9f58e654f2a924",
+      "branch": null,
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 68,
+      "worktreeOnlyCommits": 0,
+      "isAncestorOfMain": true,
+      "nonIgnoredStatusAtStart": [],
+      "sizeKiB": 1209596,
+      "subdirectorySizesKiB": {
+        "node_modules": 1187276,
+        "dist": 8912,
+        ".expo": 168
+      },
+      "localIgnoredConfigPaths": []
+    },
+    {
+      "name": "NIX-p0-3-proof",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX-p0-3-proof",
+      "head": "428b7f7bb34854f310af8a14e3050e631964f752",
+      "branch": "codex/p0-3-hybrid",
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 78,
+      "worktreeOnlyCommits": 0,
+      "isAncestorOfMain": true,
+      "nonIgnoredStatusAtStart": [],
+      "sizeKiB": 13072,
+      "subdirectorySizesKiB": {},
+      "localIgnoredConfigPaths": []
+    },
+    {
+      "name": "NIX-p0-3-s0-c2",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX-p0-3-s0-c2",
+      "head": "c372ea23c9008b7f041029443dd1804103c25691",
+      "branch": "codex/p0-3-s0-c2",
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 74,
+      "worktreeOnlyCommits": 0,
+      "isAncestorOfMain": true,
+      "nonIgnoredStatusAtStart": [],
+      "sizeKiB": 13024,
+      "subdirectorySizesKiB": {},
+      "localIgnoredConfigPaths": []
+    },
+    {
+      "name": "NIX-p0-3-spike",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX-p0-3-spike",
+      "head": "b565be05cac99c2e5c5b619742f2aaeb5baaf9b5",
+      "branch": "codex/sprint-3-adr",
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 82,
+      "worktreeOnlyCommits": 2,
+      "isAncestorOfMain": false,
+      "nonIgnoredStatusAtStart": [],
+      "sizeKiB": 1201040,
+      "subdirectorySizesKiB": {
+        "node_modules": 1187840,
+        ".expo": 148
+      },
+      "localIgnoredConfigPaths": [],
+      "historyResolution": {
+        "type": "unique_historical_work",
+        "commits": [
+          "3f007fa",
+          "b565be0"
+        ],
+        "uniqueDocument": "docs/plans/2026-08-27-sprint-3-pre-delivery-content-moderation.md",
+        "detail": "older prototype superseded by main; the historical plan does not exist in current main"
+      }
+    },
+    {
+      "name": "NIX-p0-3-worker-runtime",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX-p0-3-worker-runtime",
+      "head": "4be21b42361618652d31cfa112f753ce0221d828",
+      "branch": "codex/p0-3-worker-runtime",
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 72,
+      "worktreeOnlyCommits": 0,
+      "isAncestorOfMain": true,
+      "nonIgnoredStatusAtStart": [],
+      "sizeKiB": 13084,
+      "subdirectorySizesKiB": {},
+      "localIgnoredConfigPaths": []
+    },
+    {
+      "name": "NIX-pr26-patch-verify",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX-pr26-patch-verify",
+      "head": "300113c3e7adf1a0f73df6c2a5040eeef928f3c2",
+      "branch": null,
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 44,
+      "worktreeOnlyCommits": 0,
+      "isAncestorOfMain": true,
+      "nonIgnoredStatusAtStart": [],
+      "sizeKiB": 1203160,
+      "subdirectorySizesKiB": {
+        "node_modules": 1180760,
+        "dist": 8916,
+        ".expo": 156
+      },
+      "localIgnoredConfigPaths": []
+    },
+    {
+      "name": "NIX-privacy-public-config",
+      "path": "/Volumes/External-drive-lexar/Dev/Projects/NIX-privacy-public-config",
+      "head": "2aa65e2ac4cadcf9e6424faac20b6ae8ccd0b156",
+      "branch": null,
+      "gitCommonDir": "/Volumes/External-drive-lexar/Dev/Projects/NIX/.git",
+      "mainOnlyCommits": 28,
+      "worktreeOnlyCommits": 2,
+      "isAncestorOfMain": false,
+      "nonIgnoredStatusAtStart": [],
+      "sizeKiB": 1192856,
+      "subdirectorySizesKiB": {
+        "node_modules": 1179416
+      },
+      "localIgnoredConfigPaths": [],
+      "historyResolution": {
+        "type": "incorporated_with_changed_history",
+        "mainCommit": "9f52de8",
+        "detail": "all 20 files changed by 37d62db and 2aa65e2 match this later main commit; 12 remain identical to current main"
+      }
+    }
+  ]
+}

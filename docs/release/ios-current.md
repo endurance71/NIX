@@ -4,18 +4,24 @@
 > Dated sprint plans and audit snapshots are historical evidence and must link
 > here instead of presenting their old binary state as current.
 
-## Current binary
+## Local stabilization candidate — 2026-10-08
+
+The current checkout prepares **1.0.12 (7)**, runtime **1.0.12**, on `codex/nix-stabilization`. It includes native uploader changes, private photo downloads and updated native dependencies, so it requires a new binary. This candidate has not been uploaded or submitted. Validation and rollout conditions: [implementation report](../IMPLEMENTATION_2026-10-08.pl.md).
+
+The production/ASC entries below are historical observations from **2026-09-12**, not live status checks on 2026-10-08. Current ASC state, installed OTA and moderation budget must be verified before a production rollout. No release action was taken during stabilization.
+
+## Last recorded distributed binary (2026-09-12)
 
 | Field | Value |
 | --- | --- |
 | App Store Connect app | NiX (`6791332379`) |
 | Version | `1.0.11` |
-| Latest build | `6` (Internal TestFlight; owner device PASS 2026-09-12) |
+| Last recorded build | `6` (Internal TestFlight; owner device PASS 2026-09-12) |
 | Source SHA | `063530f49418b6fc7e99ed857e8556306d03e867` |
 | Source branch at upload | `feat/ios-1.0.11-build-6` |
 | Previous Internal TF evidence | build `5` on `c2175ce8902161bceefd86668e98955e1487b12c` |
 | Distribution | Internal TestFlight + public App Review |
-| Public App Review | **WAITING FOR REVIEW** (submitted 2026-09-12) |
+| Last recorded Public App Review | **WAITING FOR REVIEW** (2026-09-12; current state unverified) |
 | Submission | `8db797c3-1620-4294-8af2-8d3e688ba4f3` — iOS App `1.0.11 (6)` |
 | Release type | Manual (`Manually release this version`) |
 

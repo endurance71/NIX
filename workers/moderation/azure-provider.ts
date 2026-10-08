@@ -1,9 +1,10 @@
 import type { ProviderAnalysis } from "../../supabase/functions/_shared/moderation-policy.ts";
 import { F0_MIN_REQUEST_GAP_MS } from "./constants.ts";
 import type { ModerationProvider } from "./provider.ts";
+import { MAX_IMAGE_BYTES } from "../../supabase/functions/_shared/media-limits.ts";
 
 export const AZURE_ANALYZE_API_VERSION = "2024-09-01";
-export const AZURE_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+export const AZURE_IMAGE_MAX_BYTES = MAX_IMAGE_BYTES;
 
 export type AzureFetch = (
   input: string | URL,

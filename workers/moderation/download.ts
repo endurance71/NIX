@@ -12,6 +12,19 @@ export type StreamSource = {
   contentLength?: number;
 };
 
+export class InputResolutionError extends Error {
+  constructor(message: string, readonly retryable: boolean) { super(message); }
+}
+
+export function terminalInputError(error: unknown): boolean {
+  if (error instanceof InputResolutionError) return !error.retryable;
+  return error instanceof Error && [
+    'input_size_limit', 'input_empty', 'OBJECT_SIZE_MISMATCH', 'media_path_invalid',
+    'media_type_invalid', 'media_asset_unavailable', 'content_kind_invalid',
+    'ffmpeg_remote_url_forbidden', 'invalid_asset_size',
+  ].includes(error.message);
+}
+
 /**
  * Stream a remote/storage body to a local file with a hard 100 MiB cap
  * enforced during download. Returns the local path for ffmpeg.
@@ -48,9 +61,11 @@ export async function streamDownloadToFile(
         if (written > maxBytes) {
           throw new Error("input_size_limit");
         }
-        await file.write(value);
+        let offset = 0;
+        while (offset < value.byteLength) offset += await file.write(value.subarray(offset));
       }
     } finally {
+      await reader.cancel().catch(() => {});
       reader.releaseLock();
     }
   } catch (error) {
@@ -179,7 +194,7 @@ export async function loadMediaAsset(
   fetchImpl: typeof fetch = fetch,
 ): Promise<MediaAssetMeta> {
   if (!isUuid(assetId)) {
-    throw new Error("media_asset_load_failed");
+    throw new InputResolutionError("media_asset_load_failed", false);
   }
   const base = supabaseUrl.replace(/\/+$/, "");
   const url =
@@ -196,7 +211,7 @@ export async function loadMediaAsset(
     status?: unknown;
   } | null;
   if (!response.ok || typeof json?.storage_path !== "string") {
-    throw new Error("media_asset_load_failed");
+    throw new InputResolutionError("media_asset_load_failed", response.status === 429 || response.status >= 500);
   }
   if (json.status === "deleted" || json.status === "deleting") {
     throw new Error("media_asset_unavailable");
@@ -205,9 +220,10 @@ export async function loadMediaAsset(
     throw new Error("media_type_invalid");
   }
   let sizeBytes: number | null = null;
-  if (typeof json.size_bytes === "number" && Number.isFinite(json.size_bytes)) {
+  if (typeof json.size_bytes === "number" && Number.isSafeInteger(json.size_bytes)) {
     sizeBytes = json.size_bytes;
   }
+  if (sizeBytes === null) throw new Error('invalid_asset_size');
   if (sizeBytes !== null && sizeBytes <= 0) {
     throw new Error("input_empty");
   }
@@ -234,13 +250,15 @@ export async function downloadMediaVaultObject(
     fetchImpl?: typeof fetch;
     signal?: AbortSignal;
     knownSize?: number | null;
+    maxBytes?: number;
   } = {},
 ): Promise<{ bytesWritten: number; path: string }> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const signal = options.signal ?? AbortSignal.timeout(60_000);
+  const maxBytes = options.maxBytes ?? MAX_INPUT_BYTES;
   if (
     typeof options.knownSize === "number" &&
-    options.knownSize > MAX_INPUT_BYTES
+    options.knownSize > maxBytes
   ) {
     throw new Error("input_size_limit");
   }
@@ -250,7 +268,7 @@ export async function downloadMediaVaultObject(
     signal,
   });
   if (!response.ok || !response.body) {
-    throw new Error("media_download_failed");
+    throw new InputResolutionError("media_download_failed", response.status === 429 || response.status >= 500);
   }
   const headerLen = response.headers.get("content-length");
   const parsedHeader = headerLen ? Number(headerLen) : NaN;
@@ -266,7 +284,12 @@ export async function downloadMediaVaultObject(
     },
     destPath,
     signal,
+    maxBytes,
   );
+  if (typeof options.knownSize === 'number' && downloaded.bytesWritten !== options.knownSize) {
+    await Deno.remove(downloaded.path).catch(() => {});
+    throw new Error('OBJECT_SIZE_MISMATCH');
+  }
   assertLocalMediaPath(downloaded.path);
   return downloaded;
 }

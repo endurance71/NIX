@@ -149,33 +149,33 @@ function UploadAccessory({ row, t }: { row: InboxRowModel; t: Translate }) {
   const upload = row.upload;
   if (!upload) return null;
   const percent = `${Math.round(upload.progress * 100)}%`;
-  const icon = upload.phase === 'failed'
-    ? 'exclamationmark.triangle.fill'
-    : upload.phase === 'waiting_network'
-      ? 'wifi.slash'
-      : upload.phase === 'retry_scheduled'
-        ? 'arrow.clockwise'
-        : upload.phase === 'paused'
-          ? 'pause.circle.fill'
-          : upload.phase === 'completed'
-            ? 'checkmark.circle.fill'
-            : null;
-  const color = upload.phase === 'failed'
-    || upload.phase === 'retry_scheduled'
-    ? colors.destructive
-    : upload.phase === 'completed'
-      ? colors.success
-      : colors.systemBlue;
+  const icons = {
+    failed: 'exclamationmark.triangle.fill',
+    waiting_network: 'wifi.slash',
+    retry_scheduled: 'arrow.clockwise',
+    paused: 'pause.circle.fill',
+    completed: 'checkmark.circle.fill',
+    preparing: null,
+    uploading: null,
+  } as const;
+  const icon = icons[upload.phase];
+  const phaseColors = {
+    failed: colors.destructive,
+    retry_scheduled: colors.destructive,
+    completed: colors.success,
+    preparing: colors.systemBlue,
+    uploading: colors.systemBlue,
+    waiting_network: colors.systemBlue,
+    paused: colors.systemBlue,
+  };
+  const color = phaseColors[upload.phase];
   const showPercent = icon === null;
 
   return (
     <HStack
       alignment="center"
       spacing={6}
-      modifiers={[
-        layoutPriority(2),
-        accessibilityLabel(`${rowSubtitle(row, t)}, ${percent}`),
-      ]}>
+      modifiers={[layoutPriority(2), accessibilityLabel(`${rowSubtitle(row, t)}, ${percent}`)]}>
       {icon ? (
         <Image systemName={icon} size={18} color={color} modifiers={[accessibilityHidden()]} />
       ) : (
@@ -200,6 +200,69 @@ function UploadAccessory({ row, t }: { row: InboxRowModel; t: Translate }) {
           {percent}
         </Text>
       ) : null}
+      <Image
+        systemName={resolveAppIconName('chevronRight')}
+        size={APP_ICON_SIZE.xs}
+        color={colors.tertiaryLabel}
+        modifiers={[accessibilityHidden()]}
+      />
+    </HStack>
+  );
+}
+
+function MessageSubtitle({ row, label }: { row: InboxRowModel; label: string }) {
+  const { colors } = useAppTheme();
+  return (
+    <Text
+      modifiers={[
+        font({ textStyle: 'subheadline' }),
+        foregroundStyle(
+          row.upload?.phase === 'failed' ||
+            row.upload?.phase === 'retry_scheduled' ||
+            row.status === 'cleanupFailed'
+            ? colors.destructive
+            : row.upload?.phase === 'completed'
+              ? colors.success
+              : row.upload?.phase === 'uploading' || row.upload?.phase === 'preparing'
+                ? colors.systemBlue
+                : { type: 'hierarchical', style: 'secondary' },
+        ),
+        lineLimit(row.upload?.phase === 'retry_scheduled' ? 2 : 1),
+      ]}>
+      {label}
+    </Text>
+  );
+}
+
+function MessageAccessory({ row, busy, t }: { row: InboxRowModel; busy: boolean; t: Translate }) {
+  const { colors } = useAppTheme();
+  return busy ? (
+    <ProgressView modifiers={[accessibilityLabel(t('common.loading'))]} />
+  ) : row.upload ? (
+    <UploadAccessory row={row} t={t} />
+  ) : (
+    <HStack alignment="center" spacing={8} modifiers={[layoutPriority(2)]}>
+      <VStack alignment="trailing" spacing={4}>
+        <Text
+          modifiers={[
+            font({ textStyle: 'subheadline' }),
+            foregroundStyle(
+              row.unread ? colors.systemBlue : { type: 'hierarchical', style: 'secondary' },
+            ),
+            lineLimit(1),
+          ]}>
+          {row.timestampLabel}
+        </Text>
+        {row.unread && (
+          <Circle
+            modifiers={[
+              frame({ width: 10, height: 10 }),
+              foregroundStyle(colors.systemBlue),
+              accessibilityHidden(),
+            ]}
+          />
+        )}
+      </VStack>
       <Image
         systemName={resolveAppIconName('chevronRight')}
         size={APP_ICON_SIZE.xs}
@@ -242,15 +305,16 @@ function MessageRowContent({
   }
 
   if (canOpen) {
-    baseModifiers.push(accessibilityHint(row.kind === 'nix' && row.unread ? t('inbox.openHint') : t('inbox.openChatHint')));
+    baseModifiers.push(
+      accessibilityHint(
+        row.kind === 'nix' && row.unread ? t('inbox.openHint') : t('inbox.openChatHint'),
+      ),
+    );
     baseModifiers.push(onTapGesture(onOpen));
   }
 
   return (
-    <HStack
-      alignment="center"
-      spacing={12}
-      modifiers={baseModifiers}>
+    <HStack alignment="center" spacing={12} modifiers={baseModifiers}>
       <HStack alignment="center" spacing={8}>
         {avatarView({
           size: MESSAGE_AVATAR_SIZE,
@@ -264,10 +328,7 @@ function MessageRowContent({
       <VStack
         alignment="leading"
         spacing={3}
-        modifiers={[
-          frame({ maxWidth: Infinity, alignment: 'leading' }),
-          layoutPriority(1),
-        ]}>
+        modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' }), layoutPriority(1)]}>
         <Text
           modifiers={[
             font({ textStyle: 'body', weight: row.unread ? 'semibold' : 'regular' }),
@@ -276,61 +337,58 @@ function MessageRowContent({
           ]}>
           {row.display_name || `@${row.username}`}
         </Text>
-        <Text
-          modifiers={[
-            font({ textStyle: 'subheadline' }),
-            foregroundStyle(
-              row.upload?.phase === 'failed'
-                || row.upload?.phase === 'retry_scheduled'
-                || row.status === 'cleanupFailed'
-                ? colors.destructive
-                : row.upload?.phase === 'completed'
-                  ? colors.success
-                  : row.upload?.phase === 'uploading' || row.upload?.phase === 'preparing'
-                    ? colors.systemBlue
-                : { type: 'hierarchical', style: 'secondary' }
-            ),
-            lineLimit(row.upload?.phase === 'retry_scheduled' ? 2 : 1),
-          ]}>
-          {label}
-        </Text>
+        <MessageSubtitle row={row} label={label} />
       </VStack>
 
-      {busy ? (
-        <ProgressView modifiers={[accessibilityLabel(t('common.loading'))]} />
-      ) : row.upload ? (
-        <UploadAccessory row={row} t={t} />
-      ) : (
-        <HStack alignment="center" spacing={8} modifiers={[layoutPriority(2)]}>
-          <VStack alignment="trailing" spacing={4}>
-            <Text
-              modifiers={[
-                font({ textStyle: 'subheadline' }),
-                foregroundStyle(row.unread ? colors.systemBlue : { type: 'hierarchical', style: 'secondary' }),
-                lineLimit(1),
-              ]}>
-              {row.timestampLabel}
-            </Text>
-            {row.unread && (
-              <Circle
-                modifiers={[
-                  frame({ width: 10, height: 10 }),
-                  foregroundStyle(colors.systemBlue),
-                  accessibilityHidden(),
-                ]}
-              />
-            )}
-          </VStack>
-          <Image
-            systemName={resolveAppIconName('chevronRight')}
-            size={APP_ICON_SIZE.xs}
-            color={colors.tertiaryLabel}
-            modifiers={[accessibilityHidden()]}
-          />
-        </HStack>
-      )}
+      <MessageAccessory row={row} busy={busy} t={t} />
     </HStack>
   );
+}
+
+function selectPrimaryUploadAction(upload: InboxRowModel['upload']): UploadRowAction | null {
+  if (upload?.actions.resumeJobIds.length) return 'resume';
+  if (upload?.actions.retryJobIds.length) return 'retry';
+  if (upload?.actions.pauseJobIds.length) return 'pause';
+  return null;
+}
+
+function MessageUploadActions({
+  row,
+  onUploadAction,
+  t,
+}: {
+  row: InboxRowModel;
+  onUploadAction: (action: UploadRowAction) => void;
+  t: Translate;
+}) {
+  const { colors } = useAppTheme();
+  const upload = row.upload;
+  const primaryUploadAction = selectPrimaryUploadAction(upload);
+  const primaryUploadLabel =
+    primaryUploadAction === 'resume'
+      ? t('inbox.uploadResume')
+      : primaryUploadAction === 'retry'
+        ? t('inbox.uploadRetry')
+        : t('inbox.uploadPause');
+
+  return upload && (primaryUploadAction || upload.actions.cancelJobIds.length > 0) ? (
+    <SwipeActions.Actions edge="leading" allowsFullSwipe={false}>
+      {primaryUploadAction ? (
+        <Button
+          label={primaryUploadLabel}
+          onPress={() => onUploadAction(primaryUploadAction)}
+          modifiers={[tint(primaryUploadAction === 'retry' ? colors.warning : colors.systemBlue)]}
+        />
+      ) : null}
+      {upload.actions.cancelJobIds.length > 0 ? (
+        <Button
+          label={t('inbox.uploadCancel')}
+          onPress={() => onUploadAction('cancel')}
+          modifiers={[tint(colors.destructive)]}
+        />
+      ) : null}
+    </SwipeActions.Actions>
+  ) : null;
 }
 
 function MessageRow({
@@ -358,47 +416,22 @@ function MessageRow({
 }) {
   const { colors } = useAppTheme();
   const content = (
-    <MessageRowContent row={row} avatarUrl={avatarUrl} busy={busy} isFirst={isFirst} onOpen={onOpen} t={t} />
+    <MessageRowContent
+      row={row}
+      avatarUrl={avatarUrl}
+      busy={busy}
+      isFirst={isFirst}
+      onOpen={onOpen}
+      t={t}
+    />
   );
 
   if (busy) return content;
-  const upload = row.upload;
-  const primaryUploadAction: UploadRowAction | null = upload?.actions.resumeJobIds.length
-    ? 'resume'
-    : upload?.actions.retryJobIds.length
-      ? 'retry'
-      : upload?.actions.pauseJobIds.length
-        ? 'pause'
-        : null;
-  const primaryUploadLabel = primaryUploadAction === 'resume'
-    ? t('inbox.uploadResume')
-    : primaryUploadAction === 'retry'
-      ? t('inbox.uploadRetry')
-      : t('inbox.uploadPause');
 
   return (
     <SwipeActions>
       {content}
-      {upload && (primaryUploadAction || upload.actions.cancelJobIds.length > 0) ? (
-        <SwipeActions.Actions edge="leading" allowsFullSwipe={false}>
-          {primaryUploadAction ? (
-            <Button
-              label={primaryUploadLabel}
-              onPress={() => onUploadAction(primaryUploadAction)}
-              modifiers={[
-                tint(primaryUploadAction === 'retry' ? colors.warning : colors.systemBlue),
-              ]}
-            />
-          ) : null}
-          {upload.actions.cancelJobIds.length > 0 ? (
-            <Button
-              label={t('inbox.uploadCancel')}
-              onPress={() => onUploadAction('cancel')}
-              modifiers={[tint(colors.destructive)]}
-            />
-          ) : null}
-        </SwipeActions.Actions>
-      ) : null}
+      <MessageUploadActions row={row} onUploadAction={onUploadAction} t={t} />
       {networkActionsEnabled ? (
         <SwipeActions.Actions edge="trailing" allowsFullSwipe={false}>
           {/* Bez role=destructive: SwiftUI List od razu animuje wiersz poza listę przed Alertem. */}

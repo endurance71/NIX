@@ -21,17 +21,18 @@ export function TextOutboxSync({ userId }: { userId: string }) {
       ]);
     };
 
-    void flush();
+    const safelyFlush = () => { void flush().catch(() => { /* Next active session retries its own queue. */ }); };
+    safelyFlush();
     // Keep delayed exponential-backoff jobs moving while the app remains
     // foregrounded and online; network callbacks alone would not wake them.
     const timer = setInterval(() => {
-      void flush();
+      safelyFlush();
     }, 30_000);
     const unsubscribeNetwork = NetInfo.addEventListener((state) => {
-      if (state.isConnected) void flush();
+      if (state.isConnected) safelyFlush();
     });
     const unsubscribeForeground = subscribeToAppForeground(() => {
-      void flush();
+      safelyFlush();
     });
     return () => {
       clearInterval(timer);

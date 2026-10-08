@@ -1,4 +1,6 @@
 # NiX — Deploy iOS (cost-first)
+> Aktualizacja 2026-10-08: przykłady OTA poniżej odnoszą się do ostatnio udokumentowanego binary **1.0.11 (6)**. Lokalny kandydat stabilizacji to **1.0.12 (7)** / runtime **1.0.12** i wymaga nowego binary ze względu na zmiany natywne. Nie wysyłaj jego JS do runtime 1.0.11. Przed wdrożeniem sprawdź bieżący stan ASC i [kanon wydania](release/ios-current.md); dalsze wpisy historyczne zachowują datę własnej weryfikacji.
+
 
 > **Źródło prawdy** dla wydawania NiX na iOS (ludzie i agenci AI).  
 > Nazwa pliku historyczna — treść obejmuje **oba** tryby: OTA JS oraz lokalny binary TestFlight.
@@ -70,7 +72,7 @@ Aktualne limity weryfikuj na [expo.dev/pricing](https://expo.dev/pricing).
 
 Dla hotfixów JS/assets na binarki już zainstalowane przez TestFlight, które mają:
 
-- ten sam `runtimeVersion` (obecnie **`1.0.10`**),
+- ten sam `runtimeVersion` (obecnie **`1.0.11`**),
 - kanał **`production`** (`expo-channel-name`),
 - `EXUpdatesURL` → `https://u.expo.dev/<projectId>`.
 
@@ -104,7 +106,7 @@ eas update --channel production --message "krótki opis zmiany"
 
 ### 4.3 Weryfikacja na urządzeniu
 
-1. Aplikacja TestFlight z binary o `runtimeVersion` `1.0.10` i kanale `production`.
+1. Aplikacja TestFlight z binary o `runtimeVersion` `1.0.11` i kanale `production`.
 2. Force quit → otwórz (pobranie update w tle) → force quit → otwórz ponownie (zastosowanie).
 3. Potwierdź, że zmiana JS jest widoczna.
 4. W razie braku update: sprawdź kanał, `runtimeVersion`, sieć, dashboard EAS Update dla projektu.
@@ -113,7 +115,7 @@ eas update --channel production --message "krótki opis zmiany"
 
 ```text
 [ ] Zmiana jest JS/assets only (brak native / plugins / runtimeVersion)
-[ ] runtimeVersion w app.json i Expo.plist = ten sam co na TF (obecnie 1.0.10)
+[ ] runtimeVersion w app.json i Expo.plist = ten sam co na TF (obecnie 1.0.11)
 [ ] Binary na TF ma expo-channel-name=production (po Archive z tą konfiguracją)
 [ ] npm run typecheck && npm run lint && npm test
 [ ] eas update --channel production --message "…"
@@ -126,8 +128,8 @@ eas update --channel production --message "krótki opis zmiany"
 
 | Plik | Klucz | Wartość (obecnie) |
 | --- | --- | --- |
-| `app.json` | `expo.runtimeVersion` | `1.0.10` |
-| `ios/NiX/Supporting/Expo.plist` | `EXUpdatesRuntimeVersion` | `1.0.10` |
+| `app.json` | `expo.runtimeVersion` | `1.0.11` |
+| `ios/NiX/Supporting/Expo.plist` | `EXUpdatesRuntimeVersion` | `1.0.11` |
 
 **Bumpuj** `runtimeVersion` (i zsynchronizuj oba pliki), gdy:
 
@@ -194,7 +196,7 @@ Projekt jest w **bare workflow**: katalog `ios/` jest w Git. Zmiany w `app.json`
 | Xcode | **26 lub nowszy** (od 28.04.2026 App Store Connect wymaga buildów z Xcode 26 / iOS 26 SDK) — sprawdź: `xcodebuild -version` |
 | Apple Developer Program | Aktywne członkostwo + dostęp do właściwego zespołu |
 | App Store Connect | Dostęp do aplikacji NiX |
-| Node.js | **20+** (zalecane w README) |
+| Node.js | **24.18.0** (`.nvmrc`; npm 11.16.0) |
 | Package manager | **npm** (`package-lock.json`) — nie mieszaj z yarn/pnpm/bun |
 | CocoaPods | Instalowane przez `npx pod-install ios` |
 | Natywny projekt | `ios/NiX.xcworkspace`, schemat **NiX** |
@@ -348,8 +350,8 @@ W repozytorium może być `development` (lokalne buildy). Przy uploadzie do App 
 
 | Pojęcie | Przykład | Gdzie w NiX |
 | --- | --- | --- |
-| Wersja marketingowa | `1.0.10` | **Źródło prawdy:** `app.json` → `expo.version`. Musi równać się: `package.json` `version`, `ios/NiX/Info.plist` `CFBundleShortVersionString`, `MARKETING_VERSION` w `project.pbxproj` |
-| `runtimeVersion` (OTA) | `1.0.10` | `app.json` + `Expo.plist` — bump tylko przy native (sekcja 5) |
+| Wersja marketingowa | `1.0.12` (lokalny kandydat) | **Źródło prawdy:** `app.json` → `expo.version`. Musi równać się: `package.json` `version`, `ios/NiX/Info.plist` `CFBundleShortVersionString`, `MARKETING_VERSION` w `project.pbxproj` |
+| `runtimeVersion` (OTA) | `1.0.12` (lokalny kandydat) | `app.json` + `Expo.plist` — bump tylko przy native (sekcja 5). Wymaga nowego binary; wcześniejszy runtime 1.0.11 nie otrzymuje tych zmian. |
 | Numer buildu | `1`, `2`, `3`… | Ustaw **jednocześnie**: `app.json` → `expo.ios.buildNumber`, oba `Info.plist` → `CFBundleVersion` oraz `project.pbxproj` → `CURRENT_PROJECT_VERSION`. **Nie** używaj EAS `autoIncrement` w lokalnej ścieżce Archive |
 
 Każdy upload do App Store Connect wymaga numeru buildu **wyższego** niż poprzedni build dla danej wersji marketingowej (reguła Apple).

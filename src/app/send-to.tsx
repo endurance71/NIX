@@ -1,3 +1,4 @@
+import { paramFirst, decodeParamUri } from '../lib/previewRoute';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -31,20 +32,6 @@ import { normalizeMediaDrawingOverlay } from '../types/mediaDrawingOverlay';
 import { useAuth } from '../hooks/useAuth';
 import { OfflineStatusBanner } from '../components/auth/OfflineStatusBanner';
 import { mediaEditingViewport } from '../lib/mediaPresentation';
-
-function paramFirst(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
-}
-
-function decodeParamUri(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
 
 function throwRejectedResult(result: PromiseRejectedResult | undefined) {
   if (result) throw result.reason;
@@ -99,6 +86,77 @@ function FriendRecipientRow({
   );
 }
 
+function RecipientList({
+  showInitialLoader,
+  canUseNetworkSession,
+  isError,
+  isFetching,
+  refetch,
+  profiles,
+  avatarUrls,
+  selectedIds,
+  renderItem,
+  stylesForTheme,
+  isOfflineRecipientSnapshotMissing,
+}: {
+  showInitialLoader: boolean;
+  canUseNetworkSession: boolean;
+  isError: boolean;
+  isFetching: boolean;
+  refetch: () => unknown;
+  profiles: FriendProfile[];
+  avatarUrls: Record<string, string>;
+  selectedIds: Set<string>;
+  renderItem: (info: { item: FriendProfile }) => React.ReactElement;
+  stylesForTheme: ReturnType<typeof createStyles>;
+  isOfflineRecipientSnapshotMissing: boolean;
+}) {
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
+  return showInitialLoader ? (
+    <ActivityIndicator color={colors.label} style={styles.loading} />
+  ) : canUseNetworkSession && isError ? (
+    <View style={stylesForTheme.emptyState}>
+      <Text style={stylesForTheme.emptyStateText}>{t('sendTo.loadFailure')}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('common.retry')}
+        onPress={() => void refetch()}
+        style={styles.retryButton}
+        disabled={isFetching}>
+        {isFetching ? (
+          <ActivityIndicator color={colors.label} />
+        ) : (
+          <Text style={[styles.retryButtonText, { color: colors.systemBlue }]}>
+            {t('common.retry')}
+          </Text>
+        )}
+      </Pressable>
+    </View>
+  ) : (
+    <View style={stylesForTheme.listWrap}>
+      <FlashList
+        data={profiles}
+        extraData={{ avatarUrls, selectedIds }}
+        // @ts-expect-error - estimatedItemSize type issue
+        estimatedItemSize={64}
+        getItemType={() => 'friend-recipient'}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={stylesForTheme.listContent}
+        ListEmptyComponent={
+          <View style={stylesForTheme.emptyState}>
+            <Text style={stylesForTheme.emptyStateText}>
+              {t(isOfflineRecipientSnapshotMissing ? 'sendTo.offlineCacheMissing' : 'sendTo.empty')}
+            </Text>
+          </View>
+        }
+      />
+    </View>
+  );
+}
+
 export default function SendToSheet() {
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const { t } = useTranslation();
@@ -106,7 +164,12 @@ export default function SendToSheet() {
   const { topContentInset, bottomContentInset } = useScreenInsets('sheet');
   const { colors } = useAppTheme();
   const stylesForTheme = createStyles(colors, topContentInset, bottomContentInset);
-  const rawParams = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string; recipientId?: string }>();
+  const rawParams = useLocalSearchParams<{
+    uri?: string;
+    viewDurationSec?: string;
+    mode?: string;
+    recipientId?: string;
+  }>();
   const { draft: draftPhoto, clearDraft: clearPhotoDraft } = usePhotoDraft();
   const photoUri = draftPhoto?.uri ?? decodeParamUri(paramFirst(rawParams.uri));
   const mode = paramFirst(rawParams.mode);
@@ -135,8 +198,7 @@ export default function SendToSheet() {
   });
 
   const profiles = profilesData ?? [];
-  const isOfflineRecipientSnapshotMissing = isOfflineAuthenticated
-    && profilesData === undefined;
+  const isOfflineRecipientSnapshotMissing = isOfflineAuthenticated && profilesData === undefined;
 
   // Only refetch when stale — formSheet can re-fire focus during presentation;
   // invalidateQueries would cancel in-flight fetches and leave isPending spinning.
@@ -148,7 +210,7 @@ export default function SendToSheet() {
         type: 'active',
         stale: true,
       });
-    }, [canUseNetworkSession, queryClient])
+    }, [canUseNetworkSession, queryClient]),
   );
 
   const showInitialLoader = canUseNetworkSession && isLoading && profiles.length === 0;
@@ -200,93 +262,98 @@ export default function SendToSheet() {
       sequenceIndex: 0,
     }));
     const enqueuedJobIds: string[] = [];
-    await runWithFinally(async () => {
-      try {
-        const textOverlay = isVideo
-          ? normalizeMediaTextOverlay(videoTextOverlay)
-          : normalizeMediaTextOverlay(draftPhoto?.textOverlay);
-        const drawingOverlay = isVideo
-          ? normalizeMediaDrawingOverlay(videoDrawingOverlay)
-          : normalizeMediaDrawingOverlay(draftPhoto?.drawingOverlay);
+    await runWithFinally(
+      async () => {
+        try {
+          const textOverlay = isVideo
+            ? normalizeMediaTextOverlay(videoTextOverlay)
+            : normalizeMediaTextOverlay(draftPhoto?.textOverlay);
+          const drawingOverlay = isVideo
+            ? normalizeMediaDrawingOverlay(videoDrawingOverlay)
+            : normalizeMediaDrawingOverlay(draftPhoto?.drawingOverlay);
 
-        if (isVideo) {
-          const bakedSegments = await Promise.all(
-            segments!.map(async (segment) => {
-              const mediaViewport = mediaEditingViewport({
-                media: segment,
-                viewportWidth,
-                viewportHeight,
-                captureOrientation: segment.captureOrientation,
-              });
-              const baked = await bakeMediaOverlays({
-                uri: segment.uri,
-                mediaType: 'video',
-                textOverlay,
-                drawingOverlay,
-                viewportWidth: mediaViewport.width,
-                viewportHeight: mediaViewport.height,
-              });
-              return { ...segment, uri: baked.uri };
-            })
-          );
-          const segmentInputs = bakedSegments.map((segment, sequenceIndex) => ({
-            fileUri: segment.uri,
-            mediaType: 'video' as const,
-            recipients: recipients.map((recipient) => ({ ...recipient, sequenceIndex })),
-            playbackDurationMs: segment.durationMs,
-          }));
-          const results = await Promise.allSettled(
-            segmentInputs.map((input) => enqueueMediaBatch(input))
-          );
-          for (const result of results) {
-            if (result.status === 'fulfilled') enqueuedJobIds.push(result.value.jobId);
+          if (isVideo) {
+            const bakedSegments = await Promise.all(
+              segments!.map(async (segment) => {
+                const mediaViewport = mediaEditingViewport({
+                  media: segment,
+                  viewportWidth,
+                  viewportHeight,
+                  captureOrientation: segment.captureOrientation,
+                });
+                const baked = await bakeMediaOverlays({
+                  uri: segment.uri,
+                  mediaType: 'video',
+                  textOverlay,
+                  drawingOverlay,
+                  viewportWidth: mediaViewport.width,
+                  viewportHeight: mediaViewport.height,
+                });
+                return { ...segment, uri: baked.uri };
+              }),
+            );
+            const segmentInputs = bakedSegments.map((segment, sequenceIndex) => ({
+              fileUri: segment.uri,
+              mediaType: 'video' as const,
+              recipients: recipients.map((recipient) => ({ ...recipient, sequenceIndex })),
+              playbackDurationMs: segment.durationMs,
+            }));
+            const results = await Promise.allSettled(
+              segmentInputs.map((input) => enqueueMediaBatch(input)),
+            );
+            for (const result of results) {
+              if (result.status === 'fulfilled') enqueuedJobIds.push(result.value.jobId);
+            }
+            const failedResult = results.find(
+              (result): result is PromiseRejectedResult => result.status === 'rejected',
+            );
+            throwRejectedResult(failedResult);
+          } else {
+            const mediaViewport = mediaEditingViewport({
+              media: draftPhoto ?? {},
+              viewportWidth,
+              viewportHeight,
+              captureOrientation: draftPhoto?.captureOrientation,
+            });
+            const baked = await bakeMediaOverlays({
+              uri: photoUri!,
+              mediaType: 'image',
+              textOverlay,
+              drawingOverlay,
+              viewportWidth: mediaViewport.width,
+              viewportHeight: mediaViewport.height,
+            });
+            const result = await enqueueMediaBatch({
+              fileUri: baked.uri,
+              mediaType: 'image',
+              recipients,
+              // After bake dimensions may change slightly; omit to force safe re-encode path when baked.
+              sourceWidth: baked.didBake ? undefined : draftPhoto?.width,
+              sourceHeight: baked.didBake ? undefined : draftPhoto?.height,
+            });
+            enqueuedJobIds.push(result.jobId);
           }
-          const failedResult = results.find(
-            (result): result is PromiseRejectedResult => result.status === 'rejected'
-          );
-          throwRejectedResult(failedResult);
-        } else {
-          const mediaViewport = mediaEditingViewport({
-            media: draftPhoto ?? {},
-            viewportWidth,
-            viewportHeight,
-            captureOrientation: draftPhoto?.captureOrientation,
-          });
-          const baked = await bakeMediaOverlays({
-            uri: photoUri!,
-            mediaType: 'image',
-            textOverlay,
-            drawingOverlay,
-            viewportWidth: mediaViewport.width,
-            viewportHeight: mediaViewport.height,
-          });
-          const result = await enqueueMediaBatch({
-            fileUri: baked.uri,
-            mediaType: 'image',
-            recipients,
-            // After bake dimensions may change slightly; omit to force safe re-encode path when baked.
-            sourceWidth: baked.didBake ? undefined : draftPhoto?.width,
-            sourceHeight: baked.didBake ? undefined : draftPhoto?.height,
-          });
-          enqueuedJobIds.push(result.jobId);
-        }
 
-        if (isVideo) clearSegments();
-        else clearPhotoDraft();
-        notifySuccess(t('inbox.sent'));
-        router.dismissAll();
-        router.replace('/(tabs)/inbox');
-        setTimeout(() => void offerAfterSuccessfulSend(), 400);
-      } catch (err) {
-        await Promise.all(enqueuedJobIds.map((jobId) => cancelUpload(jobId).catch(() => undefined)));
-        notifyError(t('sendTo.enqueueFailureTitle'), {
-          message: toDomainError(err, t('sendTo.enqueueFailureBody')).message,
-        });
-      }
-    }, () => {
-      setIsSending(false);
-      sendLockRef.current = false;
-    });
+          if (isVideo) clearSegments();
+          else clearPhotoDraft();
+          notifySuccess(t('inbox.sent'));
+          router.dismissAll();
+          router.replace('/(tabs)/inbox');
+          setTimeout(() => void offerAfterSuccessfulSend(), 400);
+        } catch (err) {
+          await Promise.all(
+            enqueuedJobIds.map((jobId) => cancelUpload(jobId).catch(() => undefined)),
+          );
+          notifyError(t('sendTo.enqueueFailureTitle'), {
+            message: toDomainError(err, t('sendTo.enqueueFailureBody')).message,
+          });
+        }
+      },
+      () => {
+        setIsSending(false);
+        sendLockRef.current = false;
+      },
+    );
   };
 
   const toggleSelection = (id: string) => {
@@ -300,7 +367,7 @@ export default function SendToSheet() {
       selected={selectedIds.has(item.id)}
       onToggle={toggleSelection}
       tintColor={colors.systemBlue}
-      avatarUrl={item.avatar_storage_path ? avatarUrls[item.avatar_storage_path] ?? null : null}
+      avatarUrl={item.avatar_storage_path ? (avatarUrls[item.avatar_storage_path] ?? null) : null}
     />
   );
 
@@ -310,49 +377,24 @@ export default function SendToSheet() {
       <Text style={stylesForTheme.subtitle}>{t('sendTo.subtitle')}</Text>
       <OfflineStatusBanner />
 
-      {showInitialLoader ? (
-        <ActivityIndicator color={colors.label} style={styles.loading} />
-      ) : canUseNetworkSession && isError ? (
-        <View style={stylesForTheme.emptyState}>
-          <Text style={stylesForTheme.emptyStateText}>{t('sendTo.loadFailure')}</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('common.retry')}
-            onPress={() => void refetch()}
-            style={styles.retryButton}
-            disabled={isFetching}>
-            {isFetching ? (
-              <ActivityIndicator color={colors.label} />
-            ) : (
-              <Text style={[styles.retryButtonText, { color: colors.systemBlue }]}>{t('common.retry')}</Text>
-            )}
-          </Pressable>
-        </View>
-      ) : (
-        <View style={stylesForTheme.listWrap}>
-          <FlashList
-            data={profiles}
-            extraData={{ avatarUrls, selectedIds }}
-            // @ts-expect-error - estimatedItemSize type issue
-            estimatedItemSize={64}
-            getItemType={() => 'friend-recipient'}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            contentInsetAdjustmentBehavior="automatic"
-            contentContainerStyle={stylesForTheme.listContent}
-            ListEmptyComponent={
-              <View style={stylesForTheme.emptyState}>
-                <Text style={stylesForTheme.emptyStateText}>
-                  {t(isOfflineRecipientSnapshotMissing ? 'sendTo.offlineCacheMissing' : 'sendTo.empty')}
-                </Text>
-              </View>
-            }
-          />
-        </View>
-      )}
+      <RecipientList
+        showInitialLoader={showInitialLoader}
+        canUseNetworkSession={canUseNetworkSession}
+        isError={isError}
+        isFetching={isFetching}
+        refetch={refetch}
+        profiles={profiles}
+        avatarUrls={avatarUrls}
+        selectedIds={selectedIds}
+        renderItem={renderItem}
+        stylesForTheme={stylesForTheme}
+        isOfflineRecipientSnapshotMissing={isOfflineRecipientSnapshotMissing}
+      />
 
       <View style={stylesForTheme.footer}>
-        <Text style={stylesForTheme.selectionCount}>{t('sendTo.selectedCount', { count: selectedCount })}</Text>
+        <Text style={stylesForTheme.selectionCount}>
+          {t('sendTo.selectedCount', { count: selectedCount })}
+        </Text>
         <Pressable
           accessibilityLabel={t('sendTo.sendA11y')}
           accessibilityRole="button"
@@ -362,8 +404,7 @@ export default function SendToSheet() {
             (selectedCount === 0 || isSending) && styles.sendButtonDisabled,
           ]}
           onPress={handleSend}
-          disabled={selectedCount === 0 || isSending}
-        >
+          disabled={selectedCount === 0 || isSending}>
           {isSending ? (
             <View style={styles.sendingContent}>
               <ActivityIndicator color={colors.buttonPrimaryText} />

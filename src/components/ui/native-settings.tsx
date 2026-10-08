@@ -77,36 +77,15 @@ type NativeSettingsRowProps = {
   testID?: string;
 };
 
-export function NativeSettingsRow({
-  title,
-  supportingText,
-  leading,
-  trailing,
-  onPress,
-  icon,
-  iconColor,
+function NativeSettingsLeading({
   avatar,
-  role = 'default',
-  disabled = false,
-  showsChevron = false,
-  switchValue,
-  onSwitchValueChange,
-  testID,
-}: NativeSettingsRowProps) {
-  const { colors } = useAppTheme();
+  icon,
+  leading,
+  color,
+}: Pick<NativeSettingsRowProps, 'avatar' | 'icon' | 'leading'> & { color: string }) {
   const avatarSize = avatar?.size ?? 36;
-  const foregroundColor = disabled
-    ? colors.tertiaryLabel
-    : role === 'destructive'
-      ? colors.destructive
-      : colors.label;
-  const resolvedIconColor = disabled
-    ? colors.tertiaryLabel
-    : role === 'destructive'
-      ? colors.destructive
-      : (iconColor ?? colors.accent);
   const iconMetrics = icon ? resolveSettingsIconMetrics(icon) : null;
-  const resolvedLeading = avatar ? (
+  return avatar ? (
     <RNHostView matchContents>
       <View collapsable={false} style={{ width: avatarSize, height: avatarSize }}>
         <AvatarCircle
@@ -124,7 +103,7 @@ export function NativeSettingsRow({
         name={resolveAppIconName(icon) as SFSymbol}
         size={iconMetrics?.size ?? APP_ICON_SIZE.settings}
         weight={iconMetrics?.weight ?? 'regular'}
-        tintColor={resolvedIconColor}
+        tintColor={color}
         fallback={
           <View
             style={{
@@ -138,6 +117,20 @@ export function NativeSettingsRow({
   ) : (
     leading
   );
+}
+
+function NativeSettingsTrailing({
+  trailing,
+  showsChevron,
+  switchValue,
+  onSwitchValueChange,
+  disabled,
+  testID,
+}: Pick<
+  NativeSettingsRowProps,
+  'trailing' | 'showsChevron' | 'switchValue' | 'onSwitchValueChange' | 'disabled' | 'testID'
+>) {
+  const { colors } = useAppTheme();
   // Always SwiftImage for disclosure — SymbolView inside / beside SwiftUI accessories
   // diverges in weight/tint from plain trailing chevrons.
   const chevron = showsChevron ? (
@@ -148,23 +141,69 @@ export function NativeSettingsRow({
     />
   ) : null;
 
-  const resolvedTrailing =
-    typeof switchValue === 'boolean' && onSwitchValueChange ? (
-      <Switch
-        value={switchValue}
-        onValueChange={onSwitchValueChange}
-        disabled={disabled}
-        modifiers={[tint(colors.accent)]}
-        testID={testID ? `${testID}-switch` : undefined}
-      />
-    ) : trailing && chevron ? (
-      <HStack alignment="center" spacing={8}>
-        {trailing}
-        {chevron}
-      </HStack>
-    ) : (
-      trailing ?? chevron
-    );
+  return typeof switchValue === 'boolean' && onSwitchValueChange ? (
+    <Switch
+      value={switchValue}
+      onValueChange={onSwitchValueChange}
+      disabled={disabled}
+      modifiers={[tint(colors.accent)]}
+      testID={testID ? `${testID}-switch` : undefined}
+    />
+  ) : trailing && chevron ? (
+    <HStack alignment="center" spacing={8}>
+      {trailing}
+      {chevron}
+    </HStack>
+  ) : (
+    (trailing ?? chevron)
+  );
+}
+
+export function NativeSettingsRow({
+  title,
+  supportingText,
+  leading,
+  trailing,
+  onPress,
+  icon,
+  iconColor,
+  avatar,
+  role = 'default',
+  disabled = false,
+  showsChevron = false,
+  switchValue,
+  onSwitchValueChange,
+  testID,
+}: NativeSettingsRowProps) {
+  const { colors } = useAppTheme();
+  const foregroundColor = disabled
+    ? colors.tertiaryLabel
+    : role === 'destructive'
+      ? colors.destructive
+      : colors.label;
+  const resolvedIconColor = disabled
+    ? colors.tertiaryLabel
+    : role === 'destructive'
+      ? colors.destructive
+      : (iconColor ?? colors.accent);
+  const resolvedLeading = (
+    <NativeSettingsLeading
+      avatar={avatar}
+      icon={icon}
+      leading={leading}
+      color={resolvedIconColor}
+    />
+  );
+  const resolvedTrailing = (
+    <NativeSettingsTrailing
+      trailing={trailing}
+      showsChevron={showsChevron}
+      switchValue={switchValue}
+      onSwitchValueChange={onSwitchValueChange}
+      disabled={disabled}
+      testID={testID}
+    />
+  );
   const resolvedSupportingText = supportingText ? (
     <Text
       modifiers={[
@@ -184,11 +223,7 @@ export function NativeSettingsRow({
       onPress={disabled ? undefined : onPress}
       testID={testID}>
       <Text
-        modifiers={[
-          font({ textStyle: 'body' }),
-          foregroundStyle(foregroundColor),
-          lineLimit(2),
-        ]}>
+        modifiers={[font({ textStyle: 'body' }), foregroundStyle(foregroundColor), lineLimit(2)]}>
         {title}
       </Text>
     </ListItem>

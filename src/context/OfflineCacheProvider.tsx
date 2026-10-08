@@ -19,6 +19,7 @@ import {
 } from '../lib/offlineCachePolicy';
 import { trackEvent } from '../lib/telemetry';
 import { clearRecipientSnapshot, readRecipientSnapshot } from '../lib/recipientSnapshot';
+import { captureSessionScope } from '../lib/sessionScope';
 
 type OfflineCacheContextValue = {
   isHydrated: boolean;
@@ -59,6 +60,8 @@ function subscribeToOfflineCacheWrites({
     if (previousTimer) clearTimeout(previousTimer);
     const timer = setTimeout(() => {
       pendingWrites.delete(writeKey);
+      if (!isOwnerActive()) return;
+      try { captureSessionScope(ownerId).assertActive(); } catch { return; }
       void offlineCacheStore.write(
         ownerId,
         query.queryKey,

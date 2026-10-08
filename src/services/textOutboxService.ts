@@ -1,16 +1,17 @@
 import {
-  AESEncryptionKey,
-  AESKeySize,
   AESSealedData,
   aesDecryptAsync,
   aesEncryptAsync,
 } from 'expo-crypto';
-import * as SecureStore from 'expo-secure-store';
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 import { DomainError } from './errors';
 import { sendTextMessage } from './textMessageService';
 import { recordProductEvent } from './productAnalyticsService';
 import { isTerminalTextOutboxCode, textOutboxBackoffMs } from '../lib/textOutboxPolicy';
+import { accountEncryptionKeys, AccountStorageCancelledError } from '../lib/accountEncryptionKeys';
+import { createOwnerOperations } from '../lib/ownerOperations';
+import { captureAccountTransport } from '../lib/supabase';
+import { captureSessionScope, SessionScopeCancelledError } from '../lib/sessionScope';
 
 const DATABASE_NAME = 'nix-text-outbox.db';
 const KEY_PREFIX = 'nix.text-outbox.key.v1';
@@ -47,6 +48,8 @@ type OutboxRow = {
 };
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;
+const operations = createOwnerOperations();
+const flushes = new Map<string, { promise: Promise<string[]>; cancellation: AbortController }>();
 
 async function database() {
   if (!databasePromise) {
@@ -84,11 +87,7 @@ function keyName(ownerId: string) {
 }
 
 async function encryptionKey(ownerId: string) {
-  const stored = await SecureStore.getItemAsync(keyName(ownerId));
-  if (stored) return AESEncryptionKey.import(stored, 'base64');
-  const key = await AESEncryptionKey.generate(AESKeySize.AES256);
-  await SecureStore.setItemAsync(keyName(ownerId), await key.encoded('base64'));
-  return key;
+  return accountEncryptionKeys.get(keyName(ownerId));
 }
 
 async function encryptPayload(ownerId: string, payload: OutboxPayload) {
@@ -128,9 +127,15 @@ export async function enqueueTextOutbox(
   body: string,
   clientMessageId: string
 ) {
+  const scope = captureSessionScope(ownerId);
+  return operations.run(ownerId, async (assertActive) => {
   const db = await database();
+  assertActive();
+  scope.assertActive();
   const now = Date.now();
   const encrypted = await encryptPayload(ownerId, { receiverId, body });
+  assertActive();
+  scope.assertActive();
   await db.runAsync(
     `INSERT INTO text_outbox(
       id, owner_id, encrypted_payload, state, attempt_count, next_attempt_at,
@@ -145,28 +150,38 @@ export async function enqueueTextOutbox(
     now,
     now + OUTBOX_TTL_MS
   );
+  });
 }
 
 export async function listTextOutbox(ownerId: string, receiverId?: string) {
+  return operations.run(ownerId, async (assertActive) => {
   const db = await database();
+  assertActive();
   await db.runAsync('DELETE FROM text_outbox WHERE expires_at <= ?', Date.now());
   const rows = await db.getAllAsync<OutboxRow>(
     'SELECT * FROM text_outbox WHERE owner_id = ? ORDER BY created_at ASC',
     ownerId
   );
+  assertActive();
   const jobs = await Promise.all(
     rows.map(async (row) => {
       try {
-        return toJob(row, await decryptPayload(ownerId, row.encrypted_payload));
-      } catch {
+        const payload = await decryptPayload(ownerId, row.encrypted_payload);
+        assertActive();
+        return toJob(row, payload);
+      } catch (error) {
+        if (error instanceof AccountStorageCancelledError) throw error;
+        assertActive();
         await db.runAsync('DELETE FROM text_outbox WHERE id = ?', row.id);
         return null;
       }
     })
   );
+  assertActive();
   return jobs.filter(
     (job): job is TextOutboxJob => Boolean(job && (!receiverId || job.receiverId === receiverId))
   );
+  });
 }
 
 export async function deleteTextOutboxJob(jobId: string) {
@@ -187,39 +202,66 @@ export async function retryTextOutboxJob(jobId: string) {
   void recordProductEvent('text_outbox_retry', { source: 'manual' });
 }
 
-export async function clearTextOutbox(ownerId: string) {
-  const db = await database();
-  await db.runAsync('DELETE FROM text_outbox WHERE owner_id = ?', ownerId);
-  await SecureStore.deleteItemAsync(keyName(ownerId));
+export function clearTextOutbox(ownerId: string) {
+  flushes.get(ownerId)?.cancellation.abort();
+  return operations.clear(ownerId, async () => {
+    try {
+      const db = await database();
+      await db.runAsync('DELETE FROM text_outbox WHERE owner_id = ?', ownerId);
+    } finally { await accountEncryptionKeys.clear(keyName(ownerId)); }
+  });
 }
 
 function isTerminal(error: unknown) {
   return error instanceof DomainError && isTerminalTextOutboxCode(error.code);
 }
 
-export async function flushTextOutbox(ownerId: string) {
+export function flushTextOutbox(ownerId: string): Promise<string[]> {
+  const existing = flushes.get(ownerId);
+  if (existing) return existing.promise;
+  const cancellation = new AbortController();
+  const promise = flushOwner(ownerId, cancellation.signal).finally(() => {
+    if (flushes.get(ownerId)?.promise === promise) flushes.delete(ownerId);
+  });
+  flushes.set(ownerId, { promise, cancellation });
+  return promise;
+}
+
+async function flushOwner(ownerId: string, signal: AbortSignal) {
+  const transport = await captureAccountTransport(ownerId, signal);
   const db = await database();
+  transport.assertActive();
   const now = Date.now();
   await db.runAsync('DELETE FROM text_outbox WHERE expires_at <= ?', now);
   const jobs = (await listTextOutbox(ownerId)).filter(
     (job) => job.state !== 'failed' && job.nextAttemptAt <= now
   );
+  transport.assertActive();
   const sentIds: string[] = [];
   for (const job of jobs) {
-    await db.runAsync(
-      `UPDATE text_outbox SET state = 'sending', updated_at = ? WHERE id = ?`,
+    transport.assertActive();
+    const claimed = await db.runAsync(
+      `UPDATE text_outbox SET state = 'sending', updated_at = ? WHERE id = ? AND owner_id = ? AND state = 'pending' AND expires_at > ?`,
       Date.now(),
-      job.id
+      job.id,
+      ownerId,
+      Date.now()
     );
+    transport.assertActive();
+    if (!claimed.changes) continue;
     try {
       await sendTextMessage({
         receiverId: job.receiverId,
         body: job.body,
         clientMessageId: job.id,
+        transport,
       });
+      transport.assertActive();
       await deleteTextOutboxJob(job.id);
       sentIds.push(job.id);
     } catch (error) {
+      if (error instanceof SessionScopeCancelledError || signal.aborted) break;
+      transport.assertActive();
       const attemptCount = job.attemptCount + 1;
       const terminal = isTerminal(error);
       const backoff = textOutboxBackoffMs(attemptCount);

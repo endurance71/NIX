@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const rpc = vi.fn();
 const maybeSingle = vi.fn();
 const select = vi.fn(() => ({ maybeSingle }));
-const from = vi.fn(() => ({ select }));
+const from = vi.fn((..._args: unknown[]) => ({ select }));
 
 vi.mock('../lib/supabase', () => ({
   supabase: {

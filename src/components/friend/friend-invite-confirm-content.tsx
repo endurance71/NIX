@@ -15,6 +15,7 @@ import {
 } from '../../services/friendService';
 import { createSignedAvatarUrl } from '../../services/avatarService';
 import { trackEvent } from '../../lib/telemetry';
+import i18n from '../../lib/i18n';
 import { notifyError, notifyInfo, notifySuccess, notifyShow } from '../../lib/appNotify';
 import { tap } from '../../lib/haptics';
 import { runWithFinally } from '../../lib/runWithFinally';
@@ -107,7 +108,7 @@ export function FriendInviteConfirmContent({
 
   const [confirmState, dispatchConfirmState] = useReducer(
     friendInviteConfirmReducer,
-    initialFriendInviteConfirmState
+    initialFriendInviteConfirmState,
   );
   const { loading, error, friendProfile, avatarUrl, relationStatus, actionLoading } = confirmState;
 
@@ -122,7 +123,11 @@ export function FriendInviteConfirmContent({
               ? await previewFriendInviteToken(token)
               : await previewProfileQr(profileId ?? '');
 
-            if (preview.status === 'invalid_profile' || preview.status === 'invalid_or_expired' || !preview.profile) {
+            if (
+              preview.status === 'invalid_profile' ||
+              preview.status === 'invalid_or_expired' ||
+              !preview.profile
+            ) {
               dispatchConfirmState({ type: 'error', error: 'Nie udało się wczytać tego profilu.' });
               return;
             }
@@ -167,7 +172,7 @@ export function FriendInviteConfirmContent({
             });
           }
         },
-        () => {}
+        () => {},
       );
     };
 
@@ -181,14 +186,13 @@ export function FriendInviteConfirmContent({
   }, [profileId, token, avatarStoragePath, avatarEmoji]);
 
   const displayUsername = friendProfile?.username ?? username;
-  const statusLine = relationStatusCopy(relationStatus);
 
   const primaryLabel = () =>
     relationStatus === 'incoming_pending' ? 'Zaakceptuj zaproszenie' : 'Dodaj znajomego';
 
   const handleSend = async () => {
     if (!profileId && !token) {
-      notifyError('Brak danych', { message: 'Nie udało się odczytać profilu z kodu QR.' });
+      notifyError(i18n.t('notify.missingQrData'), { message: i18n.t('notify.qrReadFailed') });
       return;
     }
 
@@ -213,35 +217,38 @@ export function FriendInviteConfirmContent({
         void queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends });
         void queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests });
         void queryClient.invalidateQueries({ queryKey: queryKeys.outgoingFriendRequests });
-        const message = mapConfirmationMessage(resultCode, resultProfile?.username ?? displayUsername);
+        const message = mapConfirmationMessage(
+          resultCode,
+          resultProfile?.username ?? displayUsername,
+        );
         switch (resultCode) {
           case 'request_sent':
           case 'already_friends':
           case 'accepted_reverse_request':
-            notifySuccess('Potwierdzenie', { message });
+            notifySuccess(i18n.t('notify.confirmation'), { message });
             break;
           case 'already_requested':
-            notifyInfo('Potwierdzenie', { message });
+            notifyInfo(i18n.t('notify.confirmation'), { message });
             break;
           case 'own_profile':
           case 'invalid_profile':
-            notifyError('Potwierdzenie', { message });
+            notifyError(i18n.t('notify.confirmation'), { message });
             break;
           default:
-            notifyShow({ title: 'Potwierdzenie', message });
+            notifyShow({ title: i18n.t('notify.confirmation'), message });
         }
         onDismiss();
         router.replace('/(tabs)/profile');
       },
-      () => dispatchConfirmState({ type: 'actionLoading', actionLoading: false })
+      () => dispatchConfirmState({ type: 'actionLoading', actionLoading: false }),
     ).catch((err: unknown) => {
       trackEvent('friend_invite_redeem', {
         channel: 'qr',
         status: 'fail',
         errorCode: (err as { message?: string })?.message ?? 'unknown',
       });
-      notifyError('Błąd', {
-        message: (err as { message?: string })?.message ?? 'Nie udało się wysłać zaproszenia.',
+      notifyError(i18n.t('notify.error'), {
+        message: (err as { message?: string })?.message ?? i18n.t('notify.inviteSendFailed'),
       });
     });
   };
@@ -251,11 +258,12 @@ export function FriendInviteConfirmContent({
       <ActionSheetSurface
         title="Dodaj znajomego"
         message="Profil odczytany z kodu QR."
-        nativeBottomSheet
-      >
+        nativeBottomSheet>
         <View style={styles.loaderContent}>
           <ActivityIndicator color={colors.textPrimary} />
-          <Text style={[styles.loaderLabel, { color: colors.textSecondary }]}>Ładowanie profilu…</Text>
+          <Text style={[styles.loaderLabel, { color: colors.textSecondary }]}>
+            Ładowanie profilu…
+          </Text>
         </View>
       </ActionSheetSurface>
     );
@@ -288,13 +296,16 @@ export function FriendInviteConfirmContent({
             />
           )}
           <ActionSheetSecondaryButton
-            label={relationStatus === 'already_friends' || relationStatus === 'outgoing_pending' ? 'Zamknij' : 'Anuluj'}
+            label={
+              relationStatus === 'already_friends' || relationStatus === 'outgoing_pending'
+                ? 'Zamknij'
+                : 'Anuluj'
+            }
             onPress={onDismiss}
             disabled={actionLoading}
           />
         </>
-      }
-    >
+      }>
       <View style={styles.avatarContainer}>
         <AvatarCircle
           size={ACTION_SHEET_AVATAR_SIZE}
@@ -309,36 +320,44 @@ export function FriendInviteConfirmContent({
         @{displayUsername || 'nieznany'}
       </Text>
 
-      {statusLine ? (
-        <View style={styles.statusBlock}>
-          {relationStatus === 'already_friends' ? (
-            <AppIcon name="checkCircle" size={APP_ICON_SIZE.xl} color={colors.success} />
-          ) : relationStatus === 'outgoing_pending' ? (
-            <AppIcon name="clock" size={APP_ICON_SIZE.lg} color={colors.textMuted} />
-          ) : (
-            <AppIcon name="personAdd" size={APP_ICON_SIZE.lg} color={colors.accent} />
-          )}
-          <Text
-            style={[
-              styles.statusLineText,
-              { color: relationStatus === 'already_friends' ? colors.success : colors.textSecondary },
-            ]}
-          >
-            {statusLine}
-          </Text>
-        </View>
-      ) : null}
+      <FriendRelationStatus relationStatus={relationStatus} />
     </ActionSheetSurface>
   );
 }
 
+function FriendRelationStatus({ relationStatus }: { relationStatus: FriendInviteRelationStatus }) {
+  const { colors } = useAppTheme();
+  const styles = createSheetStyles(colors);
+  const statusLine = relationStatusCopy(relationStatus);
+  return statusLine ? (
+    <View style={styles.statusBlock}>
+      {relationStatus === 'already_friends' ? (
+        <AppIcon name="checkCircle" size={APP_ICON_SIZE.xl} color={colors.success} />
+      ) : relationStatus === 'outgoing_pending' ? (
+        <AppIcon name="clock" size={APP_ICON_SIZE.lg} color={colors.textMuted} />
+      ) : (
+        <AppIcon name="personAdd" size={APP_ICON_SIZE.lg} color={colors.accent} />
+      )}
+      <Text
+        style={[
+          styles.statusLineText,
+          { color: relationStatus === 'already_friends' ? colors.success : colors.textSecondary },
+        ]}>
+        {statusLine}
+      </Text>
+    </View>
+  ) : null;
+}
+
 function mapConfirmationMessage(result: string, username?: string) {
-  if (result === 'request_sent') return `Zaproszenie do @${username ?? 'użytkownika'} zostało wysłane.`;
-  if (result === 'already_requested') return 'Zaproszenie zostało już wysłane wcześniej.';
-  if (result === 'already_friends') return `Jesteście już znajomymi${username ? ` z @${username}` : ''}.`;
-  if (result === 'accepted_reverse_request') return `Zaakceptowano zaproszenie od @${username ?? 'użytkownika'}.`;
-  if (result === 'own_profile') return 'Nie możesz dodać samego siebie.';
-  return 'Nie udało się wysłać zaproszenia.';
+  const name = username ?? i18n.t('notify.unknownUsername');
+  if (result === 'request_sent') return i18n.t('notify.qrInviteSent', { username: name });
+  if (result === 'already_requested') return i18n.t('notify.qrInviteAlreadySent');
+  if (result === 'already_friends') return username
+    ? i18n.t('notify.qrAlreadyFriendsWith', { username }) : i18n.t('notify.qrAlreadyFriends');
+  if (result === 'accepted_reverse_request') return i18n.t('notify.qrInviteAccepted', { username: name });
+  if (result === 'own_profile') return i18n.t('notify.cannotAddSelf');
+  return i18n.t('notify.inviteSendFailed');
 }
 
 function relationStatusCopy(status: FriendInviteRelationStatus): string | null {

@@ -84,6 +84,7 @@ function hasMeaningfulChange(props: UploadStatusActivityProps) {
   return !lastProps
     || props.phase !== lastProps.phase
     || props.remainingCount !== lastProps.remainingCount
+    || props.locale !== lastProps.locale
     || Math.abs(props.progress - lastProps.progress) >= MIN_PROGRESS_DELTA;
 }
 
@@ -97,6 +98,7 @@ function flushPendingUpdate() {
   void existing.update(props);
   lastUpdateAt = Date.now();
   lastProps = props;
+  syncNativeLiveActivity(props);
 }
 
 export function updateUploadLiveActivity(props: UploadStatusActivityProps) {
@@ -108,7 +110,6 @@ export function updateUploadLiveActivity(props: UploadStatusActivityProps) {
     if (elapsed >= MIN_UPDATE_INTERVAL_MS) {
       pendingProps = props;
       flushPendingUpdate();
-      syncNativeLiveActivity(props);
       return;
     }
     pendingProps = props;

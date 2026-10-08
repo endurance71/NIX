@@ -31,28 +31,11 @@ import {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
-const F0_TEST = join(
-  ROOT,
-  "supabase",
-  "tests",
-  "pre_delivery_moderation_f0_budget_test.sql",
-);
-const COMPLETE_TEST = join(
-  ROOT,
-  "supabase",
-  "tests",
-  "complete_moderation_job_audit_test.sql",
-);
-const GRANTS_TEST = join(
-  ROOT,
-  "supabase",
-  "tests",
-  "security_definer_grants_test.sql",
-);
 const HOST_PORT = 15432;
 const IMAGE_FALLBACK = "public.ecr.aws/supabase/postgres:17.6.1.165";
 const PGUSER = "postgres";
 const PGPASSWORD = "postgres";
+
 
 /** Storage tables live outside the postgres image; stub only what baseline needs. */
 const STORAGE_STUB_SQL = `
@@ -122,6 +105,7 @@ export function createDefaultRun() {
       child.stderr.on("data", (d) => {
         stderr += d;
       });
+      child.on("error", (error) => resolve({ status: 1, stdout, stderr: error.message }));
       child.on("close", (status) =>
         resolve({ status: status ?? 1, stdout, stderr }),
       );
@@ -427,20 +411,13 @@ export async function runIsolatedMigrationVerify(deps = {}) {
     log(`SENTINEL_OK ${runId}`);
 
     await psqlSql("CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;");
-    if (!(await runPgTap("F0_PGTAP", F0_TEST))) {
-      tryExit = 1;
-      return;
-    }
-    if (!(await runPgTap("COMPLETE_AUDIT_PGTAP", COMPLETE_TEST))) {
-      tryExit = 1;
-      return;
-    }
-    if (!(await runPgTap("SECURITY_DEFINER_GRANTS_PGTAP", GRANTS_TEST))) {
-      tryExit = 1;
-      return;
+    for (const file of readdirSync(join(ROOT, 'supabase', 'tests')).filter((name) => name.endsWith('.sql')).sort()) {
+      if (!(await runPgTap(file, join(ROOT, 'supabase', 'tests', file)))) {
+        tryExit = 1;
+        return;
+      }
     }
 
-    log("RUN DIRECT race on migrated schema (isolated disposable DB)");
     const race = await run(
       "node",
       [join(ROOT, "scripts", "c3b-f0-budget-concurrency.mjs")],

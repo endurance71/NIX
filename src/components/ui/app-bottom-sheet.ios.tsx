@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { BottomSheet, Group, Host, RNHostView } from '@expo/ui/swift-ui';
 import {
   interactiveDismissDisabled,
@@ -54,6 +54,7 @@ export function AppBottomSheet({
   backgroundInteraction,
   disableInteractiveDismiss = false,
 }: AppBottomSheetProps) {
+  const { width } = useWindowDimensions();
   const hasSnapPoints = Boolean(snapPoints?.length);
   const groupModifiers: ModifierConfig[] = [
     presentationDragIndicator(showDragIndicator ? 'visible' : 'hidden'),
@@ -70,11 +71,13 @@ export function AppBottomSheet({
   }
 
   const hostedContent = (
-    <View style={hasSnapPoints ? styles.flexContent : styles.compactContent}>{children}</View>
+    <View style={hasSnapPoints ? styles.flexContent : [styles.compactContent, { width }]}>
+      {children}
+    </View>
   ) as ReactElement;
 
   return (
-    <Host style={styles.host} pointerEvents="none">
+    <Host style={[styles.host, { width }]} pointerEvents="none">
       <BottomSheet
         isPresented={isPresented}
         onIsPresentedChange={(next) => {

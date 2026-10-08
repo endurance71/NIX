@@ -1,0 +1,10 @@
+{
+  "sqliteVersion": "3.53.4",
+  "rows": 79,
+  "rowBytes": 6290434,
+  "peakDatabaseAndRollbackJournalBytes": 504412880,
+  "capBytes": 524288000,
+  "pass": true,
+  "finalDatabaseBytes": 16384,
+  "note": "Synthetic maximum-size ciphertext, one deletion per transaction, journal sampled before commit."
+}

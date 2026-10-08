@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import { corsHeaders, getBearerToken, json } from '../_shared/http.ts';
 import { handleDeleteAccount, productionApple } from './handler.ts';
 import type { AuthUser } from './identity.ts';

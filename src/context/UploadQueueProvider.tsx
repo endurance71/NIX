@@ -1,5 +1,6 @@
 import NetInfo from '@react-native-community/netinfo';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import * as BackgroundTask from 'expo-background-task';
 import * as Crypto from 'expo-crypto';
 import * as TaskManager from 'expo-task-manager';
@@ -10,6 +11,9 @@ import {
   type ReactNode,
 } from 'react';
 import { AppState } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import { getCurrentLocale } from '../lib/i18n';
+import { assertPreparedMediaSize } from '../lib/uploadMediaLimits';
 import type { NetInfoState } from '@react-native-community/netinfo';
 
 import {
@@ -20,7 +24,7 @@ import {
   getDurableUploadJob,
   insertDurableUploadJob,
   listDurableUploadJobs,
-  patchDurableUploadJob,
+  patchDurableUploadJob as persistDurableUploadJob,
   purgeExpiredDurableUploadJobs,
   purgeOwnerDurableUploadJobs,
 } from '../lib/durableUploadQueueDb';
@@ -37,6 +41,7 @@ import {
   isPermanentUploadError,
   parseFinalizeUploadStatus,
   mapNativeUploadState,
+  needsNativeTransferRecovery,
   uploadRetryDelay,
 } from '../lib/durableUploadPolicy';
 import { buildUploadLiveActivityProps } from '../lib/uploadLiveActivityPresentation';
@@ -73,9 +78,23 @@ import { useAuth } from '../hooks/useAuth';
 import { toDomainError } from '../services/errors';
 
 const RECOVERY_TASK_NAME = 'nix-upload-queue-recovery';
-const PREPARE_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const PREPARE_MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_JS_TIMER_DELAY_MS = 60_000;
+
+const STOPPED_UPLOAD_STATES: DurableUploadJob['state'][] = [
+  'paused', 'cancelled', 'expired', 'completed', 'partially_completed',
+];
+
+// Check the state in the same SQLite UPDATE that writes the callback result.
+// Reading before an await cannot protect against a pause racing with that write.
+function patchDurableUploadJob(
+  jobId: string,
+  patch: Partial<Omit<DurableUploadJob, 'id' | 'recipients'>>,
+  manual = false
+) {
+  return persistDurableUploadJob(jobId, patch, {
+    unlessStates: manual ? STOPPED_UPLOAD_STATES.filter((state) => state !== 'paused') : STOPPED_UPLOAD_STATES,
+  });
+}
 
 type UploadPhaseTimings = {
   prepareMs: number | null;
@@ -262,6 +281,8 @@ if (!TaskManager.isTaskDefined(RECOVERY_TASK_NAME)) {
 
 function useUploadQueueController(): UploadQueueContextValue {
   const queryClient = useQueryClient();
+  useTranslation();
+  const locale = getCurrentLocale();
   const { user, canUseNetworkSession } = useAuth();
   const ownerId = user?.id ?? null;
   const [ready, setReady] = useState(false);
@@ -274,6 +295,7 @@ function useUploadQueueController(): UploadQueueContextValue {
   const ownerIdRef = useRef<string | null>(null);
   const liveActivityStartedRef = useRef(false);
   const liveActivityFailureKeyRef = useRef('');
+  const nativeEventTimesRef = useRef(new Map<string, number>());
 
   const refresh = useLatestCallback(async () => {
     const currentOwnerId = ownerIdRef.current;
@@ -294,13 +316,14 @@ function useUploadQueueController(): UploadQueueContextValue {
     mediaModerationWaitRef.current.add(jobId);
     try {
       const settled = await waitForOwnMediaJob(moderationJobId);
-      await patchDurableUploadJob(jobId, {
+      const updated = await patchDurableUploadJob(jobId, {
         state: settled.status,
         progress: 1,
         finishedAt: Date.now(),
         errorCode: null,
         errorMessage: null,
       });
+      if (updated.changes === 0) return;
       await deleteStagedUploadJob(jobId).catch(() => undefined);
       void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
     } catch (error) {
@@ -397,7 +420,6 @@ function useUploadQueueController(): UploadQueueContextValue {
         });
         const onProgress = (progress: { progress: number }) => {
           void patchDurableUploadJob(job.id, {
-            state: 'preparing',
             progress: Math.min(0.28, Math.max(0.02, progress.progress * 0.28)),
           });
         };
@@ -431,18 +453,7 @@ function useUploadQueueController(): UploadQueueContextValue {
             jobId: job.id,
             sizeBytes: stagedPrepared.sizeBytes,
           });
-          const maxBytes = job.mediaType === 'video' ? PREPARE_MAX_VIDEO_BYTES : PREPARE_MAX_IMAGE_BYTES;
-          if (stagedPrepared.sizeBytes <= 0 || stagedPrepared.sizeBytes > maxBytes) {
-            const preparationError = new Error(
-              stagedPrepared.sizeBytes <= 0
-                ? 'Plik po przygotowaniu jest pusty.'
-                : 'Plik jest zbyt duży także po dodatkowej kompresji.'
-            ) as Error & { code?: string };
-            preparationError.code = stagedPrepared.sizeBytes <= 0
-              ? 'INVALID_MEDIA'
-              : 'FILE_TOO_LARGE_PERMANENT';
-            throw preparationError;
-          }
+          assertPreparedMediaSize(job.mediaType, stagedPrepared.sizeBytes);
           const mediaInfo = inferUploadContentType(stagedPrepared.uri, job.mediaType);
           await patchDurableUploadJob(job.id, {
             preparedUri: stagedPrepared.uri,
@@ -470,6 +481,15 @@ function useUploadQueueController(): UploadQueueContextValue {
       }
 
       if (isLocallyStopped(job)) return;
+
+      // Re-stat even previously prepared files restored after a relaunch: the
+      // encoded/staged bytes, not source metadata, determine the API limit.
+      const preparedInfo = await FileSystem.getInfoAsync(job.preparedUri ?? job.stagedUri);
+      const actualBytes = preparedInfo.exists && 'size' in preparedInfo ? preparedInfo.size : 0;
+      assertPreparedMediaSize(job.mediaType, actualBytes);
+      await patchDurableUploadJob(job.id, { finalSizeBytes: actualBytes, bytesTotal: actualBytes });
+      job = (await getDurableUploadJob(job.id)) ?? job;
+      if (isLocallyStopped(job) || (job.nextAttemptAt ?? 0) > Date.now()) return;
 
       if (
         !job.batchId
@@ -533,7 +553,7 @@ function useUploadQueueController(): UploadQueueContextValue {
             void settleMediaModeration(job.id, parsed.jobId);
             return;
           }
-          await patchDurableUploadJob(job.id, {
+          const updated = await patchDurableUploadJob(job.id, {
             batchId: target.batchId,
             assetId: target.assetId,
             storagePath: target.storagePath,
@@ -543,6 +563,7 @@ function useUploadQueueController(): UploadQueueContextValue {
             errorCode: finalized.status === 'failed' ? 'UNKNOWN' : null,
             errorMessage: null,
           });
+          if (updated.changes === 0) return;
           await deleteStagedUploadJob(job.id).catch(() => undefined);
           void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
           return;
@@ -564,10 +585,10 @@ function useUploadQueueController(): UploadQueueContextValue {
           finalizeToken: target.finalize.token,
         };
         if (latestAfterBegin.state === 'paused') {
-          await patchDurableUploadJob(job.id, {
+          await persistDurableUploadJob(job.id, {
             ...targetPatch,
             state: 'paused',
-          });
+          }, { unlessStates: ['cancelled', 'expired', 'completed', 'partially_completed'] });
           return;
         }
         await patchDurableUploadJob(job.id, {
@@ -609,6 +630,8 @@ function useUploadQueueController(): UploadQueueContextValue {
         expiresAt: job.expiresAt,
         mediaType: job.mediaType,
         sizeBytes: job.finalSizeBytes ?? job.originalSizeBytes ?? 0,
+        locale: getCurrentLocale(),
+        nextRetryAt: job.nextAttemptAt ?? 0,
       });
       nativeEnqueueMs = Date.now() - enqueueStartedAt;
       console.warn('[upload] native enqueue done', {
@@ -711,37 +734,42 @@ function useUploadQueueController(): UploadQueueContextValue {
   });
 
   const pauseUpload = async (jobId: string) => {
+    const current = await getDurableUploadJob(jobId);
+    if (!current || !isAllowedUploadTransition(current.state, 'paused')) return;
+    const updated = await patchDurableUploadJob(jobId, { state: 'paused' }, true);
+    if (updated.changes === 0) return;
     await backgroundUploader.pause(jobId);
-    await patchDurableUploadJob(jobId, { state: 'paused' });
     await refresh();
   };
 
   const resumeUpload = async (jobId: string) => {
     const job = await getDurableUploadJob(jobId);
     if (!job) return;
-    const nextState = online && canUseNetworkSession ? 'queued' : 'waiting_network';
-    if (!isAllowedUploadTransition(job.state, nextState)) return;
-    await backgroundUploader.resume(jobId);
-    await patchDurableUploadJob(jobId, {
+    const retryPending = (job.nextAttemptAt ?? 0) > Date.now();
+    const nextState = retryPending ? 'retry_scheduled'
+      : online && canUseNetworkSession ? 'queued' : 'waiting_network';
+    if (!isAllowedUploadTransition(job.state, nextState === 'retry_scheduled' ? 'queued' : nextState)) return;
+    const updated = await patchDurableUploadJob(jobId, {
       state: nextState,
-      nextAttemptAt: null,
+      nextAttemptAt: retryPending ? job.nextAttemptAt : null,
       errorCode: null,
       errorMessage: null,
-    });
+    }, true);
+    if (updated.changes === 0) return;
+    await backgroundUploader.resume(jobId);
+    await backgroundUploader.reconcile();
     await refresh();
   };
 
   const retryUpload = async (jobId: string) => {
     const job = await getDurableUploadJob(jobId);
-    if (!job || job.errorCode === 'FILE_TOO_LARGE_PERMANENT') return;
+    if (!job || job.state === 'paused' || job.errorCode === 'FILE_TOO_LARGE_PERMANENT') return;
     const retryAfterTooLarge = job.errorCode === 'FILE_TOO_LARGE';
-    const nextState = online && canUseNetworkSession ? 'queued' : 'waiting_network';
-    if (!isAllowedUploadTransition(job.state, nextState)) return;
-    if (retryAfterTooLarge) {
-      await backgroundUploader.cancel(jobId).catch(() => undefined);
-      if (job.batchId) await cancelMediaUploadBatch(job.batchId).catch(() => undefined);
-    }
-    await patchDurableUploadJob(jobId, {
+    const retryPending = (job.nextAttemptAt ?? 0) > Date.now();
+    const nextState = retryPending ? 'retry_scheduled'
+      : online && canUseNetworkSession ? 'queued' : 'waiting_network';
+    if (!isAllowedUploadTransition(job.state, nextState === 'retry_scheduled' ? 'queued' : nextState)) return;
+    const updated = await patchDurableUploadJob(jobId, {
       state: nextState,
       idempotencyKey: retryAfterTooLarge
         ? `${job.id}:aggressive:${Crypto.randomUUID()}`
@@ -759,26 +787,30 @@ function useUploadQueueController(): UploadQueueContextValue {
       finalizeToken: retryAfterTooLarge ? null : job.finalizeToken,
       retryCount: retryAfterTooLarge ? job.retryCount + 1 : 0,
       authRefreshAttempted: false,
-      nextAttemptAt: null,
+      nextAttemptAt: retryPending ? job.nextAttemptAt : null,
       errorCode: retryAfterTooLarge ? 'FORCE_AGGRESSIVE_COMPRESSION' : null,
       errorMessage: null,
       finishedAt: null,
     });
+    if (updated.changes === 0) return;
+    if (retryAfterTooLarge) {
+      await backgroundUploader.cancel(jobId).catch(() => undefined);
+      if (job.batchId) await cancelMediaUploadBatch(job.batchId).catch(() => undefined);
+    }
     await refresh();
   };
 
   const cancelUpload = async (jobId: string) => {
     const job = await getDurableUploadJob(jobId);
     if (!job) return;
+    const updated = await patchDurableUploadJob(jobId, {
+      state: 'cancelled', finishedAt: Date.now(), errorCode: 'CANCELLED',
+      errorMessage: 'Wysyłka została anulowana.',
+    }, true);
+    if (updated.changes === 0) return;
     await backgroundUploader.cancel(jobId).catch(() => undefined);
     if (job.batchId) await cancelMediaUploadBatch(job.batchId).catch(() => undefined);
     await deleteStagedUploadJob(jobId).catch(() => undefined);
-    await patchDurableUploadJob(jobId, {
-      state: 'cancelled',
-      finishedAt: Date.now(),
-      errorCode: 'CANCELLED',
-      errorMessage: 'Wysyłka została anulowana.',
-    });
     await refresh();
   };
 
@@ -919,14 +951,16 @@ function useUploadQueueController(): UploadQueueContextValue {
       }
 
       const nativeSnapshots = await backgroundUploader.reconcile();
-      const nativeJobIds = new Set(nativeSnapshots.map((snapshot) => snapshot.jobId));
+      const nativeJobIds = new Set(nativeSnapshots.filter((snapshot) =>
+        !needsNativeTransferRecovery(snapshot)
+      ).map((snapshot) => snapshot.jobId));
       const recoveredJobs = await listDurableUploadJobs(ownerId);
       await Promise.all(recoveredJobs.map(async (job) => {
         if (nativeJobIds.has(job.id)) return;
         if (job.moderationJobId && job.state === 'finalizing') return;
         if (['preparing', 'requesting_target', 'uploading', 'finalizing'].includes(job.state)) {
           await patchDurableUploadJob(job.id, {
-            state: 'queued',
+            state: (job.nextAttemptAt ?? 0) > Date.now() ? 'retry_scheduled' : 'queued',
             progress: job.preparedUri ? Math.max(job.progress, 0.3) : 0,
           });
         }
@@ -960,7 +994,9 @@ function useUploadQueueController(): UploadQueueContextValue {
         void (async () => {
           const currentJobs = jobsRef.current.filter((job) => job.state === 'waiting_network');
           await Promise.all(currentJobs.map((job) =>
-            patchDurableUploadJob(job.id, { state: 'queued', nextAttemptAt: null })
+            patchDurableUploadJob(job.id, {
+              state: (job.nextAttemptAt ?? 0) > Date.now() ? 'retry_scheduled' : 'queued',
+            })
           ));
           await backgroundUploader.reconcile();
           await refresh();
@@ -972,9 +1008,13 @@ function useUploadQueueController(): UploadQueueContextValue {
 
   useEffect(() => {
     const handleSnapshot = (snapshot: Awaited<ReturnType<typeof backgroundUploader.listTasks>>[number]) => {
+      if (needsNativeTransferRecovery(snapshot)) return;
+      if (snapshot.updatedAt < (nativeEventTimesRef.current.get(snapshot.jobId) ?? 0)) return;
+      nativeEventTimesRef.current.set(snapshot.jobId, snapshot.updatedAt);
       void (async () => {
         const current = await getDurableUploadJob(snapshot.jobId);
-        if (!current) return;
+        if (!current || STOPPED_UPLOAD_STATES.includes(current.state)
+          || nativeEventTimesRef.current.get(snapshot.jobId) !== snapshot.updatedAt) return;
         const nativeState = mapNativeUploadState(snapshot.state);
         const parsedFinalize = snapshot.state === 'completed'
           ? parseFinalizeUploadStatus(snapshot.responseBody)
@@ -1065,7 +1105,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           && current.idempotencyKey.includes(':aggressive:')
           ? 'FILE_TOO_LARGE_PERMANENT'
           : snapshot.errorCode ?? null;
-        await patchDurableUploadJob(snapshot.jobId, {
+        const updated = await patchDurableUploadJob(snapshot.jobId, {
           state: finalState,
           progress: snapshot.state === 'uploading'
             ? 0.31 + snapshot.progress * 0.64
@@ -1075,6 +1115,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           bytesSent: snapshot.bytesSent,
           bytesTotal: snapshot.bytesTotal,
           retryCount: Math.max(current.retryCount, snapshot.attempt),
+          nextAttemptAt: snapshot.nextRetryAt ?? null,
           errorCode: snapshotErrorCode,
           errorMessage: snapshotErrorCode === 'FILE_TOO_LARGE_PERMANENT'
             ? 'Plik jest zbyt duży także po dodatkowej kompresji.'
@@ -1083,6 +1124,7 @@ function useUploadQueueController(): UploadQueueContextValue {
             ? Date.now()
             : null,
         });
+        if (updated.changes === 0) return;
         if (snapshot.state === 'completed') {
           await deleteStagedUploadJob(snapshot.jobId).catch(() => undefined);
           void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
@@ -1136,9 +1178,10 @@ function useUploadQueueController(): UploadQueueContextValue {
     const now = Date.now();
     const next = jobs.find((job) =>
       job.ownerId === ownerId
+      && (job.nextAttemptAt ?? 0) <= now
       && (
         job.state === 'queued'
-        || (job.state === 'retry_scheduled' && (job.nextAttemptAt ?? 0) <= now)
+        || job.state === 'retry_scheduled'
         || (job.state === 'waiting_network' && online)
         || (job.state === 'waiting_for_auth' && !job.authRefreshAttempted)
       )
@@ -1157,8 +1200,9 @@ function useUploadQueueController(): UploadQueueContextValue {
     for (const job of jobs) {
       if (
         job.ownerId !== ownerId
-        || job.state !== 'retry_scheduled'
+        || !['retry_scheduled', 'queued', 'waiting_network'].includes(job.state)
         || typeof job.nextAttemptAt !== 'number'
+        || job.nextAttemptAt <= Date.now()
       ) {
         continue;
       }
@@ -1211,9 +1255,9 @@ function useUploadQueueController(): UploadQueueContextValue {
 
   useEffect(() => {
     if (liveActivityMode.startsWith('attention:')) {
-      const failureKey = liveActivityMode.slice('attention:'.length);
+      const failureKey = `${liveActivityMode.slice('attention:'.length)}:${locale}`;
       if (liveActivityFailureKeyRef.current !== failureKey) {
-        const props = buildUploadLiveActivityProps(buildUploadQueueSummary(jobsRef.current));
+        const props = buildUploadLiveActivityProps(buildUploadQueueSummary(jobsRef.current), Date.now(), locale);
         startUploadLiveActivity(props);
         liveActivityFailureKeyRef.current = failureKey;
       }
@@ -1222,7 +1266,7 @@ function useUploadQueueController(): UploadQueueContextValue {
       liveActivityFailureKeyRef.current = '';
       if (liveActivityStartedRef.current && liveActivityMode === 'idle:completed') {
         endUploadLiveActivity(
-          buildUploadLiveActivityProps(buildUploadQueueSummary(jobsRef.current)),
+          buildUploadLiveActivityProps(buildUploadQueueSummary(jobsRef.current), Date.now(), locale),
           'success'
         );
       }
@@ -1234,16 +1278,16 @@ function useUploadQueueController(): UploadQueueContextValue {
       liveActivityMode === 'active'
       && !liveActivityStartedRef.current
     ) {
-      startUploadLiveActivity(buildUploadLiveActivityProps(buildUploadQueueSummary(jobsRef.current)));
+      startUploadLiveActivity(buildUploadLiveActivityProps(buildUploadQueueSummary(jobsRef.current), Date.now(), locale));
       liveActivityStartedRef.current = true;
     }
-  }, [liveActivityMode]);
+  }, [liveActivityMode, locale]);
 
   useEffect(() => {
     if (liveActivityMode === 'active' && liveActivityStartedRef.current) {
-      updateUploadLiveActivity(buildUploadLiveActivityProps(summary));
+      updateUploadLiveActivity(buildUploadLiveActivityProps(summary, Date.now(), locale));
     }
-  }, [liveActivityMode, summary]);
+  }, [liveActivityMode, summary, locale]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
@@ -1253,13 +1297,13 @@ function useUploadQueueController(): UploadQueueContextValue {
       ) {
         // Force the latest state through before iOS suspends JS. A throttled
         // progress update may otherwise never reach the Dynamic Island.
-        startUploadLiveActivity(buildUploadLiveActivityProps(summary));
+        startUploadLiveActivity(buildUploadLiveActivityProps(summary, Date.now(), locale));
         liveActivityStartedRef.current = true;
       }
       if (state === 'active') void backgroundUploader.reconcile().then(refresh);
     });
     return () => subscription.remove();
-  }, [refresh, summary]);
+  }, [refresh, summary, locale]);
 
   const value = {
     ready,

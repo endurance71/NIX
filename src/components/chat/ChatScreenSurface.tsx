@@ -752,6 +752,75 @@ function isUploadFailureState(job: DurableUploadJob) {
   );
 }
 
+function UploadBubbleAccessory({
+  busy,
+  iconName,
+  canRetry,
+  onRetry,
+  statusColor,
+  t,
+}: {
+  busy: boolean;
+  iconName:
+    | 'arrow.clockwise'
+    | 'checkmark.circle.fill'
+    | 'wifi.slash'
+    | 'exclamationmark.triangle.fill'
+    | null;
+  canRetry: boolean;
+  onRetry: () => void;
+  statusColor: string;
+  t: ChatScreenViewModel['t'];
+}) {
+  const { colors } = useAppTheme();
+  return busy || !iconName ? (
+    <View style={styles.uploadAccessory}>
+      <ActivityIndicator size="small" color={colors.accent} />
+    </View>
+  ) : canRetry ? (
+    <Pressable
+      onPress={onRetry}
+      accessibilityRole="button"
+      accessibilityLabel={t('chat.uploadRetry')}
+      hitSlop={4}
+      style={({ pressed }) => [styles.uploadAccessory, pressed ? styles.uploadRetryPressed : null]}>
+      <SymbolView
+        name={iconName}
+        size={APP_ICON_SIZE.lg}
+        tintColor={colors.destructive}
+        weight="semibold"
+      />
+    </Pressable>
+  ) : (
+    <View style={styles.uploadAccessory}>
+      <SymbolView
+        name={iconName}
+        size={APP_ICON_SIZE.lg}
+        tintColor={statusColor}
+        weight="semibold"
+      />
+    </View>
+  );
+}
+
+function uploadBubbleIcon({
+  canRetry,
+  completed,
+  waitingNetwork,
+  failed,
+}: {
+  canRetry: boolean;
+  completed: boolean;
+  waitingNetwork: boolean;
+  failed: boolean;
+}) {
+  if (canRetry) return 'arrow.clockwise';
+  if (completed) return 'checkmark.circle.fill';
+  if (waitingNetwork) return 'wifi.slash';
+  if (failed) return 'exclamationmark.triangle.fill';
+  return null;
+}
+
 function UploadBubble({
   job,
   busy,
@@ -780,20 +849,11 @@ function UploadBubble({
     : completed
       ? colors.success
       : colors.secondaryLabel;
-  const mediaTitle = job.mediaType === 'video'
-    ? t('chat.uploadVideoTitle')
-    : t('chat.uploadPhotoTitle');
+  const mediaTitle =
+    job.mediaType === 'video' ? t('chat.uploadVideoTitle') : t('chat.uploadPhotoTitle');
   const title = failed ? t('chat.uploadFailureTitle') : mediaTitle;
   const status = retrying ? t('chat.uploadActive') : uploadStatusLabel(job, t);
-  const iconName = canRetry
-    ? 'arrow.clockwise'
-    : completed
-      ? 'checkmark.circle.fill'
-      : waitingNetwork
-        ? 'wifi.slash'
-        : failed
-          ? 'exclamationmark.triangle.fill'
-          : null;
+  const iconName = uploadBubbleIcon({ canRetry, completed, waitingNetwork, failed });
 
   return (
     <View style={styles.row}>
@@ -820,37 +880,14 @@ function UploadBubble({
                 {status}
               </Text>
             </View>
-            {busy || !iconName ? (
-              <View style={styles.uploadAccessory}>
-                <ActivityIndicator size="small" color={colors.accent} />
-              </View>
-            ) : canRetry ? (
-              <Pressable
-                onPress={onRetry}
-                accessibilityRole="button"
-                accessibilityLabel={t('chat.uploadRetry')}
-                hitSlop={4}
-                style={({ pressed }) => [
-                  styles.uploadAccessory,
-                  pressed ? styles.uploadRetryPressed : null,
-                ]}>
-                <SymbolView
-                  name={iconName}
-                  size={APP_ICON_SIZE.lg}
-                  tintColor={colors.destructive}
-                  weight="semibold"
-                />
-              </Pressable>
-            ) : (
-              <View style={styles.uploadAccessory}>
-                <SymbolView
-                  name={iconName}
-                  size={APP_ICON_SIZE.lg}
-                  tintColor={statusColor}
-                  weight="semibold"
-                />
-              </View>
-            )}
+            <UploadBubbleAccessory
+              busy={busy}
+              iconName={iconName}
+              canRetry={canRetry}
+              onRetry={onRetry}
+              statusColor={statusColor}
+              t={t}
+            />
           </View>
         </Pressable>
       </View>

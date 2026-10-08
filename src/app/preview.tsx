@@ -1,3 +1,9 @@
+import {
+  paramFirst,
+  decodeParamUri,
+  routeVideoSegment,
+  resolvePreviewVideoSegments,
+} from '../lib/previewRoute';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import {
   View,
@@ -93,19 +99,6 @@ function previewTimerHudContentHeight() {
   return VIDEO_PREVIEW_TIMER_HUD_PADDING_V * 2 + TIMER_TRACK_HEIGHT;
 }
 
-function paramFirst(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
-}
-
-function decodeParamUri(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
 
 function discardVideoPreview(clearDraft: () => void) {
   clearDraft();
@@ -434,6 +427,95 @@ function PreviewMediaError({
   );
 }
 
+function PreviewVideoMedia({
+  videoState,
+  current,
+  clipKey,
+  segmentProgress,
+  handleVideoReady,
+  handleFirstFrameRender,
+  handleVideoPlaybackError,
+  onSegmentDimensions,
+  rotatedStage,
+  stageStyle,
+  firstFrameRendered,
+  poster,
+  videoReady,
+  videoError,
+  advanceClip,
+  clearDraft,
+  styles,
+}: {
+  videoState: typeof initialPreviewVideoState;
+  current: VideoSegmentDraft;
+  clipKey: string;
+  segmentProgress: ReturnType<typeof useSharedValue<number>>;
+  handleVideoReady: () => void;
+  handleFirstFrameRender: () => void;
+  handleVideoPlaybackError: () => void;
+  onSegmentDimensions: (index: number, width: number, height: number) => void;
+  rotatedStage: boolean;
+  stageStyle: ReturnType<typeof mediaStageStyle>;
+  firstFrameRendered: boolean;
+  poster: typeof initialPreviewVideoState.poster;
+  videoReady: boolean;
+  videoError: string | null;
+  advanceClip: () => void;
+  clearDraft: () => void;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <>
+      {videoState.audioReady ? (
+        <PreviewSegmentVideo
+          key={clipKey}
+          uri={current.uri}
+          segmentIndex={videoState.clipIndex}
+          segmentProgress={segmentProgress}
+          onReady={handleVideoReady}
+          onFirstFrameRender={handleFirstFrameRender}
+          onPlaybackError={handleVideoPlaybackError}
+          onDimensions={(width, height) => onSegmentDimensions(videoState.clipIndex, width, height)}
+          contentFit={videoContentFit(current)}
+          style={[styles.image, rotatedStage ? stageStyle : undefined]}
+        />
+      ) : null}
+
+      {!firstFrameRendered && poster ? (
+        <Image
+          source={poster}
+          style={[styles.videoPoster, rotatedStage ? stageStyle : undefined]}
+          contentFit={videoContentFit(current)}
+        />
+      ) : null}
+
+      {videoReady && !videoError ? (
+        <Pressable
+          style={styles.dismissArea}
+          onPress={advanceClip}
+          accessibilityLabel="Następny fragment"
+          accessibilityRole="button"
+        />
+      ) : null}
+
+      {(!videoState.audioReady || !videoReady) && !videoError && !poster ? (
+        <View style={styles.loadingOverlaySolid}>
+          <Text style={styles.loadingHint}>Ładowanie podglądu…</Text>
+        </View>
+      ) : null}
+
+      {videoError ? (
+        <View style={styles.errorOverlay}>
+          <Text style={styles.errorText}>{videoError}</Text>
+          <Pressable style={styles.backButton} onPress={() => discardVideoPreview(clearDraft)}>
+            <Text style={styles.backButtonText}>Wróć</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </>
+  );
+}
+
 function PreviewVideoContent({
   segments,
   clearDraft,
@@ -456,15 +538,18 @@ function PreviewVideoContent({
   const { colors, statusBarStyle, isDark } = useAppTheme();
   const insets = useScreenInsets('mediaChrome');
   const styles = createStyles(colors);
-  const [videoState, dispatchVideoState] = useReducer(previewVideoReducer, initialPreviewVideoState);
+  const [videoState, dispatchVideoState] = useReducer(
+    previewVideoReducer,
+    initialPreviewVideoState,
+  );
   const [isSaving, setIsSaving] = useState(false);
   const segmentProgress = useSharedValue(1);
   const chromeClampTop =
-    insets.topContentInset
-    + VIDEO_PREVIEW_TIMER_HUD_TOP
-    + previewTimerHudContentHeight()
-    + VIDEO_PREVIEW_CLOSE_BELOW_TIMER_GAP
-    + 56;
+    insets.topContentInset +
+    VIDEO_PREVIEW_TIMER_HUD_TOP +
+    previewTimerHudContentHeight() +
+    VIDEO_PREVIEW_CLOSE_BELOW_TIMER_GAP +
+    56;
   const chromeClampBottom = insets.bottomContentInset + 56;
 
   const current = segments[videoState.clipIndex];
@@ -475,15 +560,10 @@ function PreviewVideoContent({
     captureOrientation: current.captureOrientation,
   });
   const rotatedStage = Boolean(mediaViewport.rotationDegrees);
-  const textClampTop = rotatedStage
-    ? 48
-    : Math.max(chromeClampTop, mediaViewport.top);
+  const textClampTop = rotatedStage ? 48 : Math.max(chromeClampTop, mediaViewport.top);
   const textClampBottom = rotatedStage
     ? 48
-    : Math.max(
-        chromeClampBottom,
-        viewportHeight - mediaViewport.top - mediaViewport.height
-      );
+    : Math.max(chromeClampBottom, viewportHeight - mediaViewport.top - mediaViewport.height);
   const stageStyle = mediaStageStyle(mediaViewport);
   const clipKey = `${videoState.clipIndex}:${current.uri}`;
   const videoReady = videoState.readyClipKey === clipKey;
@@ -506,7 +586,8 @@ function PreviewVideoContent({
           dispatchVideoState({ type: 'audioReady' });
           trackEvent('preview_audio_session_ready', {
             status: 'failure',
-            error_message: error instanceof Error ? error.message : 'Unknown preview audio session error',
+            error_message:
+              error instanceof Error ? error.message : 'Unknown preview audio session error',
           });
         }
       });
@@ -583,54 +664,25 @@ function PreviewVideoContent({
         activeSegmentMaskStyle={activeSegmentMaskStyle}
       />
 
-      {videoState.audioReady ? (
-        <PreviewSegmentVideo
-          key={clipKey}
-          uri={current.uri}
-          segmentIndex={videoState.clipIndex}
-          segmentProgress={segmentProgress}
-          onReady={handleVideoReady}
-          onFirstFrameRender={handleFirstFrameRender}
-          onPlaybackError={handleVideoPlaybackError}
-          onDimensions={(width, height) =>
-            onSegmentDimensions(videoState.clipIndex, width, height)
-          }
-          contentFit={videoContentFit(current)}
-          style={[styles.image, rotatedStage ? stageStyle : undefined]}
-        />
-      ) : null}
-
-      {!firstFrameRendered && poster ? (
-        <Image
-          source={poster}
-          style={[styles.videoPoster, rotatedStage ? stageStyle : undefined]}
-          contentFit={videoContentFit(current)}
-        />
-      ) : null}
-
-      {videoReady && !videoError ? (
-        <Pressable
-          style={styles.dismissArea}
-          onPress={advanceClip}
-          accessibilityLabel="Następny fragment"
-          accessibilityRole="button"
-        />
-      ) : null}
-
-      {(!videoState.audioReady || !videoReady) && !videoError && !poster ? (
-        <View style={styles.loadingOverlaySolid}>
-          <Text style={styles.loadingHint}>Ładowanie podglądu…</Text>
-        </View>
-      ) : null}
-
-      {videoError ? (
-        <View style={styles.errorOverlay}>
-          <Text style={styles.errorText}>{videoError}</Text>
-          <Pressable style={styles.backButton} onPress={() => discardVideoPreview(clearDraft)}>
-            <Text style={styles.backButtonText}>Wróć</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      <PreviewVideoMedia
+        videoState={videoState}
+        current={current}
+        clipKey={clipKey}
+        segmentProgress={segmentProgress}
+        handleVideoReady={handleVideoReady}
+        handleFirstFrameRender={handleFirstFrameRender}
+        handleVideoPlaybackError={handleVideoPlaybackError}
+        onSegmentDimensions={onSegmentDimensions}
+        rotatedStage={rotatedStage}
+        stageStyle={stageStyle}
+        firstFrameRendered={firstFrameRendered}
+        poster={poster}
+        videoReady={videoReady}
+        videoError={videoError}
+        advanceClip={advanceClip}
+        clearDraft={clearDraft}
+        styles={styles}
+      />
 
       <PreviewMarkupTools
         textOverlay={textOverlay}
@@ -680,9 +732,7 @@ function PreviewVideoContent({
             />
 
             {!isDrawing ? (
-              <View
-                style={styles.bottomControls}
-                pointerEvents={isTextEditing ? 'none' : 'auto'}>
+              <View style={styles.bottomControls} pointerEvents={isTextEditing ? 'none' : 'auto'}>
                 <NativeChromeIconButton
                   name="saveToPhotos"
                   accessibilityLabel={t('media.saveToGalleryA11y')}
@@ -701,7 +751,7 @@ function PreviewVideoContent({
                           viewportWidth: mediaViewport.width,
                           viewportHeight: mediaViewport.height,
                         }),
-                      () => setIsSaving(false)
+                      () => setIsSaving(false),
                     );
                   }}
                   disabled={isSaving}
@@ -731,18 +781,23 @@ function PreviewVideoContent({
 }
 
 export default function PreviewScreen() {
-  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
-  const { t } = useTranslation();
-  const { colors, statusBarStyle } = useAppTheme();
-  const insets = useScreenInsets('mediaChrome');
+  const { colors } = useAppTheme();
   const styles = createStyles(colors);
-  const raw = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string; durationMs?: string; recipientId?: string }>();
+  const raw = useLocalSearchParams<{
+    uri?: string;
+    viewDurationSec?: string;
+    mode?: string;
+    durationMs?: string;
+    recipientId?: string;
+  }>();
   const mode = paramFirst(raw.mode);
   const paramUri = decodeParamUri(paramFirst(raw.uri));
   const rawDurationMs = paramFirst(raw.durationMs);
   const recipientId = paramFirst(raw.recipientId);
 
-  const [viewDurationSec, setViewDurationSec] = useState<NixViewDurationSec>(DEFAULT_NIX_VIEW_DURATION_SEC);
+  const [viewDurationSec, setViewDurationSec] = useState<NixViewDurationSec>(
+    DEFAULT_NIX_VIEW_DURATION_SEC,
+  );
   const [imageLoadError, setImageLoadError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
   const [isSavingPhoto, setIsSavingPhoto] = useState(false);
@@ -757,20 +812,20 @@ export default function PreviewScreen() {
     drawingOverlay: videoDrawingOverlay,
     setDrawingOverlay,
   } = useVideoDraft();
-  const { draft: draftPhoto, setDraft: setPhotoDraft, clearDraft: clearPhotoDraft } = usePhotoDraft();
+  const {
+    draft: draftPhoto,
+    setDraft: setPhotoDraft,
+    clearDraft: clearPhotoDraft,
+  } = usePhotoDraft();
   const photoUri = draftPhoto?.uri ?? paramUri;
   const photoTextOverlay = draftPhoto?.textOverlay ?? null;
   const photoDrawingOverlay = draftPhoto?.drawingOverlay ?? null;
-  const routeVideoSegment =
-    mode === 'video' && paramUri
-      ? { uri: paramUri, durationMs: Math.round(Math.max(0, Number(rawDurationMs) || 0)) }
-      : null;
-  const routeVideoSegments = routeVideoSegment ? [routeVideoSegment] : null;
-  const previewVideoSegments = segments?.length ? segments : routeVideoSegments;
+  const previewVideoSegments = resolvePreviewVideoSegments(segments, mode, paramUri, rawDurationMs);
 
   useEffect(() => {
     if (mode !== 'video' || segments?.length || !paramUri) return;
-    setSegments([{ uri: paramUri, durationMs: Math.round(Math.max(0, Number(rawDurationMs) || 0)) }]);
+    const segment = routeVideoSegment(mode, paramUri, rawDurationMs);
+    if (segment) setSegments([segment]);
   }, [mode, paramUri, rawDurationMs, segments?.length, setSegments]);
 
   useEffect(() => {
@@ -845,6 +900,62 @@ export default function PreviewScreen() {
     );
   }
 
+  return (
+    <PreviewPhotoContent
+      draftPhoto={draftPhoto}
+      photoUri={photoUri}
+      photoTextOverlay={photoTextOverlay}
+      photoDrawingOverlay={photoDrawingOverlay}
+      setPhotoDraft={setPhotoDraft}
+      clearPhotoDraft={clearPhotoDraft}
+      imageLoading={imageLoading}
+      setImageLoading={setImageLoading}
+      setImageLoadError={setImageLoadError}
+      isSavingPhoto={isSavingPhoto}
+      setIsSavingPhoto={setIsSavingPhoto}
+      viewDurationSec={viewDurationSec}
+      setViewDurationSec={setViewDurationSec}
+      recipientId={recipientId}
+    />
+  );
+}
+
+function PreviewPhotoContent({
+  draftPhoto,
+  photoUri,
+  photoTextOverlay,
+  photoDrawingOverlay,
+  setPhotoDraft,
+  clearPhotoDraft,
+  imageLoading,
+  setImageLoading,
+  setImageLoadError,
+  isSavingPhoto,
+  setIsSavingPhoto,
+  viewDurationSec,
+  setViewDurationSec,
+  recipientId,
+}: {
+  draftPhoto: ReturnType<typeof usePhotoDraft>['draft'];
+  photoUri: string;
+  photoTextOverlay: MediaTextOverlay | null;
+  photoDrawingOverlay: MediaDrawingOverlay | null;
+  setPhotoDraft: ReturnType<typeof usePhotoDraft>['setDraft'];
+  clearPhotoDraft: () => void;
+  imageLoading: boolean;
+  setImageLoading: (value: boolean) => void;
+  setImageLoadError: (value: boolean) => void;
+  isSavingPhoto: boolean;
+  setIsSavingPhoto: (value: boolean) => void;
+  viewDurationSec: NixViewDurationSec;
+  setViewDurationSec: (value: NixViewDurationSec) => void;
+  recipientId?: string;
+}) {
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
+  const { t } = useTranslation();
+  const { colors, statusBarStyle } = useAppTheme();
+  const insets = useScreenInsets('mediaChrome');
+  const styles = createStyles(colors);
   const photoViewport = mediaEditingViewport({
     media: draftPhoto ?? {},
     viewportWidth,
@@ -859,7 +970,7 @@ export default function PreviewScreen() {
     ? 48
     : Math.max(
         insets.bottomContentInset + 56,
-        viewportHeight - photoViewport.top - photoViewport.height
+        viewportHeight - photoViewport.top - photoViewport.height,
       );
   const photoStageStyle = mediaStageStyle(photoViewport);
 
@@ -901,9 +1012,9 @@ export default function PreviewScreen() {
         onLoad={({ source }) => {
           setImageLoading(false);
           if (
-            source.width > 0
-            && source.height > 0
-            && (draftPhoto?.width !== source.width || draftPhoto?.height !== source.height)
+            source.width > 0 &&
+            source.height > 0 &&
+            (draftPhoto?.width !== source.width || draftPhoto?.height !== source.height)
           ) {
             setPhotoDraft({
               uri: photoUri,
@@ -980,9 +1091,7 @@ export default function PreviewScreen() {
             />
 
             {!isDrawing ? (
-              <View
-                style={styles.bottomControls}
-                pointerEvents={isTextEditing ? 'none' : 'auto'}>
+              <View style={styles.bottomControls} pointerEvents={isTextEditing ? 'none' : 'auto'}>
                 <NativeChromeIconButton
                   name="saveToPhotos"
                   accessibilityLabel={t('media.saveToGalleryA11y')}
@@ -1000,7 +1109,7 @@ export default function PreviewScreen() {
                           viewportWidth: photoViewport.width,
                           viewportHeight: photoViewport.height,
                         }),
-                      () => setIsSavingPhoto(false)
+                      () => setIsSavingPhoto(false),
                     );
                   }}
                   disabled={isSavingPhoto}

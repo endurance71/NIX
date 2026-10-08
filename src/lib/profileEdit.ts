@@ -21,3 +21,30 @@ export function normalizeProfileBio(value: string): string | null {
 export function isProfileBioTooLong(value: string): boolean {
   return value.trim().length > PROFILE_BIO_MAX_LENGTH;
 }
+
+export function getProfileFieldDecision(
+  field: 'display_name' | 'bio',
+  value: string,
+  initialValue: string,
+) {
+  const isDisplayName = field === 'display_name';
+  const normalize = isDisplayName ? normalizeDisplayName : normalizeProfileBio;
+  const maxLength = isDisplayName ? DISPLAY_NAME_MAX_LENGTH : PROFILE_BIO_MAX_LENGTH;
+  const displayNameError = isDisplayName ? validateDisplayName(value) : null;
+  const bioTooLong = !isDisplayName && isProfileBioTooLong(value);
+  const errorKey =
+    displayNameError === 'required'
+      ? 'profile.displayNameRequired'
+      : displayNameError === 'too_long'
+        ? 'profile.displayNameTooLong'
+        : bioTooLong
+          ? 'profile.bioTooLong'
+          : null;
+  return {
+    isDisplayName,
+    maxLength,
+    errorKey,
+    invalid: Boolean(errorKey),
+    unchanged: (normalize(value) ?? '') === (normalize(initialValue) ?? ''),
+  };
+}
