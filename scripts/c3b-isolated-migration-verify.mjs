@@ -66,6 +66,10 @@ CREATE TABLE IF NOT EXISTS storage.objects (
 );
 GRANT ALL ON storage.buckets TO postgres, service_role;
 GRANT ALL ON storage.objects TO postgres, service_role;
+-- Match Storage API baseline grants; application migrations supply the policies.
+GRANT ALL ON storage.buckets, storage.objects TO anon, authenticated;
+ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 `;
 
 /**
