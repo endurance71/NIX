@@ -43,7 +43,7 @@ UPDATE public.media_upload_batches SET status='moderation_pending' WHERE id='e30
 INSERT INTO public.moderation_jobs(id,content_kind,batch_id,asset_id,sender_id,status) VALUES('e4000000-0000-4000-8000-000000000001','media','e3000000-0000-4000-8000-000000000001','e2000000-0000-4000-8000-000000000001','e1000000-0000-4000-8000-000000000001','approved');
 SELECT lives_ok($$SELECT public.materialize_approved_media_batch('e4000000-0000-4000-8000-000000000001')$$,'approved service materialization delivers shared media');
 SELECT is((SELECT count(*) FROM public.nixes WHERE asset_id='e2000000-0000-4000-8000-000000000001'),2::bigint,'both canonical recipients materialized');
-SELECT throws_ok($$UPDATE storage.objects SET metadata='{"size":5}' WHERE name='nixes/e1000000-0000-4000-8000-000000000001/trust.jpg'$$,'P0001','MEDIA_OBJECT_IMMUTABLE','Storage freeze also applies to signed/service writes');
+SELECT throws_ok($$UPDATE storage.objects SET metadata='{"size":5}' WHERE name='nixes/e1000000-0000-4000-8000-000000000001/trust.jpg'$$,'42501','MEDIA_OBJECT_IMMUTABLE','Storage freeze also applies to signed/service writes with a permission denial');
 SET LOCAL ROLE authenticated;
 WITH changed AS (UPDATE storage.objects SET metadata='{"size":5}' WHERE name='nixes/e1000000-0000-4000-8000-000000000001/trust.jpg' RETURNING id) SELECT is((SELECT count(*) FROM changed),0::bigint,'approved object update denied to owner by RLS');
 SELECT set_config('request.jwt.claims','{"sub":"e1000000-0000-4000-8000-000000000002","role":"authenticated"}',true);
