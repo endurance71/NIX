@@ -29,6 +29,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Video test tooling
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: npm run check:toolchain
       - run: npm run check:supabase-migrations
       - run: npm run deno:check
@@ -58,6 +60,16 @@ jobs:
       - run: npm ci
       - name: Local database tooling
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Pull pinned services with bounded registry retries
+        run: |
+          for image in public.ecr.aws/supabase/postgres:17.6.1.165 public.ecr.aws/supabase/gotrue:v2.193.0 public.ecr.aws/supabase/storage-api:v1.65.1 public.ecr.aws/supabase/kong:2.8.1; do
+            pulled=false
+            for attempt in 1 2 3 4; do
+              if docker pull "$image"; then pulled=true; break; fi
+              if [ "$attempt" -lt 4 ]; then sleep "$((attempt * 10))"; fi
+            done
+            if [ "$pulled" != true ]; then exit 1; fi
+          done
       - name: Full migrations, Auth and Storage security
         run: npm run test:c3b-auth-storage
 

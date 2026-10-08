@@ -73,6 +73,14 @@ GRANT ALL ON storage.objects TO postgres, service_role;
  * pgTAP fixtures and GoTrue inserts expect the newer column names.
  */
 const AUTH_USERS_COMPAT_SQL = `
+-- The base image predates GoTrue's JSON claims support. Match the live Auth
+-- helper without stubbing application authorization or accepting a missing JWT.
+CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
+  SELECT coalesce(
+    nullif(current_setting('request.jwt.claim.sub', true), ''),
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
+  )::uuid
+$$;
 ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz;
 ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS phone text;
 ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS phone_confirmed_at timestamptz;
