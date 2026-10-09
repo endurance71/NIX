@@ -29,6 +29,9 @@ export function validateReleaseEnv(env) {
   }
 
   if (!anonKey) failures.push('EXPO_PUBLIC_SUPABASE_ANON_KEY is missing or empty');
+  for (const flag of ['EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED', 'EXPO_PUBLIC_SENTRY_ENABLED']) {
+    if (env[flag] === 'true') failures.push(`${flag} must remain disabled in release builds`);
+  }
   return failures;
 }
 
