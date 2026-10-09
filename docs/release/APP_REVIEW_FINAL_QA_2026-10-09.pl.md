@@ -1,14 +1,18 @@
 # NiX 1.0.12 (10) — finalne QA i nagranie
 
-**Wynik: PENDING.** Backend smoke i CI PASS nie zastępują QA finalnej aplikacji z TestFlight. Historyczne potwierdzenie kamery na buildzie development nie jest dowodem dla IPA 10.
+**Wynik: PARTIAL PASS; pozostała macierz PENDING.** Backend smoke i CI PASS nie zastępują QA finalnej aplikacji z TestFlight. Historyczne potwierdzenie kamery na buildzie development nie jest dowodem dla IPA 10.
 
 ## Identyfikacja
 
 - Instalacja: TestFlight → NiX Internal QA → **1.0.12 (10)**. Nie wybierać 7, 8 ani 9.
 - Runtime 1.0.12, kanał production; nie publikować OTA w trakcie QA.
-- IPA builda 10 SHA256: pending — zostanie zapisany po finalnym podpisaniu i uploadzie. Historyczny hash builda 9 znajduje się w ios-current.md.
+- IPA builda 10 SHA256: `ae95660ba5de534fbc532c4e84f22e462aad27228e87518a0ab26c0c14d17ec1` — dokładny podpisany pakiet uploadu Xcode. Historyczny hash builda 9 znajduje się w ios-current.md.
 - iPhone Damian: model 16 Pro Max; przed nagraniem potwierdzić wersję iOS w Ustawieniach. Poprzedni odczyt: 27.0.1 (24A446).
 - Dla każdego wyniku zapisać datę, urządzenie/OS, build, scenariusz, PASS/FAIL, plik nagrania i znacznik czasu. Dane logowania reviewerów wyłącznie w prywatnym ASC.
+
+## Potwierdzenie właściciela — 2026-10-09
+
+Właściciel potwierdził zainstalowany build 10 na iPhonie Damian oraz PASS dla logowania e-mail/Apple i wysyłania/odbioru tekstu, zdjęcia i krótkiego filmu. To dowód deklaratywny dla tych scenariuszy; brak nagrania i pełnej macierzy. Model/OS odczytany wcześniej: iPhone 16 Pro Max / 27.0.1. Backend Auth: drugie konto reviewera z Notes PASS; główne pole ASC ma username zamiast e-maila, próba pierwszego adresu z Notes z hasłem głównego pola zwróciła HTTP400 `invalid_credentials`, także po deklarowanej poprawce danych. Właściciel musi potwierdzić właściwy e-mail; relacja obu kont pozostaje pending.
 
 ## Scenariusz nagrania dla Apple
 
@@ -31,9 +35,9 @@ Historyczna próba builda 9: podpisany Release simulator przeszedł czysty start
 | Scenariusz | Wynik i dowód |
 | --- | --- |
 | Czysta instalacja; aktualizacja istniejącej instalacji 6/7 | PENDING |
-| E-mail; Sign in with Apple; wylogowanie/zmiana konta | PENDING |
+| E-mail; Sign in with Apple; wylogowanie/zmiana konta | Login e-mail/Apple PASS — właściciel, build10; logout/zmiana konta PENDING |
 | Onboarding 16+ i zapis aktualnej wersji dokumentów | PENDING |
-| Zdjęcie/film, preview, wysyłka i odbiór, viewer | PENDING |
+| Zdjęcie/film, preview, wysyłka i odbiór, viewer | Tekst/zdjęcie/krótki film send+receive PASS — właściciel, build10; preview/viewer pełne QA PENDING |
 | Report/block/delete osobnego konta; reviewerzy pozostają aktywni | Backend PASS, binary PENDING |
 | Offline/retry, tło, powrót po ubiciu, brak podwójnej wysyłki | PENDING |
 | Odmowa kamery/mikrofonu/zdjęć/push; ponowne wejście | PENDING |
@@ -43,14 +47,16 @@ Historyczna próba builda 9: podpisany Release simulator przeszedł czysty start
 | Reduce Motion: fade, poprawne gesty | PENDING |
 | iPhone bez wyspy; iPad w trybie zgodności | iPhone/full flow PENDING; iPad login/PL divider large text PASS na signed simulator 10 |
 | Sieć IPv6/NAT64 | PENDING |
-| Oba reviewer logins na finalnym buildzie, istniejąca relacja | PENDING |
+| Oba reviewer logins na finalnym buildzie, istniejąca relacja | Peer Auth API PASS; główny login/e-mail wymaga poprawienia w ASC. Binary/relacja PENDING |
 | Film kompletny, aktualny, dostępny reviewerowi | PENDING |
 
 ## Wstrzymanie gotowości
 
-Nie nadawać READY FOR APP REVIEW dopóki macierz nie ma rzeczywistych dowodów, build 10 nie jest wybrany w ASC, odpowiedź na sześć pytań nie jest kompletna, DSA i wymagania regionalne nie są rozstrzygnięte. Odpowiedź Apple, resubmission i wydanie publiczne wymagają osobnego polecenia właściciela.
+Wybór builda 10 w ASC jest zapisany i zweryfikowany. READY FOR APP REVIEW nadal wymaga dowodów dla pozostałej macierzy, kompletnej odpowiedzi na sześć pytań oraz rozstrzygnięcia DSA i wymagań regionalnych. Odpowiedź Apple, resubmission i wydanie publiczne wymagają osobnego polecenia właściciela.
 
-## What to Test — do zapisania w TestFlight po przetworzeniu builda 10
+## What to Test — zapisane dla builda 10
+
+Obie wersje zapisano razem w polu English(U.S.), jedynym dostępnym selektorze Test Details. Build 10 jest przetworzony i dostępny w NiX Internal QA oraz Team (Expo).
 
 ### PL
 
