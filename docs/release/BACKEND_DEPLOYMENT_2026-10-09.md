@@ -7,7 +7,8 @@ Status: **DEPLOYED / production API smoke PASS / final binary QA pending**.
 | Input | Value |
 | --- | --- |
 | Backend source | `bbd143643a85665c378d2a197a4020b1f5843642` |
-| Client source for current public candidate 9 | `859694ad3dab5b2287887ab88019a310952f89e9` |
+| Client source for current public candidate 10 | `1be78ee517c20a94a7829d15b1e7647bcafe1e3b` |
+| Superseded build 9 source (historical) | `859694ad3dab5b2287887ab88019a310952f89e9` |
 | Superseded build 8 source (historical) | `1300dc1283eb55434cdfcf3d0100f4ad11141bf3` |
 | CI fix/evidence commit | `2c8aae1` |
 | Supabase project | `xjdjlxfulpqpundkcdul`, PostgreSQL 17.6, eu-west-1 |
@@ -68,7 +69,7 @@ Capture current pending/processing leases, worker logs, function versions and er
 
 For disaster recovery, decrypt the protected backup only in an isolated environment. Restore database schema/data/roles/history, restore Vault values into a fresh Vault root, then restore object bytes at their original bucket/key mappings. Validate counts, identities and hashes before activating any external integrations. The completed object proof used an isolated proof bucket; remapping objects to the original production keys and activating restored Vault secrets remains an operator recovery step, not an action taken during this rollout. Apply the security migrations before admitting client traffic. Review data written after the snapshot before any production restore.
 
-Older build 6 allows photos up to 10 MiB locally; the hardened server rejects photos above 4 MiB. Keep this rejection and recommend updating to the current candidate once distributed. Do not raise the server limit beyond provider capacity or weaken moderation. API request/response shapes for accepted files remain unchanged; exact old-binary native QA is still pending. Build 9 changes the client analytics gate only; it does not require another backend rollout.
+Older build 6 allows photos up to 10 MiB locally; the hardened server rejects photos above 4 MiB. Keep this rejection and recommend updating to the current candidate once distributed. Do not raise the server limit beyond provider capacity or weaken moderation. API request/response shapes for accepted files remain unchanged; exact old-binary native QA is still pending. Build 9 changes the client analytics gate; build 10 fixes Dynamic Type separator geometry. Neither requires another backend rollout.
 
 ## Separate approval
 
