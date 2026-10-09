@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAppTheme } from '../../../hooks/useAppTheme';
 import { getPasswordFormDecision } from '../../../lib/passwordForm';
+import { getPasswordUpdateErrorKey } from '../../../lib/passwordUpdateError';
 import { notifySuccess } from '../../../lib/appNotify';
 import {
   NativeSettingsActionRow,
@@ -19,17 +20,6 @@ function isReauthenticationNeededError(error: { message?: string; code?: string 
   const code = error.code?.toLowerCase() ?? '';
   const message = error.message?.toLowerCase() ?? '';
   return code === 'reauthentication_needed' || message.includes('reauthentication');
-}
-
-function getPasswordUpdateErrorMessage(message: string, t: (key: string) => string) {
-  if (message.includes('Password should be at least')) return t('profile.passwordMinimumError');
-  if (message.toLowerCase().includes('same password')) return t('profile.passwordSameError');
-  if (message.includes('Email not confirmed')) return t('profile.emailNotConfirmedError');
-  if (message.toLowerCase().includes('invalid nonce')) return t('profile.invalidCodeError');
-  if (message.toLowerCase().includes('invalid login credentials') || message.toLowerCase().includes('incorrect password')) {
-    return t('profile.currentPasswordInvalidError');
-  }
-  return message;
 }
 
 type ChangePasswordFormState = {
@@ -125,7 +115,7 @@ export default function ChangePasswordScreen() {
         if (reauthenticationError) {
           dispatchForm({
             type: 'error',
-            error: getPasswordUpdateErrorMessage(reauthenticationError.message, t),
+            error: t(getPasswordUpdateErrorKey(reauthenticationError)),
           });
           dispatchForm({ type: 'loading', loading: false });
           return;
@@ -133,7 +123,7 @@ export default function ChangePasswordScreen() {
         dispatchForm({ type: 'nonceRequired', message: t('profile.verificationCodeSent') });
         return;
       }
-      dispatchForm({ type: 'error', error: getPasswordUpdateErrorMessage(updateError.message, t) });
+      dispatchForm({ type: 'error', error: t(getPasswordUpdateErrorKey(updateError)) });
       dispatchForm({ type: 'loading', loading: false });
       return;
     }

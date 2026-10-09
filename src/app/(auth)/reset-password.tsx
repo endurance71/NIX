@@ -14,12 +14,7 @@ import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
 import { useAuthPasswordPair } from '../../hooks/useAuthCredentials';
 import { useAuth } from '../../hooks/useAuth';
 import { runWithFinally } from '../../lib/runWithFinally';
-
-function getResetPasswordErrorMessage(message: string, t: (key: string) => string) {
-  if (message.includes('Password should be at least')) return t('auth.passwordMin');
-  if (message.toLowerCase().includes('same password')) return t('auth.resetPasswordSameError');
-  return message;
-}
+import { getPasswordUpdateErrorKey } from '../../lib/passwordUpdateError';
 
 export default function ResetPasswordScreen() {
   const { t } = useTranslation();
@@ -67,7 +62,7 @@ export default function ResetPasswordScreen() {
       async () => {
         const { error: updateError } = await updatePassword(passwordValue);
         if (updateError) {
-          setError(getResetPasswordErrorMessage(updateError.message, t));
+          setError(t(getPasswordUpdateErrorKey(updateError)));
           return;
         }
         router.replace('/(auth)/login');

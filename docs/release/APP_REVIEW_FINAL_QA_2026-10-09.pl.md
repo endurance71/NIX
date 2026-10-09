@@ -37,6 +37,7 @@ Historyczna próba builda 9: podpisany Release simulator przeszedł czysty start
 | Czysta instalacja; aktualizacja istniejącej instalacji 6/7 | PENDING |
 | E-mail; Sign in with Apple; wylogowanie/zmiana konta | Login e-mail/Apple PASS — właściciel, build10; logout/zmiana konta PENDING |
 | Onboarding 16+ i zapis aktualnej wersji dokumentów | PENDING |
+| Błędy zmiany/resetu hasła PL/EN | FAIL build10: surowy błąd same_password po angielsku na screenie właściciela. Poprawka klienta i 15 regresji PASS; nowy binary i QA PENDING |
 | Zdjęcie/film, preview, wysyłka i odbiór, viewer | Tekst/zdjęcie/krótki film send+receive PASS — właściciel, build10; preview/viewer pełne QA PENDING |
 | Report/block/delete osobnego konta; reviewerzy pozostają aktywni | Backend PASS, binary PENDING |
 | Offline/retry, tło, powrót po ubiciu, brak podwójnej wysyłki | PENDING |
