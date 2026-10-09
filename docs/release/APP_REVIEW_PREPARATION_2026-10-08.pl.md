@@ -1,18 +1,22 @@
 # NiX 1.0.12 — przygotowanie App Review, 2026-10-08
 
-**Status na 2026-10-09: IN PROGRESS / nie READY FOR APP REVIEW.** Finalnym kandydatem jest **1.0.12 (9)**, z podpisanym lokalnym IPA; upload i przetworzenie w ASC nie są jeszcze potwierdzone. Build 8 został zastąpiony. Backend jest wdrożony i przeszedł produkcyjny smoke. Finalne zgłoszenie i odpowiedź Apple nie zostały wysłane. Zakres: iPhone, dotychczasowe 175 regionów, PL/EN, bezpłatność, runtime 1.0.12, kanał production, ręczne wydanie.
+**Status na 2026-10-09: IN PROGRESS / nie READY FOR APP REVIEW.** Finalnym kandydatem jest **1.0.12 (10)** po wykryciu błędu dużej czcionki; archive/upload/processing dla 10 w toku. Build 9 ma potwierdzony upload przez Xcode, ale został zastąpiony. Backend jest wdrożony i przeszedł produkcyjny smoke. Finalne zgłoszenie i odpowiedź Apple nie zostały wysłane. Zakres: iPhone, dotychczasowe 175 regionów, PL/EN, bezpłatność, runtime 1.0.12, kanał production, ręczne wydanie.
 
-## Korekta finalnego kandydata — build 9
+## Korekta dużej czcionki — build 10
+
+Podpisany simulator Release 9 wszedł do logowania na czystym iPadzie. Początkowy błąd bezpiecznej sesji dotyczył wariantu bez podpisu/symulowanych entitlements; nie zmieniono kodu auth. Przy powiększonej czcionce separator „lub” zawijał się na dwa wiersze. Build 10 uwzględnia fontScale w geometrii linii i naturalną szerokość etykiety SwiftUI, bez zmniejszania tekstu ani zmiany wyglądu domyślnego. TypeScript/lint/Knip, 582 testy aplikacji, 14 testów środowiska Release, React Doctor 549 plików / 0 błędów / 0 ostrzeżeń, Expo Doctor 20/20, synchronizacja iOS i preflight PASS. Hermes, zaktualizowane CI, natywna regresja i nowy archive/upload pozostają w toku.
+
+## Historyczna korekta analityki — build 9
 
 Build 8 został zastąpiony przez **1.0.12 (9)**. Końcowa kontrola pokazała, że lokalny `.env.local` nadpisywał produkcyjne `analytics=false`. Wcześniejszy preflight walidował tylko URL i klucz Supabase, więc nie wykrywał tej konfiguracji. Build 8 nie spełnia wymogu wyłączenia analityki, choć wysyłanie zdarzeń było dodatkowo zależne od zgody użytkownika.
 
 Źródło klienta `859694a`: analityka wyłączona w kodzie niezależnie od flag, a Release preflight odrzuca włączone flagi analityki/Sentry. Dodano regresje dla lokalnego dotenv, internal roadmap i wcześniejszej zgody. Numer aplikacji i widgetu 9; runtime 1.0.12 bez zmian. Na źródle `859694a`: 100 zestawów / 580 testów aplikacji, 14 regresji środowiska Release, TypeScript/lint/Knip/iOS config, React Doctor 0/0, Expo Doctor 20/20, audited dependencies i Hermes export PASS. [CI finalnej poprawki](https://github.com/endurance71/NIX/actions/runs/37889189207) oraz EAS `01a11f27-7877-7349-8e88-df272af92bc1` PASS. Backend nie wymaga ponownego wdrożenia dla tej poprawki.
 
-Lokalny Xcode Release Archive 9 **PASS**. Organizer użył istniejącego certyfikatu cloud distribution; podpisane IPA zachowano bezpośrednio z przygotowanego pakietu Xcode po nieskutecznym oknie zapisu. CLI eksport zgłasza `No Accounts`, mimo że GUI rozpoznaje konto. App/widget 1.0.12 (9), runtime/channel, produkcyjny backend/APNs, provisioning App Store i `codesign --verify --deep --strict` **PASS**. IPA SHA256 `41a4b7961b18c1a8b9634a45083b4994ae61da61182c4c78302d0195a5bd0c2f`; Hermes SHA256 `a4013c33373334437b69fca5943f68185b94185c1d20c8672287c3f00d367075`. Upload przez Organizer przygotowano z `testFlightInternalTestingOnly=false` i bez zarządzania numerem builda. Nie potwierdzono zakończenia uploadu; Mac został zablokowany. Release 9 skompilowano, zainstalowano i uruchomiono na odrębnym iPad simulator/iOS 27.0, ale kontrola obrazu i flow pozostaje pending. Dowody native i ASC builda 8 poniżej są historyczne i nie zastępują QA 9.
+Lokalny Xcode Release Archive 9 **PASS**. Organizer użył istniejącego certyfikatu cloud distribution; podpisane IPA zachowano bezpośrednio z przygotowanego pakietu Xcode po nieskutecznym oknie zapisu. CLI eksport zgłasza `No Accounts`, mimo że GUI rozpoznaje konto. App/widget 1.0.12 (9), runtime/channel, produkcyjny backend/APNs, provisioning App Store i `codesign --verify --deep --strict` **PASS**. IPA SHA256 `c18349581af8a904eb2af930cae2889e0938193635ebd2ed2bccbd6f2d0fc95b`; Hermes SHA256 `a4013c33373334437b69fca5943f68185b94185c1d20c8672287c3f00d367075`. Upload przez Organizer przygotowano z `testFlightInternalTestingOnly=false` i bez zarządzania numerem builda. Po odblokowaniu Maca Organizer potwierdził **App upload complete: NiX 1.0.12 (9) uploaded**. Hash powyżej dotyczy dokładnego przesłanego pakietu, podpisanego ponownie przy uploadzie; hash Hermes pozostał identyczny. Release 9 skompilowano, zainstalowano i uruchomiono na odrębnym iPad simulator/iOS 27.0, ale kontrola obrazu i flow pozostaje pending. Dowody native i ASC builda 8 poniżej są historyczne i nie zastępują QA 9.
 
 ## Wykonane
 
-- Aplikacja, projekt Xcode i widget ustawione na **1.0.12 (9)**; archiwum zawiera ten sam numer we wszystkich targetach.
+- Aplikacja, projekt Xcode i widget ustawione na **1.0.12 (10)**; nowy artefakt wymaga ponownego potwierdzenia numerów. Historyczny archive 9 miał zgodne targety.
 - Przywrócono privacy/terms PL/EN i dodano support PL/EN na SEOHOST. AASA zwraca 200 application/json bez przekierowania; testowa trasa zaproszenia zwraca właściwy landing. Publiczny walidator PASS.
 - Katalog subdomeny zawierał inną stronę główną i nie zawierał katalogów NiX. Wdrożenie zachowało tę stronę. Landing NiX jest publikowany jako `nix-invite.html`, a `/invite/*` prowadzi do niego. Nagłówki bezpieczeństwa obejmują trasy NiX.
 - Zweryfikowane FTPS: odtworzono brakującą ścieżkę certyfikatów do systemowego zaufanego USERTrust i włączono reuse sesji TLS dla transferów. Nie wyłączano sprawdzania certyfikatu. Kopie nadpisanych plików i receipt są poza Git.
@@ -59,13 +63,13 @@ Supabase Security Advisor po wdrożeniu nie zgłosił ERROR. INFO obejmuje 14 ta
 | --- | --- |
 | Draft PR / zdalne CI Auth/Storage A/B | PASS |
 | Backup + odtworzenie + staging + rollout | PASS; manifest i zaszyfrowane dowody poza Git |
-| Publicznie kwalifikujący archive/IPA/upload finalnego builda 9 | Archive i podpisane IPA PASS; upload niepotwierdzony, Mac zablokowany |
-| Finalny build w NiX Internal QA | 9 pending; 8 zastąpiony |
+| Publicznie kwalifikujący archive/IPA/upload finalnego builda 10 | 10 pending; 9 historyczny upload PASS |
+| Finalny build w NiX Internal QA | 10 pending; 8/9 zastąpione |
 | Konta reviewera i pełne QA finalnego binary | Do wykonania; backend smoke PASS |
 | iPhone, zgodność iPad, IPv6/NAT64 | Do wykonania |
 | Nagranie właściciela z finalnego builda | Do wykonania |
 | Odpowiedź EN i Review Notes bez placeholderów | Zależne od dowodów |
-| Metadata PL/EN, screenshoty i wybrany build | Opisy/URL/wersja zapisane; screenshoty i wybór 9 pending |
+| Metadata PL/EN, screenshoty i wybrany build | Opisy/URL/wersja zapisane; screenshoty i wybór 10 pending |
 | App Privacy, wiek, export compliance, DSA i regiony/ICP | DSA nieukończone; reszta do finalnej kontroli; ICP wymaga danych właściciela |
 
 Właściciel wykonuje nagranie na fizycznym iPhonie Damian zgodnie z sześcioma pytaniami Apple. Konta demo reviewera pozostają aktywne; rejestracja i deletion używają odrębnego konta. Wideo musi zaczynać się uruchomieniem aplikacji i obejmować report/block, tekst, zdjęcie i film. Potrzebna jest także rzeczywista odpowiedzialna osoba i procedura obsługi zgłoszeń; nie zakładać ich tylko na podstawie obecności endpointu.

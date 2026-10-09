@@ -1,12 +1,12 @@
-# NiX 1.0.12 (9) — finalne QA i nagranie
+# NiX 1.0.12 (10) — finalne QA i nagranie
 
-**Wynik: PENDING.** Backend smoke i CI PASS nie zastępują QA finalnej aplikacji z TestFlight. Historyczne potwierdzenie kamery na buildzie development nie jest dowodem dla IPA 9.
+**Wynik: PENDING.** Backend smoke i CI PASS nie zastępują QA finalnej aplikacji z TestFlight. Historyczne potwierdzenie kamery na buildzie development nie jest dowodem dla IPA 10.
 
 ## Identyfikacja
 
-- Instalacja: TestFlight → NiX Internal QA → **1.0.12 (9)**. Nie wybierać 7 ani 8.
+- Instalacja: TestFlight → NiX Internal QA → **1.0.12 (10)**. Nie wybierać 7, 8 ani 9.
 - Runtime 1.0.12, kanał production; nie publikować OTA w trakcie QA.
-- Podpisane IPA builda 9 SHA256: `41a4b7961b18c1a8b9634a45083b4994ae61da61182c4c78302d0195a5bd0c2f`. Zachowane z pakietu podpisanego przez Organizer; upload i identyfikacja przetworzonego builda w ASC nadal pending.
+- IPA builda 10 SHA256: pending — zostanie zapisany po finalnym podpisaniu i uploadzie. Historyczny hash builda 9 znajduje się w ios-current.md.
 - iPhone Damian: model 16 Pro Max; przed nagraniem potwierdzić wersję iOS w Ustawieniach. Poprzedni odczyt: 27.0.1 (24A446).
 - Dla każdego wyniku zapisać datę, urządzenie/OS, build, scenariusz, PASS/FAIL, plik nagrania i znacznik czasu. Dane logowania reviewerów wyłącznie w prywatnym ASC.
 
@@ -24,7 +24,7 @@
 
 ## Macierz QA finalnego artefaktu
 
-Release build 9 skompilował się, zainstalował i uruchomił na odrębnym symulatorze iPad Pro 13 (M5), iOS 27.0. Jest to dowód kompilacji i startu; nie potwierdza czytelności, zgodności interakcji ani pełnego flow aplikacji. Kontrola obrazu została zatrzymana przez blokadę Maca. Nie jest to fizyczny artefakt TestFlight ani film wymagany przez Apple.
+Historyczna próba builda 9: podpisany Release simulator przeszedł czysty start do logowania na iPad Pro 13 (M5), iOS 27.0. Początkowy wariant bez podpisu nie miał symulowanych entitlements i pokazywał błąd SecureStore; podpisany wariant działał bez zmian kodu. Jasny/ciemny ekran logowania i walidacja pustego e-maila sprawdzone. Duży tekst ujawnił zawijanie „lub”; build 10 zawiera poprawkę, której kontrola natywna jest pending. Nie oznacza to pełnego flow, TestFlight QA ani nagrania dla Apple.
 
 | Scenariusz | Wynik i dowód |
 | --- | --- |
@@ -46,4 +46,22 @@ Release build 9 skompilował się, zainstalował i uruchomił na odrębnym symul
 
 ## Wstrzymanie gotowości
 
-Nie nadawać READY FOR APP REVIEW dopóki macierz nie ma rzeczywistych dowodów, build 9 nie jest wybrany w ASC, odpowiedź na sześć pytań nie jest kompletna, DSA i wymagania regionalne nie są rozstrzygnięte. Odpowiedź Apple, resubmission i wydanie publiczne wymagają osobnego polecenia właściciela.
+Nie nadawać READY FOR APP REVIEW dopóki macierz nie ma rzeczywistych dowodów, build 10 nie jest wybrany w ASC, odpowiedź na sześć pytań nie jest kompletna, DSA i wymagania regionalne nie są rozstrzygnięte. Odpowiedź Apple, resubmission i wydanie publiczne wymagają osobnego polecenia właściciela.
+
+## What to Test — do zapisania w TestFlight po przetworzeniu builda 10
+
+### PL
+
+Sprawdź NiX 1.0.12 (10). Buildy 8/9 zostały zastąpione; finalne wyniki zapisuj dla builda 10.
+
+Sprawdź czystą instalację i aktualizację, logowanie e-mail/Apple, onboarding 16+, zmianę konta i powrót offline. Na kontrolowanych kontach przetestuj tekst, zdjęcie i krótki film: kamera → podgląd → wysyłka → odbiór → viewer. Sprawdź wznowienie wysyłki po utracie sieci i przejściu w tło, bez duplikatów. Zgłoś testową wiadomość, zablokuj jej nadawcę i usuń oddzielne konto demonstracyjne. Zachowaj konta reviewerów.
+
+Sprawdź powiadomienia nad arkuszami i klawiaturą, tap/swipe, oba motywy, PL/EN, dużą czcionkę, VoiceOver i Reduce Motion. Odmów uprawnień i sprawdź możliwość ponownego wejścia. Zapisuj urządzenie, iOS, build oraz kroki i nagranie błędu. Nie przesyłaj haseł ani prywatnych rozmów w feedbacku.
+
+### EN
+
+Test NiX 1.0.12 (10). Builds 8/9 are superseded; record final results for build 10.
+
+Check clean installation and upgrade, email/Apple sign-in, age-16 onboarding, account switching and offline recovery. With controlled test accounts, test text, photos and a short video: camera → preview → send → receive → viewer. Check upload recovery after network loss and backgrounding, without duplicates. Report a test message, block its sender and delete a separate demonstration account. Preserve the reviewer accounts.
+
+Check notifications above sheets and the keyboard, tap/swipe dismissal, both themes, PL/EN, large text, VoiceOver and Reduce Motion. Deny permissions and check recovery when reopening the screen. Include device, iOS, build, reproduction steps and a recording for failures. Do not include passwords or private conversations in feedback.

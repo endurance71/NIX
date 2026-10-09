@@ -55,6 +55,16 @@ describe('getAuthOrDividerLineWidth', () => {
     expect(total).toBeLessThanOrEqual(contentWidth + 1);
     expect(lineWidth).toBeGreaterThan(0);
   });
+
+  it.each(['lub', 'or'])('reserves space for scaled %s text on a narrow screen', (label) => {
+    const contentWidth = getAuthContentWidth(320);
+    const standard = getAuthOrDividerLineWidth(contentWidth, label);
+    const large = getAuthOrDividerLineWidth(contentWidth, label, AUTH_OR_DIVIDER_GAP, 3.2);
+    expect(large).toBeLessThan(standard);
+    expect(large).toBeGreaterThan(0);
+    const scaledLabelWidth = Math.max(label.length * 7.5, 16) * 3.2;
+    expect(large * 2 + scaledLabelWidth + AUTH_OR_DIVIDER_GAP * 2).toBeLessThanOrEqual(contentWidth + 1);
+  });
 });
 
 describe('getAuthPrimaryButtonWidth', () => {
