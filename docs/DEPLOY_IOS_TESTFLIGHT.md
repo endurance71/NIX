@@ -1,5 +1,5 @@
 # NiX — Deploy iOS (cost-first)
-> Aktualizacja 2026-10-09: kandydat **1.0.12 (10)** zastępuje 9 po wykryciu zawijania separatora logowania przy dużej czcionce. Build 9 został przesłany przez Xcode; build 10 wymaga ponownego QA i lokalnego archive/upload. Analityka pozostaje wyłączona. Backend wdrożony po backup/restore i staging, smoke PASS. Finalne QA, nagranie, metadane i DSA/regiony nadal blokują App Review. Nie publikować OTA dla runtime 1.0.12. Aktualny stan: [kanon wydania](release/ios-current.md).
+> Aktualizacja 2026-10-09: kandydat **1.0.12 (10)** zastępuje 9 po wykryciu zawijania separatora logowania przy dużej czcionce. Build 9 został przesłany przez Xcode; finalny lokalny Release Archive 10 oraz regresja dużej czcionki PASS. Publiczny podpis/export/upload 10 blokuje ponowne logowanie Apple w Xcode; pełne QA z TestFlight pozostaje pending. Analityka pozostaje wyłączona. Backend wdrożony po backup/restore i staging, smoke PASS. Finalne QA, nagranie, metadane i DSA/regiony nadal blokują App Review. Nie publikować OTA dla runtime 1.0.12. Aktualny stan: [kanon wydania](release/ios-current.md).
 
 
 > **Źródło prawdy** dla wydawania NiX na iOS (ludzie i agenci AI).  

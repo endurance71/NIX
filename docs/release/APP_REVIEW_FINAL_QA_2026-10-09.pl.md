@@ -24,7 +24,7 @@
 
 ## Macierz QA finalnego artefaktu
 
-Pierwszy wariant 10 na iPhone 16e: domyślny login mieści się w ekranie, przy Text Size 7 etykieta przycisku jest ucięta. Elastyczna wysokość przycisku została poprawiona; ponowny build i natywna regresja pozostają pending. Nie uznawać wcześniejszego QA separatora za PASS całego scenariusza dużej czcionki.
+Pierwszy wariant 10 na iPhone 16e: domyślny login mieści się w ekranie, przy Text Size 7 etykieta przycisku jest ucięta. Elastyczna wysokość przycisku została poprawiona. Podpisany Release simulator z `9b1d344` przeszedł regresję przy Text Size 7 / Light na iPhone 16e / iOS 27.0: pełna etykieta „Zaloguj”, widoczny przycisk Apple i jednowierszowy separator „lub”. Dowód prywatny: `build10/iphone16e-primary-button-large-text-after.jpg`. Po przywróceniu Text Size 3 i ponownym uruchomieniu sprawdzono domyślny jasny login oraz ciemny ekran z walidacją pustego e-maila; oba PASS. Dowody: `iphone16e-login-default-final.jpg`, `iphone16e-login-dark-validation-final.jpg`. Nie uznawać wcześniejszego QA separatora za PASS całego scenariusza dużej czcionki.
 
 Historyczna próba builda 9: podpisany Release simulator przeszedł czysty start do logowania na iPad Pro 13 (M5), iOS 27.0. Początkowy wariant bez podpisu nie miał symulowanych entitlements i pokazywał błąd SecureStore; podpisany wariant działał bez zmian kodu. Jasny/ciemny ekran logowania i walidacja pustego e-maila sprawdzone. Duży tekst ujawnił zawijanie „lub”; podpisany Release simulator 10 przeszedł regresję separatora PL przy Text Size 7 / Dark i domyślny login przy Text Size 3 / Light. Kontrole dotyczą wyłącznie tych widoków, a nie pełnego flow. Nie oznacza to pełnego flow, TestFlight QA ani nagrania dla Apple.
 

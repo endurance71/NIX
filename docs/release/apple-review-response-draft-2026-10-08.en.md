@@ -5,7 +5,7 @@
 Preparation requirements:
 
 - Public privacy/terms/support pages in PL/EN have been restored and passed the hosting validator. Verify they remain accessible at final QA.
-- Candidate: public-eligible 1.0.12 (10), runtime 1.0.12, production channel. Archive/upload/processing, selection and final QA for 10 remain pending; build 9 upload is historical evidence. The original rejection concerns 1.0.11 (6). Version metadata is now 1.0.12, with build 6 removed and build 10 not yet selected.
+- Candidate: public-eligible 1.0.12 (10), runtime 1.0.12, production channel. Local Release Archive 10 passed; public signing/export/upload is blocked on Xcode account login. Processing, selection and final QA for 10 remain pending; build 9 upload is historical evidence. The original rejection concerns 1.0.11 (6). Version metadata is now 1.0.12, with build 6 removed and build 10 not yet selected.
 - Check both connected reviewer accounts and all recorded flows on the chosen candidate, including the current production backend and moderation operations.
 - Provide a recording captured on a physical device with the latest supported stable OS. Identify model, OS, build and date; verify reviewer access to the recording.
 - Mac and Vision Pro availability have been disabled in ASC; 175 regions and free access are preserved. DSA declaration is missing in Business. Verify China mainland ICP applicability and all other regional requirements.
