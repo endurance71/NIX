@@ -1,5 +1,5 @@
 # NiX — Deploy iOS (cost-first)
-> Aktualizacja 2026-10-08: przykłady OTA poniżej odnoszą się do ostatnio udokumentowanego binary **1.0.11 (6)**. Lokalny kandydat stabilizacji to **1.0.12 (7)** / runtime **1.0.12** i wymaga nowego binary ze względu na zmiany natywne. Nie wysyłaj jego JS do runtime 1.0.11. Przed wdrożeniem sprawdź bieżący stan ASC i [kanon wydania](release/ios-current.md); dalsze wpisy historyczne zachowują datę własnej weryfikacji.
+> Aktualizacja 2026-10-09: publiczny kandydat **1.0.12 (8)** / runtime **1.0.12** przeszedł lokalny Xcode Archive/export/upload i przetwarzanie ASC; jest w NiX Internal QA. Backend wdrożony po backup/restore i staging, produkcyjny smoke PASS. Finalne QA, nagranie, metadane i DSA/regiony nadal blokują App Review. Nie publikować OTA dla runtime 1.0.12 przed zakończeniem QA i ponowną oceną zmian. Historyczne komendy OTA niżej nie są poleceniem ich uruchomienia. Aktualny stan: [kanon wydania](release/ios-current.md).
 
 
 > **Źródło prawdy** dla wydawania NiX na iOS (ludzie i agenci AI).  

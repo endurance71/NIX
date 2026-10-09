@@ -4,11 +4,11 @@
 
 Preparation requirements:
 
-- Restore the public privacy/support/terms URLs; current audit found HTTP 404.
-- Choose the public candidate. Existing review: 1.0.11 (6). Internal-only 1.0.12 (7) cannot be submitted to public App Review; a new public candidate is needed to ship current changes.
+- Public privacy/terms/support pages in PL/EN have been restored and passed the hosting validator. Verify they remain accessible at final QA.
+- Candidate: public-eligible 1.0.12 (8), runtime 1.0.12, production channel. Archive/upload/processing and final QA must pass before selection; existing review is still 1.0.11 (6).
 - Check both connected reviewer accounts and all recorded flows on the chosen candidate, including the current production backend and moderation operations.
 - Provide a recording captured on a physical device with the latest supported stable OS. Identify model, OS, build and date; verify reviewer access to the recording.
-- Confirm regional behavior, free access, service list, intellectual-property statements, and platform scope. Resolve iPhone-only Notes versus enabled Mac/Vision distribution.
+- Mac and Vision Pro availability have been disabled in ASC; 175 regions and free access are preserved. DSA declaration is missing in Business. Verify China mainland ICP applicability and all other regional requirements.
 - Replace every bracketed field below. This draft does not claim that those checks have already passed.
 - The reply section is approximately 3,543 characters before completing the fields; check the final length against ASC's 4,000-character limit. Use Notes for longer operational instructions without omitting any of Apple's six answers from the reply.
 
@@ -21,7 +21,7 @@ Thank you for your request under Guideline 2.1. Below are the six requested item
 1. Physical-device recording
 
 Recording: [ACCESSIBLE RECORDING LINK / ATTACHMENT NAME].
-Device: [MODEL], OS: [EXACT VERSION], app: [VERSION (BUILD)], tested: [DATE].
+Device: [MODEL], OS: [EXACT VERSION], app: 1.0.12 (8), tested: [DATE].
 The recording begins with launching the app and shows registration, onboarding, login, a typical conversation with an accepted friend, sending and receiving text/photos/short videos, content reporting, user blocking, and deletion of a separate test account. [SEGMENT TIMESTAMPS IF NEEDED]. There are no paid features to demonstrate. Reviewer accounts remain active and connected. [EXPLAIN ANY DEMONSTRATED SCREEN-CAPTURE PROTECTION IF APPLICABLE].
 
 2. Purpose and audience
@@ -30,11 +30,11 @@ NiX Now Chat is a consumer messaging app for people aged 16 and older who want t
 
 3. Setup and access
 
-Use the email/password reviewer account in App Review Information; the second connected account is provided in the private Notes. Sign in using the email address, not the username. The two accounts are already connected, so no new friend request is required. [CONFIRM BOTH ACCOUNTS TESTED ON DATE/BUILD]. Open the existing conversation to send and receive content. New users can register or use Sign in with Apple, complete onboarding and confirm they are at least 16. Content reporting and blocking are available through [VERIFIED MENU/GESTURE]. Account deletion is available through [VERIFIED PROFILE PATH] with the required reauthentication. No subscription, in-app purchase or sample file is required.
+Use the email/password reviewer account in App Review Information; the second connected account is provided in the private Notes. Sign in using the email address, not the username. The two accounts are already connected, so no new friend request is required. [CONFIRM BOTH ACCOUNTS TESTED ON DATE/BUILD]. Open the existing conversation to send and receive content. New users can register or use Sign in with Apple, complete onboarding and confirm they are at least 16. Content reporting and blocking are available through a long press on a conversation message (Report), and the conversation header menu (Block). Account deletion is available through Profile > Account > Delete account with the required reauthentication. No subscription, in-app purchase or sample file is required.
 
 4. External services
 
-[CONFIRM AGAINST THE SUBMITTED BUILD AND ACTIVE BACKEND:] Supabase provides authentication, database, storage and server functions. Apple provides Sign in with Apple and APNs. Expo/EAS provides build/update infrastructure and push delivery integration; upload status uses iOS Live Activities. Azure AI Content Safety supports automated pre-delivery checks of text, images and selected video frames. An OVH-hosted worker processes video for that moderation workflow. Selected-frame checks do not constitute full-video scanning. Reporting and blocking complement automated checks. [CONFIRMED HUMAN REPORT-HANDLING PROCESS AND SUPPORT CONTACT]. There are no payment providers, ads or subscriptions.
+Supabase provides authentication, database, storage and server functions. Apple provides Sign in with Apple and APNs. The submitted binary is built locally with Xcode; Expo/EAS provides OTA updates and push delivery integration; upload status uses iOS Live Activities. Azure AI Content Safety supports automated pre-delivery checks of text, images and selected video frames. An OVH-hosted worker processes video for that moderation workflow. Selected-frame checks do not constitute full-video scanning. Reporting and blocking complement automated checks. [CONFIRMED HUMAN REPORT-HANDLING PROCESS]. Support: kontakt@damianmotylinski.pl. There are no payment providers, ads or subscriptions.
 
 5. Regional behavior
 
@@ -42,7 +42,7 @@ Use the email/password reviewer account in App Review Information; the second co
 
 6. Regulated services and protected material
 
-[OWNER TO CONFIRM:] The app is a personal messaging service and does not provide regulated medical, financial, gambling or similar services. It does not offer a licensed third-party media catalog. Users share their own content with accepted contacts under the app's terms and safety rules. [DESCRIBE ANY PROTECTED MATERIAL OR REQUIRED AUTHORIZATION IF APPLICABLE].
+The app is a personal messaging service and does not provide regulated medical, financial, gambling or similar services. It does not offer a licensed third-party media catalog. Users share their own content with accepted contacts under the app's terms and safety rules. The app does not provide a curated or licensed content catalog; user-generated material is subject to the app's terms and safety rules.
 
 Thank you for reviewing NiX Now Chat.
 
