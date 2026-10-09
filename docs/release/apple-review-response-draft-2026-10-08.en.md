@@ -5,7 +5,7 @@
 Preparation requirements:
 
 - Public privacy/terms/support pages in PL/EN have been restored and passed the hosting validator. Verify they remain accessible at final QA.
-- Candidate: public-eligible 1.0.12 (8), runtime 1.0.12, production channel. Archive/upload/processing and final QA must pass before selection; existing review is still 1.0.11 (6).
+- Candidate: public-eligible 1.0.12 (9), runtime 1.0.12, production channel. Archive and the retained signed IPA pass; upload, processing, selection and final QA remain pending. The original rejection concerns 1.0.11 (6). Version metadata is now 1.0.12, with build 6 removed and build 9 not yet selected.
 - Check both connected reviewer accounts and all recorded flows on the chosen candidate, including the current production backend and moderation operations.
 - Provide a recording captured on a physical device with the latest supported stable OS. Identify model, OS, build and date; verify reviewer access to the recording.
 - Mac and Vision Pro availability have been disabled in ASC; 175 regions and free access are preserved. DSA declaration is missing in Business. Verify China mainland ICP applicability and all other regional requirements.
@@ -21,7 +21,7 @@ Thank you for your request under Guideline 2.1. Below are the six requested item
 1. Physical-device recording
 
 Recording: [ACCESSIBLE RECORDING LINK / ATTACHMENT NAME].
-Device: [MODEL], OS: [EXACT VERSION], app: 1.0.12 (8), tested: [DATE].
+Device: [MODEL], OS: [EXACT VERSION], app: 1.0.12 (9), tested: [DATE].
 The recording begins with launching the app and shows registration, onboarding, login, a typical conversation with an accepted friend, sending and receiving text/photos/short videos, content reporting, user blocking, and deletion of a separate test account. [SEGMENT TIMESTAMPS IF NEEDED]. There are no paid features to demonstrate. Reviewer accounts remain active and connected. [EXPLAIN ANY DEMONSTRATED SCREEN-CAPTURE PROTECTION IF APPLICABLE].
 
 2. Purpose and audience

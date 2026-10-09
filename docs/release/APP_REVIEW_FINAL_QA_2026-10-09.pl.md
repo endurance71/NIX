@@ -1,12 +1,12 @@
-# NiX 1.0.12 (8) — finalne QA i nagranie
+# NiX 1.0.12 (9) — finalne QA i nagranie
 
-**Wynik: PENDING.** Backend smoke i CI PASS nie zastępują QA finalnej aplikacji z TestFlight. Historyczne potwierdzenie kamery na buildzie development nie jest dowodem dla IPA 8.
+**Wynik: PENDING.** Backend smoke i CI PASS nie zastępują QA finalnej aplikacji z TestFlight. Historyczne potwierdzenie kamery na buildzie development nie jest dowodem dla IPA 9.
 
 ## Identyfikacja
 
-- Instalacja: TestFlight → NiX Internal QA → **1.0.12 (8)**. Nie wybierać 7.
+- Instalacja: TestFlight → NiX Internal QA → **1.0.12 (9)**. Nie wybierać 7 ani 8.
 - Runtime 1.0.12, kanał production; nie publikować OTA w trakcie QA.
-- IPA SHA256 `29ff374d5898aa6c9f7ed741b0accf0259533ddc0d64e6fcf0e2405231259ce0`.
+- Podpisane IPA builda 9 SHA256: `41a4b7961b18c1a8b9634a45083b4994ae61da61182c4c78302d0195a5bd0c2f`. Zachowane z pakietu podpisanego przez Organizer; upload i identyfikacja przetworzonego builda w ASC nadal pending.
 - iPhone Damian: model 16 Pro Max; przed nagraniem potwierdzić wersję iOS w Ustawieniach. Poprzedni odczyt: 27.0.1 (24A446).
 - Dla każdego wyniku zapisać datę, urządzenie/OS, build, scenariusz, PASS/FAIL, plik nagrania i znacznik czasu. Dane logowania reviewerów wyłącznie w prywatnym ASC.
 
@@ -23,6 +23,8 @@
 9. Przekazać film w dostępnej dla Apple postaci i sprawdzić odtwarzanie oraz dostęp bez prywatnej sesji właściciela. Zachować oba połączone konta reviewerów aktywne.
 
 ## Macierz QA finalnego artefaktu
+
+Release build 9 skompilował się, zainstalował i uruchomił na odrębnym symulatorze iPad Pro 13 (M5), iOS 27.0. Jest to dowód kompilacji i startu; nie potwierdza czytelności, zgodności interakcji ani pełnego flow aplikacji. Kontrola obrazu została zatrzymana przez blokadę Maca. Nie jest to fizyczny artefakt TestFlight ani film wymagany przez Apple.
 
 | Scenariusz | Wynik i dowód |
 | --- | --- |
@@ -44,4 +46,4 @@
 
 ## Wstrzymanie gotowości
 
-Nie nadawać READY FOR APP REVIEW dopóki macierz nie ma rzeczywistych dowodów, build 8 nie jest wybrany w ASC, odpowiedź na sześć pytań nie jest kompletna, DSA i wymagania regionalne nie są rozstrzygnięte. Odpowiedź Apple, resubmission i wydanie publiczne wymagają osobnego polecenia właściciela.
+Nie nadawać READY FOR APP REVIEW dopóki macierz nie ma rzeczywistych dowodów, build 9 nie jest wybrany w ASC, odpowiedź na sześć pytań nie jest kompletna, DSA i wymagania regionalne nie są rozstrzygnięte. Odpowiedź Apple, resubmission i wydanie publiczne wymagają osobnego polecenia właściciela.

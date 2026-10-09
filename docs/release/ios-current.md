@@ -4,7 +4,20 @@
 > Dated sprint plans and audit snapshots are historical evidence and must link
 > here instead of presenting their old binary state as current.
 
-## Current public candidate — preparation updated 2026-10-09
+## Current public candidate — build 9, updated 2026-10-09
+
+**1.0.12 (9)** replaces build 8. Client source `859694ad3dab5b2287887ab88019a310952f89e9` hard-disables analytics regardless of local dotenv or internal roadmap flags. The Release preflight now rejects enabled analytics/Sentry flags, with regression tests for dotenv precedence and existing consent. Runtime **1.0.12**, channel **production**, backend and native feature scope remain unchanged. All local checks and [CI](https://github.com/endurance71/NIX/actions/runs/37889189207) pass, including 580 app tests, 14 release-environment tests, React Doctor 0/0 and Expo Doctor 20/20.
+
+Local Xcode Release Archive **PASS**. Organizer signed a public App Store distribution IPA using the existing cloud certificate. The signed package was retained directly from Xcode's distribution pipeline after the Save panel did not complete; CLI export reports `No Accounts`. IPA SHA256 `41a4b7961b18c1a8b9634a45083b4994ae61da61182c4c78302d0195a5bd0c2f`; embedded Hermes SHA256 `a4013c33373334437b69fca5943f68185b94185c1d20c8672287c3f00d367075`. App/widget build 9, production APNs/backend, runtime/channel, distribution profile and strict deep signature verification **PASS**. Organizer upload was started with internal-only and build-number management disabled; completion is **not verified**, and the Mac subsequently locked. ASC processing, internal assignment and build selection remain pending. Release build 9 also compiled, installed and launched on an isolated iPad simulator; visual and functional compatibility QA remains pending.
+
+Build 8 passed signing/upload and API smoke but is **superseded**, because the final environment inspection found `.env.local` enabling analytics over `.env.production=false`. Its beta availability is not evidence that it satisfies the no-analytics requirement. Do not use it for the final owner recording or approve it for App Review. Final QA must use build 9, with new IPA/bundle hashes and a fresh OTA snapshot.
+
+**Not READY FOR APP REVIEW:** final TestFlight device QA, both reviewer logins, owner recording, six complete answers, screenshot/build selection and regional/DSA/privacy checks remain pending. The ASC session expired and requires the owner to log in again. DSA needs the owner's declaration; ICP applicability/documentation needs confirmation without reducing regions. No Apple reply, resubmission, OTA or public release has been performed.
+
+See [preparation report](APP_REVIEW_PREPARATION_2026-10-08.pl.md), [deployment and recovery](BACKEND_DEPLOYMENT_2026-10-09.md), and [final QA scenario](APP_REVIEW_FINAL_QA_2026-10-09.pl.md).
+
+## Superseded public build 8 — verified 2026-10-08
+
 
 Candidate **1.0.12 (8)**, runtime **1.0.12**, production channel, has passed local Xcode Release Archive/export/upload and ASC processing. `testFlightInternalTestingOnly=false`; it is assigned to **NiX Internal QA** and **Team (Expo)**. ASC build ID `fc5ea753-5d50-41ab-8524-3818fb4695b6`, binary state Validated, beta state Ready to Submit. Client source `1300dc1283eb55434cdfcf3d0100f4ad11141bf3`; IPA SHA256 `29ff374d5898aa6c9f7ed741b0accf0259533ddc0d64e6fcf0e2405231259ce0`. [Open build 8](https://appstoreconnect.apple.com/teams/f808d5d8-f16c-48e0-8330-04dda650a25d/apps/6791332379/testflight/ios/fc5ea753-5d50-41ab-8524-3818fb4695b6).
 
