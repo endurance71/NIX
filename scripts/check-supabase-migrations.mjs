@@ -40,6 +40,18 @@ const expected = [
   '20260827125000_schedule_cleanup_moderation_evidence.sql',
   '20260828100000_strengthen_text_message_safety_filter.sql',
   '20260829170422_moderation_remove_reported_content.sql',
+  '20260831120000_harden_security_definer_execute_grants.sql',
+  '20260831130000_pre_delivery_moderation_expand.sql',
+  '20260831140000_pre_delivery_moderation_contract.sql',
+  '20260831150000_pre_delivery_moderation_f0_budget.sql',
+  '20260904120000_c3b_audit_complete_and_budget.sql',
+  '20260904120100_c3b_audit_hard_budget_4000.sql',
+  '20260912120000_enqueue_own_text_moderation_job.sql',
+  '20260912140000_get_own_text_moderation_job.sql',
+  '20260912150000_fix_moderation_materialize_and_media_finalize.sql',
+  '20260912160000_get_own_media_moderation_job.sql',
+  '20261007120000_harden_media_friendships_and_cleanup.sql',
+  '20261007121000_fix_retention_and_image_limits.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();

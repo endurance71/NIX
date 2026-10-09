@@ -29,6 +29,10 @@ import { setReactQueryAuthOnline } from '../lib/reactQueryNetwork';
 import { clearRecipientSnapshot } from '../lib/recipientSnapshot';
 import { clearProfileBootstrapSnapshot } from '../lib/profileBootstrapSnapshot';
 import { clearOfflineCache } from '../lib/offlineCacheStore';
+import { setSessionOwner } from '../lib/sessionScope';
+import { clearPhotoCache } from '../lib/encryptedPhotoCache';
+import { clearMediaMemoryCache } from '../lib/mediaCache';
+import { clearPendingViewedAcks } from '../lib/viewedAckQueue';
 
 type AuthState = {
   session: Session | null;
@@ -81,18 +85,19 @@ async function reauthenticatePasswordChange() {
 }
 
 async function cleanupBeforeLogout(user: User | null) {
+  // Start invalidation synchronously, before a slow push-device network request.
+  const accountCleanup = user ? Promise.all([
+    clearTextOutbox(user.id).catch((error) => console.warn('Text outbox cleanup before sign-out failed', error)),
+    clearOfflineCache(user.id).catch((error) => console.warn('Offline cache cleanup before sign-out failed', error)),
+    clearPhotoCache(user.id).catch((error) => console.warn('Photo cache cleanup before sign-out failed', error)),
+    clearPendingViewedAcks(user.id).catch(() => {}),
+    clearRecipientSnapshot(user.id).catch(() => {}),
+  ]) : Promise.resolve();
   await disableCurrentPushDeviceBeforeSignOut().catch((error) => {
     console.warn('Push device unregister before sign-out failed', error);
   });
-  if (user) {
-    await clearTextOutbox(user.id).catch((error) => {
-      console.warn('Text outbox cleanup before sign-out failed', error);
-    });
-    await clearRecipientSnapshot(user.id).catch(() => undefined);
-    await clearOfflineCache(user.id).catch((error) => {
-      console.warn('Offline cache cleanup before sign-out failed', error);
-    });
-  }
+  await accountCleanup;
+  await clearMediaMemoryCache();
   await clearPendingFriendInviteToken().catch(() => undefined);
   clearUserCache();
 }
@@ -119,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const localSessionRef = useRef<Session | null>(null);
   const authStatusRef = useRef<AuthStatus>('initializing');
   const operationVersionRef = useRef(0);
+  const loggingOutRef = useRef(false);
   const bootstrapPendingRef = useRef(true);
   const networkOnlineRef = useRef(true);
   const reportedBootstrapFailuresRef = useRef(new Set<string>());
@@ -139,11 +145,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ) => {
     const previousUserId = previousUserIdRef.current;
     const nextUserId = session?.user.id ?? null;
+    setSessionOwner(nextUserId);
     const identityChanged = status === 'anonymous'
       || (nextUserId !== null && previousUserId !== nextUserId);
     if (identityChanged && previousUserId && previousUserId !== nextUserId) {
-      void clearTextOutbox(previousUserId);
-      void clearOfflineCache(previousUserId);
+      void clearTextOutbox(previousUserId).catch(() => {});
+      void clearOfflineCache(previousUserId).catch(() => {});
+      void clearPhotoCache(previousUserId).catch(() => {});
+      void clearPendingViewedAcks(previousUserId).catch(() => {});
+      void clearMediaMemoryCache();
       void clearPendingFriendInviteToken();
       if (nextUserId !== null || status === 'anonymous') {
         void clearRecipientSnapshot(previousUserId);
@@ -287,7 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (!mounted) return;
+      if (!mounted || loggingOutRef.current) return;
       if (event === 'INITIAL_SESSION' && bootstrapPendingRef.current) {
         return;
       }
@@ -318,7 +328,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     const networkSubscription = NetInfo.addEventListener((networkState) => {
-      if (!mounted) return;
+      if (!mounted || loggingOutRef.current) return;
       const online = networkState.isConnected !== false && networkState.isInternetReachable !== false;
       const wasOnline = networkOnlineRef.current;
       networkOnlineRef.current = online;
@@ -345,6 +355,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    loggingOutRef.current = true;
+    setSessionOwner(null);
     operationVersionRef.current += 1;
     const sessionBeforeLogout = localSessionRef.current;
     const user = sessionBeforeLogout?.user ?? null;
@@ -368,6 +380,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localSessionRef.current = null;
       commitSessionState(null, 'anonymous', null, 'anonymous');
     }
+    loggingOutRef.current = false;
     return { error: signOutError ?? storageError };
   }, [commitSessionState]);
 

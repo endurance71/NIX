@@ -1,3 +1,4 @@
+import { mergeChatOutboxMessages } from '../lib/chatOutboxMessages';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -84,46 +85,7 @@ async function withMinimumDuration<T>(promise: Promise<T>, minimumMs: number): P
   }
 }
 
-export function useChatScreen(peerId: string) {
-  const { t, i18n } = useTranslation();
-  const { session, canUseNetworkSession, isOfflineAuthenticated } = useAuth();
-  const currentUserId = session?.user?.id ?? '';
-  const queryClient = useQueryClient();
-  const {
-    pauseUpload,
-    resumeUpload,
-    retryUpload,
-    cancelUpload,
-  } = useUploadQueue();
-  const uploadJobs = useUploadJobs();
-
-  const { setDraft: setPhotoDraft } = usePhotoDraft();
-  const [inputBody, setInputBody] = useState('');
-  const [composerKey, setComposerKey] = useState(0);
-  const [sending, setSending] = useState(false);
-  const [pasteImporting, setPasteImporting] = useState(false);
-  const pasteImportingRef = useRef(false);
-  const pasteIoRef = useRef<ChatPasteIo | null>(null);
-  const [uploadClock, setUploadClock] = useState(() => Date.now());
-  const [busyUploadActions, setBusyUploadActions] = useState<
-    ReadonlyMap<string, UploadRowAction>
-  >(() => new Map());
-  const peerActionBusyRef = useRef(false);
-  const busyUploadActionsRef = useRef(new Map<string, UploadRowAction>());
-  const lastReadThroughRef = useRef<string | null>(null);
-
-  // Track the active chat so the foreground notification handler can
-  // suppress banners for messages from the peer being viewed.
-  useEffect(() => {
-    if (!peerId) return;
-    activeChatPeerRef.current = peerId;
-    return () => {
-      if (activeChatPeerRef.current === peerId) {
-        activeChatPeerRef.current = null;
-      }
-    };
-  }, [peerId]);
-
+function useChatPeerQueries(peerId: string, canUseNetworkSession: boolean) {
   const peerProfileQuery = useQuery({
     queryKey: ['peerProfile', peerId],
     queryFn: async () => {
@@ -142,6 +104,14 @@ export function useChatScreen(peerId: string) {
     enabled: canUseNetworkSession && Boolean(peerAvatarPath),
   });
 
+  return { peerProfileQuery, peerAvatarPath, peerAvatarQuery };
+}
+
+function useChatTimelineQueries(
+  peerId: string,
+  currentUserId: string,
+  canUseNetworkSession: boolean,
+) {
   const messagesQuery = useQuery({
     queryKey: queryKeys.textMessagesWithPeer(peerId),
     queryFn: () => fetchTextMessagesWithPeer({ peerId, limit: 50 }),
@@ -181,29 +151,55 @@ export function useChatScreen(peerId: string) {
     staleTime: 30_000,
   });
 
-  const outboxMessages: OptimisticTextMessage[] = (outboxQuery.data ?? []).map((job) => ({
-    id: `temp-${job.id}`,
-    sender_id: currentUserId,
-    receiver_id: job.receiverId,
-    body: job.body,
-    created_at: new Date(job.createdAt).toISOString(),
-    expires_at: new Date(job.expiresAt).toISOString(),
-    client_message_id: job.id,
-    is_system: false,
-    metadata: null,
-    isSending: job.state === 'pending' || job.state === 'sending',
-    sendFailed: job.state === 'failed',
-    outboxId: job.id,
-  }));
-  const messages: OptimisticTextMessage[] = sortMessagesAscending([
-    ...(messagesQuery.data ?? []),
-    ...outboxMessages.filter(
-      (local) =>
-        !(messagesQuery.data ?? []).some(
-          (server) => server.client_message_id === local.client_message_id
-        )
-    ),
-  ]);
+  return { messagesQuery, outboxQuery, reactionsQuery, nixesQuery, muteQuery };
+}
+
+export function useChatScreen(peerId: string) {
+  const { t, i18n } = useTranslation();
+  const { session, canUseNetworkSession, isOfflineAuthenticated } = useAuth();
+  const currentUserId = session?.user?.id ?? '';
+  const queryClient = useQueryClient();
+  const { pauseUpload, resumeUpload, retryUpload, cancelUpload } = useUploadQueue();
+  const uploadJobs = useUploadJobs();
+
+  const { setDraft: setPhotoDraft } = usePhotoDraft();
+  const [inputBody, setInputBody] = useState('');
+  const [composerKey, setComposerKey] = useState(0);
+  const [sending, setSending] = useState(false);
+  const [pasteImporting, setPasteImporting] = useState(false);
+  const pasteImportingRef = useRef(false);
+  const pasteIoRef = useRef<ChatPasteIo | null>(null);
+  const [uploadClock, setUploadClock] = useState(() => Date.now());
+  const [busyUploadActions, setBusyUploadActions] = useState<ReadonlyMap<string, UploadRowAction>>(
+    () => new Map(),
+  );
+  const peerActionBusyRef = useRef(false);
+  const busyUploadActionsRef = useRef(new Map<string, UploadRowAction>());
+  const lastReadThroughRef = useRef<string | null>(null);
+
+  // Track the active chat so the foreground notification handler can
+  // suppress banners for messages from the peer being viewed.
+  useEffect(() => {
+    if (!peerId) return;
+    activeChatPeerRef.current = peerId;
+    return () => {
+      if (activeChatPeerRef.current === peerId) {
+        activeChatPeerRef.current = null;
+      }
+    };
+  }, [peerId]);
+
+  const { peerProfileQuery, peerAvatarPath, peerAvatarQuery } = useChatPeerQueries(
+    peerId,
+    canUseNetworkSession,
+  );
+  const { messagesQuery, outboxQuery, reactionsQuery, nixesQuery, muteQuery } =
+    useChatTimelineQueries(peerId, currentUserId, canUseNetworkSession);
+  const messages = mergeChatOutboxMessages(
+    messagesQuery.data ?? [],
+    outboxQuery.data ?? [],
+    currentUserId,
+  );
   const nixes: ChatNixEvent[] = nixesQuery.data ?? EMPTY_CHAT_NIXES;
   const chatUploadJobs = selectChatUploadJobs(uploadJobs, peerId, nixes, {
     now: uploadClock,
@@ -212,7 +208,14 @@ export function useChatScreen(peerId: string) {
   const reactionsByMessageId = groupReactionsByMessageId(reactionsQuery.data ?? []);
 
   useEffect(() => {
-    if (!canUseNetworkSession || !currentUserId || !peerId || messagesQuery.isPending || messages.length === 0) return;
+    if (
+      !canUseNetworkSession ||
+      !currentUserId ||
+      !peerId ||
+      messagesQuery.isPending ||
+      messages.length === 0
+    )
+      return;
     const lastReceived = [...messages]
       .reverse()
       .find((message) => message.sender_id === peerId && !message.id.startsWith('temp-'));
@@ -239,7 +242,10 @@ export function useChatScreen(peerId: string) {
     });
     const nextExpiry = Math.min(...completionTimes.filter((time) => time > Date.now()));
     if (!Number.isFinite(nextExpiry)) return;
-    const timer = setTimeout(() => setUploadClock(Date.now()), Math.max(0, nextExpiry - Date.now()));
+    const timer = setTimeout(
+      () => setUploadClock(Date.now()),
+      Math.max(0, nextExpiry - Date.now()),
+    );
     return () => clearTimeout(timer);
   }, [peerId, uploadJobs]);
 
@@ -277,39 +283,42 @@ export function useChatScreen(peerId: string) {
           notifyDomainError(error, t('chat.sendFailure'));
         }
       },
-      () => setSending(false)
+      () => setSending(false),
     );
   };
 
-  const handlePaste = useCallback(async (payload: ChatPastePayload) => {
-    if (!chatPasteFeatures.pasteInput) return;
-    if (!pasteIoRef.current) {
-      pasteIoRef.current = createDefaultChatPasteIo();
-    }
-    await handleChatPastePayload(payload, {
-      isImporting: () => pasteImportingRef.current,
-      setImporting: (value) => {
-        pasteImportingRef.current = value;
-        setPasteImporting(value);
-      },
-      setDraft: setPhotoDraft,
-      peerId,
-      t,
-      notifyError: (title) => {
-        notifyError(title);
-      },
-      notifySuccess: (title) => {
-        notifySuccess(title);
-      },
-      announce: (message) => {
-        void AccessibilityInfo.announceForAccessibility(message);
-      },
-      openPreview: (recipientId) => {
-        router.push({ pathname: '/preview', params: { recipientId } });
-      },
-      pasteIo: pasteIoRef.current,
-    });
-  }, [peerId, setPhotoDraft, t]);
+  const handlePaste = useCallback(
+    async (payload: ChatPastePayload) => {
+      if (!chatPasteFeatures.pasteInput) return;
+      if (!pasteIoRef.current) {
+        pasteIoRef.current = createDefaultChatPasteIo();
+      }
+      await handleChatPastePayload(payload, {
+        isImporting: () => pasteImportingRef.current,
+        setImporting: (value) => {
+          pasteImportingRef.current = value;
+          setPasteImporting(value);
+        },
+        setDraft: setPhotoDraft,
+        peerId,
+        t,
+        notifyError: (title) => {
+          notifyError(title);
+        },
+        notifySuccess: (title) => {
+          notifySuccess(title);
+        },
+        announce: (message) => {
+          void AccessibilityInfo.announceForAccessibility(message);
+        },
+        openPreview: (recipientId) => {
+          router.push({ pathname: '/preview', params: { recipientId } });
+        },
+        pasteIo: pasteIoRef.current,
+      });
+    },
+    [peerId, setPhotoDraft, t],
+  );
 
   const handleRetryTextMessage = async (message: OptimisticTextMessage) => {
     if (!message.outboxId) return;
@@ -368,7 +377,7 @@ export function useChatScreen(peerId: string) {
       },
       () => {
         peerActionBusyRef.current = false;
-      }
+      },
     );
   };
 
@@ -397,7 +406,7 @@ export function useChatScreen(peerId: string) {
       },
       () => {
         peerActionBusyRef.current = false;
-      }
+      },
     );
   };
 
@@ -426,7 +435,7 @@ export function useChatScreen(peerId: string) {
       },
       () => {
         peerActionBusyRef.current = false;
-      }
+      },
     );
   };
 
@@ -438,7 +447,7 @@ export function useChatScreen(peerId: string) {
     if (!currentUserId || message.id.startsWith('temp-')) return;
 
     const existing = (reactionsQuery.data ?? []).find(
-      (reaction) => reaction.message_id === message.id && reaction.user_id === currentUserId
+      (reaction) => reaction.message_id === message.id && reaction.user_id === currentUserId,
     );
     if (existing?.emoji === emoji) {
       selection();
@@ -450,7 +459,7 @@ export function useChatScreen(peerId: string) {
     const nowIso = new Date().toISOString();
     const optimistic: MessageReaction[] = [
       ...previous.filter(
-        (reaction) => !(reaction.message_id === message.id && reaction.user_id === currentUserId)
+        (reaction) => !(reaction.message_id === message.id && reaction.user_id === currentUserId),
       ),
       {
         id: existing?.id ?? `temp-reaction-${message.id}`,
@@ -464,7 +473,7 @@ export function useChatScreen(peerId: string) {
 
     queryClient.setQueryData<MessageReaction[]>(
       queryKeys.messageReactionsWithPeer(peerId),
-      optimistic
+      optimistic,
     );
 
     try {
@@ -475,7 +484,7 @@ export function useChatScreen(peerId: string) {
     } catch (error) {
       queryClient.setQueryData<MessageReaction[]>(
         queryKeys.messageReactionsWithPeer(peerId),
-        previous
+        previous,
       );
       notifyDomainError(error, t('chat.reactionFailure'));
     }
@@ -489,7 +498,7 @@ export function useChatScreen(peerId: string) {
     if (!currentUserId || message.id.startsWith('temp-')) return;
 
     const existing = (reactionsQuery.data ?? []).find(
-      (reaction) => reaction.message_id === message.id && reaction.user_id === currentUserId
+      (reaction) => reaction.message_id === message.id && reaction.user_id === currentUserId,
     );
     if (!existing) return;
 
@@ -498,8 +507,8 @@ export function useChatScreen(peerId: string) {
     queryClient.setQueryData<MessageReaction[]>(
       queryKeys.messageReactionsWithPeer(peerId),
       previous.filter(
-        (reaction) => !(reaction.message_id === message.id && reaction.user_id === currentUserId)
-      )
+        (reaction) => !(reaction.message_id === message.id && reaction.user_id === currentUserId),
+      ),
     );
 
     try {
@@ -510,7 +519,7 @@ export function useChatScreen(peerId: string) {
     } catch (error) {
       queryClient.setQueryData<MessageReaction[]>(
         queryKeys.messageReactionsWithPeer(peerId),
-        previous
+        previous,
       );
       notifyDomainError(error, t('chat.reactionFailure'));
     }
@@ -543,13 +552,14 @@ export function useChatScreen(peerId: string) {
 
   const handleUploadAction = async (jobId: string, action: UploadRowAction) => {
     if (busyUploadActionsRef.current.has(jobId)) return;
-    const operation = action === 'pause'
-      ? pauseUpload
-      : action === 'resume'
-        ? resumeUpload
-        : action === 'retry'
-          ? retryUpload
-          : cancelUpload;
+    const operation =
+      action === 'pause'
+        ? pauseUpload
+        : action === 'resume'
+          ? resumeUpload
+          : action === 'retry'
+            ? retryUpload
+            : cancelUpload;
 
     busyUploadActionsRef.current = new Map(busyUploadActionsRef.current).set(jobId, action);
     setBusyUploadActions(busyUploadActionsRef.current);
@@ -558,7 +568,7 @@ export function useChatScreen(peerId: string) {
         try {
           await withMinimumDuration(
             operation(jobId),
-            action === 'retry' ? RETRY_FEEDBACK_MIN_MS : 0
+            action === 'retry' ? RETRY_FEEDBACK_MIN_MS : 0,
           );
         } catch (error) {
           console.error(`Chat upload action ${action} failed`, error);
@@ -570,7 +580,7 @@ export function useChatScreen(peerId: string) {
         next.delete(jobId);
         busyUploadActionsRef.current = next;
         setBusyUploadActions(next);
-      }
+      },
     );
   };
 
@@ -588,11 +598,10 @@ export function useChatScreen(peerId: string) {
     }
   };
 
-  const peerAvatarUrl = peerAvatarPath ? peerAvatarQuery.data?.[peerAvatarPath] ?? null : null;
+  const peerAvatarUrl = peerAvatarPath ? (peerAvatarQuery.data?.[peerAvatarPath] ?? null) : null;
   // Full-screen loader only on cold messages — nixes stream into the timeline.
-  const messagesLoading = canUseNetworkSession
-    && messagesQuery.isPending
-    && messagesQuery.data === undefined;
+  const messagesLoading =
+    canUseNetworkSession && messagesQuery.isPending && messagesQuery.data === undefined;
 
   return {
     t,
@@ -638,11 +647,7 @@ export function useChatScreen(peerId: string) {
         notifyInfo(t('root.offlineActionUnavailable'));
         return;
       }
-      await Promise.all([
-        messagesQuery.refetch(),
-        reactionsQuery.refetch(),
-        nixesQuery.refetch(),
-      ]);
+      await Promise.all([messagesQuery.refetch(), reactionsQuery.refetch(), nixesQuery.refetch()]);
     },
   };
 }

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const rpc = vi.fn();
 const maybeSingle = vi.fn();
 const select = vi.fn(() => ({ maybeSingle }));
-const from = vi.fn(() => ({ select }));
+const from = vi.fn((..._args: unknown[]) => ({ select }));
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
@@ -26,6 +26,7 @@ vi.mock('expo-constants', () => ({
 
 describe('productAnalyticsService', () => {
   beforeEach(() => {
+    vi.doUnmock('../config/iosRoadmapFeatures');
     vi.resetModules();
     vi.clearAllMocks();
     vi.unstubAllEnvs();
@@ -42,6 +43,7 @@ describe('productAnalyticsService', () => {
   });
 
   it('does not call record RPC when consent is missing', async () => {
+    vi.doMock('../config/iosRoadmapFeatures', () => ({ iosRoadmapFeatures: { analytics: true } }));
     vi.stubEnv('EXPO_PUBLIC_INTERNAL_TESTFLIGHT_ROADMAP_ENABLED', 'false');
     vi.stubEnv('EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED', 'true');
     maybeSingle.mockResolvedValue({ data: null, error: null });
@@ -53,6 +55,7 @@ describe('productAnalyticsService', () => {
   });
 
   it('does not call record RPC after consent revoke', async () => {
+    vi.doMock('../config/iosRoadmapFeatures', () => ({ iosRoadmapFeatures: { analytics: true } }));
     vi.stubEnv('EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED', 'true');
     maybeSingle.mockResolvedValue({ data: { enabled: false }, error: null });
     const { recordProductEvent } = await import('./productAnalyticsService');
@@ -61,7 +64,8 @@ describe('productAnalyticsService', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it('records only when analytics flag and consent are enabled', async () => {
+  it('requires consent when a future analytics feature is simulated', async () => {
+    vi.doMock('../config/iosRoadmapFeatures', () => ({ iosRoadmapFeatures: { analytics: true } }));
     vi.stubEnv('EXPO_PUBLIC_INTERNAL_TESTFLIGHT_ROADMAP_ENABLED', 'false');
     vi.stubEnv('EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED', 'true');
     maybeSingle.mockResolvedValue({ data: { enabled: true }, error: null });
@@ -76,6 +80,16 @@ describe('productAnalyticsService', () => {
         p_event_name: 'onboarding_completed',
       }),
     );
+  });
+
+  it('does not send telemetry even with local flags and an existing consent', async () => {
+    vi.stubEnv('EXPO_PUBLIC_INTERNAL_TESTFLIGHT_ROADMAP_ENABLED', 'true');
+    vi.stubEnv('EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED', 'true');
+    maybeSingle.mockResolvedValue({ data: { enabled: true }, error: null });
+    const { recordProductEvent } = await import('./productAnalyticsService');
+    expect(await recordProductEvent('onboarding_completed')).toBe(false);
+    expect(from).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it('setProductAnalyticsConsent forwards revoke to RPC', async () => {

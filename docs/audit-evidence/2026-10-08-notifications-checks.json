@@ -1,0 +1,287 @@
+{
+  "date": "2026-10-08",
+  "timezone": "Europe/Warsaw",
+  "task": "NiX in-app dynamic notifications",
+  "upstream": {
+    "repository": "https://github.com/rit3zh/expo-dynamic-notifications",
+    "commit": "5de059a5cbefbe28c14efbe785166665a7c70bc5",
+    "license": "MIT"
+  },
+  "checks": {
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "vitest": {
+      "status": "PASS",
+      "tests": 551,
+      "suites": 95,
+      "notificationTests": 54
+    },
+    "knip": "PASS",
+    "reactDoctor": "PASS",
+    "expoDoctor": "PASS",
+    "expoCompatibility": "PASS",
+    "dependencyAudit": "PASS",
+    "hermesExport": "PASS",
+    "xcodeBuild": {
+      "status": "PASS",
+      "configuration": "Debug",
+      "platform": "iOS Simulator",
+      "architectures": [
+        "arm64",
+        "x86_64"
+      ],
+      "signing": true,
+      "appPath": "/tmp/nix-stabilization-derived/Build/Products/Debug-iphonesimulator/NiX.app",
+      "version": "1.0.12",
+      "build": "7",
+      "signingIdentity": "ad hoc (-), local simulator only"
+    },
+    "physicalXcodeBuild": {
+      "status": "PASS",
+      "configuration": "Debug",
+      "platform": "iphoneos",
+      "architectures": [
+        "arm64"
+      ],
+      "signingIdentity": "Apple Development",
+      "signatureVerification": "PASS (codesign --verify --deep --strict)",
+      "appPath": "/Volumes/External-drive-lexar/Dev/caches/nix-iphone-derived/Build/Products/Debug-iphoneos/NiX.app",
+      "version": "1.0.12",
+      "build": "7"
+    }
+  },
+  "sourceSha256": {
+    "docs/previews/notifications.html": "43a3d79a478400c37e288c7c494f905fcc3a271fafaedc720c7a94a0bd907376",
+    "doctor.config.ts": "2b67616b37b9bd86c6dfaa2815498a749cbd8a143f70c09750aab0de98a2c6be",
+    "ios/Podfile.lock": "1f9979632eb39ea6e814099e6aaabadb2bd538eadc191a06cc068c00b531e721",
+    "package-lock.json": "2a7b76152e347e53dde75c66e964e3dd9257eb52474226460bd7d9d98c684ce8",
+    "package.json": "9cd761df4dbedccdc678567f4833aa587fede354ed63dd2402d7a96fc9550129",
+    "src/app/_layout.tsx": "d7e1c17ae2dc1d5cb0c889c00e241df2e71210e6517b86651fe69d2b26433c55",
+    "src/app/friend-scan-qr.tsx": "ade75b4373f761ca02d7994dbeec0d48ff6b4e95659cc77248dd01ee2d3c1a43",
+    "src/components/friend/friend-invite-confirm-content.tsx": "91b191add7b889e41f3989e5ffd1c80bc232726c91dc8e543ff4352a914b8db2",
+    "src/components/notifications/NotificationCardBody.tsx": "17b1918e820647f5cf373aa483c6275d96817cdd0f910ff67e06b4074c12b9cf",
+    "src/components/notifications/NotificationGoo.tsx": "9f80d88ef9555f381bcdd30354c11b9baf6464d3b2d02f3d868af354e7af436b",
+    "src/components/notifications/NotificationPresentation.tsx": "1276db91c6c2921a8933d1fbe7dd91a5b2ac8927391a3a95903a197f17ac363f",
+    "src/components/notifications/notificationLayout.test.ts": "17e46d872981488e540712050e68371bad63daa4f4afb6077abeb8e119a309bd",
+    "src/components/notifications/notificationLayout.ts": "8cf92482d391345c652bfb0a4ddeb98331ea669c4fdb5b4dabf1ca139bf5cc5a",
+    "src/components/notifications/useNotificationAccessibility.ts": "70ef36147c0a4b16f61eaaf6966a1cbb2711175c0dd316fd82b90a734fb7983a",
+    "src/components/notifications/useNotificationAnimation.ts": "e322a20c4e1bc33aac67be4ab08cd116dba9ed1aca577fea85084ea2c7f20130",
+    "src/components/notifications/useNotificationGesture.test.ts": "d08a624eb9753dcb5527bdf3ab7e28e5e1c38d0050cced40f8a72b4adc4db8ec",
+    "src/components/notifications/useNotificationGesture.ts": "fb060b655ef973f9c255cbaee0b2bac078b888b6e3c67cf1a7317ca417806740",
+    "src/components/notifications/vendor/LICENSE": "fb3ca4a837f5779e83cef89b78253a8949cfb9429c340309f62d0465ec6610b4",
+    "src/components/notifications/vendor/README.md": "4692f6514117fcd229b24998014b59283982cdc68e4de4bc81a5a6369a12ec76",
+    "src/components/notifications/vendor/clamp.ts": "677708d50670c0df2ce949d96b5be1f8f20c320f6c3f1e8389105dc1a21b47c9",
+    "src/components/notifications/vendor/constants.ts": "2e2d8569e366de79232625b1c39cbfa0aabd3b1585d9cc0bc74a422dbc1073bb",
+    "src/components/notifications/vendor/easeOutPower.ts": "8bc3184e201a2fb8680020c3b7fb637880c862f6678713bdf0f36614332fb480",
+    "src/components/notifications/vendor/geometry.ts": "18c1bc5ecf4f774a2108a0b182f633efc1edbd3dbae7b63137055094deed3fd0",
+    "src/components/notifications/vendor/geometryTypes.ts": "961b41012cf14e1c0017efa15d3d30931cc4fdc3af77712a6b5c656193ab9b18",
+    "src/components/notifications/vendor/gooMatrix.ts": "b9167137c01812726aabc322b99263f00a3c3a76e217d4f0e57f6cb9023d6d9f",
+    "src/components/notifications/vendor/gooTypes.ts": "325db99c4cedb0c0b75ee58526cd23d309c55100a0430cd502d744dbdd26f56c",
+    "src/components/notifications/vendor/layoutTypes.ts": "d98aeb5cc95d567d2b02784c5d42b5b407cc6b218998822b7845d70592b11be8",
+    "src/components/notifications/vendor/mix.ts": "0f912a412da94307f48ebc7b6403d25f2de40d98189b50275163d7eb708df73d",
+    "src/components/notifications/vendor/neckProfile.ts": "6a3fc4892c1d36ea5f7fb868d44d0d05511f4bde70aa0f37d31dff5d3d319685",
+    "src/context/AppNotificationsProvider.tsx": "672ca47f8ac019d34143327abb075d954b0091438c85861d2d3b9a68fc7b458d",
+    "src/hooks/useViewerCaptureGuard.ts": "688b5cb6261b44dcd599f4001cf1566a07e6dafdcda110e38e3aa1263028f11b",
+    "src/lib/appNotify.test.ts": "7b7a8eb28b27f5864eb6abcb0db3aeca625ff6f8fe34a7984c5b0eba9354d1fe",
+    "src/lib/appNotify.ts": "7bc3e7b97782f17976de96c0f35717247b44ac7375bf2e107f5bb95d11944d59",
+    "src/lib/i18n.ts": "5f6515027e111b7428eedc771c2949fa48c2307b757396b491137b06d1533810",
+    "src/lib/notificationFeedback.ts": "48e9995864164e09a8b164a67568e9dda7612246092b11a7b61a5b3989233bab",
+    "src/lib/notificationQueue.test.ts": "d28afd8b4bd6644a9500c951399090795b5dfa809e0d13b47acecd94909ae918",
+    "src/lib/notificationQueue.ts": "d69d4f94adb553312c06cefd4f7bb3914dddeb038666a35aba39746a3715d2a2",
+    "src/lib/profileScreenActions.ts": "b9fd8b5e0019c3caeb43978e366002466b65b1d3c8ec72d4a0b4cfed9c7fcceb",
+    "src/components/notifications/vendor/timeline.ts": "bfe95790a495d96313aacb6c700bd90b91f54ec6e57695d74a7f7aa121998931",
+    "src/components/notifications/useNotificationAnimation.test.ts": "3dc9a553bae23f8589e48042d9acc3c2350c88ce0e72f4b7c0d2d02dc52f6167"
+  },
+  "hermesBundles": {
+    "/tmp/nix-capsule-hermes/_expo/static/js/ios/entry-12f3bef0e5ef5000b53a5f056d841958.hbc": "b78418bdcb77e37e4216e16bc97636a9fafdd7f1766f940ec3f679143fc96dcd"
+  },
+  "nativeBinarySha256": "690c9fa08bbaf683b5f62206274161508fdf0a7fc441eddadad1c625b1cac54d",
+  "logs": {
+    "typecheck": {
+      "path": "/tmp/nix-capsule-typecheck-final.log",
+      "sha256": "5e4119f7c96852e0614744f99a8171ddbffd17695b17bf3300e711c9f3c69037"
+    },
+    "lint": {
+      "path": "/tmp/nix-capsule-lint-final.log",
+      "sha256": "8e559ab07803d104b9fa9521c8587a1a106f598ed02af4015164f66894f3994f"
+    },
+    "vitest": {
+      "path": "/tmp/nix-capsule-suite.log",
+      "sha256": "13e2e1a6ed6f44b38774882614b5280dfbf5ff4837c569f398eebd7ce151b29f"
+    },
+    "knip": {
+      "path": "/tmp/nix-capsule-knip-final.log",
+      "sha256": "f0a56af09c93fef1ffdd835eec8e6d26f88d7eeb2a660a079bbcf3667784b02d"
+    },
+    "reactDoctor": {
+      "path": "/tmp/nix-capsule-react-doctor.log",
+      "sha256": "23afca91a7e855363ab135283e1ed46878f7a3aff5f12c7beca4705a82389720"
+    },
+    "expoDoctor": {
+      "path": "/tmp/nix-notifications-expo-doctor-final.log",
+      "sha256": "d6a13cca996ff53cc673578aaacecdf51cff135b4bc021e33eb9586920200d87"
+    },
+    "expoCompatibility": {
+      "path": "/tmp/nix-notifications-expo-install-check.log",
+      "sha256": "360a4cf11df10aa16777c13f31dd78d1af1f7f0b9125e6e09c10087c18a7355b"
+    },
+    "dependencyAudit": {
+      "path": "/tmp/nix-notifications-audit-final.log",
+      "sha256": "a21c82285e756c1afa5988d18db2f78e310cfe58e83be37b4ed35c8d90b4e74a"
+    },
+    "hermesExport": {
+      "path": "/tmp/nix-capsule-hermes.log",
+      "sha256": "773bdaf954814857a9a13a36b3a59edbf202c14d1f3327550abc48f4be60925e"
+    },
+    "xcodeBuild": {
+      "path": "/tmp/nix-simulator-signed-build.log",
+      "sha256": "4057b4fddc57901da44993f3fa5587bf9f824ba439b842c3bae72dc2fd9eaa0a"
+    },
+    "xcodeBuildBeforeSimulatorLaunch": {
+      "path": "/tmp/nix-notifications-xcode-final.log",
+      "sha256": "33b9773547779939f6d613dac85fc3ed266c2aa10d09aa02eb39e6c7fb3c0fa1"
+    },
+    "physicalXcodeBuild": {
+      "path": "/tmp/nix-damian-iphone-build.log",
+      "sha256": "502c3fa4efb27473f7d137680b69bd230561fc4b8206067f4b47d58bf72b5c8a"
+    },
+    "physicalInstall": {
+      "path": "/tmp/nix-damian-install.json",
+      "sha256": "bec39977adfba5bd1412f464670b12259df3837a9fbeab43e25d04df8eacc513"
+    },
+    "physicalLaunch": {
+      "path": "/tmp/nix-damian-launch.json",
+      "sha256": "61f38d73ded6334feece2da7d43da73677825e1ecf34bf9b896aa7b3b33dcfa8"
+    }
+  },
+  "qa": {
+    "simulatorRuntimeAvailable": true,
+    "physicalIPhone": "LAUNCH PASS; full notification QA NOT RUN",
+    "nativeVisualQA": "PARTIAL PASS: Debug simulator capsule entry/return, light/dark, longer PL/EN, native sheet",
+    "nativeGestureArbitration": "PARTIAL PASS: tap and outside-card touch over native sheet; swipe NOT RUN (CUA coordinate input noWindowsAvailable)",
+    "preview": "docs/previews/notifications.html",
+    "previewChecks": "JavaScript and mock DOM only; no screenshot/visual QA",
+    "simulator": {
+      "runtime": "iOS 27.0",
+      "build": "24A434",
+      "device": "iPhone 18 Pro",
+      "udid": "5369CAAB-A5D3-4371-8EBC-157B0E50D2E4",
+      "state": "Booted"
+    },
+    "appLaunch": "PASS",
+    "appLaunchEvidence": {
+      "screen": "NiX login (PL)",
+      "screenshot": {
+        "path": "/tmp/nix-simulator-login.png",
+        "sha256": "70d94df76bec568183ea725bce1ee5e92fbe36aba2150dee468cae351c8658b4"
+      },
+      "authBootstrap": {
+        "result": "anonymous",
+        "failure_stage": null,
+        "stored_session_present": false
+      },
+      "accountLoggedIn": false,
+      "metro": "http://127.0.0.1:8081",
+      "sceneSupport": "Expo 57 ios.enableSceneSupport + EXExpoAppSceneDelegate",
+      "configurationCheck": "PASS",
+      "configurationLint": "PASS",
+      "expoManifestMatchesNative": true,
+      "nativeChanges": [
+        {
+          "path": "app.json",
+          "sha256": "b9e21649735d9a262e2c7b20397e8c601e177c50aaff09ef0fc3a92152d9d6db"
+        },
+        {
+          "path": "ios/NiX/AppDelegate.swift",
+          "sha256": "248a72ab880e205edd772bc984cccbc59e9b18a1523002e63dd8332de4a096e6"
+        },
+        {
+          "path": "ios/NiX/Info.plist",
+          "sha256": "1ffd64a90685ca32d7c091e6ea6de6f6e1af548668cb2a7904d7eba7e87b77dc"
+        },
+        {
+          "path": "ios/Podfile.properties.json",
+          "sha256": "1249238a13d859c23adc75ba380dba3d7d0698c5a4e7279953a0f41f90c9234c"
+        },
+        {
+          "path": "scripts/check-ios-config.mjs",
+          "sha256": "a86d9f8738484565184cc61284402521a5e891ee156bd91491ab057c16707e1a"
+        }
+      ]
+    },
+    "physicalDevice": {
+      "name": "iPhone (Damian)",
+      "model": "iPhone 16 Pro Max",
+      "os": "iOS 27.0.1",
+      "osBuild": "24A446",
+      "udid": "00008140-00161C981489801C",
+      "installedVersionBefore": "1.0.11 (6)",
+      "installedVersionAfter": "1.0.12 (7)",
+      "install": "PASS",
+      "foregroundLaunch": "PASS",
+      "observedScreen": "NiX inbox (PL)",
+      "authBootstrap": {
+        "result": "online",
+        "stored_session_present": true,
+        "resolution": "readyOnline",
+        "failure_stage": null
+      },
+      "metro": "http://192.168.1.91:8081",
+      "screenshot": {
+        "path": "/tmp/nix-damian-iphone-screen.png",
+        "sha256": "ab0a558abd4097fd77f8e5c7b7ce902c5d18446d9ea9336d97d217e3377b129e"
+      },
+      "scope": "Launch smoke only; no notification gesture or accessibility QA"
+    },
+    "capsuleCorrection": {
+      "configuration": "Debug with Metro; existing native Skia build; JS correction only, no new Xcode build",
+      "nativeLayout": {
+        "topInset": 62,
+        "reduceMotion": false,
+        "morph": true
+      },
+      "entryReturn": "PASS: recorded first notification grows from capsule and returns after full readable lifetime",
+      "longText": "PASS: PL on base screen, EN above native Modal; adaptive height",
+      "themes": "PASS: light and dark; system appearance restored after QA",
+      "tap": "PASS: notification dismissed before custom 15-second lifetime",
+      "outsideTouch": "PASS: closed native Modal while notification stayed visible, then tapped notification to dismiss",
+      "swipe": "NOT RUN: CUA drag failed with noWindowsAvailable",
+      "physicalIPhoneAfterCorrection": "NOT RUN: iPhone (Damian) unavailable; user asked to reconnect/unlock",
+      "physicalDeviceSnapshot": {
+        "path": "/tmp/nix-capsule-devices-final.json",
+        "sha256": "5bdbf4a65cb8777e4d44cf628da7c406d5fc5cb2416ea5335c3d39dd05090b63"
+      },
+      "voiceOverReduceMotionDynamicType": "NOT RUN on native device after correction; lifecycle tests passed",
+      "temporaryQARoute": "Removed after native recording; no test screen in final app",
+      "nativeRecording": {
+        "path": "/tmp/nix-capsule-first.mp4",
+        "sha256": "34e07ee9e7629e2718df80930d2a45d022ea4c8208cd8e8da5e290de4c6e52b5"
+      },
+      "previewClip": {
+        "path": "/Users/damianmotylinski/.codex/visualizations/2026/10/07/01a1178f-de0a-7cb3-afe7-14624b2099bc/nix-dynamic-island.mp4",
+        "sha256": "f406f8641ccc6fee40044878556db3e3978f1c73aa684b2468657345de28bf69"
+      },
+      "darkSheetScreenshot": {
+        "path": "/tmp/nix-capsule-dark-sheet.png",
+        "sha256": "b697fd6bcf172da370376852e57a0113fdda6d7b0708890bd252d032eed4da0e"
+      }
+    }
+  },
+  "deployment": {
+    "published": false,
+    "productionChanged": false
+  },
+  "audit": {
+    "high": 23,
+    "critical": 0,
+    "sourceAdvisories": [
+      "GHSA-vfj7-8cjw-p6xm",
+      "GHSA-86w9-cpqp-85rv"
+    ],
+    "newSourceAdvisories": false,
+    "extraPackageEntry": "@shopify/react-native-skia via react-native peer dependency",
+    "exceptionPolicyChanged": false
+  },
+  "nativeBinarySha256BeforeSimulatorLaunch": "7c672d74b8f29c983b02a6bacda48294560b49ed49b976d73b144c5c4429aff0",
+  "nativeBinaryPath": "/tmp/nix-stabilization-derived/Build/Products/Debug-iphonesimulator/NiX.app/NiX"
+}

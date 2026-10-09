@@ -26,9 +26,9 @@ if (production?.env?.EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED !== 'false') {
 }
 if ('SENTRY_DSN' in (production?.env ?? {})) failures.push('SENTRY_DSN must not be present');
 if (!/^\d{7,}$/.test(submit?.ascAppId ?? '')) failures.push('set the real numeric submit.production.ios.ascAppId before running the workflow');
-if (pkg.version !== '1.0.11') failures.push('package.json version must be 1.0.11');
-if (appConfig.expo?.version !== '1.0.11') failures.push('app.json expo.version must be 1.0.11');
-if (appConfig.expo?.runtimeVersion !== '1.0.11') failures.push('app.json expo.runtimeVersion must be 1.0.11');
+if (pkg.version !== '1.0.12') failures.push('package.json version must be 1.0.12');
+if (appConfig.expo?.version !== '1.0.12') failures.push('app.json expo.version must be 1.0.12');
+if (appConfig.expo?.runtimeVersion !== '1.0.12') failures.push('app.json expo.runtimeVersion must be 1.0.12');
 const buildNumber = Number.parseInt(appConfig.expo?.ios?.buildNumber ?? '', 10);
 if (!Number.isInteger(buildNumber) || buildNumber < 5) {
   failures.push('app.json expo.ios.buildNumber must be an integer >= 5');

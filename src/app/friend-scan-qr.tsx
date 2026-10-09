@@ -12,6 +12,7 @@ import { NativeButton } from '../components/ui/native-button';
 import { NativeSectionCard } from '../components/ui/native-section-card';
 import { AppBottomSheet } from '../components/ui/app-bottom-sheet';
 import { FriendInviteConfirmContent } from '../components/friend/friend-invite-confirm-content';
+import i18n from '../lib/i18n';
 import { notifyError, notifyInfo } from '../lib/appNotify';
 import { notify as hapticNotify } from '../lib/haptics';
 import { runWithFinally } from '../lib/runWithFinally';
@@ -78,7 +79,7 @@ export default function FriendScanQrScreen() {
         try {
           const payload = extractFriendInvitePayload(event.data);
           if (!payload?.token && !payload?.profileId) {
-            notifyError('Niepoprawny kod', { message: 'To nie jest poprawny kod QR profilu NiX.' });
+            notifyError(i18n.t('notify.invalidQr'), { message: i18n.t('notify.invalidQrBody') });
             scanInFlightRef.current = false;
             setScanningLocked(false);
             trackEvent('friend_qr_scan', {
@@ -92,7 +93,7 @@ export default function FriendScanQrScreen() {
           if (payload.token) {
             const preview = await previewFriendInviteToken(payload.token);
             if (preview.status === 'invalid_or_expired' || !preview.profile) {
-              notifyError('Niepoprawny kod', { message: 'Kod QR jest nieprawidłowy, wygasły lub został już użyty.' });
+              notifyError(i18n.t('notify.invalidQr'), { message: i18n.t('notify.expiredQrBody') });
               scanInFlightRef.current = false;
               setScanningLocked(false);
               trackEvent('friend_qr_scan', {
@@ -103,7 +104,7 @@ export default function FriendScanQrScreen() {
               return;
             }
             if (preview.status === 'own_invite') {
-              notifyInfo('To Twój kod', { message: 'To jest Twój własny kod QR.' });
+              notifyInfo(i18n.t('notify.ownQr'), { message: i18n.t('notify.ownQrBody') });
               scanInFlightRef.current = false;
               setScanningLocked(false);
               trackEvent('friend_qr_scan', {
@@ -134,7 +135,7 @@ export default function FriendScanQrScreen() {
 
           const preview = await previewProfileQr(payload.profileId ?? '');
           if (preview.status === 'invalid_profile' || !preview.profile) {
-            notifyError('Nie znaleziono profilu', { message: 'Nie znaleziono profilu dla tego kodu QR.' });
+            notifyError(i18n.t('notify.profileNotFound'), { message: i18n.t('notify.qrProfileNotFound') });
             scanInFlightRef.current = false;
             setScanningLocked(false);
             trackEvent('friend_qr_scan', {
@@ -145,7 +146,7 @@ export default function FriendScanQrScreen() {
             return;
           }
           if (preview.status === 'own_profile') {
-            notifyInfo('To Twój kod', { message: 'To jest Twój własny kod QR.' });
+            notifyInfo(i18n.t('notify.ownQr'), { message: i18n.t('notify.ownQrBody') });
             scanInFlightRef.current = false;
             setScanningLocked(false);
             trackEvent('friend_qr_scan', {
@@ -172,8 +173,8 @@ export default function FriendScanQrScreen() {
           });
           setSheetPresented(true);
         } catch (err: unknown) {
-          notifyError('Błąd skanowania', {
-            message: (err as { message?: string })?.message ?? 'Nie udało się odczytać zaproszenia.',
+          notifyError(i18n.t('notify.scanFailed'), {
+            message: (err as { message?: string })?.message ?? i18n.t('notify.inviteReadFailed'),
           });
           scanInFlightRef.current = false;
           setScanningLocked(false);

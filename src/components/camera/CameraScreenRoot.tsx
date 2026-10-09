@@ -28,7 +28,8 @@ export default function CameraScreenRoot() {
   if (!vm.permissionGranted) {
     return (
       <CameraPermissionDeniedPlaceholder
-        onRequestPermission={vm.requestPermission}
+        onRequestPermission={() => { void vm.handleCameraPermission(); }}
+        canAskAgain={vm.permission?.canAskAgain !== false}
         styles={{
           permissionContainer: vm.styles.permissionContainer,
           permissionText: vm.styles.permissionText,

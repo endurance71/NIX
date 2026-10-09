@@ -1,5 +1,6 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.5';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import { corsHeaders, getBearerToken, json } from '../_shared/http.ts';
+import { MAX_IMAGE_BYTES, MAX_VIDEO_BYTES } from '../_shared/media-limits.ts';
 
 type RecipientInput = {
   receiverId: string;
@@ -38,7 +39,7 @@ function isPayload(value: unknown): value is BeginPayload {
     && Number.isFinite(payload.sizeBytes)
     && (payload.sizeBytes ?? 0) > 0
     && (payload.sizeBytes ?? 0) <= (
-      payload.mediaType === 'image' ? 10 * 1024 * 1024 : 100 * 1024 * 1024
+      payload.mediaType === 'image' ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES
     )
     && typeof payload.fileExtension === 'string'
     && (
@@ -106,6 +107,14 @@ Deno.serve(async (req) => {
     rawPayload = await req.json();
   } catch {
     return json({ error: 'INVALID_JSON', code: 'INVALID_JSON' }, 400);
+  }
+  if (rawPayload && typeof rawPayload === 'object') {
+    const input = rawPayload as Partial<BeginPayload>;
+    const max = input.mediaType === 'image' ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES;
+    if (typeof input.sizeBytes === 'number' &&
+      (!Number.isSafeInteger(input.sizeBytes) || input.sizeBytes <= 0 || input.sizeBytes > max)) {
+      return json({ error: 'INVALID_SIZE', code: 'INVALID_SIZE' }, 400);
+    }
   }
   if (!isPayload(rawPayload)) return json({ error: 'INVALID_PAYLOAD', code: 'INVALID_PAYLOAD' }, 400);
   const payload = rawPayload;

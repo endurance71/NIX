@@ -2,7 +2,7 @@
   "expo": {
     "name": "NiX",
     "slug": "nix-app",
-    "version": "1.0.11",
+    "version": "1.0.12",
     "platforms": [
       "ios"
     ],
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.damianmotylinski.nixapp",
-      "buildNumber": "6",
+      "buildNumber": "10",
       "associatedDomains": [
         "applinks:nix.damianmotylinski.pl"
       ],
@@ -44,11 +44,21 @@
         "expo-build-properties",
         {
           "ios": {
+            "enableSceneSupport": true,
             "buildReactNativeFromSource": true,
             "extraPods": [
               {
                 "name": "AppCheckCore",
-                "version": "11.2.0"
+                "version": "11.3.2",
+                "modular_headers": true
+              },
+              {
+                "name": "GoogleUtilities",
+                "modular_headers": true
+              },
+              {
+                "name": "RecaptchaInterop",
+                "modular_headers": true
               }
             ]
           }
@@ -143,7 +153,7 @@
         "expo-channel-name": "production"
       }
     },
-    "runtimeVersion": "1.0.11",
+    "runtimeVersion": "1.0.12",
     "locales": {
       "en": "./src/locales/en/common.json",
       "pl": "./src/locales/pl/common.json"

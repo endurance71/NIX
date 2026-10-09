@@ -12,6 +12,7 @@ describe('text outbox retry policy', () => {
     expect(isTerminalTextOutboxCode('NOT_FRIEND')).toBe(true);
     expect(isTerminalTextOutboxCode('RATE_LIMITED')).toBe(true);
     expect(isTerminalTextOutboxCode('INVALID_INPUT')).toBe(true);
+    expect(isTerminalTextOutboxCode('CONTENT_NOT_ALLOWED')).toBe(true);
   });
 
   it('caps exponential backoff at fifteen minutes', () => {

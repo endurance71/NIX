@@ -14,11 +14,13 @@ export type UploadLiveActivityProps = {
   progress: number;
   remainingCount: number;
   updatedAt: number;
+  locale: 'pl' | 'en';
 };
 
 export function buildUploadLiveActivityProps(
   summary: UploadQueueSummary,
-  updatedAt = Date.now()
+  updatedAt = Date.now(),
+  locale: 'pl' | 'en' = 'en'
 ): UploadLiveActivityProps {
   const phase = summary.failedCount > 0
     || summary.phase === 'failed'
@@ -42,5 +44,6 @@ export function buildUploadLiveActivityProps(
     progress: summary.progress,
     remainingCount: summary.activeCount + summary.failedCount,
     updatedAt,
+    locale,
   };
 }

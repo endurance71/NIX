@@ -15,6 +15,7 @@ import {
   background,
   clipShape,
   controlSize,
+  fixedSize,
   font,
   foregroundStyle,
   frame,
@@ -386,7 +387,13 @@ export function AuthErrorText({ children }: { children: string }) {
 export function AuthFormDivider({ label }: { label: string }) {
   const { colors } = useAppTheme();
   const contentWidth = useAuthContentWidth();
-  const lineWidth = getAuthOrDividerLineWidth(contentWidth, label.toLocaleLowerCase());
+  const { fontScale } = useWindowDimensions();
+  const lineWidth = getAuthOrDividerLineWidth(
+    contentWidth,
+    label.toLocaleLowerCase(),
+    AUTH_OR_DIVIDER_GAP,
+    fontScale,
+  );
 
   return (
     <HStack
@@ -400,6 +407,7 @@ export function AuthFormDivider({ label }: { label: string }) {
         modifiers={[
           font({ textStyle: 'footnote', weight: 'medium' }),
           foregroundStyle(colors.secondaryLabel),
+          fixedSize({ horizontal: true, vertical: false }),
         ]}>
         {label.toLocaleLowerCase()}
       </Text>

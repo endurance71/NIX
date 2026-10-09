@@ -6,13 +6,13 @@ NiX to aplikacja Expo przeznaczona wyłącznie na iPhone/iOS, z efemerycznym prz
 
 - Node.js **24.18.0** (`.nvmrc` / `.node-version`; `engines.node` = `24.x`)
 - Deno **2.9.6** (`.deno-version`; `npm run deno:check` / `deno:test`)
-- npm 10+
+- npm **11.16.0**
 - Xcode + iOS Simulator (dla `expo run:ios`)
 
 ## Szybki start
 
 1. Zainstaluj zależności:
-   - `npm install`
+   - `npm ci`
 2. Ustaw zmienne środowiskowe w `.env`:
    - `EXPO_PUBLIC_SUPABASE_URL=...`
    - `EXPO_PUBLIC_SUPABASE_ANON_KEY=...`
@@ -25,6 +25,8 @@ NiX to aplikacja Expo przeznaczona wyłącznie na iPhone/iOS, z efemerycznym prz
    - `npm run start`
 4. (Opcjonalnie) uruchom lokalny build iOS: `npm run ios`
 
+Po czystym `npm ci`, przed bezpośrednim buildem w Xcode, uruchom `pod install` w `ios/`. CocoaPods odtwarza także vendored źródła i nagłówki SQLite w `node_modules`; zachowane wcześniej `ios/Pods` nie wystarcza po ponownej instalacji npm.
+
 ## Skrypty
 
 - `npm run start` — uruchamia Expo
@@ -35,7 +37,9 @@ NiX to aplikacja Expo przeznaczona wyłącznie na iPhone/iOS, z efemerycznym prz
 
 ## Dokumentacja
 
-- **Status wydania iOS (kanon):** [`docs/release/ios-current.md`](docs/release/ios-current.md) — binary, bramki, publiczny App Review (**NO-GO** dopóki nie napisano inaczej)
+- **Implementacja stabilizacji (2026-10-08):** [`docs/IMPLEMENTATION_2026-10-08.pl.md`](docs/IMPLEMENTATION_2026-10-08.pl.md) — zmiany, testy i warunki publikacji nowego binary.
+
+- **Status wydania iOS (kanon):** [`docs/release/ios-current.md`](docs/release/ios-current.md) — ostatni udokumentowany binary, stan lokalnego kandydata i bramki wydania
 - **Deploy iOS (cost-first):** [`docs/DEPLOY_IOS_TESTFLIGHT.md`](docs/DEPLOY_IOS_TESTFLIGHT.md) — hotfix JS → `eas update`; nowy binary → lokalny Xcode Archive → TestFlight; **bez** domyślnego `eas build`
 - **App Store Review:** kanon powyżej; snapshoty [`docs/APP_STORE_REVIEW_AUDIT_2026-08-31.md`](docs/APP_STORE_REVIEW_AUDIT_2026-08-31.md) i [`docs/APP_STORE_REVIEW_AUDIT_2026-08-26.md`](docs/APP_STORE_REVIEW_AUDIT_2026-08-26.md) są historyczne
 - **Rollout flag produktowych iOS:** [`docs/ios-roadmap-rollout.md`](docs/ios-roadmap-rollout.md) — analityka / share-invites / komunikacja / narzędzia konta; **nie** jest ścieżką do App Review

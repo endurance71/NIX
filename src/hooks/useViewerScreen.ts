@@ -1,8 +1,8 @@
+import { selectOwnedViewerMedia } from '../lib/viewerOwnedMedia';
 import { useState, useEffect, useRef, useEffectEvent, useMemo, useReducer } from 'react';
 import type { ViewStyle } from 'react-native';
 import { ActionSheetIOS, Alert, unstable_batchedUpdates } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Image as ExpoImage } from 'expo-image';
 import type { VideoThumbnail } from 'expo-video';
 import type { AnimatedStyle } from 'react-native-reanimated';
 import {
@@ -22,7 +22,7 @@ import {
   fetchInboxNixById,
 } from '../services/nixService';
 import { markViewerSlideViewed, markViewerSlideUnplayable } from '../lib/viewerSlideActions';
-import { normalizeNixViewDurationSec } from '../lib/nixViewDuration';
+import { normalizeViewerScreenParams } from '../lib/viewerScreenParams';
 import { useAppTheme } from './useAppTheme';
 import { clearMediaMemoryCache } from '../lib/mediaCache';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
@@ -43,6 +43,9 @@ import { notifyDomainError, notifySuccess } from '../lib/appNotify';
 import { runWithFinally } from '../lib/runWithFinally';
 import { saveRemoteMediaToGallery } from '../lib/saveMediaToGalleryAction';
 import { supabase } from '../lib/supabase';
+import { useAuth } from './useAuth';
+import { loadPrivatePhoto } from '../services/photoCacheService';
+import { encryptedPhotoCache } from '../lib/encryptedPhotoCache';
 import { classifyViewerFailure, type ViewerFailureKind } from '../lib/viewerRoute';
 import {
   initialViewerMachineState,
@@ -63,11 +66,6 @@ type NixQueueItem = {
 type ViewerError = ViewerMachineError & {
   kind: Exclude<ViewerFailureKind, 'unauthorized'>;
 };
-
-function paramFirst(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
-}
 
 export type ViewerScreenViewModel = {
   viewerPhase: ViewerMachineState['status'];
@@ -115,8 +113,41 @@ export type ViewerScreenViewModel = {
   skipUnavailable: () => void;
 };
 
+function useViewerSeed({
+  paramId,
+  paramPath,
+  paramViewDurationSec,
+  paramMediaType,
+  paramPlaybackDurationMs,
+  paramThumbnailB64,
+}: ReturnType<typeof normalizeViewerScreenParams>) {
+  return useMemo<NixQueueItem | null>(
+    () =>
+      paramId && paramPath
+        ? {
+            id: paramId,
+            media_path: paramPath,
+            view_duration_sec: paramViewDurationSec,
+            media_type: paramMediaType,
+            playback_duration_ms: paramPlaybackDurationMs,
+            thumbnail_b64: paramThumbnailB64,
+          }
+        : null,
+    [
+      paramId,
+      paramPath,
+      paramViewDurationSec,
+      paramMediaType,
+      paramPlaybackDurationMs,
+      paramThumbnailB64,
+    ],
+  );
+}
+
 export function useViewerScreen(): ViewerScreenViewModel {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const ownerId = user?.id;
   const queryClient = useQueryClient();
   const { colors, statusBarStyle, isDark } = useAppTheme();
   const insets = useScreenInsets('mediaChrome');
@@ -131,25 +162,26 @@ export function useViewerScreen(): ViewerScreenViewModel {
     thumbnailB64?: string;
     isReplay?: string;
   }>();
-  const paramId = paramFirst(raw.id);
-  const paramPath = paramFirst(raw.path);
-  const paramSenderId = paramFirst(raw.senderId);
-  const paramViewDurationSec = normalizeNixViewDurationSec(paramFirst(raw.viewDurationSec));
-  const paramMediaType = paramFirst(raw.mediaType) === 'video' ? 'video' : 'image';
-  const rawPlaybackDurationMs = Number(paramFirst(raw.playbackDurationMs));
-  const paramPlaybackDurationMs = Number.isFinite(rawPlaybackDurationMs) && rawPlaybackDurationMs > 0
-    ? rawPlaybackDurationMs
-    : null;
-  const paramThumbnailB64 = paramFirst(raw.thumbnailB64) || null;
-  const paramIsReplay = paramFirst(raw.isReplay) === '1';
-  const seedItem = useMemo<NixQueueItem | null>(() => paramId && paramPath ? ({
-    id: paramId,
-    media_path: paramPath,
-    view_duration_sec: paramViewDurationSec,
-    media_type: paramMediaType,
-    playback_duration_ms: paramPlaybackDurationMs,
-    thumbnail_b64: paramThumbnailB64,
-  }) : null, [paramId, paramPath, paramViewDurationSec, paramMediaType, paramPlaybackDurationMs, paramThumbnailB64]);
+  const {
+    paramId,
+    paramPath,
+    paramSenderId,
+    paramViewDurationSec,
+    paramMediaType,
+    paramPlaybackDurationMs,
+    paramThumbnailB64,
+    paramIsReplay,
+  } = normalizeViewerScreenParams(raw);
+  const seedItem = useViewerSeed({
+    paramId,
+    paramPath,
+    paramSenderId,
+    paramViewDurationSec,
+    paramMediaType,
+    paramPlaybackDurationMs,
+    paramThumbnailB64,
+    paramIsReplay,
+  });
 
   const [queueState, setQueueState] = useState<{
     queueLoading: boolean;
@@ -172,6 +204,8 @@ export function useViewerScreen(): ViewerScreenViewModel {
     useNativeFallback: boolean;
     videoPosterUri: string | null;
     videoThumbnailOverlay: VideoThumbnail | null;
+    photoExpiresAt: number | null;
+    renderOwnerId: string | null;
   }>({
     renderNix: null,
     imageUrl: null,
@@ -181,22 +215,26 @@ export function useViewerScreen(): ViewerScreenViewModel {
     useNativeFallback: false,
     videoPosterUri: null,
     videoThumbnailOverlay: null,
+    photoExpiresAt: null,
+    renderOwnerId: null,
   });
   const {
-    renderNix,
-    imageUrl,
     loading,
-    imageReady,
     imageLoadError,
     useNativeFallback,
     videoPosterUri,
     videoThumbnailOverlay,
+    photoExpiresAt,
   } = mediaState;
+  const { renderNix, imageUrl, imageReady } = selectOwnedViewerMedia(mediaState, ownerId);
   const appState = useAppStateSnapshot();
   const [safetyBusy, setSafetyBusy] = useState(false);
   const [safetyPaused, setSafetyPaused] = useState(false);
   const [canDismissByTap, setCanDismissByTap] = useState(false);
-  const [viewerMachine, dispatchViewer] = useReducer(viewerMachineReducer, initialViewerMachineState);
+  const [viewerMachine, dispatchViewer] = useReducer(
+    viewerMachineReducer,
+    initialViewerMachineState,
+  );
   const viewerError: ViewerError | null = viewerMachine.error;
   const setViewerError = (error: ViewerError | null) => {
     dispatchViewer(error ? { type: 'fail', error } : { type: 'load' });
@@ -253,7 +291,11 @@ export function useViewerScreen(): ViewerScreenViewModel {
   const canSaveToGallery = !captureDenied;
   const shouldBlurOverlay = captureDenied && appState !== 'active';
 
-  useViewerCaptureGuard(capturePolicyPending ? null : captureDenied, paramSenderId, displayedNix?.id);
+  useViewerCaptureGuard(
+    capturePolicyPending ? null : captureDenied,
+    paramSenderId,
+    displayedNix?.id,
+  );
   const [isSavingToGallery, setIsSavingToGallery] = useState(false);
 
   const signedUrlTtlSec = (() => {
@@ -285,9 +327,18 @@ export function useViewerScreen(): ViewerScreenViewModel {
           console.error('Nie udało się pobrać nixa do replay', err);
           if (!cancelled) {
             setQueueState((current) => ({ ...current, queueLoading: false }));
-            if (!seedItem) setViewerError({ kind: 'transient', message: 'Nie udało się pobrać medium.', reason: 'queue_replay_failed' });
+            if (!seedItem)
+              setViewerError({
+                kind: 'transient',
+                message: t('viewer.fetchMediaFailed'),
+                reason: 'queue_replay_failed',
+              });
           }
-          trackEvent('viewer_load_stage', { stage: 'queue', status: 'failure', error_class: 'transient' });
+          trackEvent('viewer_load_stage', {
+            stage: 'queue',
+            status: 'failure',
+            error_class: 'transient',
+          });
         }
         return;
       }
@@ -298,7 +349,12 @@ export function useViewerScreen(): ViewerScreenViewModel {
           if (cancelled) return;
           if (nixes.length === 0) {
             setQueueState((current) => ({ ...current, queueLoading: false }));
-            if (!seedItem) setViewerError({ kind: 'permanentMissing', message: 'Medium jest niedostępne.', reason: 'empty_queue' });
+            if (!seedItem)
+              setViewerError({
+                kind: 'permanentMissing',
+                message: t('viewer.mediaUnavailable'),
+                reason: 'empty_queue',
+              });
             return;
           }
           const mappedQueue = nixes.map(toViewerQueueItem);
@@ -311,9 +367,18 @@ export function useViewerScreen(): ViewerScreenViewModel {
           console.error('Nie udało się pobrać kolejki nixów', err);
           if (!cancelled) {
             setQueueState((current) => ({ ...current, queueLoading: false }));
-            if (!seedItem) setViewerError({ kind: 'transient', message: 'Nie udało się pobrać wiadomości.', reason: 'queue_fetch_failed' });
+            if (!seedItem)
+              setViewerError({
+                kind: 'transient',
+                message: t('viewer.fetchMessageFailed'),
+                reason: 'queue_fetch_failed',
+              });
           }
-          trackEvent('viewer_load_stage', { stage: 'queue', status: 'failure', error_class: 'transient' });
+          trackEvent('viewer_load_stage', {
+            stage: 'queue',
+            status: 'failure',
+            error_class: 'transient',
+          });
         }
         return;
       }
@@ -322,9 +387,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
         unstable_batchedUpdates(() => {
           setQueueState((current) => ({
             ...current,
-            queue: [
-              seedItem,
-            ],
+            queue: [seedItem],
             queueLoading: false,
           }));
         });
@@ -333,15 +396,23 @@ export function useViewerScreen(): ViewerScreenViewModel {
       }
 
       setQueueState((current) => ({ ...current, queueLoading: false }));
-      setViewerError({ kind: 'permanentMissing', message: 'Nieprawidłowy link do medium.', reason: 'missing_params' });
-      trackEvent('viewer_load_stage', { stage: 'queue', status: 'failure', error_class: 'permanentMissing' });
+      setViewerError({
+        kind: 'permanentMissing',
+        message: t('viewer.invalidMediaLink'),
+        reason: 'missing_params',
+      });
+      trackEvent('viewer_load_stage', {
+        stage: 'queue',
+        status: 'failure',
+        error_class: 'permanentMissing',
+      });
     }
 
     void initQueue();
     return () => {
       cancelled = true;
     };
-  }, [paramSenderId, paramId, paramIsReplay, queueRetryKey, seedItem]);
+  }, [paramSenderId, paramId, paramIsReplay, queueRetryKey, seedItem, t]);
 
   useEffect(() => {
     flushCleanupQueue().catch((err) => {
@@ -352,8 +423,6 @@ export function useViewerScreen(): ViewerScreenViewModel {
       void clearMediaMemoryCache();
     };
   }, [queryClient]);
-
-
 
   const finishCurrentSlide = () => {
     if (closingRef.current) return;
@@ -366,6 +435,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
     segmentProgress.set(1);
 
     markInboxNixViewedInCache(queryClient, item.id);
+    if (paramIsReplay && ownerId) void encryptedPhotoCache.remove(ownerId, item.id).catch(() => {});
     void markViewerSlideViewed(item, paramIsReplay ? 'replayed' : 'viewed', () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
     });
@@ -385,6 +455,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
     segmentProgress.set(1);
 
     markInboxNixUnplayableInCache(queryClient, item.id);
+    if (ownerId) void encryptedPhotoCache.remove(ownerId, item.id).catch(() => {});
     void markViewerSlideUnplayable(item, reason, () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
     });
@@ -426,8 +497,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
 
   useEffect(() => {
     const path = currentNix?.media_path;
-    const skipImagePrefetch = currentNix?.media_type === 'video';
-    if (!path || queueLoading || closing) return;
+    if (!path || !ownerId || queueLoading || closing) return;
 
     let cancelled = false;
     const embeddedPosterUri =
@@ -446,6 +516,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
         useNativeFallback: false,
         videoPosterUri: embeddedPosterUri,
         videoThumbnailOverlay: null,
+        photoExpiresAt: null,
       }));
     });
     if (currentNix?.media_type === 'video' && currentNix?.thumbnail_b64) {
@@ -459,11 +530,18 @@ export function useViewerScreen(): ViewerScreenViewModel {
         const signedUrlStartedAt = nowMs();
         trackEvent('viewer_load_stage', { stage: 'signed_url', status: 'started' });
         let signedUrl: string;
+        let availabilityExpiresAt: number | null = null;
         let refreshedSession = false;
         let transientRetries = 0;
         while (true) {
           try {
-            signedUrl = await createSignedNixUrl(path, signedUrlTtlSec);
+            if (currentNix.media_type === 'video')
+              signedUrl = await createSignedNixUrl(path, signedUrlTtlSec);
+            else {
+              const photo = await loadPrivatePhoto(currentNix.id, path, ownerId);
+              signedUrl = photo.uri;
+              availabilityExpiresAt = photo.expiresAt;
+            }
             break;
           } catch (loadError) {
             const failureKind = classifyViewerFailure(loadError);
@@ -497,21 +575,14 @@ export function useViewerScreen(): ViewerScreenViewModel {
           }
         }
         if (cancelled) return;
-        if (!skipImagePrefetch) {
-          const prefetchStartedAt = nowMs();
-          await ExpoImage.prefetch(signedUrl, 'memory-disk');
-          trackDuration('viewer_prefetch_ms', prefetchStartedAt, {
-            media_type: 'image',
-            status: 'success',
-          });
-          if (cancelled) return;
-        }
         unstable_batchedUpdates(() => {
           setMediaState((current) => ({
             ...current,
             imageUrl: signedUrl,
             renderNix: currentNix ?? null,
+            renderOwnerId: ownerId,
             loading: false,
+            photoExpiresAt: availabilityExpiresAt,
             ...(generatedVideoThumbnailOverlay !== null
               ? { videoThumbnailOverlay: generatedVideoThumbnailOverlay }
               : {}),
@@ -534,7 +605,10 @@ export function useViewerScreen(): ViewerScreenViewModel {
           setMediaState((current) => ({ ...current, loading: false, imageReady: false }));
           setViewerError({
             kind: kind === 'permanentMissing' ? 'permanentMissing' : 'transient',
-            message: kind === 'permanentMissing' ? 'Medium jest niedostępne.' : 'Nie udało się załadować medium.',
+            message:
+              kind === 'permanentMissing'
+                ? t('viewer.mediaUnavailable')
+                : t('viewer.loadMediaFailed'),
             reason: 'signed_url_failed',
           });
         }
@@ -552,27 +626,38 @@ export function useViewerScreen(): ViewerScreenViewModel {
     closing,
     signedUrlTtlSec,
     mediaRetryKey,
+    ownerId,
+    t,
   ]);
+
+  useEffect(() => {
+    if (!photoExpiresAt || !currentNix || !ownerId) return;
+    const nixId = currentNix.id;
+    const expire = () => {
+      void encryptedPhotoCache.remove(ownerId, nixId).catch(() => {});
+      setMediaState((current) => ({ ...current, imageUrl: null, imageReady: false }));
+      setViewerError({
+        kind: 'permanentMissing',
+        message: t('viewer.mediaExpired'),
+        reason: 'photo_retention_expired',
+      });
+    };
+    const timer = setTimeout(expire, Math.max(0, photoExpiresAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [photoExpiresAt, currentNix, ownerId, appState, t]);
 
   const nextNix = queue[slideIndex + 1] ?? null;
   useEffect(() => {
     const path = nextNix?.media_path;
-    if (!path || queueLoading || closing) return;
-
-    let cancelled = false;
+    if (!path || !ownerId || nextNix.media_type === 'video' || queueLoading || closing) return;
     void (async () => {
       try {
-        const signedUrl = await createSignedNixUrl(path, signedUrlTtlSec);
-        if (!cancelled && nextNix.media_type !== 'video') await ExpoImage.prefetch(signedUrl, 'memory-disk');
+        await loadPrivatePhoto(nextNix.id, path, ownerId);
       } catch {
         // Prefetch opcjonalny — ignorujemy błędy sieci.
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [nextNix?.media_path, nextNix?.media_type, signedUrlTtlSec, queueLoading, closing]);
+  }, [nextNix?.id, nextNix?.media_path, nextNix?.media_type, ownerId, queueLoading, closing]);
 
   useEffect(() => {
     if (queueLoading || closing || !queue.length || safetyPaused) return;
@@ -598,7 +683,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
         withTiming(0, {
           duration: slideMs,
           easing: Easing.linear,
-        })
+        }),
       );
 
       // Dedicated JS timer to reliably advance slide, avoiding Reanimated callback races
@@ -646,13 +731,22 @@ export function useViewerScreen(): ViewerScreenViewModel {
   };
 
   const onVideoError = () => {
-    trackEvent('viewer_load_stage', { stage: 'decode', status: 'failure', media_type: 'video', error_class: 'transient' });
+    trackEvent('viewer_load_stage', {
+      stage: 'decode',
+      status: 'failure',
+      media_type: 'video',
+      error_class: 'transient',
+    });
     setMediaState((current) => ({
       ...current,
       imageReady: false,
-      imageLoadError: 'Nie udało się wczytać wideo.',
+      imageLoadError: t('viewer.loadVideoFailed'),
     }));
-    setViewerError({ kind: 'transient', message: 'Nie udało się odtworzyć wideo.', reason: 'video_load_failed' });
+    setViewerError({
+      kind: 'transient',
+      message: t('viewer.playVideoFailed'),
+      reason: 'video_load_failed',
+    });
   };
 
   const onPrimaryImageLoad = () => {
@@ -676,13 +770,22 @@ export function useViewerScreen(): ViewerScreenViewModel {
   };
 
   const onFallbackImageError = () => {
-    trackEvent('viewer_load_stage', { stage: 'decode', status: 'failure', media_type: 'image', error_class: 'transient' });
+    trackEvent('viewer_load_stage', {
+      stage: 'decode',
+      status: 'failure',
+      media_type: 'image',
+      error_class: 'transient',
+    });
     setMediaState((current) => ({
       ...current,
       imageReady: false,
-      imageLoadError: 'Nie udało się wczytać zdjęcia.',
+      imageLoadError: t('viewer.loadImageFailed'),
     }));
-    setViewerError({ kind: 'transient', message: 'Nie udało się wczytać zdjęcia.', reason: 'image_load_failed' });
+    setViewerError({
+      kind: 'transient',
+      message: t('viewer.loadImageFailed'),
+      reason: 'image_load_failed',
+    });
   };
 
   const handleReport = async (reason: ReportReason) => {
@@ -700,7 +803,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
         setSafetyPaused(false);
         finishCurrentSlide();
       },
-      () => setSafetyBusy(false)
+      () => setSafetyBusy(false),
     ).catch((error: unknown) => {
       notifyDomainError(error, t('viewer.reportFailure'));
       setSafetyPaused(false);
@@ -709,8 +812,16 @@ export function useViewerScreen(): ViewerScreenViewModel {
 
   const showReportReasons = () => {
     const reasons: ReportReason[] = [
-      'harassment', 'hate', 'sexual_content', 'violence', 'self_harm',
-      'impersonation', 'spam', 'privacy', 'illegal_content', 'other',
+      'harassment',
+      'hate',
+      'sexual_content',
+      'violence',
+      'self_harm',
+      'impersonation',
+      'spam',
+      'privacy',
+      'illegal_content',
+      'other',
     ];
     const options = reasons.map((reason) => t(`profile.reportReason.${reason}`));
     options.push(t('common.cancel'));
@@ -723,7 +834,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
           return;
         }
         void handleReport(reason);
-      }
+      },
     );
   };
 
@@ -785,13 +896,18 @@ export function useViewerScreen(): ViewerScreenViewModel {
           mediaType,
           extHint,
         }),
-      () => setIsSavingToGallery(false)
+      () => setIsSavingToGallery(false),
     );
   };
 
   const retryViewer = () => {
     setViewerError(null);
-    setMediaState((current) => ({ ...current, imageLoadError: null, loading: true, useNativeFallback: false }));
+    setMediaState((current) => ({
+      ...current,
+      imageLoadError: null,
+      loading: true,
+      useNativeFallback: false,
+    }));
     if (queue.length === 0) setQueueRetryKey((value) => value + 1);
     else setMediaRetryKey((value) => value + 1);
   };
@@ -808,10 +924,11 @@ export function useViewerScreen(): ViewerScreenViewModel {
     skipUnplayableSlide(viewerError.reason);
   };
 
-  const isBootLoading = capturePolicyPending
-    || viewerMachine.status === 'booting'
-    || (queueLoading && !viewerError)
-    || (!queue.length && !closing && !viewerError);
+  const isBootLoading =
+    capturePolicyPending ||
+    viewerMachine.status === 'booting' ||
+    (queueLoading && !viewerError) ||
+    (!queue.length && !closing && !viewerError);
 
   return {
     viewerPhase: viewerMachine.status,

@@ -42,6 +42,41 @@ type PreviewTextToolsProps = {
   stickerPointerEvents?: 'box-none' | 'none';
 };
 
+function resolveStickerContent(controls: ReturnType<typeof usePreviewTextOverlay>) {
+  const source = controls.isEditing ? controls.editor : controls.committed;
+  const stickerText = controls.isEditing
+    ? (controls.editor?.draftText ?? '')
+    : (controls.committed?.text ?? '');
+  const stickerFontSize = source?.fontSize ?? DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE;
+  const stickerY = source?.y ?? DEFAULT_MEDIA_TEXT_OVERLAY_Y;
+  const stickerTextColor = source?.textColor ?? DEFAULT_MEDIA_TEXT_COLOR;
+  const stickerBarColor = source?.barColor ?? DEFAULT_MEDIA_TEXT_BAR_COLOR;
+  const stickerBold = source?.bold ?? true;
+  const stickerItalic = source?.italic ?? false;
+  const stickerUnderline = source?.underline ?? false;
+  const stickerStrikethrough = source?.strikethrough ?? false;
+  const stickerMonospace = source?.monospace ?? false;
+  const stickerFontDesign = source?.fontDesign ?? 'system';
+  const stickerPreset = source?.preset ?? 'title';
+  const stickerAlign = source?.align ?? 'center';
+
+  return {
+    stickerText,
+    stickerFontSize,
+    stickerY,
+    stickerTextColor,
+    stickerBarColor,
+    stickerBold,
+    stickerItalic,
+    stickerUnderline,
+    stickerStrikethrough,
+    stickerMonospace,
+    stickerFontDesign,
+    stickerPreset,
+    stickerAlign,
+  };
+}
+
 export function PreviewTextTools({
   overlay,
   onChangeOverlay,
@@ -83,7 +118,7 @@ export function PreviewTextTools({
     }
     if (target === 0) {
       textBtnOpacity.set(
-        withTiming(0, { duration: duration.fast, easing: Easing.out(Easing.cubic) })
+        withTiming(0, { duration: duration.fast, easing: Easing.out(Easing.cubic) }),
       );
     } else {
       textBtnOpacity.set(withSpring(1, appleUiSpring));
@@ -127,9 +162,7 @@ export function PreviewTextTools({
   };
 
   const textButton = (
-    <Animated.View
-      style={textButtonStyle}
-      pointerEvents={controls.isEditing ? 'none' : 'auto'}>
+    <Animated.View style={textButtonStyle} pointerEvents={controls.isEditing ? 'none' : 'auto'}>
       {renderTextButton ? (
         renderTextButton(controls.startEditing)
       ) : (
@@ -146,22 +179,21 @@ export function PreviewTextTools({
     </Animated.View>
   );
 
-  const source = controls.isEditing ? controls.editor : controls.committed;
-  const stickerText = controls.isEditing
-    ? (controls.editor?.draftText ?? '')
-    : (controls.committed?.text ?? '');
-  const stickerFontSize = source?.fontSize ?? DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE;
-  const stickerY = source?.y ?? DEFAULT_MEDIA_TEXT_OVERLAY_Y;
-  const stickerTextColor = source?.textColor ?? DEFAULT_MEDIA_TEXT_COLOR;
-  const stickerBarColor = source?.barColor ?? DEFAULT_MEDIA_TEXT_BAR_COLOR;
-  const stickerBold = source?.bold ?? true;
-  const stickerItalic = source?.italic ?? false;
-  const stickerUnderline = source?.underline ?? false;
-  const stickerStrikethrough = source?.strikethrough ?? false;
-  const stickerMonospace = source?.monospace ?? false;
-  const stickerFontDesign = source?.fontDesign ?? 'system';
-  const stickerPreset = source?.preset ?? 'title';
-  const stickerAlign = source?.align ?? 'center';
+  const {
+    stickerText,
+    stickerFontSize,
+    stickerY,
+    stickerTextColor,
+    stickerBarColor,
+    stickerBold,
+    stickerItalic,
+    stickerUnderline,
+    stickerStrikethrough,
+    stickerMonospace,
+    stickerFontDesign,
+    stickerPreset,
+    stickerAlign,
+  } = resolveStickerContent(controls);
 
   return (
     <>

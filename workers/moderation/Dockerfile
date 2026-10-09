@@ -3,7 +3,7 @@ USER root
 RUN apt-get update -qq && apt-get install -y --no-install-recommends ffmpeg=7:7.1.5-0+deb13u1 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY workers/moderation/*.ts ./workers/moderation/
-COPY supabase/functions/_shared/moderation-video-sampling.ts supabase/functions/_shared/moderation-video-scenes.ts supabase/functions/_shared/moderation-policy.ts ./supabase/functions/_shared/
+COPY supabase/functions/_shared/moderation-video-sampling.ts supabase/functions/_shared/moderation-video-scenes.ts supabase/functions/_shared/moderation-policy.ts supabase/functions/_shared/media-limits.ts ./supabase/functions/_shared/
 ENV DENO_DIR=/tmp/deno DENO_NO_UPDATE_CHECK=1
 USER 10001:10001
 ENTRYPOINT ["deno", "run", "--no-config", "--no-remote", "--allow-net", "--allow-env", "--allow-read=/app,/tmp", "--allow-write=/tmp", "--allow-run=ffmpeg,ffprobe", "/app/workers/moderation/main.ts"]

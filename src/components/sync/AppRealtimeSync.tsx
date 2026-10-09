@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { reconcilePrivatePhotoCache } from '../../services/photoCacheService';
 import { AppState } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { useQueryClient } from '@tanstack/react-query';
@@ -35,6 +36,7 @@ export function AppRealtimeSync({ userId }: { userId: string }) {
       const promises: Promise<unknown>[] = [...keys.values()].map((queryKey) =>
         queryClient.invalidateQueries({ queryKey })
       );
+      if (areas.has('inbox')) promises.push(reconcilePrivatePhotoCache(userId).catch(() => {}));
       if (areas.has('textChat') || areas.has('inbox')) {
         // cancelRefetch:false — don't abort the chat screen's initial fetch on mount/foreground.
         promises.push(
@@ -75,6 +77,7 @@ export function AppRealtimeSync({ userId }: { userId: string }) {
         console.warn('Nie udało się zsynchronizować potwierdzeń odczytu', error);
       });
     };
+    syncForeground();
 
     const stopDegradedPolling = () => {
       if (!pollTimer) return;

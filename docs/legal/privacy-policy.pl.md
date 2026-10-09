@@ -1,7 +1,7 @@
 # Polityka prywatności NiX
 
-**Wersja:** 2026-09-12
-**Data wejścia w życie:** 12 września 2026 r.
+**Wersja:** 2026-10-08
+**Data wejścia w życie:** 8 października 2026 r.
 
 ## Administrator i kontakt
 
@@ -47,7 +47,7 @@ zrzutem ekranu nie jest gwarancją techniczną na każdym urządzeniu.
 Korzystamy z Supabase (uwierzytelnianie, baza, Storage i funkcje serwerowe;
 region UE), Apple (Sign in with Apple i App Store), Expo/EAS (budowa,
 dystrybucja aplikacji i pośrednictwo w dostarczaniu powiadomień push do Apple APNs)
-oraz Microsoft Azure AI Content Safety (skan tekstu, zdjęć i wybranych klatek
+OVHcloud (hosting workera moderacji wideo) oraz Microsoft Azure AI Content Safety (skan tekstu, zdjęć i wybranych klatek
 wideo przed doręczeniem).
 Logowanie Google nie jest aktywne w tej wersji i Google nie otrzymuje danych logowania.
 Zainstalowane SDK Sentry jest w publicznym buildzie twardo wyłączone

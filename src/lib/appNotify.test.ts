@@ -1,89 +1,56 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { notifyDomainError, notifyError, notifyInfo, notifyShow, notifySuccess, notifyWarning } from './appNotify';
+import { appNotificationQueue as queue } from './notificationQueue';
+import { presentAppNotification } from './notificationFeedback';
+import { DomainError } from '../services/errors';
 
-const { mockToast, mockHapticNotify } = vi.hoisted(() => ({
-  mockToast: {
-    success: vi.fn(() => 'id-success'),
-    error: vi.fn(() => 'id-error'),
-    warning: vi.fn(() => 'id-warning'),
-    info: vi.fn(() => 'id-info'),
-    show: vi.fn(() => 'id-show'),
-  },
-  mockHapticNotify: vi.fn(),
-}));
+const { mockHapticNotify } = vi.hoisted(() => ({ mockHapticNotify: vi.fn() }));
+vi.mock('./haptics', () => ({ notify: mockHapticNotify }));
+vi.mock('./i18n', () => ({ default: {
+  t: (key: string, opts?: { defaultValue?: string; amount?: number }) =>
+    opts?.amount ? `${key}: ${opts.amount}` : opts?.defaultValue ?? key,
+} }));
 
-vi.mock('react-native-pretty-toast', () => ({
-  toast: mockToast,
-}));
 
-vi.mock('./haptics', () => ({
-  notify: (...args: unknown[]) => mockHapticNotify(...args),
-}));
+beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); queue.clear(); queue.setScreenReader(false); queue.setActive(true); });
+afterEach(() => { queue.setActive(false); vi.useRealTimers(); });
+const token = () => ({ id: queue.getSnapshot().notification!.id, generation: queue.getSnapshot().generation });
 
-vi.mock('./i18n', () => ({
-  default: {
-    t: (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key,
-  },
-}));
-
-// SUT musi być po vi.mock; Vitest hoistuje mocki — import nie może być „na górze”.
-/* eslint-disable import/first -- Vitest: mocks before SUT */
-import {
-  notifyDomainError,
-  notifyError,
-  notifyInfo,
-  notifyShow,
-  notifySuccess,
-  notifyWarning,
-} from './appNotify';
-
-describe('appNotify', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    process.env.EXPO_OS = 'ios';
-  });
-
-  it('notifySuccess wywołuje haptykę success i toast.success', () => {
-    const id = notifySuccess('OK');
-    expect(mockHapticNotify).toHaveBeenCalledTimes(1);
-    expect(mockHapticNotify).toHaveBeenCalledWith('success');
-    expect(mockToast.success).toHaveBeenCalledWith('OK', { message: ' ' }, undefined);
-    expect(id).toBe('id-success');
-  });
-
-  it('notifyError wywołuje haptykę error i toast.error', () => {
-    const id = notifyError('Błąd');
-    expect(mockHapticNotify).toHaveBeenCalledTimes(1);
-    expect(mockHapticNotify).toHaveBeenCalledWith('error');
-    expect(mockToast.error).toHaveBeenCalled();
-    expect(id).toBe('id-error');
-  });
-
-  it('notifyWarning wywołuje haptykę warning', () => {
-    notifyWarning('Uwaga');
-    expect(mockHapticNotify).toHaveBeenCalledWith('warning');
-    expect(mockToast.warning).toHaveBeenCalledWith('Uwaga', { message: ' ' }, undefined);
-  });
-
-  it('notifyInfo nie wywołuje haptyki', () => {
-    notifyInfo('Info');
+describe('appNotify migration and presentation', () => {
+  it.each([
+    [notifySuccess, 'success'], [notifyError, 'error'], [notifyWarning, 'warning'], [notifyInfo, 'info'],
+  ] as const)('routes helper to the new queue with kind %s', (notify, kind) => {
+    const id = notify(' OK ', { message: ' Details ', duration: 1000 });
+    expect(queue.getSnapshot().notification).toMatchObject({ id, title: 'OK', message: 'Details', kind, duration: 1000 });
     expect(mockHapticNotify).not.toHaveBeenCalled();
-    expect(mockToast.info).toHaveBeenCalledWith('Info', { message: ' ' }, undefined);
   });
-
-  it('notifyShow nie wywołuje haptyki', () => {
-    notifyShow({ title: 'X', message: 'msg' });
-    expect(mockHapticNotify).not.toHaveBeenCalled();
-    expect(mockToast.show).toHaveBeenCalled();
+  it.each(['success', 'error', 'warning'] as const)('plays %s feedback only once, at reveal completion', (kind) => {
+    notifyShow({ title: 'Result', kind }); const current = token(); const announce = vi.fn();
+    presentAppNotification(current, announce); presentAppNotification(current, announce);
+    expect(mockHapticNotify).toHaveBeenCalledExactlyOnceWith(kind);
+    expect(announce).toHaveBeenCalledExactlyOnceWith('Result');
   });
-
-  it('notifyDomainError wywołuje haptykę error z przetłumaczonym komunikatem', () => {
-    notifyDomainError(new Error('sieć padła'), 'fallback');
-    expect(mockHapticNotify).toHaveBeenCalledTimes(1);
-    expect(mockHapticNotify).toHaveBeenCalledWith('error');
-    expect(mockToast.error).toHaveBeenCalledWith(
-      'sieć padła',
-      expect.objectContaining({ duration: expect.any(Number) }),
-      undefined
-    );
+  it('does not play haptics for information and announces the complete description', () => {
+    notifyInfo('Information', { message: 'Full description' }); const announce = vi.fn();
+    presentAppNotification(token(), announce);
+    expect(mockHapticNotify).not.toHaveBeenCalled(); expect(announce).toHaveBeenCalledWith('Information. Full description');
+  });
+  it('keeps the optional action and caller ID in notifyShow', () => {
+    const onPress = vi.fn(); expect(notifyShow({ title: 'Result', id: 'action', onPress })).toBe('action');
+    expect(queue.getSnapshot().notification?.onPress).toBe(onPress); expect(onPress).not.toHaveBeenCalled();
+  });
+  it('translates domain errors with interpolation parameters', () => {
+    notifyDomainError(new DomainError('RATE_LIMITED', 'Fallback', { amount: 3 }), 'Other fallback');
+    expect(queue.getSnapshot().notification).toMatchObject({ title: 'domainErrors.RATE_LIMITED: 3', kind: 'error' });
+  });
+  it('preserves the error message and falls back for unknown values', () => {
+    notifyDomainError(new Error('Network failed'), 'Fallback');
+    expect(queue.getSnapshot().notification?.title).toBe('Network failed'); queue.clear();
+    notifyDomainError(null, 'Fallback'); expect(queue.getSnapshot().notification?.title).toBe('Fallback');
+  });
+  it('never emits feedback for a discarded old generation', () => {
+    notifySuccess('Old'); const old = token(); queue.clear(); notifySuccess('New');
+    expect(presentAppNotification(old)).toBe(false); expect(mockHapticNotify).not.toHaveBeenCalled();
+    expect(queue.getSnapshot().phase).toBe('entering');
   });
 });

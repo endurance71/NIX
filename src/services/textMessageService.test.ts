@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setSessionOwner } from '../lib/sessionScope';
 import {
   sendTextMessage,
   fetchTextMessagesWithPeer,
@@ -26,8 +27,9 @@ vi.mock('./profileService', () => ({
   getCurrentUser: mockGetCurrentUser,
 }));
 
-vi.mock('../lib/supabase', () => ({
-  supabase: {
+vi.mock('../lib/supabase', async () => {
+  const { captureSessionScope } = await import('../lib/sessionScope');
+  const client = {
     rpc: mockSupabaseRpc,
     from: (table: string) => {
       if (table === 'text_messages') {
@@ -51,12 +53,18 @@ vi.mock('../lib/supabase', () => ({
       }
       return {};
     },
-  },
-}));
+  };
+  return { supabase: client, captureAccountTransport: async () => {
+    const user = await mockGetCurrentUser();
+    if (!user) throw new Error('Wymagane logowanie.');
+    return { ...captureSessionScope(user.id), client };
+  } };
+});
 
 describe('textMessageService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setSessionOwner('user-123');
     mockGetCurrentUser.mockResolvedValue({ id: 'user-123', email: 'test@example.com' });
   });
 
@@ -78,6 +86,29 @@ describe('textMessageService', () => {
         sendTextMessage({ receiverId: 'peer-456', body: '   ' })
       ).rejects.toThrow('Wiadomość nie może być pusta');
       expect(mockSupabaseRpc).not.toHaveBeenCalled();
+    });
+
+    it('aborts a paused MODERATION_DISABLED request before insert after an account switch', async () => {
+      let release!: (result: unknown) => void;
+      mockSupabaseRpc.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+      const send = sendTextMessage({ receiverId: 'peer-456', body: 'private A' });
+      const cancelled = expect(send).rejects.toMatchObject({ name: 'AbortError' });
+      await vi.waitFor(() => expect(release).toBeDefined());
+      setSessionOwner('user-b');
+      release({ data: null, error: { message: 'MODERATION_DISABLED' } });
+      await cancelled;
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
+
+    it('cancels moderation polling immediately after logout', async () => {
+      mockSupabaseRpc.mockResolvedValueOnce({ data: { status: 'pending', jobId: 'job-a' }, error: null })
+        .mockResolvedValueOnce({ data: { status: 'pending' }, error: null });
+      const send = sendTextMessage({ receiverId: 'peer-456', body: 'private A' });
+      const cancelled = expect(send).rejects.toMatchObject({ name: 'AbortError' });
+      await vi.waitFor(() => expect(mockSupabaseRpc).toHaveBeenCalledTimes(2));
+      setSessionOwner(null); await cancelled;
+      expect(mockSupabaseRpc).toHaveBeenCalledTimes(2);
+      expect(mockInsert).not.toHaveBeenCalled();
     });
 
     it('rzuca błąd gdy treść przekracza 2000 znaków', async () => {
@@ -112,7 +143,7 @@ describe('textMessageService', () => {
         p_client_message_id: 'client-1',
       });
       expect(mockInsert).toHaveBeenCalled();
-      expect(result).toEqual(mockResult);
+      expect(result).toEqual({ ...mockResult, metadata: null });
     });
 
     it('mapuje naruszenie filtra na CONTENT_NOT_ALLOWED bez treści wiadomości', async () => {
@@ -202,7 +233,7 @@ describe('textMessageService', () => {
         p_job_id: 'job-1',
       });
       expect(mockInsert).not.toHaveBeenCalled();
-      expect(result).toEqual(mockResult);
+      expect(result).toEqual({ ...mockResult, metadata: null });
     });
 
     it('rejected z polla mapuje na CONTENT_NOT_ALLOWED bez INSERT', async () => {
@@ -248,7 +279,7 @@ describe('textMessageService', () => {
         before_created_at: null,
         msg_limit: 20,
       });
-      expect(messages).toEqual(mockRows);
+      expect(messages).toEqual(mockRows.map((row) => ({ ...row, metadata: null })));
     });
   });
 

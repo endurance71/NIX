@@ -1,5 +1,9 @@
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import path from 'node:path';
+
 import { loadProjectEnv } from '@expo/env';
+
+const defaultProjectRoot = fileURLToPath(new URL('..', import.meta.url));
 
 export const REQUIRED_RELEASE_ENV = [
   'EXPO_PUBLIC_SUPABASE_URL',
@@ -25,6 +29,9 @@ export function validateReleaseEnv(env) {
   }
 
   if (!anonKey) failures.push('EXPO_PUBLIC_SUPABASE_ANON_KEY is missing or empty');
+  for (const flag of ['EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED', 'EXPO_PUBLIC_SENTRY_ENABLED']) {
+    if (env[flag] === 'true') failures.push(`${flag} must remain disabled in release builds`);
+  }
   return failures;
 }
 
@@ -32,7 +39,7 @@ export function formatFailures(failures) {
   return ['Release environment validation failed:', ...failures.map((failure) => `- ${failure}`)].join('\n');
 }
 
-export function runReleaseEnvValidation({ projectRoot = process.cwd(), mode = 'production' } = {}) {
+export function runReleaseEnvValidation({ projectRoot = defaultProjectRoot, mode = 'production' } = {}) {
   loadProjectEnv(projectRoot, { mode, silent: true });
   const failures = validateReleaseEnv(process.env);
   if (failures.length > 0) {
@@ -47,5 +54,8 @@ const isCli = process.argv[1] && import.meta.url === pathToFileURL(process.argv[
 if (isCli) {
   const modeIndex = process.argv.indexOf('--mode');
   const mode = modeIndex >= 0 ? process.argv[modeIndex + 1] : 'production';
-  process.exitCode = runReleaseEnvValidation({ mode });
+  const rootIndex = process.argv.indexOf('--project-root');
+  const projectRoot = rootIndex >= 0 ? process.argv[rootIndex + 1] : defaultProjectRoot;
+  if (!projectRoot) throw new Error('--project-root requires a directory');
+  process.exitCode = runReleaseEnvValidation({ mode, projectRoot: path.resolve(projectRoot) });
 }

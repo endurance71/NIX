@@ -99,8 +99,9 @@ export function getAuthOrDividerLineWidth(
   contentWidth: number,
   label: string,
   gap: number = AUTH_OR_DIVIDER_GAP,
+  fontScale: number = 1,
 ): number {
-  const labelWidth = Math.max(label.length * AUTH_OR_DIVIDER_LABEL_CHAR_WIDTH, 16);
+  const labelWidth = Math.max(label.length * AUTH_OR_DIVIDER_LABEL_CHAR_WIDTH, 16) * fontScale;
   const available = contentWidth - labelWidth - gap * 2;
   return Math.max(AUTH_OR_DIVIDER_MIN_LINE_WIDTH, available / 2);
 }

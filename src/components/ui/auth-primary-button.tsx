@@ -57,13 +57,15 @@ export function AuthPrimaryButton({
 
 const styles = StyleSheet.create({
   wrap: {
-    height: AUTH_PRIMARY_BUTTON_HEIGHT,
+    minHeight: AUTH_PRIMARY_BUTTON_HEIGHT,
     borderRadius: AUTH_PRIMARY_BUTTON_RADIUS,
     overflow: 'hidden',
   },
   button: {
     width: '100%',
-    height: AUTH_PRIMARY_BUTTON_HEIGHT,
+    minHeight: AUTH_PRIMARY_BUTTON_HEIGHT,
+    paddingVertical: 15,
+    paddingHorizontal: 16,
     borderRadius: AUTH_PRIMARY_BUTTON_RADIUS,
     alignItems: 'center',
     justifyContent: 'center',

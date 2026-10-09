@@ -1,3 +1,4 @@
+import { buildInboxLocalMessages } from '../lib/inboxLocalMessages';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -63,28 +64,12 @@ async function refreshInboxQueries(queryClient: QueryClient, failureMessage: str
   }
 }
 
-export function useInboxScreen() {
-  const { t } = useTranslation();
-  const locale = getCurrentLocale();
-  const queryClient = useQueryClient();
-  const { session, canUseNetworkSession, isOfflineAuthenticated } = useAuth();
-  const { hasCachedData } = useOfflineCache();
-  const {
-    pauseUpload,
-    resumeUpload,
-    retryUpload,
-    cancelUpload,
-  } = useUploadQueue();
-  const uploadJobs = useUploadJobs();
-  const uploadSummary = useUploadQueueSummary();
-  const currentUserId = session?.user?.id ?? '';
-  const inviteActionIdsRef = useRef(new Set<string>());
-  const busyPeerIdsRef = useRef(new Set<string>());
-  const [inviteActionIds, setInviteActionIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [busyPeerIds, setBusyPeerIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [uploadClock, setUploadClock] = useState(() => Date.now());
-  const [searchQuery, setSearchQuery] = useState('');
-
+function useInboxQueries(
+  currentUserId: string,
+  canUseNetworkSession: boolean,
+  uploadJobs: ReturnType<typeof useUploadJobs>,
+  uploadClock: number,
+) {
   const nixesQuery = useQuery({
     ...inboxNixesBundleQueryOptions(),
     enabled: canUseNetworkSession,
@@ -106,58 +91,108 @@ export function useInboxScreen() {
     staleTime: 0,
   });
   const uploadPresentations = useMemo(
-    () => buildRecipientUploadPresentations(uploadJobs, {
-      now: uploadClock,
-      completedVisibilityMs: COMPLETED_UPLOAD_VISIBILITY_MS,
-    }),
-    [uploadClock, uploadJobs]
+    () =>
+      buildRecipientUploadPresentations(uploadJobs, {
+        now: uploadClock,
+        completedVisibilityMs: COMPLETED_UPLOAD_VISIBILITY_MS,
+      }),
+    [uploadClock, uploadJobs],
   );
   const acceptedFriendsQuery = useQuery({
     queryKey: queryKeys.acceptedFriends,
     queryFn: () => listAcceptedFriends({ limit: 100 }),
-    enabled: canUseNetworkSession
-      && (uploadPresentations.size > 0 || (outboxQuery.data?.length ?? 0) > 0),
+    enabled:
+      canUseNetworkSession && (uploadPresentations.size > 0 || (outboxQuery.data?.length ?? 0) > 0),
     staleTime: 1000 * 60 * 2,
   });
+  return { nixesQuery, requestsQuery, outboxQuery, uploadPresentations, acceptedFriendsQuery };
+}
+
+function resolveInboxScreenState({
+  nixesQuery,
+  requestsQuery,
+  uploadSummary,
+  canUseNetworkSession,
+  isOfflineAuthenticated,
+  hasCachedInbox,
+  rows,
+  requests,
+  allRows,
+  searchQuery,
+}: {
+  nixesQuery: Pick<
+    ReturnType<typeof useInboxQueries>['nixesQuery'],
+    'isPending' | 'isError' | 'data'
+  >;
+  requestsQuery: Pick<ReturnType<typeof useInboxQueries>['requestsQuery'], 'isPending' | 'data'>;
+  uploadSummary: ReturnType<typeof useUploadQueueSummary>;
+  canUseNetworkSession: boolean;
+  isOfflineAuthenticated: boolean;
+  hasCachedInbox: boolean;
+  rows: InboxRowModel[];
+  allRows: InboxRowModel[];
+  requests: NonNullable<ReturnType<typeof useInboxQueries>['requestsQuery']['data']>;
+  searchQuery: string;
+}) {
+  const hasVisibleLocalUploads = uploadSummary.activeCount > 0 || uploadSummary.failedCount > 0;
+  const loading =
+    nixesQuery.isPending &&
+    canUseNetworkSession &&
+    nixesQuery.data === undefined &&
+    rows.length === 0 &&
+    !hasVisibleLocalUploads;
+  const initialError =
+    nixesQuery.isError &&
+    canUseNetworkSession &&
+    nixesQuery.data === undefined &&
+    rows.length === 0 &&
+    !hasVisibleLocalUploads;
+  const requestsReady =
+    !canUseNetworkSession || !(requestsQuery.isPending && requestsQuery.data === undefined);
+  const showEmpty = requestsReady && requests.length === 0 && allRows.length === 0;
+  const showOfflineCacheMissing = isOfflineAuthenticated && !hasCachedInbox && allRows.length === 0;
+  const showSearchEmpty = searchQuery.trim().length > 0 && allRows.length > 0 && rows.length === 0;
+
+  return { loading, initialError, showEmpty, showOfflineCacheMissing, showSearchEmpty };
+}
+
+export function useInboxScreen() {
+  const { t } = useTranslation();
+  const locale = getCurrentLocale();
+  const queryClient = useQueryClient();
+  const { session, canUseNetworkSession, isOfflineAuthenticated } = useAuth();
+  const { hasCachedData } = useOfflineCache();
+  const { pauseUpload, resumeUpload, retryUpload, cancelUpload } = useUploadQueue();
+  const uploadJobs = useUploadJobs();
+  const uploadSummary = useUploadQueueSummary();
+  const currentUserId = session?.user?.id ?? '';
+  const inviteActionIdsRef = useRef(new Set<string>());
+  const busyPeerIdsRef = useRef(new Set<string>());
+  const [inviteActionIds, setInviteActionIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [busyPeerIds, setBusyPeerIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [uploadClock, setUploadClock] = useState(() => Date.now());
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const { nixesQuery, requestsQuery, outboxQuery, uploadPresentations, acceptedFriendsQuery } =
+    useInboxQueries(currentUserId, canUseNetworkSession, uploadJobs, uploadClock);
   const inboxNixes = nixesQuery.data?.inboxData ?? [];
   const sentNixes = nixesQuery.data?.sentData ?? [];
   const serverTextMessages = nixesQuery.data?.textMessagesData ?? [];
-  const friendsById = new Map((acceptedFriendsQuery.data ?? []).map((friend) => [friend.id, friend]));
-  const serverTextClientIds = new Set(serverTextMessages.map((message) => message.client_message_id));
-  const localTextMessages: typeof serverTextMessages = [];
-  for (const job of outboxQuery.data ?? []) {
-    if (serverTextClientIds.has(job.id)) continue;
-    const friend = friendsById.get(job.receiverId);
-    localTextMessages.push({
-      id: `temp-${job.id}`,
-      sender_id: currentUserId,
-      receiver_id: job.receiverId,
-      body: job.body,
-      created_at: new Date(job.createdAt).toISOString(),
-      expires_at: new Date(job.expiresAt).toISOString(),
-      client_message_id: job.id,
-      is_system: false,
-      metadata: null,
-      peer_id: job.receiverId,
-      is_unread: false,
-      peerProfile: friend ? {
-        username: friend.username,
-        display_name: friend.display_name ?? null,
-        avatar_storage_path: friend.avatar_storage_path ?? null,
-        avatar_emoji: friend.avatar_emoji ?? null,
-      } : null,
-    });
-  }
-  const baseRows = buildInboxThreads(
-    inboxNixes,
-    sentNixes,
-    [...serverTextMessages, ...localTextMessages]
-  ).map((item) =>
+  const localTextMessages = buildInboxLocalMessages(
+    serverTextMessages,
+    outboxQuery.data ?? [],
+    acceptedFriendsQuery.data ?? [],
+    currentUserId,
+  );
+  const baseRows = buildInboxThreads(inboxNixes, sentNixes, [
+    ...serverTextMessages,
+    ...localTextMessages,
+  ]).map((item) =>
     buildInboxRowModel(item, {
       unknownUsername: t('common.unknown'),
       locale,
       yesterdayLabel: t('inbox.yesterday'),
-    })
+    }),
   );
   const requests = requestsQuery.data ?? [];
   const allRows = mergeInboxRowsWithUploads(
@@ -168,23 +203,23 @@ export function useInboxScreen() {
       unknownUsername: t('common.unknown'),
       locale,
       yesterdayLabel: t('inbox.yesterday'),
-    }
+    },
   );
-  const rows = useMemo(
-    () => filterInboxRows(allRows, searchQuery),
-    [allRows, searchQuery]
-  );
+  const rows = useMemo(() => filterInboxRows(allRows, searchQuery), [allRows, searchQuery]);
 
   useEffect(() => {
     const completionTimes = uploadJobs.flatMap((job) =>
       job.state === 'completed' || job.state === 'partially_completed'
         ? [(job.finishedAt ?? job.updatedAt) + COMPLETED_UPLOAD_VISIBILITY_MS]
-        : []
+        : [],
     );
     if (completionTimes.length === 0) return;
     const nextExpiry = Math.min(...completionTimes.filter((time) => time > Date.now()));
     if (!Number.isFinite(nextExpiry)) return;
-    const timer = setTimeout(() => setUploadClock(Date.now()), Math.max(0, nextExpiry - Date.now()));
+    const timer = setTimeout(
+      () => setUploadClock(Date.now()),
+      Math.max(0, nextExpiry - Date.now()),
+    );
     return () => clearTimeout(timer);
   }, [uploadJobs]);
 
@@ -192,9 +227,9 @@ export function useInboxScreen() {
     new Set([
       ...rows.flatMap((row) => (row.avatarStoragePath ? [row.avatarStoragePath] : [])),
       ...requests.flatMap((request) =>
-        request.requester.avatar_storage_path ? [request.requester.avatar_storage_path] : []
+        request.requester.avatar_storage_path ? [request.requester.avatar_storage_path] : [],
       ),
-    ])
+    ]),
   ).sort();
 
   const avatarQuery = useQuery({
@@ -237,7 +272,7 @@ export function useInboxScreen() {
           return query.isStale();
         },
       });
-    }, [canUseNetworkSession, queryClient])
+    }, [canUseNetworkSession, queryClient]),
   );
 
   useEffect(
@@ -245,7 +280,7 @@ export function useInboxScreen() {
       registerTabScrollToTop('inbox', () => {
         if (canUseNetworkSession) void refreshInboxQueries(queryClient, refreshFailureMessage);
       }),
-    [canUseNetworkSession, queryClient, refreshFailureMessage]
+    [canUseNetworkSession, queryClient, refreshFailureMessage],
   );
 
   const beginInviteAction = (requestId: string) => {
@@ -281,7 +316,7 @@ export function useInboxScreen() {
           notifyDomainError(error, t('friends.acceptFailure'));
         }
       },
-      () => finishInviteAction(requestId)
+      () => finishInviteAction(requestId),
     );
   };
 
@@ -301,7 +336,7 @@ export function useInboxScreen() {
           notifyDomainError(error, t('friends.rejectFailure'));
         }
       },
-      () => finishInviteAction(requestId)
+      () => finishInviteAction(requestId),
     );
   };
 
@@ -336,7 +371,7 @@ export function useInboxScreen() {
           notifyDomainError(error, t('inbox.deleteConversationFailure'));
         }
       },
-      () => finishPeerAction(row.peerId)
+      () => finishPeerAction(row.peerId),
     );
   };
 
@@ -361,27 +396,29 @@ export function useInboxScreen() {
           notifyDomainError(error, t('viewer.blockFailure'));
         }
       },
-      () => finishPeerAction(row.peerId)
+      () => finishPeerAction(row.peerId),
     );
   };
 
   const handleUploadAction = async (row: InboxRowModel, action: UploadRowAction) => {
     const upload = row.upload;
     if (!upload || !beginPeerAction(row.peerId)) return;
-    const jobIds = action === 'pause'
-      ? upload.actions.pauseJobIds
-      : action === 'resume'
-        ? upload.actions.resumeJobIds
-        : action === 'retry'
-          ? upload.actions.retryJobIds
-          : upload.actions.cancelJobIds;
-    const operation = action === 'pause'
-      ? pauseUpload
-      : action === 'resume'
-        ? resumeUpload
-        : action === 'retry'
-          ? retryUpload
-          : cancelUpload;
+    const jobIds =
+      action === 'pause'
+        ? upload.actions.pauseJobIds
+        : action === 'resume'
+          ? upload.actions.resumeJobIds
+          : action === 'retry'
+            ? upload.actions.retryJobIds
+            : upload.actions.cancelJobIds;
+    const operation =
+      action === 'pause'
+        ? pauseUpload
+        : action === 'resume'
+          ? resumeUpload
+          : action === 'retry'
+            ? retryUpload
+            : cancelUpload;
 
     await runWithFinally(
       async () => {
@@ -392,7 +429,7 @@ export function useInboxScreen() {
           notifyError(t('inbox.uploadActionFailure'));
         }
       },
-      () => finishPeerAction(row.peerId)
+      () => finishPeerAction(row.peerId),
     );
   };
 
@@ -437,24 +474,19 @@ export function useInboxScreen() {
 
   // Full-screen loader tylko od bundla wątków — friend requests ładują się
   // niezależnie i nie powinny blokować listy wiadomości.
-  const hasVisibleLocalUploads = uploadSummary.activeCount > 0 || uploadSummary.failedCount > 0;
-  const loading = nixesQuery.isPending
-    && canUseNetworkSession
-    && nixesQuery.data === undefined
-    && rows.length === 0
-    && !hasVisibleLocalUploads;
-  const initialError = nixesQuery.isError
-    && canUseNetworkSession
-    && nixesQuery.data === undefined
-    && rows.length === 0
-    && !hasVisibleLocalUploads;
-  const requestsReady = !canUseNetworkSession
-    || !(requestsQuery.isPending && requestsQuery.data === undefined);
-  const showEmpty = requestsReady && requests.length === 0 && allRows.length === 0;
-  const showOfflineCacheMissing = isOfflineAuthenticated
-    && !hasCachedData('inbox')
-    && allRows.length === 0;
-  const showSearchEmpty = searchQuery.trim().length > 0 && allRows.length > 0 && rows.length === 0;
+  const { loading, initialError, showEmpty, showOfflineCacheMissing, showSearchEmpty } =
+    resolveInboxScreenState({
+      nixesQuery,
+      requestsQuery,
+      uploadSummary,
+      canUseNetworkSession,
+      isOfflineAuthenticated,
+      hasCachedInbox: hasCachedData('inbox'),
+      rows,
+      requests,
+      allRows,
+      searchQuery,
+    });
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -8,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { selection } from '../../lib/haptics';
+import { adjustTextSize } from '../../lib/cameraAccessibility';
 import {
   DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE,
   MAX_MEDIA_TEXT_OVERLAY_FONT_SIZE,
@@ -60,6 +62,7 @@ export function PreviewTextSizeSlider({
   labelColor,
   isDark = false,
 }: PreviewTextSizeSliderProps) {
+  const { t } = useTranslation();
   const [trackWidth, setTrackWidth] = useState(0);
   const fraction = useSharedValue(fontSizeToFraction(fontSize));
   const isDragging = useSharedValue(false);
@@ -76,11 +79,11 @@ export function PreviewTextSizeSlider({
     }
   }, [fontSize, fraction, isDragging]);
 
-  const emitFontSizeChange = (nextFontSize: number) => {
+  const emitFontSizeChange = useCallback((nextFontSize: number) => {
     onChangeFontSize(nextFontSize);
-  };
+  }, [onChangeFontSize]);
 
-  const updateFromPosition = (x: number) => {
+  const updateFromPosition = useCallback((x: number) => {
     'worklet';
     const width = trackWidthShared.get();
     if (width <= 0) return;
@@ -89,31 +92,33 @@ export function PreviewTextSizeSlider({
     fraction.set(nextFraction);
     const newFontSize = fractionToFontSize(nextFraction);
     scheduleOnRN(emitFontSizeChange, newFontSize);
-  };
+  }, [emitFontSizeChange, fraction, trackWidthShared]);
 
-  const panGesture = Gesture.Pan()
-    .onBegin((event) => {
+  const composedGesture = useMemo(() => {
+    const panGesture = Gesture.Pan()
+      .onBegin((event) => {
+        'worklet';
+        isDragging.set(true);
+        updateFromPosition(event.x);
+        scheduleOnRN(emitHapticTick);
+      })
+      .onUpdate((event) => {
+        'worklet';
+        updateFromPosition(event.x);
+      })
+      .onFinalize(() => {
+        'worklet';
+        isDragging.set(false);
+      });
+
+    const tapGesture = Gesture.Tap().onEnd((event) => {
       'worklet';
-      isDragging.set(true);
       updateFromPosition(event.x);
       scheduleOnRN(emitHapticTick);
-    })
-    .onUpdate((event) => {
-      'worklet';
-      updateFromPosition(event.x);
-    })
-    .onFinalize(() => {
-      'worklet';
-      isDragging.set(false);
     });
 
-  const tapGesture = Gesture.Tap().onEnd((event) => {
-    'worklet';
-    updateFromPosition(event.x);
-    scheduleOnRN(emitHapticTick);
-  });
-
-  const composedGesture = Gesture.Exclusive(panGesture, tapGesture);
+    return Gesture.Exclusive(panGesture, tapGesture);
+  }, [isDragging, updateFromPosition]);
 
   const thumbAnimatedStyle = useAnimatedStyle(() => {
     const width = trackWidthShared.get();
@@ -138,7 +143,7 @@ export function PreviewTextSizeSlider({
 
   return (
     <View style={[styles.container, { backgroundColor: capsuleColor }]}>
-      <View style={styles.iconWrapLeft}>
+      <View style={styles.iconWrapLeft} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <Text style={[styles.glyphSmall, { color: labelColor }]}>A</Text>
       </View>
 
@@ -151,7 +156,22 @@ export function PreviewTextSizeSlider({
           }
         }}>
         <GestureDetector gesture={composedGesture}>
-          <View style={styles.touchArea}>
+          <View
+            style={styles.touchArea}
+            accessible
+            accessibilityRole="adjustable"
+            accessibilityLabel={t('preview.textSize')}
+            accessibilityValue={{
+              min: MIN_MEDIA_TEXT_FONT_SIZE, max: MAX_MEDIA_TEXT_FONT_SIZE,
+              now: fontSize, text: t('preview.textSizeValue', { size: fontSize }),
+            }}
+            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+            onAccessibilityAction={({ nativeEvent }) => {
+              if (nativeEvent.actionName !== 'increment' && nativeEvent.actionName !== 'decrement') return;
+              const next = adjustTextSize(fontSize, nativeEvent.actionName,
+                MIN_MEDIA_TEXT_FONT_SIZE, MAX_MEDIA_TEXT_FONT_SIZE);
+              if (next !== fontSize) { emitFontSizeChange(next); emitHapticTick(); }
+            }}>
             <View style={[styles.trackBackground, { backgroundColor: trackBgColor }]}>
               <Animated.View style={[styles.trackFill, { backgroundColor: accentColor }, fillAnimatedStyle]} />
             </View>
@@ -163,7 +183,7 @@ export function PreviewTextSizeSlider({
         </GestureDetector>
       </View>
 
-      <View style={styles.iconWrapRight}>
+      <View style={styles.iconWrapRight} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <Text style={[styles.glyphLarge, { color: labelColor }]}>A</Text>
       </View>
     </View>

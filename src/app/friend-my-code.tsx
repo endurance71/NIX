@@ -38,13 +38,8 @@ async function shareFriendInvite(title: string, messageTemplate: string): Promis
   }
 }
 
-export default function FriendMyCodeScreen() {
-  const { t } = useTranslation();
-  const { colors } = useAppTheme();
-  const { width } = useWindowDimensions();
+function useMyCodeProfile() {
   const { user, canUseNetworkSession } = useAuth();
-  const qrPayload = useProfileQrPayload(canUseNetworkSession);
-  const [shareBusy, setShareBusy] = useState(false);
   const { data: profileRow = null, isPending: profilePending } = useQuery({
     queryKey: queryKeys.currentUserProfile(user?.id ?? null),
     queryFn: getCurrentUserProfile,
@@ -59,12 +54,23 @@ export default function FriendMyCodeScreen() {
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
   const avatarUrl = profileRow?.avatar_storage_path
-    ? avatarUrls[profileRow.avatar_storage_path] ?? null
+    ? (avatarUrls[profileRow.avatar_storage_path] ?? null)
     : null;
   const fallbackInitial = (profileRow?.username ?? user?.email ?? '?')
     .replace(/^@/, '')
     .charAt(0)
     .toUpperCase();
+  return { profileRow, profilePending, avatarUrl, fallbackInitial };
+}
+
+export default function FriendMyCodeScreen() {
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const { canUseNetworkSession } = useAuth();
+  const qrPayload = useProfileQrPayload(canUseNetworkSession);
+  const [shareBusy, setShareBusy] = useState(false);
+  const { profileRow, profilePending, avatarUrl, fallbackInitial } = useMyCodeProfile();
   const qrSize = Math.max(180, Math.min(236, width - 112));
 
   const handleShareInvite = async () => {
@@ -72,7 +78,7 @@ export default function FriendMyCodeScreen() {
     setShareBusy(true);
     const result = await shareFriendInvite(
       t('profile.shareInviteTitle'),
-      t('profile.shareInviteMessage', { url: '{{url}}' })
+      t('profile.shareInviteMessage', { url: '{{url}}' }),
     );
     if (result.status === 'shared') {
       void recordProductEvent('invite_shared', { channel: 'share' });
@@ -104,9 +110,9 @@ export default function FriendMyCodeScreen() {
                     <MyProfileQrCard
                       payload={qrPayload.payload}
                       colors={colors}
-                      error={canUseNetworkSession
-                        ? qrPayload.error
-                        : t('root.offlineActionUnavailable')}
+                      error={
+                        canUseNetworkSession ? qrPayload.error : t('root.offlineActionUnavailable')
+                      }
                       size={qrSize}
                       centerOverlayRatio={0.28}
                       avatarUrl={avatarUrl}
@@ -137,7 +143,9 @@ export default function FriendMyCodeScreen() {
           />
         </FieldGroup.Section>
       </SettingsListScreen>
-      <Stack.Screen.Title style={{ color: colors.label }}>{t('profile.myQrCode')}</Stack.Screen.Title>
+      <Stack.Screen.Title style={{ color: colors.label }}>
+        {t('profile.myQrCode')}
+      </Stack.Screen.Title>
     </>
   );
 }

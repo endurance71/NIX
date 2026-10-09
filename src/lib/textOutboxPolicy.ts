@@ -6,6 +6,7 @@ const TERMINAL_CODES = new Set([
   'NOT_FRIEND',
   'RATE_LIMITED',
   'UNAUTHORIZED',
+  'CONTENT_NOT_ALLOWED',
 ]);
 
 export function isTerminalTextOutboxCode(code: string | null | undefined) {

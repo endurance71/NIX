@@ -18,6 +18,68 @@ type MyProfileQrCardProps = {
   fallbackInitial?: string | null;
 };
 
+function QrAvatarContent({
+  avatarUrl,
+  avatarStoragePath,
+  avatarEmoji,
+  fallbackInitial,
+  innerContentSize,
+  shouldShowAvatarImage,
+  onAvatarError,
+}: Pick<
+  MyProfileQrCardProps,
+  'avatarUrl' | 'avatarStoragePath' | 'avatarEmoji' | 'fallbackInitial'
+> & { innerContentSize: number; shouldShowAvatarImage: boolean; onAvatarError: () => void }) {
+  const normalizedInitial = (fallbackInitial ?? '?').trim().charAt(0).toUpperCase();
+  return shouldShowAvatarImage ? (
+    <ExpoImage
+      key={avatarStoragePath ?? avatarUrl ?? 'qr-avatar'}
+      recyclingKey={avatarStoragePath ?? avatarUrl ?? null}
+      cachePolicy="memory-disk"
+      source={{
+        uri: avatarUrl ?? '',
+        ...(avatarStoragePath ? { cacheKey: avatarStoragePath } : {}),
+      }}
+      style={{
+        width: innerContentSize,
+        height: innerContentSize,
+        borderRadius: innerContentSize / 2,
+      }}
+      contentFit="cover"
+      transition={0}
+      onError={onAvatarError}
+    />
+  ) : avatarEmoji ? (
+    <Text
+      style={[
+        styles.avatarEmoji,
+        { color: lightColors.textPrimary, fontSize: innerContentSize * 0.62 },
+      ]}>
+      {avatarEmoji}
+    </Text>
+  ) : fallbackInitial ? (
+    <Text
+      style={[
+        styles.avatarInitial,
+        { color: lightColors.textPrimary, fontSize: innerContentSize * 0.46 },
+      ]}>
+      {normalizedInitial}
+    </Text>
+  ) : (
+    <ExpoImage
+      recyclingKey="qr-fallback-logo"
+      source={require('../../../assets/brand/app/ios-light.png')}
+      style={{
+        width: innerContentSize,
+        height: innerContentSize,
+        borderRadius: innerContentSize / 4,
+      }}
+      contentFit="cover"
+      transition={0}
+    />
+  );
+}
+
 export function MyProfileQrCard({
   payload,
   colors,
@@ -35,52 +97,49 @@ export function MyProfileQrCard({
   const [failedForAvatarUrl, setFailedForAvatarUrl] = useState<string | null>(null);
   const avatarLoadFailed = Boolean(avatarUrl) && failedForAvatarUrl === avatarUrl;
   const shouldShowAvatarImage = Boolean(avatarUrl) && !avatarLoadFailed;
-  const normalizedInitial = (fallbackInitial ?? '?').trim().charAt(0).toUpperCase();
   const qrSurface = lightColors.systemBackground;
   const cardSize = size + 40;
 
   return (
     <View style={styles.wrapper}>
-      <View style={[styles.card, { width: cardSize, height: cardSize, borderRadius: Math.max(14, Math.round(cardSize * 0.07)), backgroundColor: qrSurface }]}>
+      <View
+        style={[
+          styles.card,
+          {
+            width: cardSize,
+            height: cardSize,
+            borderRadius: Math.max(14, Math.round(cardSize * 0.07)),
+            backgroundColor: qrSurface,
+          },
+        ]}>
         {payload ? (
           <View style={styles.qrWrapper}>
             <QRCode value={payload} size={size} />
-            <View style={[styles.logoBackdrop, { width: logoSize, height: logoSize, borderRadius: logoSize / 2, backgroundColor: qrSurface }]}>
-              {shouldShowAvatarImage ? (
-                <ExpoImage
-                  key={avatarStoragePath ?? avatarUrl ?? 'qr-avatar'}
-                  recyclingKey={avatarStoragePath ?? avatarUrl ?? null}
-                  cachePolicy="memory-disk"
-                  source={{
-                    uri: avatarUrl ?? '',
-                    ...(avatarStoragePath ? { cacheKey: avatarStoragePath } : {}),
-                  }}
-                  style={{ width: innerContentSize, height: innerContentSize, borderRadius: innerContentSize / 2 }}
-                  contentFit="cover"
-                  transition={0}
-                  onError={() => setFailedForAvatarUrl(avatarUrl ?? null)}
-                />
-              ) : avatarEmoji ? (
-                <Text style={[styles.avatarEmoji, { color: lightColors.textPrimary, fontSize: innerContentSize * 0.62 }]}>
-                  {avatarEmoji}
-                </Text>
-              ) : fallbackInitial ? (
-                <Text style={[styles.avatarInitial, { color: lightColors.textPrimary, fontSize: innerContentSize * 0.46 }]}>
-                  {normalizedInitial}
-                </Text>
-              ) : (
-                <ExpoImage
-                  recyclingKey="qr-fallback-logo"
-                  source={require('../../../assets/brand/app/ios-light.png')}
-                  style={{ width: innerContentSize, height: innerContentSize, borderRadius: innerContentSize / 4 }}
-                  contentFit="cover"
-                  transition={0}
-                />
-              )}
+            <View
+              style={[
+                styles.logoBackdrop,
+                {
+                  width: logoSize,
+                  height: logoSize,
+                  borderRadius: logoSize / 2,
+                  backgroundColor: qrSurface,
+                },
+              ]}>
+              <QrAvatarContent
+                avatarUrl={avatarUrl}
+                avatarStoragePath={avatarStoragePath}
+                avatarEmoji={avatarEmoji}
+                fallbackInitial={fallbackInitial}
+                innerContentSize={innerContentSize}
+                shouldShowAvatarImage={shouldShowAvatarImage}
+                onAvatarError={() => setFailedForAvatarUrl(avatarUrl ?? null)}
+              />
             </View>
           </View>
         ) : (
-          <Text style={[styles.errorText, { color: lightColors.error }]}>{error ?? 'Brak danych profilu do QR.'}</Text>
+          <Text style={[styles.errorText, { color: lightColors.error }]}>
+            {error ?? 'Brak danych profilu do QR.'}
+          </Text>
         )}
       </View>
     </View>

@@ -103,6 +103,26 @@ type ControllerArgs = Required<
   >
 > & Pick<PreviewTextStickerProps, 'onExitComplete'>;
 
+function resolveStickerTextStyle({
+  italic,
+  underline,
+  strikethrough,
+  monospace,
+  fontDesign,
+}: Pick<ControllerArgs, 'italic' | 'underline' | 'strikethrough' | 'monospace' | 'fontDesign'>) {
+  const fontStyle = italic ? 'italic' : 'normal';
+  const textDecorationLine: TextStyle['textDecorationLine'] =
+    underline && strikethrough
+      ? 'underline line-through'
+      : underline
+        ? 'underline'
+        : strikethrough
+          ? 'line-through'
+          : 'none';
+  const fontFamily = resolveMediaTextFontFamily({ monospace, fontDesign });
+  return { fontStyle: fontStyle as TextStyle['fontStyle'], textDecorationLine, fontFamily };
+}
+
 export function usePreviewTextStickerController({
   mode,
   text,
@@ -153,16 +173,13 @@ export function usePreviewTextStickerController({
   const actionsReady = useSharedValue(isEditing && !animateEnter ? 1 : 0);
 
   const textAlign = align;
-  const fontStyle = italic ? 'italic' : 'normal';
-  const textDecorationLine: TextStyle['textDecorationLine'] =
-    underline && strikethrough
-      ? 'underline line-through'
-      : underline
-        ? 'underline'
-        : strikethrough
-          ? 'line-through'
-          : 'none';
-  const fontFamily = resolveMediaTextFontFamily({ monospace, fontDesign });
+  const textStyleExtras = resolveStickerTextStyle({
+    italic,
+    underline,
+    strikethrough,
+    monospace,
+    fontDesign,
+  });
   const sheetPresented = isEditing && formatOpen;
   const placeholderText = t('preview.textPlaceholder');
   const emptyEditing = isEditing && text.length === 0;
@@ -170,7 +187,7 @@ export function usePreviewTextStickerController({
     emptyEditing && barInnerWidth > 0 && placeholderWidth > 0
       ? Math.min(
           barInnerWidth - BAR_TEXT_HORIZONTAL_PADDING,
-          Math.max(BAR_TEXT_HORIZONTAL_PADDING, (barInnerWidth + placeholderWidth) / 2)
+          Math.max(BAR_TEXT_HORIZONTAL_PADDING, (barInnerWidth + placeholderWidth) / 2),
         )
       : undefined;
   const minimumBarHeight = Math.max(44, fontSize + 20);
@@ -189,7 +206,7 @@ export function usePreviewTextStickerController({
         cancelAnimationFrame(formatPresentationFrameRef.current);
       }
     },
-    []
+    [],
   );
 
   useEffect(() => {
@@ -245,7 +262,7 @@ export function usePreviewTextStickerController({
             minTopPx,
             maxTopPx,
           }),
-          motionEnabled
+          motionEnabled,
         );
       });
     });
@@ -282,7 +299,7 @@ export function usePreviewTextStickerController({
       editProgress.set(withSpring(1, appleUiSpring));
     } else {
       editProgress.set(
-        withTiming(0, { duration: duration.medium, easing: Easing.out(Easing.cubic) })
+        withTiming(0, { duration: duration.medium, easing: Easing.out(Easing.cubic) }),
       );
     }
   }, [editProgress, isEditing, motionEnabled]);
@@ -298,15 +315,7 @@ export function usePreviewTextStickerController({
     });
     if (Math.abs(translateY.get() - target) < FORMAT_PARK_REFINE_EPSILON) return;
     animateFormatLift(translateY, target, motionEnabled);
-  }, [
-    formatOpen,
-    formatSheetHeight,
-    maxTopPx,
-    minTopPx,
-    motionEnabled,
-    translateY,
-    windowHeight,
-  ]);
+  }, [formatOpen, formatSheetHeight, maxTopPx, minTopPx, motionEnabled, translateY, windowHeight]);
 
   const applyKeyboardFrame = useEffectEvent((event: KeyboardEvent) => {
     if (exitingRef.current || formatOpenRef.current || formatLiftActiveRef.current) return;
@@ -315,7 +324,7 @@ export function usePreviewTextStickerController({
     keyboardHeightRef.current = kb;
     if (kb >= 1 && actionsReady.get() < 1) {
       actionsReady.set(
-        withTiming(1, { duration: duration.fast, easing: Easing.out(Easing.cubic) })
+        withTiming(1, { duration: duration.fast, easing: Easing.out(Easing.cubic) }),
       );
     }
     const target = previewTextTopAboveObstacle({
@@ -335,7 +344,7 @@ export function usePreviewTextStickerController({
       withTiming(target, {
         duration: ms > 0 ? ms : duration.slow,
         easing: Easing.bezier(0.33, 0, 0.2, 1),
-      })
+      }),
     );
   });
 
@@ -390,7 +399,7 @@ export function usePreviewTextStickerController({
     presence.set(
       withTiming(0, STICKER_PRESENCE_TIMING, (finished) => {
         if (finished) scheduleOnRN(notifyExitComplete);
-      })
+      }),
     );
   }, [exiting, motionEnabled, presence, translateY]);
 
@@ -446,11 +455,6 @@ export function usePreviewTextStickerController({
     fontDesign,
     preset,
     align,
-  };
-  const textStyleExtras = {
-    fontStyle: fontStyle as TextStyle['fontStyle'],
-    textDecorationLine,
-    fontFamily,
   };
 
   const handleFormatSheetHeightChange = (height: number) => {

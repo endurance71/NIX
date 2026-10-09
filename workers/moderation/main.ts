@@ -6,7 +6,9 @@ import {
   jobDestPath,
   jobTempDir,
   loadMediaAsset,
+  InputResolutionError,
 } from "./download.ts";
+import { MAX_IMAGE_BYTES, MAX_VIDEO_BYTES } from "../../supabase/functions/_shared/media-limits.ts";
 import { integrationRpcQueue, type Rpc } from "./rpc-queue.ts";
 import { createShutdownController } from "./shutdown.ts";
 import { sqlBudgetLedger } from "./sql-budget.ts";
@@ -44,7 +46,7 @@ export async function loadTextPayload(
   fetchImpl: typeof fetch = fetch,
 ): Promise<string> {
   if (typeof payloadId !== "string" || payloadId.length === 0) {
-    throw new Error("text_payload_load_failed");
+    throw new InputResolutionError("text_payload_load_failed", false);
   }
   const base = supabaseUrl.replace(/\/+$/, "");
   const url =
@@ -60,7 +62,7 @@ export async function loadTextPayload(
   });
   const json = await response.json().catch(() => null) as { body?: unknown } | null;
   if (!response.ok || typeof json?.body !== "string") {
-    throw new Error("text_payload_load_failed");
+    throw new InputResolutionError("text_payload_load_failed", response.status === 429 || response.status >= 500);
   }
   return json.body;
 }
@@ -106,6 +108,7 @@ export async function resolveClaimedJob(
       fetchImpl,
       signal: options.signal,
       knownSize: asset.sizeBytes,
+      maxBytes: asset.mediaType === 'image' ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES,
     },
   );
   return { path: downloaded.path, kind: asset.mediaType };

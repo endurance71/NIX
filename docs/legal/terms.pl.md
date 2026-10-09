@@ -1,7 +1,7 @@
 # Regulamin NiX
 
-**Wersja:** 2026-09-12
-**Data wejścia w życie:** 12 września 2026 r.
+**Wersja:** 2026-10-08
+**Data wejścia w życie:** 8 października 2026 r.
 
 ## Usługodawca
 

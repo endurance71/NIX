@@ -4,18 +4,77 @@
 > Dated sprint plans and audit snapshots are historical evidence and must link
 > here instead of presenting their old binary state as current.
 
-## Current binary
+## Current public candidate — build 10, updated 2026-10-09
+
+**New QA finding — password error localization:** the owner supplied a Polish build-10 recovery screenshot showing the raw English Auth response “New password should be different from the old password.” The reset/profile forms matched only “same password.” The client now maps structured `same_password` first, supports both known legacy phrasings and uses a localized fallback for unknown password-update errors. PL/EN regression tests pass; updated checks: 101 files / 597 app tests, TypeScript, lint, Knip and React Doctor 551 files / 0 errors / 0 warnings without baseline. This source fix is **not included in the uploaded build 10**. A new native candidate and final QA are required before App Review; no OTA was published. Build-10 evidence below remains specific to its original source.
+
+**1.0.12 (10)**, client source `9b1d344efecb0dcd122badc45c5ce9663a2bfcad`, replaces build 9 after large-text QA found two auth layout issues. The “lub/or” separator reserves scaled label space and preserves natural text width; primary actions use minimum height and padding so scaled or multiline labels can grow. Default-size layout, analytics hard-off, runtime **1.0.12**, production channel and deployed backend are preserved. App/widget build numbers are synchronized at 10.
+
+Local TypeScript/lint/Knip, **582 app tests**, 14 release-environment tests, React Doctor **549 files / 0 errors / 0 warnings** without a baseline, Expo Doctor **20/20**, iOS synchronization, production preflight, reviewed dependency audit and Hermes export **PASS**. [GitHub CI](https://github.com/endurance71/NIX/actions/runs/37900321634) (migrations/AuthStorage A+B/runtime/Swift) and EAS quality gates (`01a11f9a-ba1b-7820-8006-9475a9caf87c`) also **PASS** on `9b1d344`.
+
+Earlier signed simulator 10 (`1be78ee`) passed the PL divider regression at Text Size 7 / Dark on iPad, default light login and opening privacy version 2026-10-08. A clean iPhone 16e simulator reached default login, but Text Size 7 clipped the primary label. The final signed Release simulator (`9b1d344`) passed the Text Size 7 regression on iPhone 16e: the full primary label and Apple action are visible, and the separator stays on one line. The default-size Light login and Dark empty-email validation also passed after relaunch. The final local Xcode Release Archive **PASS**. Archive app/widget version 1.0.12 (10), production backend and Expo runtime/channel checks **PASS**. After owner login, Organizer signed and uploaded **1.0.12 (10)** with `testFlightInternalTestingOnly=false` and version management disabled. The exact signed upload package is retained locally. IPA SHA256 `ae95660ba5de534fbc532c4e84f22e462aad27228e87518a0ab26c0c14d17ec1`; embedded Hermes SHA256 `b2b96c3943f21f887e595637f88891658c7bf0b527b2f9b1cf5b55a8483c32e0`. Strict app/widget signatures, App Store profiles, production APNs/backend and Expo runtime/channel **PASS**. ASC build `34a9f9d5-1872-48d0-a5e1-ccf203245e00` is **Validated / Ready to Submit**. It is assigned to **NiX Internal QA** and **Team (Expo)** (4 internal testers each); bilingual PL/EN What to Test is saved in the sole available English(U.S.) Test Details field. Build 6 was removed, build **10 selected and saved for version 1.0.12**, and persistence verified after reload. Manual release remains selected. [Open build 10](https://appstoreconnect.apple.com/teams/f808d5d8-f16c-48e0-8330-04dda650a25d/apps/6791332379/testflight/ios/34a9f9d5-1872-48d0-a5e1-ccf203245e00).
+
+Owner smoke on the installed TestFlight **10**: email/Apple login and sending/receiving text, photos and short video **PASS** (owner answer 2026-10-09). This is partial physical-device QA, without a recording or proof for the rest of the matrix. Reviewer API check: peer credentials from private Notes authenticate; the main ASC login is a username, and trying the first Notes email with the main field password returned HTTP400 `invalid_credentials` (also after the owner reported correction). Owner correction/verification of the exact main email is needed; both-account relationship verification remains pending. No credentials are saved in reports. The earlier divider-only archive was interrupted before distribution; the final build 10 is uploaded and selected in ASC. Remaining authenticated/device/accessibility/keyboard/gesture QA is pending.
+
+Build 9 upload completed in Organizer; it is superseded and must not be used for final recording or App Review selection. The unsigned iPad simulator’s initial SecureStore error disappeared once Xcode supplied simulated entitlements, without changing auth code. These are limited simulator observations, not complete TestFlight or physical-device QA.
+
+**Not READY FOR APP REVIEW:** remaining TestFlight device QA, main reviewer login/relationship, owner recording, six complete answers, current screenshots and regional/DSA/privacy checks remain pending. Owner login in Xcode/ASC is restored. No Apple reply, resubmission, OTA or public release has been performed.
+
+See [preparation report](APP_REVIEW_PREPARATION_2026-10-08.pl.md), [deployment and recovery](BACKEND_DEPLOYMENT_2026-10-09.md), and [final QA scenario](APP_REVIEW_FINAL_QA_2026-10-09.pl.md).
+
+## Superseded public candidate 9 — uploaded 2026-10-09
+
+**1.0.12 (9)** replaces build 8. Client source `859694ad3dab5b2287887ab88019a310952f89e9` hard-disables analytics regardless of local dotenv or internal roadmap flags. The Release preflight now rejects enabled analytics/Sentry flags, with regression tests for dotenv precedence and existing consent. Runtime **1.0.12**, channel **production**, backend and native feature scope remain unchanged. All local checks and [CI](https://github.com/endurance71/NIX/actions/runs/37889189207) pass, including 580 app tests, 14 release-environment tests, React Doctor 0/0 and Expo Doctor 20/20.
+
+Local Xcode Release Archive **PASS**. Organizer signed a public App Store distribution IPA using the existing cloud certificate. The exact uploaded signed package was retained directly from Xcode's distribution pipeline after the Save panel did not complete; CLI export reports `No Accounts`. IPA SHA256 `c18349581af8a904eb2af930cae2889e0938193635ebd2ed2bccbd6f2d0fc95b`; embedded Hermes SHA256 `a4013c33373334437b69fca5943f68185b94185c1d20c8672287c3f00d367075`. App/widget build 9, production APNs/backend, runtime/channel, distribution profile and strict deep signature verification **PASS**. Organizer reports **App upload complete: NiX 1.0.12 (9) uploaded**, with internal-only and build-number management disabled. The uploaded IPA has the hash above; re-signing changed the IPA hash but preserved the exact Hermes bundle. ASC processing, internal assignment and build selection remain pending. Release build 9 also compiled, installed and launched on an isolated iPad simulator; visual and functional compatibility QA remains pending.
+
+Build 8 passed signing/upload and API smoke but is **superseded**, because the final environment inspection found `.env.local` enabling analytics over `.env.production=false`. Its beta availability is not evidence that it satisfies the no-analytics requirement. Do not use it for the final owner recording or approve it for App Review. Final QA must use build 9, with new IPA/bundle hashes and a fresh OTA snapshot.
+
+**Not READY FOR APP REVIEW:** final TestFlight device QA, both reviewer logins, owner recording, six complete answers, screenshot/build selection and regional/DSA/privacy checks remain pending. The ASC session expired and requires the owner to log in again. DSA needs the owner's declaration; ICP applicability/documentation needs confirmation without reducing regions. No Apple reply, resubmission, OTA or public release has been performed.
+
+See [preparation report](APP_REVIEW_PREPARATION_2026-10-08.pl.md), [deployment and recovery](BACKEND_DEPLOYMENT_2026-10-09.md), and [final QA scenario](APP_REVIEW_FINAL_QA_2026-10-09.pl.md).
+
+## Superseded public build 8 — verified 2026-10-08
+
+
+Candidate **1.0.12 (8)**, runtime **1.0.12**, production channel, has passed local Xcode Release Archive/export/upload and ASC processing. `testFlightInternalTestingOnly=false`; it is assigned to **NiX Internal QA** and **Team (Expo)**. ASC build ID `fc5ea753-5d50-41ab-8524-3818fb4695b6`, binary state Validated, beta state Ready to Submit. Client source `1300dc1283eb55434cdfcf3d0100f4ad11141bf3`; IPA SHA256 `29ff374d5898aa6c9f7ed741b0accf0259533ddc0d64e6fcf0e2405231259ce0`. [Open build 8](https://appstoreconnect.apple.com/teams/f808d5d8-f16c-48e0-8330-04dda650a25d/apps/6791332379/testflight/ios/fc5ea753-5d50-41ab-8524-3818fb4695b6).
+
+Backend source `bbd143643a85665c378d2a197a4020b1f5843642` is deployed after encrypted backup, isolated database restore, real Auth/Storage staging and a rollout-order rehearsal preserving pending jobs. Both forward migrations and 16 Edge Functions are deployed; the exact tested worker image is running on OVH. Dedicated-account production smoke PASS; original reviewer accounts were not deleted. CI including real Auth/Storage paths A/B and EAS quality gates PASS. Native device QA is pending.
+
+Public legal/support PL/EN pages, AASA and invite routes have been restored and verified. Mac and Vision Pro distribution are disabled; 175 regions preserved. Version field **1.0.12**, bilingual descriptions and support URLs saved; manual release retained. The former build 6 association was removed. Build 8 was not yet present in the App Review picker, and the ASC session expired; selecting it remains pending. No reply or resubmission was performed.
+
+**Not READY FOR APP REVIEW:** final device QA, both reviewer logins, owner recording, six complete answers, screenshot/build selection and regional/DSA/privacy checks remain pending. DSA needs the owner's declaration; ICP applicability/documentation needs confirmation without reducing regions. No OTA exists for runtime 1.0.12 at the recorded snapshot; do not publish one before final QA and a new scope review. See [preparation report](APP_REVIEW_PREPARATION_2026-10-08.pl.md) and [final QA scenario](APP_REVIEW_FINAL_QA_2026-10-09.pl.md).
+
+## Historical Internal-only build 7 — 2026-10-08
+
+The prior Internal TestFlight build was **1.0.12 (7)**, runtime **1.0.12**, on `codex/nix-stabilization`. It includes native uploader changes, private photo downloads and updated native dependencies, so it requires a new binary. Source commit [`27595e2`](https://github.com/endurance71/NIX/commit/27595e28a5913631acf6a01ebb3db261c30bc3a9) is committed and pushed. A local **Release Archive succeeded** on 2026-10-08. The owner selected **Internal TestFlight / NiX Internal QA** as the deployment target; production backend deployment is outside this operation.
+
+**Internal distribution verified:** the owner accepted the updated Apple Developer Program License Agreement. Local distribution export and upload succeeded on 2026-10-08; App Store Connect completed processing and shows **1.0.12 (7)** as **Testing / Internal**, expiring in 90 days. Build ID: `dad6024c-765c-4504-a6b9-b957cf206061`. The candidate is assigned to **NiX Internal QA** (four internal testers); the existing **Team (Expo)** group also received it through automatic distribution. Bilingual PL/EN “What to Test” notes were saved. [Open the build in TestFlight](https://appstoreconnect.apple.com/teams/f808d5d8-f16c-48e0-8330-04dda650a25d/apps/6791332379/testflight/ios/dad6024c-765c-4504-a6b9-b957cf206061).
+
+IPA checks confirmed version/build/runtime, production Expo channel, production APNs and distribution provisioning (`get-task-allow=false`). Export options restrict the candidate to **Internal TestFlight only** and preserve build number 7. The app source remains commit `27595e2`; subsequent commits only record release evidence. No public submission or production backend deployment was performed for this candidate. Local archive, IPA, signing/upload logs, screenshots and release receipt are in `~/.nix-ops/release-2026-10-08/`. Full native QA remains tracked in the implementation reports below; owner camera photo/video/preview smoke passed on the development build.
+
+Validation and rollout conditions: [implementation report](../IMPLEMENTATION_2026-10-08.pl.md), [React Doctor zero report](../REACT_DOCTOR_ZERO_2026-10-08.pl.md).
+
+## Current public App Review status — verified 2026-10-08
+
+Public submission **1.0.11 (6)**, `8db797c3-1620-4294-8af2-8d3e688ba4f3`, is **Rejected / Unresolved Issues**. Apple’s sole visible message, dated 2026-09-13, requests additional information under **2.1 — Information Needed — New App Submission**: a physical-device recording and answers about purpose, access, external services, regions and regulated/protected material. No developer reply is visible. The newer Internal-only build **1.0.12 (7)** does not replace this submission and cannot be submitted for public App Review.
+
+The initial 2026-10-08 audit found **HTTP 404** at the configured public privacy and support URLs and the documented terms URL; Mac and Vision Pro distribution are enabled despite iPhone-only Review Notes. These were additional audit findings, not reasons stated in Apple's September message. The website/platform findings have since been fixed, metadata updated and backend deployed as described above. No Apple response or public resubmission was performed. See the [detailed feedback analysis](../APP_REVIEW_FEEDBACK_ANALYSIS_2026-10-08.pl.md) and [unsent reply draft](apple-review-response-draft-2026-10-08.en.md).
+
+The production/ASC entries below are historical observations from **2026-09-12**. Their Waiting for Review state is superseded by the verified rejection above. Installed OTA, live backend behavior and moderation budget still require verification before a production rollout. No release action was taken during stabilization.
+
+## Last recorded distributed binary (2026-09-12)
 
 | Field | Value |
 | --- | --- |
 | App Store Connect app | NiX (`6791332379`) |
 | Version | `1.0.11` |
-| Latest build | `6` (Internal TestFlight; owner device PASS 2026-09-12) |
+| Last recorded build | `6` (Internal TestFlight; owner device PASS 2026-09-12) |
 | Source SHA | `063530f49418b6fc7e99ed857e8556306d03e867` |
 | Source branch at upload | `feat/ios-1.0.11-build-6` |
 | Previous Internal TF evidence | build `5` on `c2175ce8902161bceefd86668e98955e1487b12c` |
 | Distribution | Internal TestFlight + public App Review |
-| Public App Review | **WAITING FOR REVIEW** (submitted 2026-09-12) |
+| Last recorded Public App Review | **WAITING FOR REVIEW** (2026-09-12; current state unverified) |
 | Submission | `8db797c3-1620-4294-8af2-8d3e688ba4f3` — iOS App `1.0.11 (6)` |
 | Release type | Manual (`Manually release this version`) |
 
@@ -26,7 +85,7 @@ background upload). Owner GO Submit the same day. ASC accepted the version;
 status is **Waiting for Review**. Build 5 remains prior Internal TestFlight
 evidence. Evidence: `~/.nix-ops/p0-3-s6/ASC-SUBMIT-20260912.md`.
 
-## Verified gates
+## Historical verified gates — builds 5 and 6
 
 On the exact build 5 source SHA (`c2175ce`):
 
@@ -70,7 +129,7 @@ On the exact build 6 archive SHA (`063530f`):
 
 Flag `pre_delivery_moderation_enabled` is **TRUE** on production after owner `wlacz flage` (2026-09-12). HTTPS privacy/terms **2026-09-12** (Azure wording) are live at `https://nix.damianmotylinski.pl/privacy/` and `/terms/` (PL + EN). Public App Review is **WAITING FOR REVIEW** (submitted 2026-09-12; build **6**; manual release). Build **6** + OTA `4f1fcd22` (runtime `1.0.11`; prior send-PASS OTA was `874edb39`). OVH worker image `nix-moderation-worker:e1d73cf` (try/catch from PR #48). Rollback is `UPDATE … = false`, not a migration. See [`../plans/2026-09-04-c3b-next-gate-staging-canary.md`](../plans/2026-09-04-c3b-next-gate-staging-canary.md).
 
-## Open release blockers
+## Historical release blockers — recorded 2026-09-12
 
 1. **P0-3 — pre-delivery filter:** Flag **TRUE**. Text/photo/video enqueue is
    fail-closed pending Azure. Hotfix [PR #48](https://github.com/endurance71/NIX/pull/48)
@@ -103,20 +162,27 @@ Flag `pre_delivery_moderation_enabled` is **TRUE** on production after owner `wl
 
 ## Next eligible App Review candidate
 
-Build 6 is the submitted binary (enqueue + wait loop via OTA `4f1fcd22`,
-runtime `1.0.11`). HTTPS privacy/terms match in-app version **2026-09-12**.
-Public App Review is **WAITING FOR REVIEW** after owner Submit GO 2026-09-12.
-Do **not** cancel the submission or attach a new IPA unless Apple rejects or
-the owner asks. Build 5 stays as prior Internal TestFlight evidence. Release
-after approval is **manual**.
+Build **1.0.11 (6)** remains attached to the rejected public submission. The
+information request alone does not require a replacement binary: it can be
+answered for that candidate after confirming its actual behavior, supplying
+the requested recording and repairing the public URLs.
 
-Allowed status progression:
+To ship the current stabilization changes, prepare a new public-eligible
+binary, for example **1.0.12 (8)** after checking build-number availability.
+Internal-only **1.0.12 (7)** cannot be used for this purpose. The recording,
+review Notes, tested backend and selected binary must match. Resolve platform
+scope and the six requested information items before resubmission. No candidate
+was submitted during this analysis; publication remains a separate operation
+and release after approval remains **manual**.
+
+Illustrative public status progression (current state is **Rejected**):
 
 ```text
 NO-GO / INTERNAL TESTFLIGHT
   -> READY FOR REVIEW
   -> WAITING FOR REVIEW
   -> IN REVIEW
+  -> APPROVED or REJECTED / UNRESOLVED ISSUES
 ```
 
 Uploading a binary or attaching it to TestFlight never advances the public App

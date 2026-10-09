@@ -1,5 +1,6 @@
 import { Asset, requestPermissionsAsync } from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
+import NativeBackgroundUploader from '../../modules/nix-background-uploader/src';
 
 export type MediaLibraryWritePermission = 'granted' | 'denied' | 'blocked';
 
@@ -45,6 +46,12 @@ export async function saveRemoteUriToLibrary(remoteUri: string, extHint?: string
   const trimmed = remoteUri.trim();
   if (!trimmed) {
     throw new Error('Brak zdalnego URI do zapisu.');
+  }
+  const photo = /^data:(image\/(?:jpeg|png|webp|heic|heif));base64,([A-Za-z0-9+/=]+)$/.exec(trimmed);
+  if (photo) {
+    if (!NativeBackgroundUploader?.savePhotoToLibrary) throw new Error('Photo export requires an updated native build');
+    await NativeBackgroundUploader.savePhotoToLibrary(photo[2], photo[1]);
+    return;
   }
 
   if (trimmed.startsWith('file://') || trimmed.startsWith('/')) {

@@ -1,15 +1,16 @@
 import {
   createClient,
   type SupabaseClient,
-} from 'https://esm.sh/@supabase/supabase-js@2.110.5';
+} from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import {
   BlobReader,
   TextReader,
   ZipWriter,
-} from 'npm:@zip.js/zip.js@2.7.57';
+} from 'npm:@zip.js/zip.js@2.23.0';
 import { json } from '../_shared/http.ts';
 import { hasServiceRoleBearer } from '../_shared/service-auth.ts';
 import { DATA_EXPORT_ANALYTICS_PREFERENCE_COLUMNS } from '../_shared/data-export.ts';
+import { cleanupExportArchives } from '../_shared/export-cleanup.ts';
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 type ExportJob = { id: string; user_id: string };
@@ -38,9 +39,10 @@ async function processJob(
   job: ExportJob
 ) {
   const startedAt = new Date().toISOString();
+  const archivePath = `${job.user_id}/${job.id}.zip`;
   const { data: claimed } = await service
     .from('data_export_jobs')
-    .update({ status: 'processing', started_at: startedAt, updated_at: startedAt })
+    .update({ status: 'processing', storage_path: archivePath, started_at: startedAt, updated_at: startedAt })
     .eq('id', job.id)
     .eq('status', 'queued')
     .select('id')
@@ -48,7 +50,6 @@ async function processJob(
   if (!claimed) return false;
 
   const userId = job.user_id;
-  const archivePath = `${userId}/${job.id}.zip`;
   try {
     const [
       profile,
@@ -176,7 +177,7 @@ async function processJob(
     if (uploadError) throw uploadError;
 
     const completedAt = new Date();
-    await service.from('data_export_jobs').update({
+    const { error: readyError } = await service.from('data_export_jobs').update({
       status: 'ready',
       storage_path: archivePath,
       archive_size_bytes: archiveBytes,
@@ -186,13 +187,19 @@ async function processJob(
       updated_at: completedAt.toISOString(),
       error_code: null,
     }).eq('id', job.id);
+    if (readyError) throw readyError;
     return true;
   } catch (error) {
     console.error('Data export failed', job.id, error);
-    await service.storage.from('account-exports').remove([archivePath]);
+    let removeFailed = true;
+    try {
+      const { error: removeError } = await service.storage.from('account-exports').remove([archivePath]);
+      removeFailed = Boolean(removeError);
+    } catch { /* Keep path even when the Storage client throws. */ }
     await service.from('data_export_jobs').update({
       status: 'failed',
-      error_code: 'EXPORT_BUILD_FAILED',
+      storage_path: removeFailed ? archivePath : null,
+      error_code: removeFailed ? 'EXPORT_STORAGE_CLEANUP_RETRY' : 'EXPORT_BUILD_FAILED',
       updated_at: new Date().toISOString(),
     }).eq('id', job.id);
     return false;
@@ -207,18 +214,25 @@ Deno.serve(async (req) => {
   if (!hasServiceRoleBearer(req, serviceKey)) return json({ error: 'AUTH_REQUIRED', code: 'AUTH_REQUIRED' }, 401);
   const service = createClient(url, serviceKey);
 
-  const { data: expired } = await service
+  const { error: expireError } = await service.rpc('cleanup_expired_data_exports');
+  if (expireError) return json({ error: 'EXPORT_EXPIRY_FAILED' }, 500);
+  const { data: expired, error: expiredError } = await service
     .from('data_export_jobs')
     .select('id,storage_path')
-    .eq('status', 'ready')
-    .lte('expires_at', new Date().toISOString());
-  const expiredPaths = (expired ?? []).flatMap((job) => job.storage_path ? [job.storage_path] : []);
-  if (expiredPaths.length) await service.storage.from('account-exports').remove(expiredPaths);
-  if (expired?.length) {
-    await service.from('data_export_jobs')
-      .update({ status: 'expired', storage_path: null, updated_at: new Date().toISOString() })
-      .in('id', expired.map((job) => job.id));
-  }
+    .in('status', ['expired', 'failed'])
+    .not('storage_path', 'is', null)
+    .order('requested_at').limit(100);
+  if (expiredError) return json({ error: 'EXPORT_CLEANUP_QUERY_FAILED' }, 500);
+  const cleanup = await cleanupExportArchives(
+    (expired ?? []).filter((job): job is { id: string; storage_path: string } => typeof job.storage_path === 'string'),
+    async (path) => await service.storage.from('account-exports').remove([path]),
+    async (id, error) => {
+      const { error: ackError } = await service.rpc('finish_data_export_cleanup', {
+        p_job_id: id, p_error: error,
+      });
+      if (ackError) throw ackError;
+    },
+  );
 
   const { data: queued, error } = await service
     .from('data_export_jobs')
@@ -231,5 +245,5 @@ Deno.serve(async (req) => {
   for (const job of (queued ?? []) as ExportJob[]) {
     if (await processJob(service, job)) completed += 1;
   }
-  return json({ ok: true, claimed: queued?.length ?? 0, completed, expired: expired?.length ?? 0 });
+  return json({ ok: true, claimed: queued?.length ?? 0, completed, expired: cleanup.removed, cleanupRetry: cleanup.retry });
 });

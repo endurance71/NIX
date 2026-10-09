@@ -27,6 +27,7 @@ describe('upload Live Activity presentation', () => {
       progress: 0.3,
       remainingCount: 1,
       updatedAt: 123,
+      locale: 'en',
     });
   });
 
@@ -50,4 +51,9 @@ describe('upload Live Activity presentation', () => {
       remainingCount: 1,
     });
   });
+  it('carries the selected locale to the isolated widget runtime', () => {
+    expect(buildUploadLiveActivityProps(summary(), 123, 'pl').locale).toBe('pl');
+    expect(buildUploadLiveActivityProps(summary(), 123, 'en').locale).toBe('en');
+  });
+
 });

@@ -1,4 +1,6 @@
-import { supabase } from '../lib/supabase';
+import { supabase, captureAccountTransport, type AccountTransport } from '../lib/supabase';
+import { encryptedPhotoCache } from '../lib/encryptedPhotoCache';
+import { retainPrivatePhotoForReplay } from './photoCacheService';
 import { getCurrentUser } from './profileService';
 import { DomainError } from './errors';
 import { nowMs, trackDuration } from '../lib/telemetry';
@@ -45,13 +47,6 @@ export type SentNix = {
     avatar_storage_path?: string | null;
     avatar_emoji?: string | null;
   } | null;
-};
-
-type CleanupQueueRow = {
-  nix_id: string;
-  media_path: string;
-  receiver_id: string;
-  attempt_count: number;
 };
 
 type NixPageOptions = {
@@ -114,30 +109,6 @@ function isMissingPlaybackDurationColumnError(error: unknown) {
   );
 }
 
-function isMissingClientUploadColumnError(error: unknown) {
-  const message = dbErrorMessage(error);
-  return (
-    message.includes('column nixes.client_upload_id does not exist') ||
-    message.includes("Could not find the 'client_upload_id' column")
-  );
-}
-
-function isMissingClientUploadConflictTargetError(error: unknown) {
-  const message = dbErrorMessage(error).toLowerCase();
-  return (
-    message.includes('no unique or exclusion constraint') &&
-    message.includes('on conflict')
-  );
-}
-
-function isDuplicateKeyError(error: unknown) {
-  const code =
-    typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
-      ? error.code
-      : '';
-  return code === '23505' || dbErrorMessage(error).toLowerCase().includes('duplicate key value');
-}
-
 function isMissingThumbnailColumnError(error: unknown) {
   const message = dbErrorMessage(error);
   return (
@@ -153,18 +124,6 @@ function isMissingDeleteConversationRpcError(error: unknown) {
     (message.includes('could not find the function') || message.includes('schema cache'))
   );
 }
-
-export type InsertNixMediaOptions = {
-  mediaType?: 'image' | 'video';
-  playbackDurationMs?: number | null;
-  clientUploadId?: string;
-  /**
-   * Embedded miniatura jako data URL JPEG (`data:image/jpeg;base64,...`).
-   * Zapisywana wyłącznie dla `mediaType === 'video'`. Pominięta, jeśli kolumna
-   * `nixes.thumbnail_b64` nie istnieje (schema fallback).
-   */
-  thumbnailB64?: string | null;
-};
 
 function mapDatabaseError(error: unknown): DomainError {
   const message =
@@ -189,121 +148,6 @@ function mapDatabaseError(error: unknown): DomainError {
   }
 
   return new DomainError('UNKNOWN', message);
-}
-
-const ALLOWED_VIEW_DURATIONS = new Set([0, 5, 15, 30, 60, 180]);
-let supportsClientUploadId: boolean | null = null;
-let supportsThumbnailB64: boolean | null = null;
-
-export async function insertNix(
-  receiverId: string,
-  mediaPath: string,
-  viewDurationSec = 5,
-  mediaOptions?: InsertNixMediaOptions
-) {
-  const user = await getCurrentUser();
-  if (!user) throw new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
-
-  const duration =
-    typeof viewDurationSec === 'number' && ALLOWED_VIEW_DURATIONS.has(viewDurationSec)
-      ? viewDurationSec
-      : 5;
-
-  const mediaType = mediaOptions?.mediaType ?? 'image';
-  const playbackMsRaw = mediaOptions?.playbackDurationMs;
-  const playbackMs =
-    typeof playbackMsRaw === 'number' && Number.isFinite(playbackMsRaw)
-      ? Math.max(1, Math.round(playbackMsRaw))
-      : null;
-
-  const minimalBase = {
-    sender_id: user.id,
-    receiver_id: receiverId,
-    media_path: mediaPath,
-    media_type: mediaType,
-    client_upload_id: mediaOptions?.clientUploadId ?? null,
-  };
-
-  let payload: Record<string, unknown> = {
-    ...minimalBase,
-    view_duration_sec: duration,
-    status: 'sent',
-  };
-  if (playbackMs !== null && mediaType === 'video') {
-    payload.playback_duration_ms = playbackMs;
-  }
-  if (
-    mediaType === 'video' &&
-    typeof mediaOptions?.thumbnailB64 === 'string' &&
-    mediaOptions.thumbnailB64.length > 0 &&
-    supportsThumbnailB64 !== false
-  ) {
-    payload.thumbnail_b64 = mediaOptions.thumbnailB64;
-  }
-
-  let useLegacyInsert = supportsClientUploadId === false;
-  const persistNix = async (nextPayload: Record<string, unknown>, legacyMode: boolean) => {
-    if (legacyMode) {
-      const { client_upload_id: _idempotencyKey, ...legacyPayload } = nextPayload;
-      return await supabase.from('nixes').insert(legacyPayload);
-    }
-    const upsertResult = await supabase
-      .from('nixes')
-      .upsert(nextPayload, { onConflict: 'sender_id,receiver_id,client_upload_id', ignoreDuplicates: true });
-
-    if (!upsertResult.error || !isMissingClientUploadConflictTargetError(upsertResult.error)) {
-      return upsertResult;
-    }
-
-    // Starsze środowiska mają częściowy indeks client_upload_id, którego PostgREST
-    // nie może użyć jako arbitra ON CONFLICT. Zwykły INSERT nadal korzysta z tego
-    // indeksu; duplikat oznacza, że poprzednia próba już zapisała tę wiadomość.
-    const insertResult = await supabase.from('nixes').insert(nextPayload);
-    if (insertResult.error && nextPayload.client_upload_id && isDuplicateKeyError(insertResult.error)) {
-      return { ...insertResult, error: null };
-    }
-    return insertResult;
-  };
-
-  let { error } = await persistNix(payload, useLegacyInsert);
-  if (error && isMissingClientUploadColumnError(error)) {
-    useLegacyInsert = true;
-    supportsClientUploadId = false;
-    ({ error } = await persistNix(payload, true));
-  }
-
-  if (error && isMissingThumbnailColumnError(error)) {
-    supportsThumbnailB64 = false;
-    const { thumbnail_b64: _tb, ...rest } = payload;
-    payload = rest;
-    ({ error } = await persistNix(payload, useLegacyInsert));
-  }
-
-  if (error && isMissingPlaybackDurationColumnError(error)) {
-    const { playback_duration_ms: _pb, ...rest } = payload;
-    payload = rest;
-    ({ error } = await persistNix(payload, useLegacyInsert));
-  }
-
-  if (error && isMissingViewDurationColumnError(error)) {
-    const { view_duration_sec: _vd, ...rest } = payload;
-    payload = rest;
-    ({ error } = await persistNix(payload, useLegacyInsert));
-  }
-
-  if (error && isMissingStatusColumnError(error)) {
-    const { status: _st, ...rest } = payload;
-    ({ error } = await persistNix(rest, useLegacyInsert));
-  }
-
-  if (!error && supportsClientUploadId === null && !useLegacyInsert) {
-    supportsClientUploadId = true;
-  }
-  if (!error && supportsThumbnailB64 === null && payload.thumbnail_b64 !== undefined) {
-    supportsThumbnailB64 = true;
-  }
-
-  if (error) throw mapDatabaseError(error);
 }
 
 export async function fetchInboxNixes(options: NixPageOptions = {}) {
@@ -749,133 +593,70 @@ export async function createSignedNixUrl(path: string, expiresInSec = 60) {
   return data.signedUrl;
 }
 
-async function requestNixCleanup(nixId: string, mediaPath: string) {
-  const { data, error } = await supabase.functions.invoke('cleanup-nix', {
-    body: { nixId, mediaPath },
-  });
-
-  if (error) {
-    throw new DomainError('CLEANUP_FAILED', 'Nie udało się wyczyścić wiadomości.');
-  }
-
-  if (data?.ok !== true) {
-    throw new DomainError('CLEANUP_FAILED', 'Cleanup zwrócił nieoczekiwany rezultat.');
-  }
-}
-
-async function enqueueCleanupJob(nixId: string, mediaPath: string, nextAttemptAt: Date = new Date()) {
-  const user = await getCurrentUser();
-  if (!user) return;
-
-  const { error } = await supabase.from('nix_cleanup_queue').upsert({
-    nix_id: nixId,
-    media_path: mediaPath,
-    receiver_id: user.id,
-    next_attempt_at: nextAttemptAt.toISOString(),
-    updated_at: new Date().toISOString(),
-  });
-
-  if (error) {
-    console.warn('Nie udało się dodać zadania cleanup do kolejki', error);
-  }
-}
-
-async function markCleanupJobDone(nixId: string) {
-  const { error } = await supabase.from('nix_cleanup_queue').delete().eq('nix_id', nixId);
-  if (error) {
-    console.warn('Nie udało się usunąć zadania cleanup z kolejki', error);
-  }
-}
-
-async function markCleanupJobFailed(nixId: string, reason: string) {
-  const { error } = await supabase
-    .from('nix_cleanup_queue')
-    .update({
-      last_error: reason,
-      updated_at: new Date().toISOString(),
-      attempt_count: 1,
-      next_attempt_at: new Date(Date.now() + 60_000).toISOString(),
-    })
-    .eq('nix_id', nixId);
-
-  if (error) {
-    console.warn('Nie udało się zapisać błędu cleanup w kolejce', error);
-  }
+async function requestNixCleanup(nixId: string, transport: AccountTransport) {
+  transport.assertActive();
+  const { data, error } = await transport.client.functions.invoke('cleanup-nix', { body: { nixId } });
+  transport.assertActive();
+  if (error || data?.ok !== true) throw new DomainError('CLEANUP_FAILED', 'Nie udało się wyczyścić wiadomości.');
 }
 
 export async function flushCleanupQueue(limit = 10) {
   const user = await getCurrentUser();
   if (!user) return;
-
-  const { data, error } = await supabase
-    .from('nix_cleanup_queue')
-    .select('nix_id, media_path, receiver_id, attempt_count')
-    .eq('receiver_id', user.id)
-    .lte('next_attempt_at', new Date().toISOString())
-    .order('updated_at', { ascending: true })
-    .limit(limit);
-
-  if (error) {
-    console.warn('Nie udało się odczytać kolejki cleanup', error);
-    return;
+  const transport = await captureAccountTransport(user.id);
+  const { data, error } = await transport.client.from('nix_cleanup_queue')
+    .select('nix_id').eq('receiver_id', transport.ownerId)
+    .lte('next_attempt_at', new Date().toISOString()).order('updated_at', { ascending: true }).limit(limit);
+  transport.assertActive();
+  if (error) throw mapDatabaseError(error);
+  for (const job of data ?? []) {
+    transport.assertActive();
+    await encryptedPhotoCache.remove(transport.ownerId, job.nix_id);
+    try { await requestNixCleanup(job.nix_id, transport); }
+    catch (error) { transport.assertActive(); console.warn('Cleanup zostanie ponowiony przez serwer', error); }
   }
-
-  await Promise.all(
-    ((data ?? []) as CleanupQueueRow[]).map(async (job) => {
-      try {
-        await requestNixCleanup(job.nix_id, job.media_path);
-        await markCleanupJobDone(job.nix_id);
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : 'Unknown cleanup failure';
-        const { error: updateError } = await supabase
-          .from('nix_cleanup_queue')
-          .update({
-            last_error: reason,
-            attempt_count: job.attempt_count + 1,
-            updated_at: new Date().toISOString(),
-            next_attempt_at: new Date(Date.now() + Math.min(15 * 60_000, (job.attempt_count + 1) * 60_000)).toISOString(),
-          })
-          .eq('nix_id', job.nix_id);
-
-        if (updateError) {
-          console.warn('Nie udało się zaktualizować próby cleanup', updateError);
-        }
-      }
-    })
-  );
 }
 
-export async function markNixViewedForReplay(nixId: string) {
-  const { error } = await supabase.rpc('mark_nix_viewed_for_replay', {
-    p_nix_id: nixId,
-  });
+export async function markNixViewedForReplay(nixId: string, capturedTransport?: AccountTransport) {
+  const transport = capturedTransport ?? await captureAccountTransport();
+  transport.assertActive();
+  const { error } = await transport.client.rpc('mark_nix_viewed_for_replay', { p_nix_id: nixId });
+  transport.assertActive();
   if (error) throw mapDatabaseError(error);
+  // The server supplies the replay deadline; ACK retries and viewer exits use the same policy.
+  const { data } = await transport.client.from('nixes').select('media_path,media_type').eq('id', nixId).single();
+  transport.assertActive();
+  if (data?.media_type === 'image') {
+    await retainPrivatePhotoForReplay(nixId, data.media_path, transport.ownerId, transport).catch(() => {});
+    transport.assertActive();
+  }
 }
 
 /** Media missing / unreadable — remove from unread FIFO without a replay window. */
 export async function markNixUnplayable(nixId: string) {
-  const { error } = await supabase.rpc('mark_nix_unplayable', {
-    p_nix_id: nixId,
-  });
+  const transport = await captureAccountTransport();
+  await encryptedPhotoCache.remove(transport.ownerId, nixId);
+  transport.assertActive();
+  const { error } = await transport.client.rpc('mark_nix_unplayable', { p_nix_id: nixId });
+  transport.assertActive();
   if (error) throw mapDatabaseError(error);
 }
 
-export async function markNixReplayedWithCleanup(nixId: string, mediaPath: string) {
-  const { error } = await supabase.rpc('mark_nix_replayed', {
-    p_nix_id: nixId,
-  });
+export async function markNixReplayedWithCleanup(nixId: string, _legacyMediaPath?: string, capturedTransport?: AccountTransport) {
+  const transport = capturedTransport ?? await captureAccountTransport();
+  await encryptedPhotoCache.remove(transport.ownerId, nixId);
+  transport.assertActive();
+  const { error } = await transport.client.rpc('mark_nix_replayed', { p_nix_id: nixId });
+  transport.assertActive();
   if (error) throw mapDatabaseError(error);
-
-  // Zaktualizuj i zawołaj cleanup natychmiast
-  await enqueueCleanupJob(nixId, mediaPath);
-  try {
-    await requestNixCleanup(nixId, mediaPath);
-    await markCleanupJobDone(nixId);
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : 'Unknown cleanup error';
-    await markCleanupJobFailed(nixId, reason);
-    // Cleanup failure is non-critical — nix is already viewed and job is enqueued for retry.
-    console.warn('Cleanup zostanie ponowiony:', reason);
+  const { error: queueError } = await transport.client.rpc('request_nix_cleanup', { p_nix_id: nixId });
+  transport.assertActive();
+  if (queueError) throw mapDatabaseError(queueError);
+  try { await requestNixCleanup(nixId, transport); }
+  catch (error) {
+    transport.assertActive();
+    // The canonical server queue owns retries and derives the media path from the NiX.
+    console.warn('Cleanup zostanie ponowiony przez serwer', error);
   }
 }
 

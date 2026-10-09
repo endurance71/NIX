@@ -13,6 +13,7 @@
  * Exit 0 = PASS, 1 = FAIL, 2 = BLOCKED/PARTIAL. Teardown fail → 1.
  */
 import { spawn } from "node:child_process";
+import { verifyMediaStorageTrust } from './lib/media-storage-trust-check.mjs';
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,24 +32,7 @@ import {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
-const F0_TEST = join(
-  ROOT,
-  "supabase",
-  "tests",
-  "pre_delivery_moderation_f0_budget_test.sql",
-);
-const COMPLETE_TEST = join(
-  ROOT,
-  "supabase",
-  "tests",
-  "complete_moderation_job_audit_test.sql",
-);
-const GRANTS_TEST = join(
-  ROOT,
-  "supabase",
-  "tests",
-  "security_definer_grants_test.sql",
-);
+
 
 export const HOST_DB_PORT = 15532;
 export const HOST_API_PORT = 15521;
@@ -87,6 +71,8 @@ export function createDefaultRun() {
       child.stderr.on("data", (d) => {
         stderr += d;
       });
+      if (opts.input != null) child.stdin.end(opts.input);
+      child.on("error", (error) => resolve({ status: 1, stdout, stderr: error.message }));
       child.on("close", (status) =>
         resolve({ status: status ?? 1, stdout, stderr }),
       );
@@ -214,7 +200,7 @@ export async function runAuthStorageVerify(deps = {}) {
     );
   }
 
-  async function psqlFile(file) {
+  async function psqlFile(file, variables = {}) {
     return run(
       "psql",
       [
@@ -229,6 +215,7 @@ export async function runAuthStorageVerify(deps = {}) {
         PGUSER,
         "-d",
         "postgres",
+        ...Object.entries(variables).flatMap(([name, value]) => ['-v', `${name}=${value}`]),
         "-f",
         file,
       ],
@@ -413,25 +400,9 @@ export async function runAuthStorageVerify(deps = {}) {
     const peerImg = await run("docker", ["image", "inspect", IMAGE_PEER]);
     if (peerImg.status !== 0) {
       log(`BUILD_PEER_IMAGE ${IMAGE_PEER}`);
-      const built = await new Promise((resolve) => {
-        const child = spawn(
-          "docker",
-          ["build", "-t", IMAGE_PEER, "-"],
-          { cwd: ROOT, env: process.env },
-        );
-        let stdout = "";
-        let stderr = "";
-        child.stdout.on("data", (d) => {
-          stdout += d;
-        });
-        child.stderr.on("data", (d) => {
-          stderr += d;
-        });
-        child.stdin.write(PEER_DOCKERFILE);
-        child.stdin.end();
-        child.on("close", (status) =>
-          resolve({ status: status ?? 1, stdout, stderr }),
-        );
+      const built = await run("docker", ["build", "-t", IMAGE_PEER, "-"], {
+        cwd: ROOT,
+        input: PEER_DOCKERFILE,
       });
       if (built.status !== 0) {
         console.error("BLOCKED: cannot build peer iptables image", built.stderr || built.stdout);
@@ -877,17 +848,11 @@ export async function runAuthStorageVerify(deps = {}) {
     log(`SENTINEL_OK ${runId}`);
 
     await psqlSql("CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;");
-    if (!(await runPgTap("F0_PGTAP", F0_TEST))) {
-      tryExit = 1;
-      return;
-    }
-    if (!(await runPgTap("COMPLETE_AUDIT_PGTAP", COMPLETE_TEST))) {
-      tryExit = 1;
-      return;
-    }
-    if (!(await runPgTap("SECURITY_DEFINER_GRANTS_PGTAP", GRANTS_TEST))) {
-      tryExit = 1;
-      return;
+    for (const file of readdirSync(join(ROOT, 'supabase', 'tests')).filter((name) => name.endsWith('.sql')).sort()) {
+      if (!(await runPgTap(file, join(ROOT, 'supabase', 'tests', file)))) {
+        tryExit = 1;
+        return;
+      }
     }
 
     const race = await run(
@@ -939,6 +904,32 @@ export async function runAuthStorageVerify(deps = {}) {
       return;
     }
     log(`STORAGE_UPLOAD_OK name=${smokeName}`);
+
+    // Real user JWTs exercise Storage API permission checks before object writes.
+    const receiver = await signupUser(`c3b-receiver-${id}@example.invalid`, password);
+    const senderToken = signup.json?.access_token;
+    if (!receiver.ok || typeof senderToken !== 'string'
+      || !/^[0-9a-f-]{36}$/i.test(signup.userId) || !/^[0-9a-f-]{36}$/i.test(receiver.userId)) {
+      throw new Error('Storage trust fixture requires real Auth UUIDs and a user JWT');
+    }
+    const fixture = await psqlFile(join(ROOT, 'supabase/tests/fixtures/media_storage_trust.sql'), {
+      sender_id: signup.userId, receiver_id: receiver.userId,
+    });
+    if (fixture.status !== 0) throw new Error(`Storage trust fixture failed: ${fixture.stderr}`);
+    const objectUrl = `http://127.0.0.1:${HOST_API_PORT}/storage/v1/object/media-vault/nixes/${signup.userId}/storage-trust.jpg`;
+    async function userObjectRequest(method, body) {
+      const args = ['-sS', '-X', method, objectUrl, '-H', `Authorization: Bearer ${senderToken}`,
+        '-H', `apikey: ${ANON_KEY}`, '-H', 'Content-Type: image/jpeg', '-w', '\n%{http_code}'];
+      if (body !== undefined) args.push('--data-binary', body);
+      const result = await run('curl', args, { env: curlEnv() });
+      if (result.status !== 0) throw new Error('Storage user HTTP request failed');
+      return splitCurlHttp(result.stdout);
+    }
+    await verifyMediaStorageTrust(userObjectRequest, async () => {
+      const approved = await psqlFile(join(ROOT, 'supabase/tests/fixtures/media_storage_approve.sql'));
+      if (approved.status !== 0) throw new Error(`Storage trust approval failed: ${approved.stderr}`);
+    });
+    log('STORAGE_USER_JWT_PENDING_WRITE_AND_APPROVED_FREEZE_OK');
     log(`status=PASS path=${path} auth+storage real stack`);
     tryExit = 0;
   } catch (err) {

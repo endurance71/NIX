@@ -1,5 +1,8 @@
+import { performCameraPermissionRequest } from '../lib/cameraPermissions';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from 'react';
 import type { ViewStyle } from 'react-native';
+import { Alert, AppState, Linking } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import {
   CameraView,
   useCameraPermissions,
@@ -61,6 +64,7 @@ const VIDEO_TORCH_PROP_COMMIT_DELAY_MS = 50;
 export type CameraScreenViewModel = {
   permission: ReturnType<typeof useCameraPermissions>[0];
   requestPermission: ReturnType<typeof useCameraPermissions>[1];
+  handleCameraPermission: () => Promise<void>;
   permissionGranted: boolean;
   permissionLoadingTimedOut: boolean;
   styles: ReturnType<typeof createCameraStyles>;
@@ -103,6 +107,9 @@ export type CameraScreenViewModel = {
   toggleFacing: () => void;
   toggleFlash: () => void;
   toggleRecordingMicMuted: () => void;
+  takeAccessiblePhoto: () => void;
+  startAccessibleVideo: () => void;
+  stopAccessibleVideo: () => void;
 };
 
 function useLatestCallback<TArgs extends unknown[]>(
@@ -118,14 +125,30 @@ function useLatestCallback<TArgs extends unknown[]>(
 }
 
 export function useCameraScreen(): CameraScreenViewModel {
+  const { t } = useTranslation();
   const isNativeSimulator = !Constants.isDevice;
   const { colors, statusBarStyle } = useAppTheme();
   const { setSegments } = useVideoDraft();
   const { setDraft: setPhotoDraft } = usePhotoDraft();
   const insets = useScreenInsets('cameraTab');
   const styles = useMemo(() => createCameraStyles(colors), [colors]);
-  const [permission, requestPermission] = useCameraPermissions();
-  const [micPermission, requestMicPermission] = useMicrophonePermissions();
+  const [permission, requestPermission, getCameraPermission] = useCameraPermissions();
+  const [micPermission, requestMicPermission, getMicPermission] = useMicrophonePermissions();
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void Promise.all([getCameraPermission(), getMicPermission()]).catch((error) => {
+          console.warn('Camera permission refresh failed', error);
+        });
+      }
+    });
+    return () => subscription.remove();
+  }, [getCameraPermission, getMicPermission]);
+  const handleCameraPermission = async () => {
+    await performCameraPermissionRequest(permission, {
+      request: requestPermission, openSettings: () => Linking.openSettings(),
+    });
+  };
   const [cameraUi, dispatchCameraUi] = useReducer(cameraUiReducer, initialCameraUiState);
   const {
     facing,
@@ -157,6 +180,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   const fingerDownRef = useRef(false);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recordingSessionRunningRef = useRef(false);
+  const accessibleVideoPendingRef = useRef(false);
   const recordingStartedRef = useRef(false);
   const videoTorchSessionIdRef = useRef(0);
   const videoTorchSessionStartedAtRef = useRef<number | null>(null);
@@ -597,6 +621,13 @@ export function useCameraScreen(): CameraScreenViewModel {
 
   const ensureMicPermission = async (): Promise<boolean> => {
     if (micPermission?.granted) return true;
+    if (micPermission?.canAskAgain === false) {
+      Alert.alert(t('camera.microphoneBlockedTitle'), t('camera.microphoneBlockedMessage'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('camera.openSettings'), onPress: () => { void Linking.openSettings(); } },
+      ]);
+      return false;
+    }
     const res = await requestMicPermission();
     return res.granted;
   };
@@ -643,7 +674,7 @@ export function useCameraScreen(): CameraScreenViewModel {
           hapticNotify('error');
           dispatchCameraUi({
             type: 'SET_CAPTURE_ERROR',
-            captureError: 'Kamera nie zdążyła przygotować nagrywania. Spróbuj ponownie.',
+            captureError: t('camera.recordingNotReady'),
           });
           return;
         }
@@ -655,7 +686,7 @@ export function useCameraScreen(): CameraScreenViewModel {
         logVideoTorchEvent('camera-ref-read', {}, { hasCameraRef: Boolean(cam) });
         if (!cam) {
           hapticNotify('error');
-          dispatchCameraUi({ type: 'SET_CAPTURE_ERROR', captureError: 'Kamera nie jest dostępna.' });
+          dispatchCameraUi({ type: 'SET_CAPTURE_ERROR', captureError: t('camera.unavailable') });
           return;
         }
 
@@ -757,7 +788,7 @@ export function useCameraScreen(): CameraScreenViewModel {
           hapticNotify('error');
           dispatchCameraUi({
             type: 'SET_CAPTURE_ERROR',
-            captureError: 'Nie udało się zapisać nagrania. Spróbuj ponownie.',
+            captureError: t('camera.recordingFailed'),
           });
         }
       },
@@ -792,7 +823,7 @@ export function useCameraScreen(): CameraScreenViewModel {
         hapticNotify('error');
         dispatchCameraUi({
           type: 'SET_CAPTURE_ERROR',
-          captureError: 'NiX potrzebuje dostępu do mikrofonu, aby nagrywać wideo z dźwiękiem.',
+          captureError: t('camera.microphoneRequired'),
         });
         fingerDownRef.current = false;
         return;
@@ -819,7 +850,7 @@ export function useCameraScreen(): CameraScreenViewModel {
       });
       dispatchCameraUi({
         type: 'SET_CAPTURE_ERROR',
-        captureError: 'Nie udało się przygotować dźwięku do nagrywania. Spróbuj ponownie.',
+        captureError: t('camera.audioSetupFailed'),
       });
       fingerDownRef.current = false;
       return;
@@ -887,7 +918,7 @@ export function useCameraScreen(): CameraScreenViewModel {
                 hapticNotify('error');
                 dispatchCameraUi({
                   type: 'SET_CAPTURE_ERROR',
-                  captureError: 'Kamera nie jest jeszcze gotowa. Spróbuj ponownie.',
+                  captureError: t('camera.notReady'),
                 });
                 return;
               }
@@ -914,14 +945,14 @@ export function useCameraScreen(): CameraScreenViewModel {
                   hapticNotify('error');
                   dispatchCameraUi({
                     type: 'SET_CAPTURE_ERROR',
-                    captureError: 'Nie udało się wybrać zdjęcia z biblioteki.',
+                    captureError: t('camera.pickPhotoFailed'),
                   });
                 }
               } else {
                 hapticNotify('error');
                 dispatchCameraUi({
                   type: 'SET_CAPTURE_ERROR',
-                  captureError: 'Kamera nie jest jeszcze gotowa. Spróbuj ponownie.',
+                  captureError: t('camera.notReady'),
                 });
               }
               return;
@@ -977,7 +1008,7 @@ export function useCameraScreen(): CameraScreenViewModel {
             hapticNotify('error');
             dispatchCameraUi({
               type: 'SET_CAPTURE_ERROR',
-              captureError: 'Nie udało się zrobić zdjęcia. Spróbuj ponownie.',
+              captureError: t('camera.captureFailed'),
             });
           }
         },
@@ -987,7 +1018,7 @@ export function useCameraScreen(): CameraScreenViewModel {
       hapticNotify('error');
       dispatchCameraUi({
         type: 'SET_CAPTURE_ERROR',
-        captureError: 'Kamera nie jest jeszcze gotowa.',
+        captureError: t('camera.notReady'),
       });
       dispatchCameraUi({ type: 'SET_TAKING_PICTURE', takingPicture: false });
     }
@@ -1108,6 +1139,25 @@ export function useCameraScreen(): CameraScreenViewModel {
     ]
   );
 
+  const takeAccessiblePhoto = () => {
+    if (takingPicture || isSwitchingCamera || accessibleVideoPendingRef.current || recordingSessionRunningRef.current
+      || (!isNativeSimulator && !cameraReadyRef.current)) return;
+    void takePicture();
+  };
+  const startAccessibleVideo = () => {
+    if (takingPicture || isSwitchingCamera || accessibleVideoPendingRef.current || recordingSessionRunningRef.current
+      || (!isNativeSimulator && !cameraReadyRef.current)) return;
+    fingerDownRef.current = true;
+    accessibleVideoPendingRef.current = true;
+    void startVideoCaptureFlow().finally(() => { accessibleVideoPendingRef.current = false; });
+  };
+  const stopAccessibleVideo = () => {
+    fingerDownRef.current = false;
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = null;
+    safeStopRecording();
+  };
+
   const pickFromGallery = async () => {
     if (videoPreparing || recordingVideo || takingPicture || isSwitchingCamera) return;
     if (recordingSessionRunningRef.current) return;
@@ -1115,12 +1165,20 @@ export function useCameraScreen(): CameraScreenViewModel {
     dispatchCameraUi({ type: 'SET_CAPTURE_ERROR', captureError: null });
 
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const existingPermission = await ImagePicker.getMediaLibraryPermissionsAsync();
+      const perm = existingPermission.granted || existingPermission.canAskAgain === false
+        ? existingPermission : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
+        if (perm.canAskAgain === false) {
+          Alert.alert(t('camera.libraryBlockedTitle'), t('camera.libraryBlockedMessage'), [
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('camera.openSettings'), onPress: () => { void Linking.openSettings(); } },
+          ]);
+        }
         hapticNotify('error');
         dispatchCameraUi({
           type: 'SET_CAPTURE_ERROR',
-          captureError: 'NiX potrzebuje dostępu do biblioteki, aby wybierać zdjęcia i filmy.',
+          captureError: t('camera.libraryRequired'),
         });
         return;
       }
@@ -1139,7 +1197,7 @@ export function useCameraScreen(): CameraScreenViewModel {
         hapticNotify('error');
         dispatchCameraUi({
           type: 'SET_CAPTURE_ERROR',
-          captureError: 'Nie udało się wczytać wybranego pliku.',
+          captureError: t('camera.loadFileFailed'),
         });
         return;
       }
@@ -1159,7 +1217,7 @@ export function useCameraScreen(): CameraScreenViewModel {
       hapticNotify('error');
       dispatchCameraUi({
         type: 'SET_CAPTURE_ERROR',
-        captureError: 'Nie udało się otworzyć galerii. Spróbuj ponownie.',
+        captureError: t('camera.galleryFailed'),
       });
     }
   };
@@ -1213,7 +1271,7 @@ export function useCameraScreen(): CameraScreenViewModel {
         hapticNotify('error');
         dispatchCameraUi({
           type: 'SET_CAPTURE_ERROR',
-          captureError: 'Nie udało się przełączyć kamery. Spróbuj ponownie.',
+          captureError: t('camera.switchFailed'),
         });
       },
     });
@@ -1239,6 +1297,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   return {
     permission,
     requestPermission,
+    handleCameraPermission,
     permissionGranted,
     permissionLoadingTimedOut,
     styles,
@@ -1280,5 +1339,8 @@ export function useCameraScreen(): CameraScreenViewModel {
     toggleFacing,
     toggleFlash,
     toggleRecordingMicMuted,
+    takeAccessiblePhoto,
+    startAccessibleVideo,
+    stopAccessibleVideo,
   };
 }

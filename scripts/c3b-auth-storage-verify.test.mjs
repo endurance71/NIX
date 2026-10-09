@@ -21,6 +21,7 @@ function createRecordingRun(handlers) {
   const run = async (cmd, args = [], opts) => {
     const key = `${cmd} ${args.join(" ")}`;
     calls.push({ cmd, args: [...args], key, opts });
+    if (cmd === "docker" && args[0] === "image" && args[1] === "inspect") return ok();
     for (const h of handlers) {
       if (typeof h.match === "function" ? h.match(cmd, args, key) : key.includes(h.match)) {
         return typeof h.result === "function" ? h.result(cmd, args, opts) : h.result;
@@ -179,4 +180,19 @@ describe("runAuthStorageVerify orchestration (injected run)", () => {
   it("Path B tip constant is pinned pre-C3B audit migration", () => {
     assert.equal(PATH_B_TIP, "20260831150000_pre_delivery_moderation_f0_budget.sql");
   });
+});
+
+it('peer build goes through the injected runner with Dockerfile stdin', async () => {
+  const calls = [];
+  const run = async (cmd, args, opts) => {
+    calls.push({ cmd, args, opts });
+    if (args[0] === 'image') return { status: 1, stdout: '', stderr: 'not installed' };
+    if (args[0] === 'build') return { status: 1, stdout: '', stderr: 'build unavailable' };
+    return ok();
+  };
+  const code = await runAuthStorageVerify({ run, path: 'A' });
+  assert.equal(code, 2);
+  const build = calls.find((call) => call.args[0] === 'build');
+  assert.equal(build.cmd, 'docker');
+  assert.match(build.opts.input, /FROM alpine:3.20/);
 });

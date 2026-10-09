@@ -103,8 +103,8 @@ describe('socialAuthService', () => {
     expect(mockSaveAppleId).toHaveBeenCalledWith('apple-user-123');
     expect(mockLegalAcceptanceInsert).toHaveBeenCalledWith({
       user_id: 'user-1',
-      terms_version: '2026-09-12',
-      privacy_version: '2026-09-12',
+      terms_version: '2026-10-08',
+      privacy_version: '2026-10-08',
     });
   });
 

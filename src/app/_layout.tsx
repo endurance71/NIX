@@ -1,3 +1,4 @@
+import { resolveBootstrapFailure, resolveBootstrapRedirect } from '../lib/bootstrapPresentation';
 import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,7 +15,7 @@ import { APP_FONT_FAMILY } from '../theme/typography';
 import { createAppQueryClient } from '../lib/queryClient';
 import { bindReactQueryAppLifecycle } from '../lib/reactQueryNetwork';
 import { bindSupabaseAuthLifecycle } from '../lib/supabase';
-import { ToastProvider } from 'react-native-pretty-toast';
+import { AppNotificationsProvider } from '../context/AppNotificationsProvider';
 import { VideoDraftProvider } from '../context/VideoDraftContext';
 import { PhotoDraftProvider } from '../context/PhotoDraftContext';
 import { initMonitoring } from '../lib/monitoring';
@@ -65,10 +66,10 @@ function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <ToastProvider maxQueue={3} defaultConfig={{ duration: 4000 }}>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              <AppThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <AppThemeProvider>
+              <AppNotificationsProvider>
                 <OfflineCacheProvider>
                   <VideoDraftProvider>
                     <PhotoDraftProvider>
@@ -79,10 +80,10 @@ function RootLayout() {
                     </PhotoDraftProvider>
                   </VideoDraftProvider>
                 </OfflineCacheProvider>
-              </AppThemeProvider>
-            </AuthProvider>
-          </QueryClientProvider>
-        </ToastProvider>
+              </AppNotificationsProvider>
+            </AppThemeProvider>
+          </AuthProvider>
+        </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
@@ -261,21 +262,20 @@ function AppStack({
   );
 }
 
-function RootNavigator() {
+function useRootBootstrap({
+  userId,
+  canUseNetworkSession,
+  authStatus,
+  session,
+  lastBootstrapResult,
+}: {
+  userId: string | null;
+  canUseNetworkSession: boolean;
+  authStatus: ReturnType<typeof useAuth>['status'];
+  session: ReturnType<typeof useAuth>['session'];
+  lastBootstrapResult: ReturnType<typeof useAuth>['lastBootstrapResult'];
+}) {
   const queryClient = useQueryClient();
-  const { t } = useTranslation();
-  const { colors, statusBarStyle } = useAppTheme();
-  const {
-    session,
-    status: authStatus,
-    lastBootstrapResult,
-    canUseNetworkSession,
-    signOut,
-    retryBootstrap,
-  } = useAuth();
-  const { isHydrated: offlineCacheHydrated } = useOfflineCache();
-  const userId = session?.user.id ?? null;
-  const segments = useSegments() as string[];
   const {
     data: profile,
     isPending: profilePending,
@@ -326,37 +326,14 @@ function RootNavigator() {
     snapshotError,
     hasValidSnapshot: bootstrapSnapshot?.userId === userId,
   });
-  const bootstrapFailureStage = lastBootstrapResult === 'storage_error'
-    ? 'auth_storage'
-    : snapshotError
-      ? 'profile_snapshot'
-      : profileError
-        ? 'profile'
-        : ageAttestationError
-          ? 'age_attestation'
-          : bootstrap.status === 'recoverableError'
-            ? 'auth_session'
-            : null;
-  const needsOnboarding = bootstrap.status === 'needsOnboarding';
-  const appReady = bootstrap.status !== 'loading' && (!session || offlineCacheHydrated);
-  const inAuthGroup = segments[0] === '(auth)';
-  const onResetPasswordScreen = segments[1] === 'reset-password';
-
-  useEffect(() => {
-    if (bootstrap.status !== 'loading') {
-      trackEvent('bootstrap_resolution', {
-        resolution: bootstrap.status,
-        failure_stage: bootstrapFailureStage,
-      });
-    }
-  }, [bootstrap.status, bootstrapFailureStage]);
-
-  useEffect(() => {
-    if (appReady) {
-      SplashScreen.hideAsync().catch(() => {});
-    }
-  }, [appReady]);
-
+  const bootstrapFailure = resolveBootstrapFailure({
+    storageError: lastBootstrapResult === 'storage_error',
+    snapshotError,
+    profileError,
+    ageError: ageAttestationError,
+    status: bootstrap.status,
+  });
+  const bootstrapFailureStage = bootstrapFailure.stage;
   useEffect(() => {
     if (!userId || !profileSuccess || !ageAttestationSuccess) return;
     if (profile?.username && ageAttested === true) {
@@ -378,33 +355,77 @@ function RootNavigator() {
     }
   }, [bootstrapSnapshot, canUseNetworkSession, queryClient, userId]);
 
+  return {
+    bootstrap,
+    bootstrapFailure,
+    bootstrapFailureStage,
+    refetchProfile,
+    refetchAgeAttestation,
+    refetchSnapshot,
+  };
+}
+
+function RootNavigator() {
+  const { t } = useTranslation();
+  const { colors, statusBarStyle } = useAppTheme();
+  const {
+    session,
+    status: authStatus,
+    lastBootstrapResult,
+    canUseNetworkSession,
+    signOut,
+    retryBootstrap,
+  } = useAuth();
+  const { isHydrated: offlineCacheHydrated } = useOfflineCache();
+  const userId = session?.user.id ?? null;
+  const segments = useSegments() as string[];
+  const {
+    bootstrap,
+    bootstrapFailure,
+    bootstrapFailureStage,
+    refetchProfile,
+    refetchAgeAttestation,
+    refetchSnapshot,
+  } = useRootBootstrap({ userId, canUseNetworkSession, authStatus, session, lastBootstrapResult });
+  const needsOnboarding = bootstrap.status === 'needsOnboarding';
+  const appReady = bootstrap.status !== 'loading' && (!session || offlineCacheHydrated);
+
   useEffect(() => {
-    if (!appReady || bootstrap.status === 'recoverableError') return;
-
-    if (!session && !inAuthGroup) {
-      router.replace('/(auth)/login');
-      return;
+    if (bootstrap.status !== 'loading') {
+      trackEvent('bootstrap_resolution', {
+        resolution: bootstrap.status,
+        failure_stage: bootstrapFailureStage,
+      });
     }
+  }, [bootstrap.status, bootstrapFailureStage]);
 
-    if (!session) return;
-
-    if (needsOnboarding && segments[1] !== 'onboarding' && !onResetPasswordScreen) {
-      router.replace('/(auth)/onboarding');
-      return;
+  useEffect(() => {
+    if (appReady) {
+      SplashScreen.hideAsync().catch(() => {});
     }
+  }, [appReady]);
 
-    if (!needsOnboarding && inAuthGroup && !onResetPasswordScreen) {
-      router.replace('/(tabs)');
-    }
-  }, [appReady, bootstrap.status, inAuthGroup, needsOnboarding, onResetPasswordScreen, segments, session]);
+  useEffect(() => {
+    const destination = resolveBootstrapRedirect({
+      appReady,
+      status: bootstrap.status,
+      hasSession: Boolean(session),
+      needsOnboarding,
+      segments,
+    });
+    if (destination) router.replace(destination);
+  }, [appReady, bootstrap.status, needsOnboarding, segments, session]);
 
   useEffect(() => {
     if (
       !iosRoadmapFeatures.shareInvites ||
-      !appReady || bootstrap.status === 'recoverableError' ||
-      !session || !canUseNetworkSession ||
+      !appReady ||
+      bootstrap.status === 'recoverableError' ||
+      !session ||
+      !canUseNetworkSession ||
       needsOnboarding
-    ) return;
+    )
+      return;
     let cancelled = false;
     void getPendingFriendInviteToken().then((token) => {
       if (cancelled || !token || segments[0] === 'friend-invite') return;
@@ -420,42 +441,27 @@ function RootNavigator() {
   }
 
   if (bootstrap.status === 'recoverableError') {
-    const storageFailure = lastBootstrapResult === 'storage_error';
-    const failureTitle = storageFailure
-      ? 'root.sessionStorageFailed'
-      : snapshotError
-        ? 'root.snapshotReadFailed'
-        : profileError
-          ? 'root.profileVerificationFailed'
-          : ageAttestationError
-            ? 'root.ageVerificationFailed'
-            : 'root.accountVerificationFailed';
-    const failureHint = storageFailure
-      ? 'root.sessionStorageHint'
-      : snapshotError
-        ? 'root.snapshotReadHint'
-        : profileError
-          ? 'root.profileVerificationHint'
-          : ageAttestationError
-            ? 'root.ageVerificationHint'
-            : 'root.accountVerificationHint';
     return (
       <BootstrapMessageScreen
         colors={colors}
         statusBarStyle={statusBarStyle}
-        title={t(failureTitle)}
-        hint={t(failureHint)}
+        title={t(bootstrapFailure.title)}
+        hint={t(bootstrapFailure.hint)}
         retryLabel={t('common.retry')}
-        onRetry={() => void (async () => {
+        onRetry={() =>
+          void (async () => {
             const result = await retryBootstrap();
             if (result.category !== 'online') return;
             await Promise.all([refetchProfile(), refetchAgeAttestation(), refetchSnapshot()]);
-          })()}
+          })()
+        }
         secondaryLabel={t('root.useAnotherAccount')}
-        onSecondary={() => void (async () => {
+        onSecondary={() =>
+          void (async () => {
             await signOut();
             router.replace('/(auth)/login');
-          })()}
+          })()
+        }
       />
     );
   }

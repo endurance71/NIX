@@ -8,6 +8,18 @@ import {
 } from "./core.ts";
 import { WAITING_BUDGET } from "./constants.ts";
 import type { ContentKind } from "./process.ts";
+import { terminalInputError } from './download.ts';
+
+async function finishInputFailure(rpc: Rpc, id: string, owner: string, error: unknown) {
+  const terminal = terminalInputError(error);
+  const { error: completionError } = await rpc('complete_moderation_job', {
+    p_job_id: id, p_lease_owner: owner, p_status: terminal ? 'error' : 'pending',
+    p_decision: 'error', p_policy_version: POLICY_VERSION,
+    p_last_error: terminal && error instanceof Error ? error.message : 'input_resolution_retry',
+    p_retry_delay_seconds: terminal ? null : 30,
+  });
+  if (completionError) throw new Error('input_failure_completion_failed_or_lease_lost');
+}
 
 /** Injection-only adapter. No credentials, networking client or live entry point in C3A. */
 export type Rpc = (
@@ -34,8 +46,11 @@ export function rpcQueue(
       for (const row of data) {
         if (typeof row?.id !== "string") throw new Error("claim_invalid");
         rows.set(row.id, row);
-        // Staging/download failures deliberately leave the lease unapproved.
-        jobs.push({ id: row.id, path: await resolveInput(row) });
+        try { jobs.push({ id: row.id, path: await resolveInput(row) }); }
+        catch (error) {
+          rows.delete(row.id);
+          await finishInputFailure(rpc, row.id, owner, error);
+        }
       }
       return jobs;
     },
@@ -119,7 +134,9 @@ export function integrationRpcQueue(
       }
       const jobs: IntegrationQueueJob[] = [];
       for (const row of data) {
-        jobs.push(await toJob(row as Record<string, unknown>));
+        if (typeof row?.id !== 'string') throw new Error('claim_invalid');
+        try { jobs.push(await toJob(row as Record<string, unknown>)); }
+        catch (error) { await finishInputFailure(rpc, row.id, owner, error); }
       }
       return jobs;
     },
@@ -179,7 +196,12 @@ export function integrationRpcQueue(
       }
       const jobs: IntegrationQueueJob[] = [];
       for (const row of data) {
-        jobs.push(await toJob(row as Record<string, unknown>));
+        if (typeof row?.id !== 'string') throw new Error('recovery_claim_invalid');
+        // Approval is already durable. Materialization needs only the job ID;
+        // downloading again could fail after payload retention or waste bytes.
+        rows.set(row.id, row);
+        jobs.push({ id: row.id, kind: mapKind(row),
+          contentKind: row.content_kind === 'text' ? 'text' : 'media' });
       }
       return jobs;
     },

@@ -1,0 +1,87 @@
+name: Backend quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  native-upload-policy:
+    runs-on: macos-15
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload pause, retry and task identity behavior
+        run: |
+          swiftc modules/nix-background-uploader/ios/NativeUploadControl.swift modules/nix-background-uploader/tests/NativeUploadControlTests.swift -o /tmp/nix-upload-control-tests
+          /tmp/nix-upload-control-tests
+
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Video test tooling
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: npm run check:toolchain
+      - run: npm run check:supabase-migrations
+      - run: npm run deno:check
+      - run: npm run deno:test
+      - run: npm run test:moderation-worker
+      - run: npm run test:c3b-budget-concurrency-validate
+      - run: npm run test:release-env
+      - run: npm run test:dependency-compat
+      - run: npm run audit:reviewed
+
+  auth-storage:
+    name: Isolated Auth and Storage (path ${{ matrix.path }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        path: [A, B]
+    env:
+      C3B_AUTHSTORE_PATH: ${{ matrix.path }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Local database tooling
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Pull pinned services with bounded registry retries
+        run: |
+          for image in public.ecr.aws/supabase/postgres:17.6.1.165 public.ecr.aws/supabase/gotrue:v2.193.0 public.ecr.aws/supabase/storage-api:v1.65.1 public.ecr.aws/supabase/kong:2.8.1; do
+            pulled=false
+            for attempt in 1 2 3 4; do
+              if docker pull "$image"; then pulled=true; break; fi
+              if [ "$attempt" -lt 4 ]; then sleep "$((attempt * 10))"; fi
+            done
+            if [ "$pulled" != true ]; then exit 1; fi
+          done
+      - name: Full migrations, Auth and Storage security
+        run: npm run test:c3b-auth-storage
+
+  migrations:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: npm run test:c3b-isolated-migrations

@@ -25,12 +25,9 @@ import {
 import { getCurrentUserProfile, updateCurrentUserProfile } from '../../services/profileService';
 import { avatarSignedUrlsQueryKey, queryKeys } from '../../lib/queryKeys';
 import {
-  DISPLAY_NAME_MAX_LENGTH,
-  PROFILE_BIO_MAX_LENGTH,
-  isProfileBioTooLong,
+  getProfileFieldDecision,
   normalizeDisplayName,
   normalizeProfileBio,
-  validateDisplayName,
 } from '../../lib/profileEdit';
 import {
   handleProfileAvatarPickError,
@@ -88,23 +85,12 @@ function ProfileFieldEditorSheet({
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const [value, setValue] = useState(editor.initialValue);
-  const isDisplayName = editor.field === 'display_name';
-  const maxLength = isDisplayName ? DISPLAY_NAME_MAX_LENGTH : PROFILE_BIO_MAX_LENGTH;
-  const displayNameError = isDisplayName ? validateDisplayName(value) : null;
-  const bioTooLong = !isDisplayName && isProfileBioTooLong(value);
-  const normalizedValue = isDisplayName ? normalizeDisplayName(value) : normalizeProfileBio(value) ?? '';
-  const normalizedInitial = isDisplayName
-    ? normalizeDisplayName(editor.initialValue)
-    : normalizeProfileBio(editor.initialValue) ?? '';
-  const unchanged = normalizedValue === normalizedInitial;
-  const invalid = Boolean(displayNameError) || bioTooLong;
-  const errorMessage = displayNameError === 'required'
-    ? t('profile.displayNameRequired')
-    : displayNameError === 'too_long'
-      ? t('profile.displayNameTooLong', { count: DISPLAY_NAME_MAX_LENGTH })
-      : bioTooLong
-        ? t('profile.bioTooLong', { count: PROFILE_BIO_MAX_LENGTH })
-        : null;
+  const { isDisplayName, maxLength, unchanged, invalid, errorKey } = getProfileFieldDecision(
+    editor.field,
+    value,
+    editor.initialValue,
+  );
+  const errorMessage = errorKey ? t(errorKey, { count: maxLength }) : null;
 
   const submit = () => {
     if (!busy && !invalid && !unchanged) onSave(value);
@@ -142,7 +128,9 @@ function ProfileFieldEditorSheet({
           blurOnSubmit={isDisplayName}
           editable={!busy}
           selectionColor={colors.accent}
-          placeholder={t(isDisplayName ? 'profile.displayNamePlaceholder' : 'profile.bioPlaceholder')}
+          placeholder={t(
+            isDisplayName ? 'profile.displayNamePlaceholder' : 'profile.bioPlaceholder',
+          )}
           placeholderTextColor={colors.tertiaryLabel}
           style={[
             styles.editorInput,
@@ -172,15 +160,69 @@ function ProfileFieldEditorSheet({
   );
 }
 
-export default function EditProfileScreenSurface() {
+function ProfileIdentityRows({
+  profileRow,
+  contact,
+  canUseNetworkSession,
+  setEditor,
+}: {
+  profileRow: Awaited<ReturnType<typeof getCurrentUserProfile>>;
+  contact: { label: string; value: string } | null;
+  canUseNetworkSession: boolean;
+  setEditor: (editor: EditorState) => void;
+}) {
   const { t } = useTranslation();
-  const { colors } = useAppTheme();
-  const { user, canUseNetworkSession } = useAuth();
-  const queryClient = useQueryClient();
-  const [editor, setEditor] = useState<EditorState | null>(null);
-  const [fieldBusy, setFieldBusy] = useState(false);
-  const [avatarBusy, setAvatarBusy] = useState(false);
+  return (
+    <>
+      <NativeSettingsRow
+        title={t('profile.displayName')}
+        trailing={
+          <ProfileFieldValue
+            value={profileRow?.display_name?.trim() || t('profile.notSet')}
+            muted={!profileRow?.display_name?.trim()}
+          />
+        }
+        showsChevron
+        disabled={!canUseNetworkSession}
+        onPress={() =>
+          setEditor({ field: 'display_name', initialValue: profileRow?.display_name ?? '' })
+        }
+        testID="edit-profile-display-name"
+      />
+      <NativeSettingsRow
+        title={t('profile.about')}
+        trailing={
+          <ProfileFieldValue
+            value={profileRow?.bio?.trim() || t('profile.addBio')}
+            muted={!profileRow?.bio?.trim()}
+          />
+        }
+        showsChevron
+        disabled={!canUseNetworkSession}
+        onPress={() => setEditor({ field: 'bio', initialValue: profileRow?.bio ?? '' })}
+        testID="edit-profile-bio"
+      />
+      <NativeSettingsRow
+        title={t('profile.username')}
+        trailing={
+          <ProfileFieldValue value={`@${profileRow?.username ?? t('profile.missingUsername')}`} />
+        }
+        testID="edit-profile-username"
+      />
+      {contact ? (
+        <NativeSettingsRow
+          title={contact.label}
+          trailing={<ProfileFieldValue value={contact.value} />}
+          testID="edit-profile-contact"
+        />
+      ) : null}
+    </>
+  );
+}
 
+function useEditableProfileData() {
+  const { t } = useTranslation();
+  const { user, canUseNetworkSession } = useAuth();
   const { data: profileRow = null, isPending: profilePending } = useQuery({
     queryKey: queryKeys.currentUserProfile(user?.id ?? null),
     queryFn: getCurrentUserProfile,
@@ -195,7 +237,7 @@ export default function EditProfileScreenSurface() {
     staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
   });
   const avatarUrl = profileRow?.avatar_storage_path
-    ? avatarUrls[profileRow.avatar_storage_path] ?? null
+    ? (avatarUrls[profileRow.avatar_storage_path] ?? null)
     : null;
   const hasAvatar = Boolean(profileRow?.avatar_storage_path || profileRow?.avatar_emoji);
   const fallbackInitial = (profileRow?.display_name || profileRow?.username || user?.email || '?')
@@ -207,6 +249,21 @@ export default function EditProfileScreenSurface() {
     : user?.phone
       ? { label: t('profile.phone'), value: user.phone }
       : null;
+
+  return { profileRow, profilePending, avatarUrl, hasAvatar, fallbackInitial, contact };
+}
+
+export default function EditProfileScreenSurface() {
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
+  const { user, canUseNetworkSession } = useAuth();
+  const queryClient = useQueryClient();
+  const [editor, setEditor] = useState<EditorState | null>(null);
+  const [fieldBusy, setFieldBusy] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+
+  const { profileRow, profilePending, avatarUrl, hasAvatar, fallbackInitial, contact } =
+    useEditableProfileData();
 
   const invalidateProfileData = async () => {
     await Promise.all([
@@ -230,7 +287,7 @@ export default function EditProfileScreenSurface() {
           await updateCurrentUserProfile(
             field === 'display_name'
               ? { display_name: normalizeDisplayName(value) }
-              : { bio: normalizeProfileBio(value) }
+              : { bio: normalizeProfileBio(value) },
           );
           await invalidateProfileData();
           notifySuccess(t('profile.profileFieldUpdated'));
@@ -239,7 +296,7 @@ export default function EditProfileScreenSurface() {
           notifyError(t('profile.profileFieldUpdateFailed'));
         }
       },
-      () => setFieldBusy(false)
+      () => setFieldBusy(false),
     );
   };
 
@@ -252,7 +309,7 @@ export default function EditProfileScreenSurface() {
     setAvatarBusy(true);
     await runWithFinally(
       () => pickProfileAvatarPhoto(invalidateProfileData, source),
-      () => setAvatarBusy(false)
+      () => setAvatarBusy(false),
     ).catch(handleProfileAvatarPickError);
   };
 
@@ -278,7 +335,7 @@ export default function EditProfileScreenSurface() {
                 notifyError(t('profile.avatarRemoveFailure'));
               }
             },
-            () => setAvatarBusy(false)
+            () => setAvatarBusy(false),
           );
         },
       },
@@ -304,7 +361,7 @@ export default function EditProfileScreenSurface() {
           if (index === 0) void chooseAvatar('camera');
           if (index === 1) void chooseAvatar('library');
           if (hasAvatar && index === 2) confirmRemoveAvatar();
-        }
+        },
       );
       return;
     }
@@ -313,7 +370,13 @@ export default function EditProfileScreenSurface() {
       { text: t('profile.takePhoto'), onPress: () => void chooseAvatar('camera') },
       { text: t('profile.choosePhoto'), onPress: () => void chooseAvatar('library') },
       ...(hasAvatar
-        ? [{ text: t('profile.removeAvatar'), style: 'destructive' as const, onPress: confirmRemoveAvatar }]
+        ? [
+            {
+              text: t('profile.removeAvatar'),
+              style: 'destructive' as const,
+              onPress: confirmRemoveAvatar,
+            },
+          ]
         : []),
       { text: t('common.cancel'), style: 'cancel' },
     ]);
@@ -372,48 +435,12 @@ export default function EditProfileScreenSurface() {
             </RNHostView>
           </FieldGroup.SectionHeader>
 
-          <NativeSettingsRow
-            title={t('profile.displayName')}
-            trailing={
-              <ProfileFieldValue
-                value={profileRow?.display_name?.trim() || t('profile.notSet')}
-                muted={!profileRow?.display_name?.trim()}
-              />
-            }
-            showsChevron
-            disabled={!canUseNetworkSession}
-            onPress={() =>
-              setEditor({ field: 'display_name', initialValue: profileRow?.display_name ?? '' })
-            }
-            testID="edit-profile-display-name"
+          <ProfileIdentityRows
+            profileRow={profileRow}
+            contact={contact}
+            canUseNetworkSession={canUseNetworkSession}
+            setEditor={setEditor}
           />
-          <NativeSettingsRow
-            title={t('profile.about')}
-            trailing={
-              <ProfileFieldValue
-                value={profileRow?.bio?.trim() || t('profile.addBio')}
-                muted={!profileRow?.bio?.trim()}
-              />
-            }
-            showsChevron
-            disabled={!canUseNetworkSession}
-            onPress={() => setEditor({ field: 'bio', initialValue: profileRow?.bio ?? '' })}
-            testID="edit-profile-bio"
-          />
-          <NativeSettingsRow
-            title={t('profile.username')}
-            trailing={
-              <ProfileFieldValue value={`@${profileRow?.username ?? t('profile.missingUsername')}`} />
-            }
-            testID="edit-profile-username"
-          />
-          {contact ? (
-            <NativeSettingsRow
-              title={contact.label}
-              trailing={<ProfileFieldValue value={contact.value} />}
-              testID="edit-profile-contact"
-            />
-          ) : null}
           <FieldGroup.SectionFooter>
             <NativeText
               modifiers={[
@@ -426,7 +453,9 @@ export default function EditProfileScreenSurface() {
           </FieldGroup.SectionFooter>
         </FieldGroup.Section>
       </SettingsListScreen>
-      <Stack.Screen.Title style={{ color: colors.label }}>{t('profile.editProfile')}</Stack.Screen.Title>
+      <Stack.Screen.Title style={{ color: colors.label }}>
+        {t('profile.editProfile')}
+      </Stack.Screen.Title>
 
       <AppBottomSheet
         isPresented={Boolean(editor)}
