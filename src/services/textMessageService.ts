@@ -233,6 +233,27 @@ export async function fetchTextMessagesWithPeer({
   return (data || []).map(normalizeMessage);
 }
 
+/**
+ * Newest messages with a peer across `pageCount` pages. Each call walks the
+ * pages with fresh cursors, so a refetch never leaves a gap between pages.
+ */
+export async function fetchRecentTextMessagesWithPeer(
+  peerId: string,
+  pageCount: number,
+  pageSize = 50
+): Promise<TextMessage[]> {
+  const rows: TextMessage[] = [];
+  let beforeCreatedAt: string | undefined;
+  for (let page = 0; page < pageCount; page += 1) {
+    const batch = await fetchTextMessagesWithPeer({ peerId, beforeCreatedAt, limit: pageSize });
+    rows.push(...batch);
+    // The RPC returns newest first; the last row is the next page's cursor.
+    if (batch.length < pageSize) break;
+    beforeCreatedAt = batch[batch.length - 1].created_at;
+  }
+  return rows;
+}
+
 export async function deleteTextMessageConversation(peerId: string): Promise<number> {
   const { data, error } = await supabase.rpc('delete_my_conversation_with_peer', {
     peer_profile_id: peerId,

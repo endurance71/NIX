@@ -203,7 +203,7 @@ async function sealLegacyPlaintextSecrets(db: SQLiteDatabase) {
      FROM upload_jobs
      WHERE upload_url IS NOT NULL OR finalize_token IS NOT NULL`
   );
-  for (const row of rows) {
+  await Promise.all(rows.map(async (row) => {
     try {
       const sealed = await sealSecrets(row.owner_id, row.id, {
         uploadUrl: row.upload_url,
@@ -219,7 +219,7 @@ async function sealLegacyPlaintextSecrets(db: SQLiteDatabase) {
     } catch {
       // Keychain not available yet (e.g. before first unlock); retried on next open.
     }
-  }
+  }));
 }
 
 export async function getUploadQueueDatabase() {
@@ -332,11 +332,13 @@ export async function getDurableUploadJob(
 }
 
 export async function insertDurableUploadJob(job: DurableUploadJob) {
-  const db = await getUploadQueueDatabase();
-  const secretsEncrypted = await sealSecrets(job.ownerId, job.id, {
-    uploadUrl: job.uploadUrl,
-    finalizeToken: job.finalizeToken,
-  });
+  const [db, secretsEncrypted] = await Promise.all([
+    getUploadQueueDatabase(),
+    sealSecrets(job.ownerId, job.id, {
+      uploadUrl: job.uploadUrl,
+      finalizeToken: job.finalizeToken,
+    }),
+  ]);
   await db.withExclusiveTransactionAsync(async (tx) => {
     await tx.runAsync(
       `INSERT INTO upload_jobs (

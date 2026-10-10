@@ -5,6 +5,7 @@ import {
   fetchTextMessagesWithPeer,
   deleteTextMessageConversation,
   fetchRecentTextMessagesForInbox,
+  fetchRecentTextMessagesWithPeer,
 } from './textMessageService';
 
 const {
@@ -328,5 +329,30 @@ describe('textMessageService', () => {
       expect(list[0].peer_id).toBe('peer-A');
       expect(list[1].peer_id).toBe('peer-B');
     });
+  });
+});
+
+describe('fetchRecentTextMessagesWithPeer', () => {
+  const row = (id: number) => ({
+    id: `m-${id}`,
+    sender_id: 'peer',
+    receiver_id: 'me',
+    body: 'x',
+    created_at: new Date(Date.UTC(2026, 9, 10, 12, 0, id)).toISOString(),
+    expires_at: new Date(Date.UTC(2026, 9, 11, 12, 0, id)).toISOString(),
+  });
+
+  it('walks pages newest first with fresh cursors and stops at a short page', async () => {
+    mockSupabaseRpc.mockReset();
+    mockSupabaseRpc
+      .mockResolvedValueOnce({ data: [row(4), row(3)], error: null })
+      .mockResolvedValueOnce({ data: [row(2)], error: null });
+
+    const rows = await fetchRecentTextMessagesWithPeer('peer', 3, 2);
+
+    expect(rows.map((message) => message.id)).toEqual(['m-4', 'm-3', 'm-2']);
+    expect(mockSupabaseRpc).toHaveBeenCalledTimes(2);
+    expect(mockSupabaseRpc.mock.calls[0][1]).toMatchObject({ before_created_at: null, msg_limit: 2 });
+    expect(mockSupabaseRpc.mock.calls[1][1]).toMatchObject({ before_created_at: row(3).created_at });
   });
 });

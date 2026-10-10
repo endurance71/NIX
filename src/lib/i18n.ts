@@ -303,6 +303,7 @@ export const resources = {
         checklistDescription: 'Dodaj znajomego i wyślij pierwszy NiX',
       },
       chat: {
+        loadOlderFailed: 'Nie udało się wczytać starszych wiadomości.',
         title: 'Czat',
         typeMessage: 'Napisz wiadomość…',
         send: 'Wyślij',
@@ -1118,6 +1119,7 @@ export const resources = {
         checklistDescription: 'Add a friend and send your first NiX',
       },
       chat: {
+        loadOlderFailed: 'Could not load older messages.',
         title: 'Chat',
         typeMessage: 'Type a message…',
         send: 'Send',

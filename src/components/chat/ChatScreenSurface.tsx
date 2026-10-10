@@ -1190,13 +1190,15 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     }
   );
 
+  // Follow the newest item only; prepending older history keeps the position.
+  const lastTimelineItemId = timeline.at(-1)?.id ?? null;
   useEffect(() => {
-    if (timeline.length === 0) return;
+    if (!lastTimelineItemId) return;
     const id = requestAnimationFrame(() => {
       listRef.current?.scrollToEnd({ animated: false });
     });
     return () => cancelAnimationFrame(id);
-  }, [timeline.length]);
+  }, [lastTimelineItemId]);
 
   const onListScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
@@ -1365,6 +1367,9 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
             onScroll={onListScroll}
             scrollEventThrottle={16}
             onScrollBeginDrag={requestClosePicker}
+            onStartReached={vm.onReachedOldestMessage}
+            onStartReachedThreshold={0.25}
+            ListHeaderComponent={<OlderMessagesLoader visible={vm.loadingOlderMessages} />}
             renderItem={renderTimelineItem}
           />
         )}
@@ -1398,7 +1403,21 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
   );
 }
 
+function OlderMessagesLoader({ visible }: { visible: boolean }) {
+  const { colors } = useAppTheme();
+  if (!visible) return null;
+  return (
+    <View style={styles.olderLoader}>
+      <ActivityIndicator color={colors.secondaryLabel} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  olderLoader: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
   root: {
     flex: 1,
   },
