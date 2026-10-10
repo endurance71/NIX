@@ -414,6 +414,10 @@ export const resources = {
         requestSuccess: 'Eksport został zlecony.',
         requestFailure: 'Nie udało się zlecić eksportu.',
         downloadFailure: 'Nie udało się pobrać eksportu. Zaloguj się ponownie i spróbuj jeszcze raz.',
+        reauthTitle: 'Potwierdź tożsamość',
+        reauthMessage: 'Aby pobrać archiwum danych, wpisz hasło do konta.',
+        reauthAction: 'Potwierdź',
+        reauthFailure: 'Nie udało się potwierdzić tożsamości.',
         history: 'Historia',
         empty: 'Nie utworzono jeszcze eksportu.',
         status: {
@@ -1221,6 +1225,10 @@ export const resources = {
         requestSuccess: 'Your export was requested.',
         requestFailure: 'Could not request the export.',
         downloadFailure: 'Could not download the export. Sign in again and retry.',
+        reauthTitle: 'Confirm it’s you',
+        reauthMessage: 'Enter your account password to download your data archive.',
+        reauthAction: 'Confirm',
+        reauthFailure: 'Could not confirm your identity.',
         history: 'History',
         empty: 'No exports have been created yet.',
         status: {
