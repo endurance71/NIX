@@ -53,6 +53,12 @@ wstecznie, a istniejące zadania pozostają w kolejce.
 - Finalizator przyjmuje jednorazową, deterministyczną capability ograniczoną
   do batcha; nie przechowuje sesji użytkownika w zadaniu natywnym.
 - Finalizator sprawdza istnienie obiektu, dokładny rozmiar i MIME.
+- Podpisany URL uploadu i token finalizacji są w `nix-upload-queue.db` tylko
+  zaszyfrowane (`secrets_encrypted`, AES-GCM, klucz per konto w Keychain, AAD =
+  właściciel + zadanie; schema 5 szyfruje stare wiersze przy otwarciu). Na czas
+  transferu natywny `URLSessionTask.taskDescription` i plik finalizatora w `tmp/`
+  trzymają te wartości w sandboxie aplikacji; znikają po zakończeniu zadania.
+  Wylogowanie usuwa zadania, anuluje transfery i kasuje klucz.
 - Odbiorca może pobrać współdzielony asset wyłącznie przy aktywnym NiX-ie.
 - Cleanup, retry cleanupu i blokowanie użytkownika usuwają obiekt dopiero po
   zniknięciu ostatniej aktywnej referencji.

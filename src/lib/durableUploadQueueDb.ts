@@ -5,9 +5,10 @@ import type {
   DurableUploadRecipient,
   UploadJobState,
 } from '../types/uploadQueue';
+import { uploadQueueSecretsCodec, type UploadQueueSecrets } from './uploadQueueSecrets';
 
 const DATABASE_NAME = 'nix-upload-queue.db';
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 5;
 
 type UploadJobRow = {
   id: string;
@@ -34,6 +35,7 @@ type UploadJobRow = {
   finalize_url: string | null;
   finalize_headers_json: string | null;
   finalize_token: string | null;
+  secrets_encrypted: string | null;
   moderation_job_id: string | null;
   progress: number;
   bytes_sent: number;
@@ -152,6 +154,10 @@ async function initializeDatabase(db: SQLiteDatabase) {
   if (!columns.some((column) => column.name === 'moderation_job_id')) {
     await db.execAsync('ALTER TABLE upload_jobs ADD COLUMN moderation_job_id TEXT;');
   }
+  if (!columns.some((column) => column.name === 'secrets_encrypted')) {
+    await db.execAsync('ALTER TABLE upload_jobs ADD COLUMN secrets_encrypted TEXT;');
+  }
+  await sealLegacyPlaintextSecrets(db);
   await db.runAsync(
     `UPDATE upload_jobs
      SET idempotency_key = id
@@ -165,6 +171,57 @@ async function initializeDatabase(db: SQLiteDatabase) {
   );
 }
 
+type SecretPatch = Partial<UploadQueueSecrets>;
+
+function hasSecrets(secrets: UploadQueueSecrets) {
+  return secrets.uploadUrl !== null || secrets.finalizeToken !== null;
+}
+
+async function sealSecrets(ownerId: string, jobId: string, secrets: UploadQueueSecrets) {
+  return hasSecrets(secrets) ? uploadQueueSecretsCodec.seal(ownerId, jobId, secrets) : null;
+}
+
+async function openSecrets(
+  row: Pick<UploadJobRow, 'id' | 'owner_id' | 'upload_url' | 'finalize_token' | 'secrets_encrypted'>
+): Promise<UploadQueueSecrets> {
+  if (!row.secrets_encrypted) {
+    return { uploadUrl: row.upload_url, finalizeToken: row.finalize_token };
+  }
+  try {
+    return await uploadQueueSecretsCodec.open(row.owner_id, row.id, row.secrets_encrypted);
+  } catch {
+    // A missing key (logout) or tampered row leaves no usable capability; the
+    // job requests a fresh upload target instead.
+    return { uploadUrl: null, finalizeToken: null };
+  }
+}
+
+// Rows written before schema 5 kept upload capabilities in plaintext columns.
+async function sealLegacyPlaintextSecrets(db: SQLiteDatabase) {
+  const rows = await db.getAllAsync<Pick<UploadJobRow, 'id' | 'owner_id' | 'upload_url' | 'finalize_token'>>(
+    `SELECT id, owner_id, upload_url, finalize_token
+     FROM upload_jobs
+     WHERE upload_url IS NOT NULL OR finalize_token IS NOT NULL`
+  );
+  for (const row of rows) {
+    try {
+      const sealed = await sealSecrets(row.owner_id, row.id, {
+        uploadUrl: row.upload_url,
+        finalizeToken: row.finalize_token,
+      });
+      await db.runAsync(
+        `UPDATE upload_jobs
+         SET secrets_encrypted = ?, upload_url = NULL, finalize_token = NULL
+         WHERE id = ?`,
+        sealed,
+        row.id
+      );
+    } catch {
+      // Keychain not available yet (e.g. before first unlock); retried on next open.
+    }
+  }
+}
+
 export async function getUploadQueueDatabase() {
   if (!databasePromise) {
     databasePromise = openDatabaseAsync(DATABASE_NAME).then(async (db) => {
@@ -175,7 +232,8 @@ export async function getUploadQueueDatabase() {
   return databasePromise;
 }
 
-function toJob(row: UploadJobRow, recipients: DurableUploadRecipient[]): DurableUploadJob {
+async function toJob(row: UploadJobRow, recipients: DurableUploadRecipient[]): Promise<DurableUploadJob> {
+  const secrets = await openSecrets(row);
   return {
     id: row.id,
     idempotencyKey: row.idempotency_key || row.id,
@@ -195,12 +253,12 @@ function toJob(row: UploadJobRow, recipients: DurableUploadRecipient[]): Durable
     batchId: row.batch_id,
     assetId: row.asset_id,
     storagePath: row.storage_path,
-    uploadUrl: row.upload_url,
+    uploadUrl: secrets.uploadUrl,
     uploadHeaders: parseHeaders(row.upload_headers_json),
     uploadUrlExpiresAt: row.upload_url_expires_at,
     finalizeUrl: row.finalize_url,
     finalizeHeaders: parseHeaders(row.finalize_headers_json),
-    finalizeToken: row.finalize_token,
+    finalizeToken: secrets.finalizeToken,
     moderationJobId: row.moderation_job_id,
     progress: row.progress,
     bytesSent: row.bytes_sent,
@@ -247,12 +305,17 @@ export async function listDurableUploadJobs(ownerId: string): Promise<DurableUpl
     });
     recipientsByJob.set(row.job_id, recipients);
   }
-  return rows.map((row) => toJob(row, recipientsByJob.get(row.id) ?? []));
+  return Promise.all(rows.map((row) => toJob(row, recipientsByJob.get(row.id) ?? [])));
 }
 
-export async function getDurableUploadJob(jobId: string): Promise<DurableUploadJob | null> {
+export async function getDurableUploadJob(
+  jobId: string,
+  ownerId?: string
+): Promise<DurableUploadJob | null> {
   const db = await getUploadQueueDatabase();
-  const row = await db.getFirstAsync<UploadJobRow>('SELECT * FROM upload_jobs WHERE id = ?', jobId);
+  const row = ownerId
+    ? await db.getFirstAsync<UploadJobRow>('SELECT * FROM upload_jobs WHERE id = ? AND owner_id = ?', jobId, ownerId)
+    : await db.getFirstAsync<UploadJobRow>('SELECT * FROM upload_jobs WHERE id = ?', jobId);
   if (!row) return null;
   const recipientRows = await db.getAllAsync<UploadRecipientRow>(
     'SELECT * FROM upload_recipients WHERE job_id = ? ORDER BY sequence_index, receiver_id',
@@ -270,6 +333,10 @@ export async function getDurableUploadJob(jobId: string): Promise<DurableUploadJ
 
 export async function insertDurableUploadJob(job: DurableUploadJob) {
   const db = await getUploadQueueDatabase();
+  const secretsEncrypted = await sealSecrets(job.ownerId, job.id, {
+    uploadUrl: job.uploadUrl,
+    finalizeToken: job.finalizeToken,
+  });
   await db.withExclusiveTransactionAsync(async (tx) => {
     await tx.runAsync(
       `INSERT INTO upload_jobs (
@@ -277,12 +344,12 @@ export async function insertDurableUploadJob(job: DurableUploadJob) {
         file_extension, original_size_bytes, final_size_bytes, playback_duration_ms,
         source_width, source_height, thumbnail_b64, batch_id, asset_id, storage_path,
         upload_url, upload_headers_json, upload_url_expires_at, finalize_url,
-        finalize_headers_json, finalize_token, moderation_job_id, progress, bytes_sent, bytes_total,
-        retry_count, auth_refresh_attempted, next_attempt_at, error_code, error_message, created_at, updated_at,
-        expires_at, started_at, finished_at
+        finalize_headers_json, finalize_token, secrets_encrypted, moderation_job_id, progress, bytes_sent,
+        bytes_total, retry_count, auth_refresh_attempted, next_attempt_at, error_code, error_message, created_at,
+        updated_at, expires_at, started_at, finished_at
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )`,
       job.id,
       job.idempotencyKey,
@@ -302,12 +369,13 @@ export async function insertDurableUploadJob(job: DurableUploadJob) {
       job.batchId,
       job.assetId,
       job.storagePath,
-      job.uploadUrl,
+      null,
       job.uploadHeaders ? JSON.stringify(job.uploadHeaders) : null,
       job.uploadUrlExpiresAt,
       job.finalizeUrl,
       job.finalizeHeaders ? JSON.stringify(job.finalizeHeaders) : null,
-      job.finalizeToken,
+      null,
+      secretsEncrypted,
       job.moderationJobId,
       job.progress,
       job.bytesSent,
@@ -363,12 +431,13 @@ const fieldToColumn: Record<keyof DurableUploadJob, string | null> = {
   batchId: 'batch_id',
   assetId: 'asset_id',
   storagePath: 'storage_path',
-  uploadUrl: 'upload_url',
+  // Secrets are written through secrets_encrypted, never their plaintext columns.
+  uploadUrl: null,
   uploadHeaders: 'upload_headers_json',
   uploadUrlExpiresAt: 'upload_url_expires_at',
   finalizeUrl: 'finalize_url',
   finalizeHeaders: 'finalize_headers_json',
-  finalizeToken: 'finalize_token',
+  finalizeToken: null,
   moderationJobId: 'moderation_job_id',
   progress: 'progress',
   bytesSent: 'bytes_sent',
@@ -397,6 +466,20 @@ export async function patchDurableUploadJob(
   ][];
   const assignments: string[] = [];
   const values: SQLiteBindValue[] = [];
+  const db = await getUploadQueueDatabase();
+  const secretPatch: SecretPatch = {};
+  if ('uploadUrl' in patch) secretPatch.uploadUrl = patch.uploadUrl ?? null;
+  if ('finalizeToken' in patch) secretPatch.finalizeToken = patch.finalizeToken ?? null;
+  if (Object.keys(secretPatch).length > 0) {
+    const current = await db.getFirstAsync<
+      Pick<UploadJobRow, 'id' | 'owner_id' | 'upload_url' | 'finalize_token' | 'secrets_encrypted'>
+    >('SELECT id, owner_id, upload_url, finalize_token, secrets_encrypted FROM upload_jobs WHERE id = ?', jobId);
+    if (current) {
+      const merged = { ...(await openSecrets(current)), ...secretPatch };
+      assignments.push('secrets_encrypted = ?', 'upload_url = NULL', 'finalize_token = NULL');
+      values.push(await sealSecrets(current.owner_id, current.id, merged));
+    }
+  }
   for (const [field, value] of entries) {
     const column = fieldToColumn[field];
     if (!column) continue;
@@ -416,7 +499,6 @@ export async function patchDurableUploadJob(
     ? ` AND state NOT IN (${excluded.map(() => '?').join(', ')})`
     : '';
   values.push(...excluded);
-  const db = await getUploadQueueDatabase();
   return db.runAsync(
     `UPDATE upload_jobs SET ${assignments.join(', ')} WHERE id = ?${stateGuard}`,
     ...values
@@ -451,5 +533,6 @@ export async function purgeOwnerDurableUploadJobs(ownerId: string) {
     ownerId
   );
   await db.runAsync('DELETE FROM upload_jobs WHERE owner_id = ?', ownerId);
+  await uploadQueueSecretsCodec.clear(ownerId).catch(() => undefined);
   return rows.map((row) => row.id);
 }
