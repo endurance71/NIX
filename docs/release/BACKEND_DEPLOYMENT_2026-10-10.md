@@ -10,7 +10,7 @@ Status: **DEPLOYED** (Edge Functions, migrations, worker). Post-deploy data chec
 | Supabase project | `xjdjlxfulpqpundkcdul` |
 | Migrations applied | `20261010120000_pre_review_hardening.sql`, `20261010121000_reset_october_f0_external_floor.sql` (history now 50 entries) |
 | Edge Functions deployed | `cleanup-text-messages`, `data-export-download`, `process-data-exports`, `delete-account`, `block-user` |
-| Worker image | `nix-moderation-worker:5953ec5-r2`, `sha256:1aa836e427e610a4c808d593fdd761c122a6c9c26e2c1aee20e0a8ca8e00ed58` |
+| Worker image | `nix-moderation-worker:28ad67d`, `sha256:502c8b8be389a9e0f3039c1922756402e6632e6105f189a55155e8be0097357f` (env `moderation-worker.docker.env`, quote-free copy) |
 | Previous worker | container `nix-moderation-worker-before-20261010` (image `review-20261008`), env backup `moderation-worker.env.before-20261010` on the host |
 | Encrypted backup SHA256 | `b20373dda16484d42acfdbb96c804ee8f016f57f43b57ce764f6163eaf0ea42f` (schema, data, roles, all 17 Edge bundles) |
 | Deployed at | 2026-10-10 14:34 UTC (worker r2 ~14:40 UTC) |
@@ -29,6 +29,15 @@ Receipt, deploy script and encrypted backup are outside Git in `~/.nix-ops/pre-r
 ## Incident during rollout
 
 The first image (`5953ec5`, `sha256:271d0d84…`) restart-looped with `Permission denied` on `/app/workers/moderation/main.ts`: the build context was copied under `umask 077`, so uid 10001 could not read the sources. Moderation was paused from step 3 until a rebuild with `chmod -R a+rX` (`5953ec5-r2`) verified `READ_OK` as uid 10001 and started with 0 restarts. Queued jobs stayed pending and nothing was delivered without approval. The deploy script now normalizes context permissions before upload.
+
+## Incident 2 — no delivery after the rollout
+
+From about 17:03 UTC every claimed moderation job crashed the worker, so nothing was approved or delivered:
+
+- The container was created with `docker run --env-file`. Unlike `docker compose`, which started the previous worker, it keeps the quotes around values, so the Azure endpoint and key arrived as `'https://…'`. Every Azure call failed as `provider_network`.
+- That fast failure settled while the budget confirmation was still in flight. The rejection had no handler yet, so Deno exited, and the job was re-claimed only after its 15-minute lease.
+
+Fix: commit `28ad67d` observes the provider promise immediately, with a regression test. The image was built from that commit only and started with a quote-free env copy after an Azure reachability check (HTTP 401 without key). The worker then ran with 0 restarts. Jobs created within the last 24 hours are processed again; older ones end through the existing quarantine.
 
 ## Still to verify
 
