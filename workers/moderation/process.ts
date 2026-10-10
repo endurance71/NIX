@@ -51,6 +51,9 @@ async function withBudgetedCall(
   try {
     signal.throwIfAborted();
     const analysisPromise = call();
+    // A fast provider failure can settle while confirm() is still in flight;
+    // observe it now (the await below re-throws it) so Deno does not exit.
+    analysisPromise.catch(() => undefined);
     sent = true;
     // Once the attempt has started, uncertain failure must not release budget.
     await ledger.confirm(reserved.reservationId);
