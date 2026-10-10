@@ -95,7 +95,8 @@ export async function isUsernameTaken(username: string) {
   return true;
 }
 
-export async function saveUsernameForCurrentUser(username: string) {
+/** Sets the one-time username together with the display name in a single write. */
+export async function saveUsernameForCurrentUser(username: string, displayName?: string | null) {
   const user = await getCurrentUser();
   if (!user) {
     throw new Error('Brak sesji. Zaloguj się ponownie.');
@@ -109,8 +110,13 @@ export async function saveUsernameForCurrentUser(username: string) {
   const { error } = await supabase.from('profiles').upsert({
     id: user.id,
     username,
+    ...(displayName !== undefined ? { display_name: displayName } : {}),
   });
 
+  // The unique index decides races the availability check cannot.
+  if (error?.code === '23505') {
+    throw Object.assign(new Error('USERNAME_TAKEN'), { code: 'USERNAME_TAKEN' });
+  }
   if (error) throw error;
 }
 

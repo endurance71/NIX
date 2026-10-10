@@ -92,6 +92,8 @@ export const resources = {
         switchFailed: 'Nie udało się przełączyć kamery. Spróbuj ponownie.',
       },
       auth: {
+        rateLimited: 'Zbyt wiele prób. Odczekaj chwilę i spróbuj ponownie.',
+        requestFailed: 'Nie udało się wykonać operacji. Sprawdź połączenie i spróbuj ponownie.',
         appleLegalConsent: 'Kontynuując z Apple, akceptujesz Regulamin i Politykę prywatności NiX.',
         linkIgnoredSignedIn: 'Jesteś już zalogowany. Wyloguj się, aby użyć linku z wiadomości e-mail.',
         linkInvalid: 'Link wygasł lub został już użyty. Wpisz kod z wiadomości e-mail.',
@@ -170,7 +172,6 @@ export const resources = {
           'Za Twoją zgodą NiX zapisze ograniczone zdarzenia użycia (identyfikator instalacji, nazwa zdarzenia, wersja, język). Zdarzenia nie zawierają treści wiadomości ani nazw, ale identyfikator instalacji może być powiązany z kontem przez tabele instalacji/push. Zgodę możesz później zmienić w Profilu.',
         analyticsConsentEnabled: 'Analityka produktu: włączona',
         analyticsConsentDisabled: 'Analityka produktu: wyłączona',
-        onboardingFailure: 'Nie udało się ukończyć konfiguracji: {{message}}',
         resetPasswordHeader: 'Nowe hasło',
         resetPasswordDescription: 'Ustaw nowe hasło do konta.',
         resetPasswordField: 'Nowe hasło',
@@ -907,6 +908,8 @@ export const resources = {
         switchFailed: 'Could not switch cameras. Try again.',
       },
       auth: {
+        rateLimited: 'Too many attempts. Wait a moment and try again.',
+        requestFailed: 'Something went wrong. Check your connection and try again.',
         appleLegalConsent: 'By continuing with Apple, you accept the NiX Terms of Use and Privacy Policy.',
         linkIgnoredSignedIn: 'You are already signed in. Sign out to use the link from the email.',
         linkInvalid: 'This link has expired or was already used. Enter the code from the email.',
@@ -985,7 +988,6 @@ export const resources = {
           'With your consent, NiX stores limited usage events (installation ID, event name, version, language). Events do not contain message content or names, but the installation ID can be linked to your account via installation/push tables. You can change this later in Profile.',
         analyticsConsentEnabled: 'Product analytics: on',
         analyticsConsentDisabled: 'Product analytics: off',
-        onboardingFailure: 'Could not complete setup: {{message}}',
         resetPasswordHeader: 'New password',
         resetPasswordDescription: 'Set a new password for your account.',
         resetPasswordField: 'New password',

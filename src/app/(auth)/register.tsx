@@ -20,6 +20,7 @@ import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
 import { isAtLeastMinimumAge, isValidBirthDate } from '../../lib/ageGate';
 import { runWithFinally } from '../../lib/runWithFinally';
 import { getAuthLegalAcceptanceState } from '../../theme/authLayout';
+import { getAuthFormErrorKey } from '../../lib/authFormError';
 
 function isEmailValid(email: string) {
   return /\S+@\S+\.\S+/.test(email);
@@ -89,18 +90,12 @@ export default function RegisterScreen() {
           const { error: signUpError } = await signUp(cleanedEmail, passwordValue, acceptedLegal);
 
           if (signUpError) {
-            if (signUpError.message.includes('User already registered')) {
-              setError(t('auth.accountExists'));
-            } else if (signUpError.message.includes('Password should be at least')) {
-              setError(t('auth.passwordMin'));
-            } else {
-              setError(signUpError.message);
-            }
+            setError(t(getAuthFormErrorKey(signUpError)));
           } else {
             router.replace({ pathname: '/(auth)/check-email', params: { email: cleanedEmail, mode: 'signup' } });
           }
         } catch (cause) {
-          setError(cause instanceof Error ? cause.message : String(cause));
+          setError(t(getAuthFormErrorKey(cause instanceof Error ? cause : null)));
         }
       },
       () => setLoading(false)
