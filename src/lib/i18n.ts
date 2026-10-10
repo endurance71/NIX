@@ -92,6 +92,8 @@ export const resources = {
         switchFailed: 'Nie udało się przełączyć kamery. Spróbuj ponownie.',
       },
       auth: {
+        linkIgnoredSignedIn: 'Jesteś już zalogowany. Wyloguj się, aby użyć linku z wiadomości e-mail.',
+        linkInvalid: 'Link wygasł lub został już użyty. Wpisz kod z wiadomości e-mail.',
         registerTitle: 'Rejestracja',
         checkEmailTitle: 'Sprawdź email',
         forgotPasswordTitle: 'Reset hasła',
@@ -904,6 +906,8 @@ export const resources = {
         switchFailed: 'Could not switch cameras. Try again.',
       },
       auth: {
+        linkIgnoredSignedIn: 'You are already signed in. Sign out to use the link from the email.',
+        linkInvalid: 'This link has expired or was already used. Enter the code from the email.',
         registerTitle: 'Register',
         checkEmailTitle: 'Check email',
         forgotPasswordTitle: 'Reset password',

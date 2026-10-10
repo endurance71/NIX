@@ -4,11 +4,11 @@ Host this directory at `https://nix.damianmotylinski.pl`.
 
 - Create the `nix` DNS record and point it at the existing hosting account.
 - The live subdomain document root is `/domains/nix.damianmotylinski.pl/public_html` in the existing FTP account. It also contains an unrelated homepage; do not overwrite that `index.html`.
-- Upload this directory's `index.html` as **`nix-invite.html`**. Upload `.htaccess`, `.well-known/`, `legal.css`, `privacy/`, `terms/` and `support/` at their existing relative paths. `/invite/*` rewrites to the dedicated NiX landing file.
+- Upload this directory's `index.html` as **`nix-invite.html`** and `auth-confirm.html` as **`nix-auth-confirm.html`**. Upload `.htaccess`, `.well-known/`, `legal.css`, `privacy/`, `terms/` and `support/` at their existing relative paths. `/invite/*` rewrites to the dedicated NiX landing file.
 - Keep `.htaccess`; it supplies the AASA content type, security headers and `/invite/*` rewrite.
 - Confirm `/.well-known/apple-app-site-association` returns `200 application/json`
   directly, without a redirect.
-- Disable access logging for `/invite/*` in the hosting panel. `.htaccess`
+- Disable access logging for `/invite/*` and `/auth/confirm` in the hosting panel. `.htaccess`
   cannot guarantee redaction of the token-bearing request path.
 - The App Store URL is `https://apps.apple.com/app/id6791332379`. Until the
   public App Store release, internal testers install NiX from TestFlight.

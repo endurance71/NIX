@@ -17,15 +17,22 @@ Konfiguracja Apple Developer + Supabase: [apple-sign-in-setup.md](apple-sign-in-
 
 **Szablony e-mail auth** (rejestracja, reset, reauth, powiadomienia): [supabase-email-templates.md](supabase-email-templates.md).
 
-## Deep link `nix://`
+## Link z wiadomości e-mail
 
-Komponent [`src/lib/deepLink.ts`](../src/lib/deepLink.ts):
+Przycisk w mailu potwierdzenia i resetu prowadzi do
+`https://nix.damianmotylinski.pl/auth/confirm?token_hash=…&type=signup|recovery`
+(universal link; AASA obejmuje `/auth/confirm*`). Bez zainstalowanej aplikacji
+strona `web/invite/auth-confirm.html` prosi o wpisanie 6-cyfrowego kodu.
 
-1. Parsuje `access_token` i `refresh_token` z **hash** lub **query** URL.
-2. Wywołuje `supabase.auth.setSession({ access_token, refresh_token })`.
-3. Jeśli `type === recovery`, nawigacja do `/(auth)/reset-password`.
+Komponent [`src/lib/deepLink.ts`](../src/lib/deepLink.ts) z parserem
+[`src/lib/authDeepLink.ts`](../src/lib/authDeepLink.ts):
 
-Schemat aplikacji: `nix` (patrz `app.json`).
+1. Przyjmuje wyłącznie `/auth/confirm` (https lub `nix://auth/confirm`) z `token_hash` i typem `signup` albo `recovery`.
+2. **Nigdy** nie przyjmuje `access_token`/`refresh_token` z URL i nie wywołuje `setSession` — spreparowany link nie może podmienić sesji.
+3. Gdy użytkownik jest już zalogowany, link jest ignorowany (komunikat „wyloguj się”).
+4. Inaczej wywołuje `supabase.auth.verifyOtp({ token_hash, type })`; `recovery` prowadzi do `/(auth)/reset-password`.
+
+`src/app/+native-intent.tsx` zatrzymuje router na `/` dla tych linków. Kod OTP w `check-email` działa niezależnie od linku.
 
 ## Profil po rejestracji
 

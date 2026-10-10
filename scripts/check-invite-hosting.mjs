@@ -5,8 +5,9 @@ const expectedAppId = '9Q39P5MUT9.com.damianmotylinski.nixapp';
 const baseUrl = process.argv[2]?.replace(/\/+$/, '');
 const failures = [];
 
-const [html, association, htaccess, legalSource] = await Promise.all([
+const [html, authConfirmHtml, association, htaccess, legalSource] = await Promise.all([
   readFile('web/invite/index.html', 'utf8'),
+  readFile('web/invite/auth-confirm.html', 'utf8'),
   readFile('web/invite/.well-known/apple-app-site-association', 'utf8'),
   readFile('web/invite/.htaccess', 'utf8'),
   readFile('src/lib/legalDocuments.ts', 'utf8'),
@@ -51,6 +52,14 @@ if (JSON.stringify(aasa?.applinks?.details ?? []).includes('/invite/*') === fals
 }
 if (!/ForceType\s+application\/json/.test(htaccess)) failures.push('AASA JSON content type rule is missing');
 if (!/RewriteRule\s+\^invite\//.test(htaccess)) failures.push('/invite/* rewrite is missing');
+if (!/RewriteRule\s+\^auth\/confirm/.test(htaccess)) failures.push('/auth/confirm rewrite is missing');
+if (!JSON.stringify(aasa?.applinks?.details ?? []).includes('/auth/confirm*')) {
+  failures.push('AASA must open /auth/confirm links in the app');
+}
+if (!authConfirmHtml.includes('noindex,nofollow')) failures.push('auth confirm page must stay out of search indexes');
+if (/location\.(search|href)|URLSearchParams/.test(authConfirmHtml)) {
+  failures.push('auth confirm page must not read the token from its URL');
+}
 if (!/Referrer-Policy\s+"no-referrer"/.test(htaccess)) failures.push('Referrer-Policy header is missing');
 for (const [path, marker] of publicPages) {
   const content = await readFile(`web/invite/${path}index.html`, 'utf8');
