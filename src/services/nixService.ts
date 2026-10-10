@@ -88,35 +88,6 @@ function dbErrorMessage(error: unknown) {
     : '';
 }
 
-function isMissingStatusColumnError(error: unknown) {
-  const message = dbErrorMessage(error);
-  return message.includes('column nixes.status does not exist') || message.includes("Could not find the 'status' column");
-}
-
-function isMissingViewDurationColumnError(error: unknown) {
-  const message = dbErrorMessage(error);
-  return (
-    message.includes('column nixes.view_duration_sec does not exist') ||
-    message.includes("Could not find the 'view_duration_sec' column")
-  );
-}
-
-function isMissingPlaybackDurationColumnError(error: unknown) {
-  const message = dbErrorMessage(error);
-  return (
-    message.includes('column nixes.playback_duration_ms does not exist') ||
-    message.includes("Could not find the 'playback_duration_ms' column")
-  );
-}
-
-function isMissingThumbnailColumnError(error: unknown) {
-  const message = dbErrorMessage(error);
-  return (
-    message.includes('column nixes.thumbnail_b64 does not exist') ||
-    message.includes("Could not find the 'thumbnail_b64' column")
-  );
-}
-
 function isMissingDeleteConversationRpcError(error: unknown) {
   const message = dbErrorMessage(error).toLowerCase();
   return (
@@ -170,27 +141,6 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
       view_duration_sec
     `;
 
-  const inboxSelectNoPlayback = `
-      id,
-      sender_id,
-      media_path,
-      media_type,
-      created_at,
-      is_viewed,
-      status,
-      view_duration_sec
-    `;
-
-  const inboxSelectNoViewDuration = `
-      id,
-      sender_id,
-      media_path,
-      media_type,
-      created_at,
-      is_viewed,
-      status
-    `;
-
   let inboxQuery = supabase
     .from('nixes')
     .select(inboxSelectList)
@@ -198,76 +148,8 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
   if (options.beforeCreatedAt) {
     inboxQuery = inboxQuery.lt('created_at', options.beforeCreatedAt);
   }
-  let { data, error } = await inboxQuery.order('created_at', { ascending: false }).limit(limit);
-
-  if (error && isMissingPlaybackDurationColumnError(error)) {
-    let retryQuery = supabase
-      .from('nixes')
-      .select(inboxSelectNoPlayback)
-      .eq('receiver_id', user.id);
-    if (options.beforeCreatedAt) {
-      retryQuery = retryQuery.lt('created_at', options.beforeCreatedAt);
-    }
-    const retry = await retryQuery.order('created_at', { ascending: false }).limit(limit);
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
-
-  if (error && isMissingViewDurationColumnError(error)) {
-    let retryQuery = supabase
-      .from('nixes')
-      .select(inboxSelectNoViewDuration)
-      .eq('receiver_id', user.id);
-    if (options.beforeCreatedAt) {
-      retryQuery = retryQuery.lt('created_at', options.beforeCreatedAt);
-    }
-    const retry = await retryQuery.order('created_at', { ascending: false }).limit(limit);
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
-
-  /** Stałe pole widoku — część schematów DB bez kolumny `view_duration_sec`. */
-  let inboxRows: any[] | null = null;
-  if (!error && Array.isArray(data)) {
-    inboxRows = data.map((nix: Record<string, unknown>) => ({
-      ...nix,
-      media_type: typeof nix.media_type === 'string' ? nix.media_type : 'image',
-      playback_duration_ms:
-        typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
-      thumbnail_b64: null,
-      view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
-    }));
-  }
-  if (error && isMissingStatusColumnError(error)) {
-    let fallbackQuery = supabase
-      .from('nixes')
-      .select(
-        `
-        id,
-        sender_id,
-        media_path,
-        created_at,
-        is_viewed
-      `
-      )
-      .eq('receiver_id', user.id);
-    if (options.beforeCreatedAt) {
-      fallbackQuery = fallbackQuery.lt('created_at', options.beforeCreatedAt);
-    }
-    const { data: fallbackData, error: fallbackError } = await fallbackQuery
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    if (fallbackError) throw mapDatabaseError(fallbackError);
-    inboxRows = (fallbackData ?? []).map((nix: any) => ({
-      ...nix,
-      media_type: 'image',
-      playback_duration_ms: null,
-      status: nix.is_viewed ? 'viewed' : 'sent',
-      view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
-    }));
-  } else if (error) {
-    throw mapDatabaseError(error);
-  }
+  const { data: inboxRows, error } = await inboxQuery.order('created_at', { ascending: false }).limit(limit);
+  if (error) throw mapDatabaseError(error);
 
   const senderIds = (inboxRows ?? []).map((nix) => nix.sender_id as string);
   const senderMap =
@@ -312,7 +194,7 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
     created_at, is_viewed, status, view_duration_sec
   `;
 
-  let { data, error } = await supabase
+  const { data, error } = await supabase
     .from('nixes')
     .select(selectCols)
     .eq('receiver_id', user.id)
@@ -320,54 +202,6 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
     .eq('is_viewed', false)
     .not('status', 'in', '("cleaned","cleanup_failed")')
     .order('created_at', { ascending: true });
-
-  if (error && isMissingThumbnailColumnError(error)) {
-    const retry = await supabase
-      .from('nixes')
-      .select('id, sender_id, media_path, media_type, playback_duration_ms, created_at, is_viewed, status, view_duration_sec')
-      .eq('receiver_id', user.id)
-      .eq('sender_id', senderId)
-      .eq('is_viewed', false)
-      .order('created_at', { ascending: true });
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
-
-  if (error && isMissingPlaybackDurationColumnError(error)) {
-    const retry = await supabase
-      .from('nixes')
-      .select('id, sender_id, media_path, media_type, created_at, is_viewed, status, view_duration_sec')
-      .eq('receiver_id', user.id)
-      .eq('sender_id', senderId)
-      .eq('is_viewed', false)
-      .order('created_at', { ascending: true });
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
-
-  if (error && isMissingViewDurationColumnError(error)) {
-    const retry = await supabase
-      .from('nixes')
-      .select('id, sender_id, media_path, media_type, created_at, is_viewed, status')
-      .eq('receiver_id', user.id)
-      .eq('sender_id', senderId)
-      .eq('is_viewed', false)
-      .order('created_at', { ascending: true });
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
-
-  if (error && isMissingStatusColumnError(error)) {
-    const retry = await supabase
-      .from('nixes')
-      .select('id, sender_id, media_path, created_at, is_viewed')
-      .eq('receiver_id', user.id)
-      .eq('sender_id', senderId)
-      .eq('is_viewed', false)
-      .order('created_at', { ascending: true });
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
 
   if (error) throw mapDatabaseError(error);
 
@@ -411,35 +245,8 @@ export async function fetchSentNixes(options: NixPageOptions = {}) {
   }
   const { data, error } = await sentQuery.order('created_at', { ascending: false }).limit(limit);
 
-  let sentRows = data;
-  if (error && isMissingStatusColumnError(error)) {
-    let fallbackQuery = supabase
-      .from('nixes')
-      .select(
-        `
-        id,
-        receiver_id,
-        created_at,
-        is_viewed,
-        viewed_at
-      `
-      )
-      .eq('sender_id', user.id);
-    if (options.beforeCreatedAt) {
-      fallbackQuery = fallbackQuery.lt('created_at', options.beforeCreatedAt);
-    }
-    const { data: fallbackData, error: fallbackError } = await fallbackQuery
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    if (fallbackError) throw mapDatabaseError(fallbackError);
-    sentRows = (fallbackData ?? []).map((nix: any) => ({
-      ...nix,
-      status: nix.is_viewed ? 'viewed' : 'sent',
-      cleaned_at: null,
-    }));
-  } else if (error) {
-    throw mapDatabaseError(error);
-  }
+  if (error) throw mapDatabaseError(error);
+  const sentRows = data;
 
   const receiverIds = (sentRows ?? []).map((nix) => nix.receiver_id as string);
   const receiverMap =
