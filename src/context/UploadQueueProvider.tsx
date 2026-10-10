@@ -77,6 +77,11 @@ import { UploadQueueContext, type UploadQueueContextValue } from './uploadQueue'
 import { useAuth } from '../hooks/useAuth';
 import { toDomainError } from '../services/errors';
 
+/** Upload phase trace for development builds only; release builds stay silent. */
+function traceUpload(event: string, details: Record<string, unknown>) {
+  if (__DEV__) console.info(`[upload] ${event}`, details);
+}
+
 const RECOVERY_TASK_NAME = 'nix-upload-queue-recovery';
 const MAX_JS_TIMER_DELAY_MS = 60_000;
 
@@ -385,7 +390,7 @@ function useUploadQueueController(): UploadQueueContextValue {
     try {
       if (job.preparedUri && !(await stagedUploadFileExists(job.preparedUri))) {
         if (await stagedUploadFileExists(job.stagedUri)) {
-          console.warn('[upload] prepared missing; will re-prepare from source', { jobId: job.id });
+          traceUpload('prepared missing; will re-prepare from source', { jobId: job.id });
           await patchDurableUploadJob(job.id, {
             preparedUri: null,
             finalSizeBytes: null,
@@ -411,7 +416,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           errorMessage: null,
         });
         const prepareStartedAt = Date.now();
-        console.warn('[upload] prepare start', {
+        traceUpload('prepare start', {
           jobId: job.id,
           mediaType: job.mediaType,
           stagedTail: job.stagedUri.slice(-48),
@@ -434,7 +439,7 @@ function useUploadQueueController(): UploadQueueContextValue {
               sourceHeight: job.sourceHeight ?? undefined,
               onProgress,
             });
-        console.warn('[upload] prepare encode done', {
+        traceUpload('prepare encode done', {
           jobId: job.id,
           ms: Date.now() - prepareStartedAt,
           sizeBytes: prepared.sizeBytes,
@@ -442,14 +447,14 @@ function useUploadQueueController(): UploadQueueContextValue {
         const preparedWasStaged = await runWithFinally(async () => {
           const latestBeforeStaging = await getDurableUploadJob(job.id);
           if (isLocallyStopped(latestBeforeStaging)) return false;
-          console.warn('[upload] stage prepared start', { jobId: job.id });
+          traceUpload('stage prepared start', { jobId: job.id });
           const stagedPrepared = await stageUploadFile({
             jobId: job.id,
             sourceUri: prepared.uri,
             mediaType: job.mediaType,
             role: 'prepared',
           });
-          console.warn('[upload] stage prepared done', {
+          traceUpload('stage prepared done', {
             jobId: job.id,
             sizeBytes: stagedPrepared.sizeBytes,
           });
@@ -504,7 +509,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           progress: Math.max(job.progress, 0.3),
         });
         const beginStartedAt = Date.now();
-        console.warn('[upload] begin start', { jobId: job.id, mediaType: job.mediaType });
+        traceUpload('begin start', { jobId: job.id, mediaType: job.mediaType });
         const target = await beginMediaUploadBatch({
           idempotencyKey: job.idempotencyKey,
           mediaType: job.mediaType,
@@ -516,7 +521,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           recipients: job.recipients,
         });
         beginMs = Date.now() - beginStartedAt;
-        console.warn('[upload] begin done', { jobId: job.id, ms: beginMs, status: target.status });
+        traceUpload('begin done', { jobId: job.id, ms: beginMs, status: target.status });
         rememberPhaseTimings(job.id, { beginMs });
         if (target.status === 'completed' || target.status === 'partially_completed') {
           const finalized = await finalizeMediaUploadBatch({
@@ -614,7 +619,7 @@ function useUploadQueueController(): UploadQueueContextValue {
       const latestBeforeEnqueue = await getDurableUploadJob(job.id);
       if (isLocallyStopped(latestBeforeEnqueue)) return;
       const enqueueStartedAt = Date.now();
-      console.warn('[upload] native enqueue start', {
+      traceUpload('native enqueue start', {
         jobId: job.id,
         preparedTail: job.preparedUri.slice(-48),
       });
@@ -634,31 +639,11 @@ function useUploadQueueController(): UploadQueueContextValue {
         nextRetryAt: job.nextAttemptAt ?? 0,
       });
       nativeEnqueueMs = Date.now() - enqueueStartedAt;
-      console.warn('[upload] native enqueue done', {
+      traceUpload('native enqueue done', {
         jobId: job.id,
         ms: nativeEnqueueMs,
         result,
       });
-      // Diagnose silent PUT stalls: native progress events should move past 0.31.
-      setTimeout(() => {
-        void backgroundUploader.listTasks().then((snapshots) => {
-          const snap = snapshots.find((item) => item.jobId === job.id);
-          console.warn('[upload] post-enqueue snapshot', {
-            jobId: job.id,
-            snap: snap
-              ? {
-                  state: snap.state,
-                  progress: snap.progress,
-                  bytesSent: snap.bytesSent,
-                  bytesTotal: snap.bytesTotal,
-                  errorCode: snap.errorCode,
-                  errorMessage: snap.errorMessage,
-                  statusCode: snap.statusCode,
-                }
-              : null,
-          });
-        });
-      }, 3000);
       rememberPhaseTimings(job.id, {
         prepareMs,
         beginMs,
@@ -683,7 +668,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           });
           return;
         }
-        console.warn('[upload] restaging after missing prepared file', { jobId: job.id });
+        traceUpload('restaging after missing prepared file', { jobId: job.id });
         await patchDurableUploadJob(job.id, {
           state: 'queued',
           preparedUri: null,
