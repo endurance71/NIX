@@ -39,6 +39,10 @@ From about 17:03 UTC every claimed moderation job crashed the worker, so nothing
 
 Fix: commit `28ad67d` observes the provider promise immediately, with a regression test. The image was built from that commit only and started with a quote-free env copy after an Azure reachability check (HTTP 401 without key). The worker then ran with 0 restarts. Jobs created within the last 24 hours are processed again; older ones end through the existing quarantine.
 
+## Follow-up migration — cancel sending (2026-10-10 ~18:10 UTC)
+
+`20261010130000_cancel_own_text_moderation_job.sql` (commit `f496961`) adds `cancel_own_text_moderation_job(receiver, client_message_id)`, callable by `authenticated` for the caller's own text jobs only. Dry run listed only this migration; it was applied with Supabase CLI 2.120.0 (history now 51 entries). It adds one function and changes no existing objects or data, so build 10 is unaffected; build 11 uses it for "Cancel sending".
+
 ## Still to verify
 
 - F0 ledger row `2026-10`: `external_used = 0`; moderation jobs created during the pause reach `approved`/`rejected`.
