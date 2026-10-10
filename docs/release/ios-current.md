@@ -4,6 +4,12 @@
 > Dated sprint plans and audit snapshots are historical evidence and must link
 > here instead of presenting their old binary state as current.
 
+## Next candidate in preparation — build 11, 2026-10-10
+
+Branch `fix/pre-review-hardening` ([PR #56](https://github.com/endurance71/NIX/pull/56), CI green) carries the pre-review hardening: auth email links verified by `token_hash` instead of installing sessions from URLs, no navigation remount on connectivity changes, encrypted upload-queue capabilities, Apple sign-in consent text, localized auth errors, chat history paging and code cleanup. App and widget build numbers are **11**; runtime stays **1.0.12**. Build 11 is not archived or uploaded yet.
+
+The matching backend is **deployed** (migrations `20261010120000`/`20261010121000`, five Edge Functions, worker `5953ec5-r2`); see [deployment record](BACKEND_DEPLOYMENT_2026-10-10.md). It stays compatible with build 10. Email templates, AASA `/auth/confirm*` and the fallback page must ship with build 11. Build 10 below remains the uploaded candidate until build 11 passes QA.
+
 ## Current public candidate — build 10, updated 2026-10-09
 
 **New QA finding — password error localization:** the owner supplied a Polish build-10 recovery screenshot showing the raw English Auth response “New password should be different from the old password.” The reset/profile forms matched only “same password.” The client now maps structured `same_password` first, supports both known legacy phrasings and uses a localized fallback for unknown password-update errors. PL/EN regression tests pass; updated checks: 101 files / 597 app tests, TypeScript, lint, Knip and React Doctor 551 files / 0 errors / 0 warnings without baseline. This source fix is **not included in the uploaded build 10**. A new native candidate and final QA are required before App Review; no OTA was published. Build-10 evidence below remains specific to its original source.
