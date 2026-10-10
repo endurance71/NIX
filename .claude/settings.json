@@ -1,0 +1,13 @@
+{
+  "enabledPlugins": {
+    "expo@claude-plugins-official": true
+  },
+  "skillOverrides": {
+    "supabase": "on",
+    "supabase-postgres-best-practices": "on",
+    "react-native-best-practices": "on",
+    "ios-accessibility": "on",
+    "app-store-review": "on",
+    "systematic-debugging": "on"
+  }
+}
