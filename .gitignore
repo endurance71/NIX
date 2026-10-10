@@ -33,3 +33,6 @@ package-lock 2.json
 
 expo-env.d.ts
 # @end expo-cli
+# Claude Code: robocze worktree agentów i wyniki ewaluacji agentów
+.claude/worktrees/
+scripts/agent-evals/results/

@@ -1,0 +1,60 @@
+name: Agent evals
+
+# Opt-in, paid run: add the `eval` label to a PR that changes agent
+# instructions (AGENTS.md, CLAUDE.md, .claude/, .cursor/rules, agent-facing docs).
+# Same PR code, instructions from main vs from the PR — results land as a PR comment.
+on:
+  pull_request:
+    types: [labeled]  # cost-first: re-add the label to re-run
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: agent-evals-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  evals:
+    if: github.event.label.name == 'eval'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Claude Code + Expo plugin
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude plugin install expo@claude-plugins-official --scope project
+      - run: npm run test:agent-evals
+      - name: Instructions from main
+        run: npm run eval:agents -- --label main --instructions ref:origin/${{ github.base_ref }} --isolated --max-budget-usd 1.5
+      - name: Instructions from PR
+        run: npm run eval:agents -- --label pr --instructions head --isolated --max-budget-usd 1.5
+      - name: Comment results
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "## Agent evals (main vs PR)"
+            echo
+            echo "User-level skills from the maintainer's machine are not available in CI — see \`unavailableSkills\` in the artifacts."
+            echo
+            npm run -s eval:agents:report -- --results main --results pr
+          } > agent-evals-report.md
+          gh pr comment ${{ github.event.pull_request.number }} --body-file agent-evals-report.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-evals
+          path: scripts/agent-evals/results/
