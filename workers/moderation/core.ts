@@ -4,6 +4,8 @@ import {
   CLAIM_LIMIT,
   LEASE_SECONDS,
   PROCESS_TIMEOUT_MS,
+  RETRY_SECONDS,
+  TRANSIENT_PROVIDER_ERRORS,
   WAITING_BUDGET,
 } from "./constants.ts";
 import { removeLocalJobFile } from "./download.ts";
@@ -32,7 +34,19 @@ export interface Queue {
 export type IntegrationQueueJob = IntegrationJob & {
   /** Row fields needed for materialize routing. */
   contentKind: "text" | "media";
+  /** Claims so far, including the current one (claim_moderation_jobs increments it). */
+  attemptCount?: number;
 };
+
+/** Backoff for a transient provider failure, or null once retries are exhausted. */
+export function transientRetryDelaySeconds(
+  error: string | undefined,
+  attemptCount: number | undefined,
+): number | null {
+  if (!error || !TRANSIENT_PROVIDER_ERRORS.has(error)) return null;
+  const index = Math.max(attemptCount ?? 1, 1) - 1;
+  return index < RETRY_SECONDS.length ? RETRY_SECONDS[index] : null;
+}
 
 export interface IntegrationQueue {
   claim(
@@ -44,6 +58,13 @@ export interface IntegrationQueue {
     job: IntegrationQueueJob,
     owner: string,
     outcome: Outcome,
+  ): Promise<void>;
+  /** Return job to pending after a transient provider failure. */
+  retryLater(
+    job: IntegrationQueueJob,
+    owner: string,
+    error: string,
+    delaySeconds: number,
   ): Promise<void>;
   /** Defer job without approving when budget is exhausted. */
   deferForBudget(
@@ -168,6 +189,14 @@ export function createIntegrationWorker(
 
       if (outcome.waitingReason === WAITING_BUDGET) {
         await queue.deferForBudget(job, owner, WAITING_BUDGET);
+        return outcome;
+      }
+
+      const retryDelay = outcome.decision === "error"
+        ? transientRetryDelaySeconds(outcome.error, job.attemptCount)
+        : null;
+      if (retryDelay !== null && outcome.error) {
+        await queue.retryLater(job, owner, outcome.error, retryDelay);
         return outcome;
       }
 

@@ -500,6 +500,7 @@ Deno.test("no publish before approved decision", async () => {
   const wrapped = {
     claim: q.claim.bind(q),
     deferForBudget: q.deferForBudget.bind(q),
+    retryLater: q.retryLater.bind(q),
     recoverApprovedUnmaterialized: q.recoverApprovedUnmaterialized.bind(q),
     markMaterialized: q.markMaterialized.bind(q),
     rows: q.rows,
@@ -653,4 +654,37 @@ Deno.test("zero Azure network: fake provider only increments local counter", asy
   assert(p.azureRequestCount() === 0);
   await p.analyzeText("hi", AbortSignal.timeout(1000));
   assert(p.azureRequestCount() === 1);
+});
+
+Deno.test("transient provider failure returns job to pending with backoff", async () => {
+  const q = createMemoryIntegrationQueue([
+    { id: "t-retry", kind: "text", text: "hello" },
+  ]);
+  const ledger = createMemoryBudgetLedger({ hardBudget: 10 });
+  const worker = createIntegrationWorker(
+    q,
+    createFakeProvider("http_429"),
+    ledger,
+  );
+  const before = Date.now();
+  const outcome = await worker.tick();
+  assert(outcome?.error === "provider_http_429");
+  const row = q.rows()[0];
+  assert(row.status === "pending", "429 must not be terminal");
+  assert(row.lastError === "provider_http_429");
+  assert(row.nextAttemptAt >= before + 30_000, "first retry waits 30s");
+  assert(q.published() === 0);
+});
+
+Deno.test("transient provider failure becomes terminal after the last backoff", async () => {
+  const q = createMemoryIntegrationQueue([
+    { id: "t-exhausted", kind: "text", text: "hello", attemptCount: 4 },
+  ]);
+  const worker = createIntegrationWorker(
+    q,
+    createFakeProvider("http_429"),
+    createMemoryBudgetLedger({ hardBudget: 10 }),
+  );
+  await worker.tick();
+  assert(q.rows()[0].status === "error", "fifth claim is terminal");
 });

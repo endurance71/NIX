@@ -85,15 +85,21 @@ export function createAzureProvider(
   ): Promise<ProviderAnalysis> {
     await gate(signal);
     calls += 1;
-    const response = await fetchImpl(analyzeUrl(endpoint, kind), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Ocp-Apim-Subscription-Key": key,
-      },
-      body: JSON.stringify(body),
-      signal,
-    });
+    let response: Response;
+    try {
+      response = await fetchImpl(analyzeUrl(endpoint, kind), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Ocp-Apim-Subscription-Key": key,
+        },
+        body: JSON.stringify(body),
+        signal,
+      });
+    } catch (error) {
+      if (signal.aborted) throw error;
+      throw new Error("provider_network");
+    }
     if (!response.ok) {
       throw statusError(response.status);
     }
@@ -138,6 +144,7 @@ export function requireLiveWorkerEnv(
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
   externalUsed: number;
+  externalUsedMonth: string | null;
 } {
   const azureEndpoint = env.AZURE_CONTENT_SAFETY_ENDPOINT?.trim() ?? "";
   const azureKey = env.AZURE_CONTENT_SAFETY_KEY?.trim() ?? "";
@@ -151,11 +158,21 @@ export function requireLiveWorkerEnv(
   if (!Number.isInteger(externalUsed) || externalUsed < 0) {
     throw new Error("invalid_MODERATION_EXTERNAL_USED");
   }
+  // Azure usage outside the ledger is only valid for the UTC month it was
+  // measured in; without the month it would be re-applied every month.
+  const externalUsedMonthRaw = env.MODERATION_EXTERNAL_USED_MONTH?.trim() ?? "";
+  if (externalUsedMonthRaw && !/^\d{4}-(0[1-9]|1[0-2])$/.test(externalUsedMonthRaw)) {
+    throw new Error("invalid_MODERATION_EXTERNAL_USED_MONTH");
+  }
+  if (externalUsed > 0 && !externalUsedMonthRaw) {
+    throw new Error("invalid_MODERATION_EXTERNAL_USED_MONTH");
+  }
   return {
     azureEndpoint,
     azureKey,
     supabaseUrl,
     supabaseServiceRoleKey,
     externalUsed,
+    externalUsedMonth: externalUsedMonthRaw || null,
   };
 }

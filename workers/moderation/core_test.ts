@@ -1,4 +1,4 @@
-import { createWorker, type Outcome, type Queue } from "./core.ts";
+import { createWorker, type Outcome, type Queue, transientRetryDelaySeconds } from "./core.ts";
 import { rpcQueue } from "./rpc-queue.ts";
 import { command, COVERAGE, processVideo } from "./video.ts";
 function assert(value: unknown): asserts value {
@@ -137,4 +137,16 @@ Deno.test("subprocess cancellation kills and reaps", async () => {
     clearTimeout(timer);
   }
   assert(failed);
+});
+
+Deno.test("transientRetryDelaySeconds follows RETRY_SECONDS then stops", () => {
+  const delays = [1, 2, 3, 4, 5].map((n) =>
+    transientRetryDelaySeconds("provider_http_5xx", n)
+  );
+  if (JSON.stringify(delays) !== JSON.stringify([30, 120, 600, 3600, null])) {
+    throw new Error(`unexpected_delays_${delays}`);
+  }
+  if (transientRetryDelaySeconds("provider_failed", 1) !== null) {
+    throw new Error("non_transient_must_not_retry");
+  }
 });

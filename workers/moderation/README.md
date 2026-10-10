@@ -71,7 +71,9 @@ C3 schema i RPC `get_own`/`enqueue_own` są na produkcji. Idle daemon
 
 ```sh
 # env-file mode 600 poza Git: AZURE_*, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-# MODERATION_EXTERNAL_USED=3630 — bez MODERATION_WORKER_ONCE
+# MODERATION_EXTERNAL_USED=<zużycie spoza ledgera> + MODERATION_EXTERNAL_USED_MONTH=YYYY-MM
+# (wartość dotyczy tylko tego miesiąca UTC; w kolejnych ledger startuje od 0)
+# — bez MODERATION_WORKER_ONCE
 export NIX_MODERATION_ENV_FILE=/path/to/moderation-worker.env
 export NIX_MODERATION_IMAGE_TAG=local
 docker compose -f workers/moderation/compose.yaml up -d --build
