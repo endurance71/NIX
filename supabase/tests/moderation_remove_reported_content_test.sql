@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(18);
+SELECT plan(17);
 
 INSERT INTO auth.users(
   id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -205,14 +205,12 @@ SELECT lives_ok(
   'removing one shared nix reference succeeds'
 );
 
-SELECT is(
-  (
-    SELECT status
-    FROM public.media_assets
-    WHERE id = 'd3000000-0000-4000-8000-000000000001'
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1 FROM public.nixes
+    WHERE asset_id = 'd3000000-0000-4000-8000-000000000001'
   ),
-  'ready',
-  'shared asset stays ready while another recipient nix remains'
+  'removed shared media is withdrawn from every recipient'
 );
 
 SELECT ok(
@@ -223,27 +221,6 @@ SELECT ok(
   'foreign nix is not deleted'
 );
 
-INSERT INTO public.content_reports (
-  id, reporter_id, reported_user_id, text_message_id, nix_id, reason, status,
-  evidence_path, evidence_expires_at
-)
-VALUES (
-  'd5000000-0000-4000-8000-000000000004',
-  'd1000000-0000-4000-8000-000000000003',
-  'd1000000-0000-4000-8000-000000000001',
-  NULL,
-  'd4000000-0000-4000-8000-000000000002',
-  'harassment',
-  'open',
-  'd5000000-0000-4000-8000-000000000004/evidence.json',
-  now() + interval '30 days'
-);
-
-SELECT lives_ok(
-  $$SELECT public.moderation_remove_reported_content('d5000000-0000-4000-8000-000000000004')$$,
-  'removing the last shared nix reference succeeds'
-);
-
 SELECT is(
   (
     SELECT status
@@ -251,7 +228,7 @@ SELECT is(
     WHERE id = 'd3000000-0000-4000-8000-000000000001'
   ),
   'deleting',
-  'last remaining reference qualifies the asset for existing cleanup'
+  'withdrawn shared asset is queued for Storage cleanup'
 );
 
 SELECT ok(
@@ -267,9 +244,9 @@ SELECT is(
   (
     SELECT evidence_path
     FROM public.content_reports
-    WHERE id = 'd5000000-0000-4000-8000-000000000004'
+    WHERE id = 'd5000000-0000-4000-8000-000000000002'
   ),
-  'd5000000-0000-4000-8000-000000000004/evidence.json',
+  'd5000000-0000-4000-8000-000000000002/evidence.json',
   'media report evidence path remains after removal'
 );
 

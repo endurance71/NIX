@@ -47,11 +47,19 @@ SELECT throws_ok($$UPDATE storage.objects SET metadata='{"size":5}' WHERE name='
 SET LOCAL ROLE authenticated;
 WITH changed AS (UPDATE storage.objects SET metadata='{"size":5}' WHERE name='nixes/e1000000-0000-4000-8000-000000000001/trust.jpg' RETURNING id) SELECT is((SELECT count(*) FROM changed),0::bigint,'approved object update denied to owner by RLS');
 SELECT set_config('request.jwt.claims','{"sub":"e1000000-0000-4000-8000-000000000002","role":"authenticated"}',true);
-SELECT throws_ok($$UPDATE public.nixes SET media_path='nixes/e1000000-0000-4000-8000-000000000001/foreign.jpg' WHERE asset_id='e2000000-0000-4000-8000-000000000001'$$,'P0001','NIX_IDENTITY_IMMUTABLE','receiver cannot rewrite canonical cleanup target');
+SELECT throws_ok($$UPDATE public.nixes SET media_path='nixes/e1000000-0000-4000-8000-000000000001/foreign.jpg' WHERE asset_id='e2000000-0000-4000-8000-000000000001'$$,'42501',NULL,'receiver cannot rewrite canonical cleanup target');
+SELECT throws_ok($$UPDATE public.nixes SET is_viewed=true WHERE receiver_id='e1000000-0000-4000-8000-000000000002'$$,'42501',NULL,'receiver cannot mark viewed without replay deadline');
 SELECT throws_ok($$INSERT INTO public.nix_cleanup_queue(nix_id,receiver_id,media_path) SELECT id,receiver_id,'foreign/path' FROM public.nixes WHERE receiver_id='e1000000-0000-4000-8000-000000000002'$$,'42501',NULL,'forged direct cleanup queue writes denied');
 SELECT throws_ok($$SELECT * FROM public.request_nix_cleanup((SELECT id FROM public.nixes WHERE receiver_id='e1000000-0000-4000-8000-000000000002'))$$,'P0001','REPLAY_WINDOW_ACTIVE','unviewed nix cannot be queued');
 SELECT public.mark_nix_viewed_for_replay((SELECT id FROM public.nixes WHERE receiver_id='e1000000-0000-4000-8000-000000000002'));
 SELECT throws_ok($$SELECT * FROM public.request_nix_cleanup((SELECT id FROM public.nixes WHERE receiver_id='e1000000-0000-4000-8000-000000000002'))$$,'P0001','REPLAY_WINDOW_ACTIVE','active replay deadline cannot be bypassed');
+SELECT throws_ok($$UPDATE public.nixes SET is_viewed=false, is_replayed=false WHERE receiver_id='e1000000-0000-4000-8000-000000000002'$$,'42501',NULL,'receiver cannot reset viewed state to re-arm replay');
+RESET ROLE;
+CREATE TEMP TABLE replay_deadline_before ON COMMIT DROP AS SELECT replay_expires_at FROM public.nixes WHERE receiver_id='e1000000-0000-4000-8000-000000000002';
+GRANT SELECT ON replay_deadline_before TO authenticated;
+SET LOCAL ROLE authenticated;
+SELECT public.mark_nix_viewed_for_replay((SELECT id FROM public.nixes WHERE receiver_id='e1000000-0000-4000-8000-000000000002'));
+SELECT is((SELECT replay_expires_at FROM public.nixes WHERE receiver_id='e1000000-0000-4000-8000-000000000002'),(SELECT replay_expires_at FROM replay_deadline_before),'repeated view keeps the original replay deadline');
 SELECT public.mark_nix_replayed((SELECT id FROM public.nixes WHERE receiver_id='e1000000-0000-4000-8000-000000000002'));
 SELECT lives_ok($$SELECT * FROM public.request_nix_cleanup((SELECT id FROM public.nixes WHERE receiver_id='e1000000-0000-4000-8000-000000000002'))$$,'consumed replay queues canonical cleanup');
 RESET ROLE;
@@ -70,6 +78,17 @@ SELECT is((SELECT media_path FROM public.nix_cleanup_queue WHERE receiver_id='e1
 SELECT is((SELECT status FROM public.media_assets WHERE id='e2000000-0000-4000-8000-000000000001'),'deleting','failed Storage removal does not mark deleted');
 SELECT public.finish_nix_cleanup((SELECT id FROM public.nixes WHERE receiver_id='e1000000-0000-4000-8000-000000000003'),true,NULL);
 SELECT is((SELECT status FROM public.media_assets WHERE id='e2000000-0000-4000-8000-000000000001'),'deleted','successful removal ACK marks deleted');
+
+-- Cleanup retries stop after 24 hours of failures and are audited.
+INSERT INTO public.nix_cleanup_queue(nix_id,receiver_id,media_path,attempt_count,last_error)
+SELECT id,receiver_id,media_path,287,'stuck' FROM public.nixes WHERE receiver_id='e1000000-0000-4000-8000-000000000003';
+SELECT public.finish_nix_cleanup((SELECT id FROM public.nixes WHERE receiver_id='e1000000-0000-4000-8000-000000000003'),false,'INVALID_CANONICAL_MEDIA_PATH');
+SELECT is((SELECT count(*) FROM public.nix_cleanup_queue WHERE receiver_id='e1000000-0000-4000-8000-000000000003'),0::bigint,'exhausted cleanup leaves the retry queue');
+SELECT ok(EXISTS(SELECT 1 FROM public.nix_cleanup_audit WHERE receiver_id='e1000000-0000-4000-8000-000000000003' AND status='failed'),'exhausted cleanup is audited as failed');
+
+-- Cancelled batches cannot be finalized.
+UPDATE public.media_upload_batches SET status='cancelled' WHERE idempotency_key='exactcap-fixture';
+SELECT throws_ok($$UPDATE public.media_upload_batches SET status='moderation_pending' WHERE idempotency_key='exactcap-fixture'$$,'P0001','BATCH_NOT_ACTIVE','cancelled batch cannot move to moderation');
 
 INSERT INTO public.moderation_text_payloads(id,body,expires_at) VALUES('e5000000-0000-4000-8000-000000000001','expired secret',NOW()-INTERVAL '1 minute');
 INSERT INTO public.moderation_jobs(id,content_kind,text_payload_id,sender_id,receiver_id,status) VALUES('e4000000-0000-4000-8000-000000000002','text','e5000000-0000-4000-8000-000000000001','e1000000-0000-4000-8000-000000000001','e1000000-0000-4000-8000-000000000002','pending');
