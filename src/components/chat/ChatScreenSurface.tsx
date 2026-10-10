@@ -395,6 +395,7 @@ function MessageBubble({
   onReport,
   onRetry,
   onDeleteFailed,
+  onCancelSending,
 }: {
   message: OptimisticTextMessage;
   isOwn: boolean;
@@ -407,6 +408,7 @@ function MessageBubble({
   onReport: () => void;
   onRetry: () => void;
   onDeleteFailed: () => void;
+  onCancelSending: () => void;
 }) {
   const { colors } = useAppTheme();
   const bubbleRef = useRef<View>(null);
@@ -433,6 +435,13 @@ function MessageBubble({
         { text: i18n.t('chat.retrySend'), onPress: onRetry },
         { text: i18n.t('chat.deleteFailed'), style: 'destructive', onPress: onDeleteFailed },
         { text: i18n.t('common.cancel'), style: 'cancel' },
+      ]);
+      return;
+    }
+    if (message.isSending && message.outboxId) {
+      Alert.alert(i18n.t('chat.sendingTitle'), undefined, [
+        { text: i18n.t('chat.cancelSending'), style: 'destructive', onPress: onCancelSending },
+        { text: i18n.t('common.close'), style: 'cancel' },
       ]);
       return;
     }
@@ -1324,6 +1333,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
         onReport={() => openReportSheet(item.message)}
         onRetry={() => void vm.handleRetryTextMessage(item.message)}
         onDeleteFailed={() => void vm.handleDeleteFailedTextMessage(item.message)}
+        onCancelSending={() => void vm.handleCancelSendingTextMessage(item.message)}
       />
     );
   }, [bubbleMaxWidth, openPickerForMessage, openReportSheet, picker?.messageId, pickerOpen, requestClosePicker, vm]);

@@ -53,6 +53,7 @@ VALUES
   ('public', 'enqueue_push_notification_job', ARRAY[]::text[]),
   ('public', 'enqueue_text_moderation_job', ARRAY['service_role']),
   ('public', 'enqueue_own_text_moderation_job', ARRAY['authenticated', 'service_role']),
+  ('public', 'cancel_own_text_moderation_job', ARRAY['authenticated', 'service_role']),
   ('public', 'get_own_text_moderation_job', ARRAY['authenticated', 'service_role']),
   ('public', 'get_own_media_moderation_job', ARRAY['authenticated', 'service_role']),
   ('public', 'fetch_inbox_nixes_paginated', ARRAY['authenticated', 'service_role']),

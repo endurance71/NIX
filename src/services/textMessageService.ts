@@ -254,6 +254,26 @@ export async function fetchRecentTextMessagesWithPeer(
   return rows;
 }
 
+export type CancelTextMessageResult = 'cancelled' | 'already_sent' | 'not_sent' | 'not_found';
+
+/** Cancels the sender's text while it still waits for moderation. */
+export async function cancelOwnTextMessage(
+  receiverId: string,
+  clientMessageId: string
+): Promise<CancelTextMessageResult> {
+  const { data, error } = await supabase.rpc('cancel_own_text_moderation_job', {
+    p_receiver_id: receiverId,
+    p_client_message_id: clientMessageId,
+  });
+  if (error) {
+    throw new DomainError('UNKNOWN', error.message || 'Nie udało się anulować wysyłania.');
+  }
+  if (data === 'cancelled' || data === 'already_sent' || data === 'not_sent' || data === 'not_found') {
+    return data;
+  }
+  throw new DomainError('UNKNOWN', 'Nie udało się anulować wysyłania.');
+}
+
 export async function deleteTextMessageConversation(peerId: string): Promise<number> {
   const { data, error } = await supabase.rpc('delete_my_conversation_with_peer', {
     peer_profile_id: peerId,

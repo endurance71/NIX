@@ -9,6 +9,7 @@ import { queryKeys, avatarSignedUrlsQueryKey } from '../lib/queryKeys';
 import { sortMessagesAscending } from '../lib/chatTimeline';
 import { runWithFinally } from '../lib/runWithFinally';
 import {
+  cancelOwnTextMessage,
   fetchRecentTextMessagesWithPeer,
 } from '../services/textMessageService';
 import {
@@ -39,6 +40,7 @@ import {
 } from '../services/notificationPreferencesService';
 import {
   deleteTextOutboxJob,
+  deleteUnclaimedTextOutboxJob,
   enqueueTextOutbox,
   flushTextOutbox,
   listTextOutbox,
@@ -410,6 +412,32 @@ export function useChatScreen(peerId: string) {
     await outboxQuery.refetch();
   };
 
+  const handleCancelSendingTextMessage = async (message: OptimisticTextMessage) => {
+    if (!message.outboxId) return;
+    if (!canUseNetworkSession) {
+      notifyInfo(t('chat.cancelSendOffline'));
+      return;
+    }
+    const outboxId = message.outboxId;
+    try {
+      // Remove the local row first so no later flush can enqueue it again.
+      const removedLocally = await deleteUnclaimedTextOutboxJob(outboxId);
+      const result = await cancelOwnTextMessage(message.receiver_id, outboxId);
+      if (result === 'already_sent') {
+        notifyInfo(t('chat.cancelSendTooLate'));
+      } else if (result === 'not_found' && !removedLocally) {
+        // A flush is sending it right now and the server has no job yet.
+        notifyInfo(t('chat.cancelSendRetry'));
+      } else {
+        await deleteTextOutboxJob(outboxId);
+      }
+    } catch (error) {
+      notifyDomainError(error, t('chat.cancelSendFailed'));
+    } finally {
+      await Promise.all([outboxQuery.refetch(), messagesQuery.refetch()]);
+    }
+  };
+
   const peerUsername = peerProfileQuery.data?.username ?? 'user';
 
   const handleReportMessage = async (message: TextMessage, reason: ReportReason) => {
@@ -706,6 +734,7 @@ export function useChatScreen(peerId: string) {
     handleSend,
     handleRetryTextMessage,
     handleDeleteFailedTextMessage,
+    handleCancelSendingTextMessage,
     handleReportMessage,
     handleReportPeer,
     handleBlockPeer,

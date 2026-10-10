@@ -6,6 +6,7 @@ import {
   deleteTextMessageConversation,
   fetchRecentTextMessagesForInbox,
   fetchRecentTextMessagesWithPeer,
+  cancelOwnTextMessage,
 } from './textMessageService';
 
 const {
@@ -354,5 +355,25 @@ describe('fetchRecentTextMessagesWithPeer', () => {
     expect(mockSupabaseRpc).toHaveBeenCalledTimes(2);
     expect(mockSupabaseRpc.mock.calls[0][1]).toMatchObject({ before_created_at: null, msg_limit: 2 });
     expect(mockSupabaseRpc.mock.calls[1][1]).toMatchObject({ before_created_at: row(3).created_at });
+  });
+});
+
+describe('cancelOwnTextMessage', () => {
+  it('passes the receiver and client id and returns the server outcome', async () => {
+    mockSupabaseRpc.mockReset();
+    mockSupabaseRpc.mockResolvedValueOnce({ data: 'cancelled', error: null });
+
+    await expect(cancelOwnTextMessage('peer', 'outbox-1')).resolves.toBe('cancelled');
+    expect(mockSupabaseRpc).toHaveBeenCalledWith('cancel_own_text_moderation_job', {
+      p_receiver_id: 'peer',
+      p_client_message_id: 'outbox-1',
+    });
+  });
+
+  it('rejects unknown outcomes instead of treating them as cancelled', async () => {
+    mockSupabaseRpc.mockReset();
+    mockSupabaseRpc.mockResolvedValueOnce({ data: 'maybe', error: null });
+
+    await expect(cancelOwnTextMessage('peer', 'outbox-1')).rejects.toMatchObject({ code: 'UNKNOWN' });
   });
 });
