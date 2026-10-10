@@ -33,6 +33,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: npm run check:toolchain
       - run: npm run check:supabase-migrations
+      - run: npm run check:supabase-db-lint
+      - run: npm run check:cleanup-nix-contract
+      - run: npm run check:report-content-contract
+      - run: npm run check:text-outbox-security
+      - run: npm run check:invite-hosting
+      - run: npm run check:legal-pages
+      - run: npm run check:sentry-disabled
       - run: npm run deno:check
       - run: npm run deno:test
       - run: npm run test:moderation-worker
