@@ -163,7 +163,7 @@ function assertUploadReadyForNativeTransfer(
     || !job.finalizeHeaders
     || !job.finalizeToken
   ) {
-    throw new Error('Niekompletne dane trwałej wysyłki.');
+    throw new Error(i18n.t('inbox.uploadErrorIncompleteJob'));
   }
 }
 
@@ -332,7 +332,7 @@ function useUploadQueueController(): UploadQueueContextValue {
       await deleteStagedUploadJob(jobId).catch(() => undefined);
       void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
     } catch (error) {
-      const domain = toDomainError(error, 'Moderacja nie powiodła się. Spróbuj ponownie.');
+      const domain = toDomainError(error, i18n.t('inbox.uploadErrorModerationFailed'));
       await patchDurableUploadJob(jobId, {
         state: 'failed',
         errorCode: domain.code,
@@ -347,8 +347,8 @@ function useUploadQueueController(): UploadQueueContextValue {
 
   const enqueueMediaBatch = async (input: EnqueueMediaBatchInput) => {
     const currentOwnerId = ownerIdRef.current ?? ownerId;
-    if (!currentOwnerId) throw new Error('Zaloguj się ponownie przed wysłaniem NiX.');
-    if (input.recipients.length === 0) throw new Error('Wybierz co najmniej jednego odbiorcę.');
+    if (!currentOwnerId) throw new Error(i18n.t('inbox.uploadErrorSessionExpired'));
+    if (input.recipients.length === 0) throw new Error(i18n.t('inbox.uploadErrorNoRecipients'));
     setStagingCount((count) => count + 1);
     return runWithFinally(async () => {
       const result = await stageAndInsertUpload(input, currentOwnerId, online, canUseNetworkSession);
@@ -401,7 +401,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           });
           job = (await getDurableUploadJob(job.id)) ?? { ...job, preparedUri: null };
         } else {
-          throwUploadError('Lokalny plik wysyłki nie jest już dostępny.', 'FILE_NOT_RECOVERABLE');
+          throwUploadError(i18n.t('inbox.uploadErrorFileMissing'), 'FILE_NOT_RECOVERABLE');
         }
       }
 
@@ -663,7 +663,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           await patchDurableUploadJob(job.id, {
             state: 'failed',
             errorCode: 'FILE_NOT_RECOVERABLE',
-            errorMessage: 'Lokalny plik wysyłki nie jest już dostępny.',
+            errorMessage: i18n.t('inbox.uploadErrorFileMissing'),
             finishedAt: Date.now(),
           });
           return;
@@ -790,7 +790,7 @@ function useUploadQueueController(): UploadQueueContextValue {
     if (!job) return;
     const updated = await patchDurableUploadJob(jobId, {
       state: 'cancelled', finishedAt: Date.now(), errorCode: 'CANCELLED',
-      errorMessage: 'Wysyłka została anulowana.',
+      errorMessage: i18n.t('inbox.uploadErrorCancelled'),
     }, true);
     if (updated.changes === 0) return;
     await backgroundUploader.cancel(jobId).catch(() => undefined);
@@ -871,7 +871,7 @@ function useUploadQueueController(): UploadQueueContextValue {
               errorCode: 'FILE_NOT_RECOVERABLE',
               errorMessage: error instanceof Error
                 ? error.message
-                : 'Pliku nie można odzyskać po restarcie aplikacji.',
+                : i18n.t('inbox.uploadErrorFileNotRecoverable'),
               finishedAt: Date.now(),
             });
           }
@@ -902,7 +902,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           await patchDurableUploadJob(persistedJob.id, {
             state: 'failed',
             errorCode: 'FILE_NOT_RECOVERABLE',
-            errorMessage: 'Lokalny plik wysyłki nie jest już dostępny.',
+            errorMessage: i18n.t('inbox.uploadErrorFileMissing'),
             finishedAt: Date.now(),
           });
         }
@@ -1103,7 +1103,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           nextAttemptAt: snapshot.nextRetryAt ?? null,
           errorCode: snapshotErrorCode,
           errorMessage: snapshotErrorCode === 'FILE_TOO_LARGE_PERMANENT'
-            ? 'Plik jest zbyt duży także po dodatkowej kompresji.'
+            ? i18n.t('inbox.uploadErrorTooLarge')
             : snapshot.errorMessage ?? null,
           finishedAt: snapshot.state === 'completed' || snapshot.state === 'cancelled'
             ? Date.now()
