@@ -18,7 +18,7 @@ export type PushNotificationsContextValue = {
   openSettings: () => Promise<void>;
 };
 
-const fallback: PushNotificationsContextValue = {
+export const pushNotificationsFallback: PushNotificationsContextValue = {
   state: 'disabled',
   busy: false,
   enable: async () => {},
@@ -28,7 +28,7 @@ const fallback: PushNotificationsContextValue = {
   openSettings: async () => {},
 };
 
-export const PushNotificationsContext = createContext<PushNotificationsContextValue>(fallback);
+export const PushNotificationsContext = createContext<PushNotificationsContextValue>(pushNotificationsFallback);
 
 export function usePushNotifications() {
   return use(PushNotificationsContext);
