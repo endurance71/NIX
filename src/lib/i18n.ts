@@ -92,6 +92,7 @@ export const resources = {
         switchFailed: 'Nie udało się przełączyć kamery. Spróbuj ponownie.',
       },
       auth: {
+        appleLegalConsent: 'Kontynuując z Apple, akceptujesz Regulamin i Politykę prywatności NiX.',
         linkIgnoredSignedIn: 'Jesteś już zalogowany. Wyloguj się, aby użyć linku z wiadomości e-mail.',
         linkInvalid: 'Link wygasł lub został już użyty. Wpisz kod z wiadomości e-mail.',
         registerTitle: 'Rejestracja',
@@ -906,6 +907,7 @@ export const resources = {
         switchFailed: 'Could not switch cameras. Try again.',
       },
       auth: {
+        appleLegalConsent: 'By continuing with Apple, you accept the NiX Terms of Use and Privacy Policy.',
         linkIgnoredSignedIn: 'You are already signed in. Sign out to use the link from the email.',
         linkInvalid: 'This link has expired or was already used. Enter the code from the email.',
         registerTitle: 'Register',
