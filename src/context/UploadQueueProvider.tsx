@@ -17,8 +17,8 @@ import { assertPreparedMediaSize } from '../lib/uploadMediaLimits';
 import type { NetInfoState } from '@react-native-community/netinfo';
 
 import {
-  clearUploadQueueNixeshot,
-  readUploadQueueNixeshot,
+  clearUploadQueueSnapshot,
+  readUploadQueueSnapshot,
 } from '../lib/uploadQueuePersistence';
 import {
   getDurableUploadJob,
@@ -923,7 +923,7 @@ function useUploadQueueController(): UploadQueueContextValue {
         }
       }));
 
-      const legacy = await readUploadQueueNixeshot();
+      const legacy = await readUploadQueueSnapshot();
       if (legacy?.tasks.length) {
         const migrationResults = await Promise.all(legacy.tasks.map(async (task) => {
           if (await getDurableUploadJob(task.id)) return true;
@@ -947,7 +947,7 @@ function useUploadQueueController(): UploadQueueContextValue {
             return Boolean(await getDurableUploadJob(task.id));
           }
         }));
-        if (migrationResults.every(Boolean)) await clearUploadQueueNixeshot();
+        if (migrationResults.every(Boolean)) await clearUploadQueueSnapshot();
       }
 
       const nativeSnapshots = await backgroundUploader.reconcile();

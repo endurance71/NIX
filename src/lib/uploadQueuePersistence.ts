@@ -1,17 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { UploadQueueNixeshot } from '../types/uploadQueue';
+import type { UploadQueueSnapshot } from '../types/uploadQueue';
 
 const STORAGE_KEY = 'nix.upload_queue.v1';
-const NIXESHOT_VERSION = 1;
+const SNAPSHOT_VERSION = 1;
 
-function sanitizeNixeshot(value: unknown): UploadQueueNixeshot | null {
+function sanitizeSnapshot(value: unknown): UploadQueueSnapshot | null {
   if (!value || typeof value !== 'object') return null;
-  const candidate = value as Partial<UploadQueueNixeshot>;
-  if (candidate.version !== NIXESHOT_VERSION) return null;
+  const candidate = value as Partial<UploadQueueSnapshot>;
+  if (candidate.version !== SNAPSHOT_VERSION) return null;
   if (!Array.isArray(candidate.tasks)) return null;
   if (typeof candidate.updatedAt !== 'number') return null;
   return {
-    version: NIXESHOT_VERSION,
+    version: SNAPSHOT_VERSION,
     tasks: candidate.tasks,
     activeTaskId: typeof candidate.activeTaskId === 'string' ? candidate.activeTaskId : null,
     paused: Boolean(candidate.paused),
@@ -19,17 +19,17 @@ function sanitizeNixeshot(value: unknown): UploadQueueNixeshot | null {
   };
 }
 
-export async function readUploadQueueNixeshot(): Promise<UploadQueueNixeshot | null> {
+export async function readUploadQueueSnapshot(): Promise<UploadQueueSnapshot | null> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
-    return sanitizeNixeshot(parsed);
+    return sanitizeSnapshot(parsed);
   } catch {
     return null;
   }
 }
 
-export async function clearUploadQueueNixeshot(): Promise<void> {
+export async function clearUploadQueueSnapshot(): Promise<void> {
   await AsyncStorage.removeItem(STORAGE_KEY);
 }
