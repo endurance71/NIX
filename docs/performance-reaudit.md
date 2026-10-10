@@ -47,7 +47,7 @@ Do uzupełnienia po testach urządzeniowych:
 
 **Dostarczone w codebase (do potwierdzenia na fizycznym iPhonie i urządzeniu Android):**
 
-- Resumable upload wideo (TUS, chunk 6 MB, ~14–20 MB szczytowo RAM) — [`src/services/resumableUploadService.ts`](../src/services/resumableUploadService.ts).
+- Upload wideo przez natywną kolejkę w tle (`modules/nix-background-uploader`, URLSession z pliku, bez buforowania w JS). Historyczna ścieżka TUS została usunięta 2026-10-10.
 - Embedded `thumbnail_b64` + viewer „thumbnail-first” — [`src/services/mediaService.ts`](../src/services/mediaService.ts), [`src/app/viewer.tsx`](../src/app/viewer.tsx).
 - Fast-path kompresji wideo ≤ 10 MB — event `compression_skipped`.
 - Polityka capture per znajomy (`nix_capture_prefs`, RPC `get_capture_policy_for_sender`) + `expo-screen-capture` w viewerze — [`docs/capture-protection.md`](capture-protection.md).
@@ -69,7 +69,7 @@ Do uzupełnienia po testach urządzeniowych:
 Druga iteracja optymalizacji wideo zmienia trzy kluczowe miejsca pipeline'u nadawca→odbiorca, eliminując ryzyko OOM dla dużych plików oraz skracając Time To First Pixel u odbiorcy.
 
 ### Co się zmieniło
-- **Resumable (TUS) upload wideo.** [src/services/resumableUploadService.ts](../src/services/resumableUploadService.ts) korzysta z `tus-js-client` z własnym `fileReader`/`FileSource` opartym na `expo-file-system/legacy.readAsStringAsync({ encoding: 'base64', position, length })`. Body wysyłane chunkami po 6 MB (limit Supabase TUS), zatem szczyt RAM dla wideo to ~14–20 MB niezależnie od rozmiaru pliku.
+- **Upload wideo.** Natywny `BackgroundUploadCoordinator` wysyła plik bezpośrednio z dysku (URLSession w tle), więc RAM nie rośnie z rozmiarem pliku. Ścieżka `tus-js-client` została usunięta 2026-10-10.
 - **`uploadVideoAndCreateNix` bez `getImageBytes`.** [src/services/mediaService.ts](../src/services/mediaService.ts) waliduje rozmiar przez metadane systemu plików (`prepared.sizeBytes` / `originalSizeBytes`) jeszcze przed jakimkolwiek odczytem zawartości. `MAX_VIDEO_FILE_SIZE_BYTES = 100 MB`.
 - **Embedded miniatura JPEG (`nixes.thumbnail_b64`).** Generowana lokalnie po stronie nadawcy (`expo-video.generateThumbnailsAsync` + `expo-image-manipulator` 240 px @ q=0.55, fallback 200 px @ q=0.4). Trafia jako data URL bezpośrednio do wiersza `nixes`. Twardy limit 45 KB binarki, egzekwowany w SQL (`CHECK octet_length <= 60000`).
 - **Viewer bez zdalnego thumbnaila.** [src/app/viewer.tsx](../src/app/viewer.tsx) usuwa `getThumbnailAsync(signedUrl)` na rzecz natychmiastowego renderu `currentNix.thumbnail_b64` jeszcze przed pobraniem signed URL. Wraz z `nextNix.thumbnail_b64` z queue daje płynne przewijanie bez parsowania zdalnego strumienia wideo.

@@ -9,16 +9,12 @@ import {
 const {
   mockUpload,
   mockGetCurrentUser,
-  mockInsertNix,
   mockGetInfoAsync,
-  mockUploadResumable,
   mockVideoCompress,
 } = vi.hoisted(() => ({
   mockUpload: vi.fn(),
   mockGetCurrentUser: vi.fn(),
-  mockInsertNix: vi.fn(),
   mockGetInfoAsync: vi.fn(),
-  mockUploadResumable: vi.fn(),
   mockVideoCompress: vi.fn().mockResolvedValue('file:///tmp/compressed.mp4'),
 }));
 
@@ -68,14 +64,6 @@ vi.mock('../lib/videoThumbnails', () => ({
 
 vi.mock('./profileService', () => ({
   getCurrentUser: mockGetCurrentUser,
-}));
-
-vi.mock('./nixService', () => ({
-  insertNix: mockInsertNix,
-}));
-
-vi.mock('./resumableUploadService', () => ({
-  uploadResumable: mockUploadResumable,
 }));
 
 describe('mediaService', () => {

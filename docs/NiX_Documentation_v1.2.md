@@ -92,7 +92,7 @@ Pełna hierarchia wyboru, antywzorce i checklista PR: [native-platform-guideline
 | **Backend** | Supabase | Postgres, Auth, Storage, Edge Functions |
 | **i18n** | `i18next` + `react-i18next` + `expo-localization` | |
 | **Media** | `expo-camera`, `expo-video`, `expo-image`, `expo-image-manipulator`, `react-native-compressor` | |
-| **Upload wideo** | `tus-js-client` + custom file reader (`expo-file-system`) | Chunki 6 MB |
+| **Upload wideo** | Natywna kolejka w tle (`modules/nix-background-uploader`) | Upload z pliku, begin/finalize |
 | **Animacje** | Reanimated 4 + Gesture Handler | |
 | **Listy** | `@shopify/flash-list` | Tam, gdzie nie użyto SwiftUI List |
 | **Capture** | `expo-screen-capture` | Tylko w viewerze |
@@ -260,7 +260,6 @@ src/
 | `src/services/authService.ts` | signIn, signUp, reset, session |
 | `src/services/nixService.ts` | inbox, sent, insertNix, signed URL, viewed+cleanup, kolejka |
 | `src/services/mediaService.ts` | preparacja mediów, kompresja, upload, telemetria |
-| `src/services/resumableUploadService.ts` | TUS dla wideo |
 | `src/services/capturePolicyService.ts` | `nix_capture_prefs`, RPC `get_capture_policy_for_sender` |
 | `src/app/viewer.tsx` | Odtwarzanie, timer, capture guard, cleanup |
 | `src/hooks/useViewerScreen.ts` | Kolejka unread od nadawcy **oldest→newest**; błąd loadu → `mark_nix_unplayable` (bez replay), nie `mark_nix_viewed_for_replay` |
@@ -321,7 +320,6 @@ Wersje dokładne w repozytorium — kluczowe pakiety:
 | `@expo/ui` | ~57.0.13 | SwiftUI embedded |
 | `expo-camera` / `expo-video` / `expo-image` | ~57.x | Media |
 | `expo-screen-capture` | 57.0.2 | Blokada capture |
-| `tus-js-client` | ^4.3.1 | Resumable upload |
 | `i18next` / `react-i18next` | ^26 / ^17 | Tłumaczenia |
 | `@sentry/react-native` | ~7.11.0 | Zainstalowane, runtime i upload symboli wyłączone |
 
