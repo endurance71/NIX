@@ -134,6 +134,35 @@ export async function signInWithApple() {
   }
 }
 
+/**
+ * Signs in again with Apple to refresh the session's authentication time.
+ * Fails (and signs out) if Apple returns a different account than the current one.
+ */
+export async function reauthenticateAppleSession(expectedUserId: string) {
+  try {
+    const requested = await requestAppleCredential();
+    if (requested.error) return { error: requested.error };
+    const { credential, rawNonce } = requested;
+    if (!credential?.identityToken || !rawNonce) {
+      return { error: authError(APPLE_SIGN_IN_ERROR_CODES.NO_IDENTITY_TOKEN).error };
+    }
+    const { data, error } = await supabase.auth.signInWithIdToken({
+      provider: 'apple',
+      token: credential.identityToken,
+      nonce: rawNonce,
+    });
+    if (error) return { error };
+    if (data.user?.id !== expectedUserId) {
+      await supabase.auth.signOut();
+      return { error: authError('APPLE_REAUTH_ACCOUNT_MISMATCH').error };
+    }
+    return { error: null };
+  } catch (error: unknown) {
+    const err = error as { message?: string };
+    return { error: authError(err.message ?? 'Apple sign in failed').error };
+  }
+}
+
 export async function reauthenticateAppleForAccountDeletion() {
   try {
     if (process.env.EXPO_OS !== 'ios') {

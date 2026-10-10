@@ -13,6 +13,7 @@ import {
 import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
 import { useAuth } from '../../hooks/useAuth';
 import { runWithFinally } from '../../lib/runWithFinally';
+import { getAuthFormErrorKey } from '../../lib/authFormError';
 
 export default function CheckEmailScreen() {
   const { t } = useTranslation();
@@ -43,15 +44,14 @@ export default function CheckEmailScreen() {
             isRecovery ? 'recovery' : 'signup'
           );
           if (verifyError) {
-            setOtpError(verifyError.message);
+            setOtpError(t(getAuthFormErrorKey(verifyError)));
           } else if (isRecovery) {
             router.replace('/(auth)/reset-password');
           } else {
             router.replace('/(auth)/onboarding');
           }
         } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : 'Error occurred';
-          setOtpError(message);
+          setOtpError(t(getAuthFormErrorKey(err instanceof Error ? err : null)));
         }
       },
       () => {

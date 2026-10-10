@@ -9,7 +9,11 @@ import {
 } from 'npm:@zip.js/zip.js@2.23.0';
 import { json } from '../_shared/http.ts';
 import { hasServiceRoleBearer } from '../_shared/service-auth.ts';
-import { DATA_EXPORT_ANALYTICS_PREFERENCE_COLUMNS } from '../_shared/data-export.ts';
+import {
+  blockedPeerIdsFor,
+  DATA_EXPORT_ANALYTICS_PREFERENCE_COLUMNS,
+  partitionExportNixes,
+} from '../_shared/data-export.ts';
 import { cleanupExportArchives } from '../_shared/export-cleanup.ts';
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -63,6 +67,7 @@ async function processJob(
       notificationPreference,
       activationState,
       installations,
+      blockPairs,
     ] = await Promise.all([
       service.from('profiles')
         .select('id,username,display_name,avatar_storage_path,avatar_emoji,is_private,created_at')
@@ -92,12 +97,19 @@ async function processJob(
       service.from('notification_preferences').select('messages_enabled,reactions_enabled,friends_enabled,updated_at').eq('user_id', userId).maybeSingle(),
       service.from('user_activation_state').select('skipped_at,completed_at,dismissed_at,last_shown_at,updated_at').eq('user_id', userId).maybeSingle(),
       service.from('app_installations').select('device_name,system_version,app_version,locale,last_seen_at,revoked_at').eq('user_id', userId),
+      service.from('user_blocks')
+        .select('blocker_id,blocked_id')
+        .or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`),
     ]);
     const queryErrors = [
       profile.error, friendships.error, invites.error, blocks.error, reports.error,
       textMessages.error, nixes.error, analyticsPreference.error, notificationPreference.error,
-      activationState.error, installations.error,
+      activationState.error, installations.error, blockPairs.error,
     ].filter(Boolean);
+    const blockedPeerIds = blockedPeerIdsFor(
+      userId,
+      (blockPairs.data ?? []) as { blocker_id: string; blocked_id: string }[],
+    );
     if (queryErrors.length) throw queryErrors[0];
 
     let archiveBytes = 0;
@@ -130,16 +142,28 @@ async function processJob(
     await addJson('social/invites.json', (invites.data ?? []) as JsonValue);
     await addJson('social/blocks.json', (blocks.data ?? []) as JsonValue);
     await addJson('safety/my-reports.json', (reports.data ?? []) as JsonValue);
-    await addJson('messages/text-messages.json', (textMessages.data ?? []) as JsonValue);
+    const visibleTextMessages = ((textMessages.data ?? []) as { sender_id: string; receiver_id: string }[])
+      .filter((row) => !blockedPeerIds.has(row.sender_id === userId ? row.receiver_id : row.sender_id));
+    await addJson('messages/text-messages.json', visibleTextMessages as JsonValue);
 
-    const nixMetadata: JsonValue[] = [];
-    for (const raw of nixes.data ?? []) {
-      const row = raw as {
-        id: string;
-        media_path: string;
-        media_type: string;
-        [key: string]: unknown;
-      };
+    type ExportNixRow = {
+      id: string;
+      sender_id: string;
+      receiver_id: string;
+      media_path: string;
+      media_type: string;
+      [key: string]: unknown;
+    };
+    const { withMedia, metadataOnly } = partitionExportNixes(
+      (nixes.data ?? []) as ExportNixRow[],
+      userId,
+      blockedPeerIds,
+    );
+    const nixMetadata: JsonValue[] = metadataOnly.map((row) => {
+      const { media_path: _privatePath, ...safeMetadata } = row;
+      return { ...(safeMetadata as JsonValue & object), archive_path: null } as JsonValue;
+    });
+    for (const row of withMedia) {
       const extension = row.media_type === 'video' ? 'mp4' : 'jpg';
       const target = `media/nixes/${row.id}.${extension}`;
       const { data: media, error } = await service.storage.from('media-vault').download(row.media_path);

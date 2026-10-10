@@ -128,6 +128,46 @@ Deno.test("requireLiveWorkerEnv fail-closed on missing secrets", () => {
     SUPABASE_URL: "https://example.supabase.co",
     SUPABASE_SERVICE_ROLE_KEY: "s",
     MODERATION_EXTERNAL_USED: "3630",
+    MODERATION_EXTERNAL_USED_MONTH: "2026-09",
   });
   assert(ok.externalUsed === 3630);
+  assert(ok.externalUsedMonth === "2026-09");
+});
+
+Deno.test("requireLiveWorkerEnv requires the month for external usage", () => {
+  const base = {
+    AZURE_CONTENT_SAFETY_ENDPOINT: "https://example.cognitiveservices.azure.com",
+    AZURE_CONTENT_SAFETY_KEY: "k",
+    SUPABASE_URL: "https://example.supabase.co",
+    SUPABASE_SERVICE_ROLE_KEY: "s",
+  };
+  assertThrows(
+    () => requireLiveWorkerEnv({ ...base, MODERATION_EXTERNAL_USED: "3630" }),
+    "invalid_MODERATION_EXTERNAL_USED_MONTH",
+  );
+  assertThrows(
+    () =>
+      requireLiveWorkerEnv({
+        ...base,
+        MODERATION_EXTERNAL_USED: "1",
+        MODERATION_EXTERNAL_USED_MONTH: "2026-13",
+      }),
+    "invalid_MODERATION_EXTERNAL_USED_MONTH",
+  );
+  const none = requireLiveWorkerEnv(base);
+  assert(none.externalUsed === 0);
+  assert(none.externalUsedMonth === null);
+});
+
+Deno.test("network failure is classified as transient", async () => {
+  const provider = createAzureProvider({
+    endpoint: "https://example.cognitiveservices.azure.com",
+    key: "k",
+    gapMs: 0,
+    fetchImpl: () => Promise.reject(new TypeError("dns failure")),
+  });
+  await assertRejects(
+    () => provider.analyzeText("hi", new AbortController().signal),
+    "provider_network",
+  );
 });

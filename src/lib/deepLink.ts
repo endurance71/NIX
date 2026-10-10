@@ -7,36 +7,33 @@ import { isInboxDeepLink } from './deepLinkRoute';
 import { savePendingFriendInviteToken } from './pendingFriendInvite';
 import { recordProductEvent } from '../services/productAnalyticsService';
 import { iosRoadmapFeatures } from '../config/iosRoadmapFeatures';
-
-function parseAuthUrl(url: string) {
-  try {
-    const parsedUrl = new URL(url);
-    const hash = parsedUrl.hash.startsWith('#') ? parsedUrl.hash.slice(1) : parsedUrl.hash;
-    const hashParams = new URLSearchParams(hash);
-    const queryParams = parsedUrl.searchParams;
-
-    const accessToken = hashParams.get('access_token') ?? queryParams.get('access_token');
-    const refreshToken = hashParams.get('refresh_token') ?? queryParams.get('refresh_token');
-    const type = hashParams.get('type') ?? queryParams.get('type');
-
-    return { accessToken, refreshToken, type };
-  } catch {
-    return { accessToken: null, refreshToken: null, type: null };
-  }
-}
+import { parseAuthConfirmLink } from './authDeepLink';
+import { notifyError, notifyInfo } from './appNotify';
+import i18n from './i18n';
 
 async function handleAuthDeepLink(url: string, isCancelled: () => boolean) {
-  const { accessToken, refreshToken, type } = parseAuthUrl(url);
-  if (!accessToken || !refreshToken) return;
+  const link = parseAuthConfirmLink(url);
+  if (!link) return;
 
-  const { error } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
+  // Never replace an existing session from a link: a crafted link could
+  // otherwise sign the user into someone else's account.
+  const { data } = await supabase.auth.getSession();
+  if (data.session) {
+    notifyInfo(i18n.t('auth.linkIgnoredSignedIn'));
+    return;
+  }
+
+  const { error } = await supabase.auth.verifyOtp({
+    token_hash: link.tokenHash,
+    type: link.type,
   });
+  if (isCancelled()) return;
+  if (error) {
+    notifyError(i18n.t('auth.linkInvalid'));
+    return;
+  }
 
-  if (isCancelled() || error) return;
-
-  if (type === 'recovery') {
+  if (link.type === 'recovery') {
     router.replace({ pathname: '/(auth)/reset-password', params: { source: 'deeplink' } });
   }
 }

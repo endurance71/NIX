@@ -14,9 +14,8 @@ const choiceSet = new Set<number>(NIX_VIEW_DURATION_CHOICES);
 
 export function formatNixViewDurationLabel(sec: number): string {
   if (sec === 0) return i18n.t('chat.nixDurationUnlimited');
-  if (sec < 60) return `${sec} s`;
-  if (sec === 60) return '1 min';
-  return `${sec / 60} min`;
+  if (sec < 60) return i18n.t('chat.nixDurationSeconds', { value: sec });
+  return i18n.t('chat.nixDurationMinutes', { value: sec / 60 });
 }
 
 /** Krótka etykieta na przycisku kamery. */

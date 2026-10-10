@@ -189,6 +189,19 @@ export async function deleteTextOutboxJob(jobId: string) {
   await db.runAsync('DELETE FROM text_outbox WHERE id = ?', jobId);
 }
 
+/**
+ * Removes a queued text unless a flush has already claimed it for sending,
+ * so a removed row can never be enqueued afterwards.
+ */
+export async function deleteUnclaimedTextOutboxJob(jobId: string): Promise<boolean> {
+  const db = await database();
+  const result = await db.runAsync(
+    "DELETE FROM text_outbox WHERE id = ? AND state IN ('pending', 'failed')",
+    jobId
+  );
+  return result.changes > 0;
+}
+
 export async function retryTextOutboxJob(jobId: string) {
   const db = await database();
   await db.runAsync(

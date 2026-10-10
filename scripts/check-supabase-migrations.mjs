@@ -52,6 +52,9 @@ const expected = [
   '20260912160000_get_own_media_moderation_job.sql',
   '20261007120000_harden_media_friendships_and_cleanup.sql',
   '20261007121000_fix_retention_and_image_limits.sql',
+  '20261010120000_pre_review_hardening.sql',
+  '20261010121000_reset_october_f0_external_floor.sql',
+  '20261010130000_cancel_own_text_moderation_job.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();

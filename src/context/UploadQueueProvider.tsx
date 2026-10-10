@@ -12,13 +12,13 @@ import {
 } from 'react';
 import { AppState } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
-import { getCurrentLocale } from '../lib/i18n';
+import i18n, { getCurrentLocale } from '../lib/i18n';
 import { assertPreparedMediaSize } from '../lib/uploadMediaLimits';
 import type { NetInfoState } from '@react-native-community/netinfo';
 
 import {
-  clearUploadQueueNixeshot,
-  readUploadQueueNixeshot,
+  clearUploadQueueSnapshot,
+  readUploadQueueSnapshot,
 } from '../lib/uploadQueuePersistence';
 import {
   getDurableUploadJob,
@@ -76,6 +76,11 @@ import type {
 import { UploadQueueContext, type UploadQueueContextValue } from './uploadQueue';
 import { useAuth } from '../hooks/useAuth';
 import { toDomainError } from '../services/errors';
+
+/** Upload phase trace for development builds only; release builds stay silent. */
+function traceUpload(event: string, details: Record<string, unknown>) {
+  if (__DEV__) console.info(`[upload] ${event}`, details);
+}
 
 const RECOVERY_TASK_NAME = 'nix-upload-queue-recovery';
 const MAX_JS_TIMER_DELAY_MS = 60_000;
@@ -158,7 +163,7 @@ function assertUploadReadyForNativeTransfer(
     || !job.finalizeHeaders
     || !job.finalizeToken
   ) {
-    throw new Error('Niekompletne dane trwałej wysyłki.');
+    throw new Error(i18n.t('inbox.uploadErrorIncompleteJob'));
   }
 }
 
@@ -259,7 +264,7 @@ async function stageAndInsertUpload(
     await patchDurableUploadJob(jobId, {
       state: 'failed',
       errorCode: 'STAGING_FAILED',
-      errorMessage: error instanceof Error ? error.message : 'Nie udało się zabezpieczyć pliku.',
+      errorMessage: error instanceof Error ? error.message : i18n.t('inbox.uploadErrorStagingFailed'),
       finishedAt: Date.now(),
     });
     throw error;
@@ -327,7 +332,7 @@ function useUploadQueueController(): UploadQueueContextValue {
       await deleteStagedUploadJob(jobId).catch(() => undefined);
       void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
     } catch (error) {
-      const domain = toDomainError(error, 'Moderacja nie powiodła się. Spróbuj ponownie.');
+      const domain = toDomainError(error, i18n.t('inbox.uploadErrorModerationFailed'));
       await patchDurableUploadJob(jobId, {
         state: 'failed',
         errorCode: domain.code,
@@ -342,8 +347,8 @@ function useUploadQueueController(): UploadQueueContextValue {
 
   const enqueueMediaBatch = async (input: EnqueueMediaBatchInput) => {
     const currentOwnerId = ownerIdRef.current ?? ownerId;
-    if (!currentOwnerId) throw new Error('Zaloguj się ponownie przed wysłaniem NiX.');
-    if (input.recipients.length === 0) throw new Error('Wybierz co najmniej jednego odbiorcę.');
+    if (!currentOwnerId) throw new Error(i18n.t('inbox.uploadErrorSessionExpired'));
+    if (input.recipients.length === 0) throw new Error(i18n.t('inbox.uploadErrorNoRecipients'));
     setStagingCount((count) => count + 1);
     return runWithFinally(async () => {
       const result = await stageAndInsertUpload(input, currentOwnerId, online, canUseNetworkSession);
@@ -356,7 +361,7 @@ function useUploadQueueController(): UploadQueueContextValue {
 
   const scheduleJsRetry = async (job: DurableUploadJob, error: unknown) => {
     const nextRetryCount = job.retryCount + 1;
-    const message = error instanceof Error ? error.message : 'Nie udało się wysłać pliku.';
+    const message = error instanceof Error ? error.message : i18n.t('inbox.uploadErrorSendFailed');
     const code = errorCode(error);
     if (isPermanentUploadError(error) || Date.now() >= job.expiresAt) {
       await patchDurableUploadJob(job.id, {
@@ -385,7 +390,7 @@ function useUploadQueueController(): UploadQueueContextValue {
     try {
       if (job.preparedUri && !(await stagedUploadFileExists(job.preparedUri))) {
         if (await stagedUploadFileExists(job.stagedUri)) {
-          console.warn('[upload] prepared missing; will re-prepare from source', { jobId: job.id });
+          traceUpload('prepared missing; will re-prepare from source', { jobId: job.id });
           await patchDurableUploadJob(job.id, {
             preparedUri: null,
             finalSizeBytes: null,
@@ -396,7 +401,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           });
           job = (await getDurableUploadJob(job.id)) ?? { ...job, preparedUri: null };
         } else {
-          throwUploadError('Lokalny plik wysyłki nie jest już dostępny.', 'FILE_NOT_RECOVERABLE');
+          throwUploadError(i18n.t('inbox.uploadErrorFileMissing'), 'FILE_NOT_RECOVERABLE');
         }
       }
 
@@ -411,7 +416,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           errorMessage: null,
         });
         const prepareStartedAt = Date.now();
-        console.warn('[upload] prepare start', {
+        traceUpload('prepare start', {
           jobId: job.id,
           mediaType: job.mediaType,
           stagedTail: job.stagedUri.slice(-48),
@@ -434,7 +439,7 @@ function useUploadQueueController(): UploadQueueContextValue {
               sourceHeight: job.sourceHeight ?? undefined,
               onProgress,
             });
-        console.warn('[upload] prepare encode done', {
+        traceUpload('prepare encode done', {
           jobId: job.id,
           ms: Date.now() - prepareStartedAt,
           sizeBytes: prepared.sizeBytes,
@@ -442,14 +447,14 @@ function useUploadQueueController(): UploadQueueContextValue {
         const preparedWasStaged = await runWithFinally(async () => {
           const latestBeforeStaging = await getDurableUploadJob(job.id);
           if (isLocallyStopped(latestBeforeStaging)) return false;
-          console.warn('[upload] stage prepared start', { jobId: job.id });
+          traceUpload('stage prepared start', { jobId: job.id });
           const stagedPrepared = await stageUploadFile({
             jobId: job.id,
             sourceUri: prepared.uri,
             mediaType: job.mediaType,
             role: 'prepared',
           });
-          console.warn('[upload] stage prepared done', {
+          traceUpload('stage prepared done', {
             jobId: job.id,
             sizeBytes: stagedPrepared.sizeBytes,
           });
@@ -504,7 +509,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           progress: Math.max(job.progress, 0.3),
         });
         const beginStartedAt = Date.now();
-        console.warn('[upload] begin start', { jobId: job.id, mediaType: job.mediaType });
+        traceUpload('begin start', { jobId: job.id, mediaType: job.mediaType });
         const target = await beginMediaUploadBatch({
           idempotencyKey: job.idempotencyKey,
           mediaType: job.mediaType,
@@ -516,7 +521,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           recipients: job.recipients,
         });
         beginMs = Date.now() - beginStartedAt;
-        console.warn('[upload] begin done', { jobId: job.id, ms: beginMs, status: target.status });
+        traceUpload('begin done', { jobId: job.id, ms: beginMs, status: target.status });
         rememberPhaseTimings(job.id, { beginMs });
         if (target.status === 'completed' || target.status === 'partially_completed') {
           const finalized = await finalizeMediaUploadBatch({
@@ -534,7 +539,7 @@ function useUploadQueueController(): UploadQueueContextValue {
                 storagePath: target.storagePath,
                 state: 'failed',
                 errorCode: 'UNKNOWN',
-                errorMessage: 'Brak kolejki moderacji po finalizacji.',
+                errorMessage: i18n.t('inbox.uploadErrorModerationQueueMissing'),
                 finishedAt: Date.now(),
               });
               return;
@@ -614,7 +619,7 @@ function useUploadQueueController(): UploadQueueContextValue {
       const latestBeforeEnqueue = await getDurableUploadJob(job.id);
       if (isLocallyStopped(latestBeforeEnqueue)) return;
       const enqueueStartedAt = Date.now();
-      console.warn('[upload] native enqueue start', {
+      traceUpload('native enqueue start', {
         jobId: job.id,
         preparedTail: job.preparedUri.slice(-48),
       });
@@ -634,31 +639,11 @@ function useUploadQueueController(): UploadQueueContextValue {
         nextRetryAt: job.nextAttemptAt ?? 0,
       });
       nativeEnqueueMs = Date.now() - enqueueStartedAt;
-      console.warn('[upload] native enqueue done', {
+      traceUpload('native enqueue done', {
         jobId: job.id,
         ms: nativeEnqueueMs,
         result,
       });
-      // Diagnose silent PUT stalls: native progress events should move past 0.31.
-      setTimeout(() => {
-        void backgroundUploader.listTasks().then((snapshots) => {
-          const snap = snapshots.find((item) => item.jobId === job.id);
-          console.warn('[upload] post-enqueue snapshot', {
-            jobId: job.id,
-            snap: snap
-              ? {
-                  state: snap.state,
-                  progress: snap.progress,
-                  bytesSent: snap.bytesSent,
-                  bytesTotal: snap.bytesTotal,
-                  errorCode: snap.errorCode,
-                  errorMessage: snap.errorMessage,
-                  statusCode: snap.statusCode,
-                }
-              : null,
-          });
-        });
-      }, 3000);
       rememberPhaseTimings(job.id, {
         prepareMs,
         beginMs,
@@ -678,12 +663,12 @@ function useUploadQueueController(): UploadQueueContextValue {
           await patchDurableUploadJob(job.id, {
             state: 'failed',
             errorCode: 'FILE_NOT_RECOVERABLE',
-            errorMessage: 'Lokalny plik wysyłki nie jest już dostępny.',
+            errorMessage: i18n.t('inbox.uploadErrorFileMissing'),
             finishedAt: Date.now(),
           });
           return;
         }
-        console.warn('[upload] restaging after missing prepared file', { jobId: job.id });
+        traceUpload('restaging after missing prepared file', { jobId: job.id });
         await patchDurableUploadJob(job.id, {
           state: 'queued',
           preparedUri: null,
@@ -704,7 +689,7 @@ function useUploadQueueController(): UploadQueueContextValue {
                 state: 'waiting_for_auth',
                 authRefreshAttempted: true,
                 errorCode: 'AUTH_REQUIRED',
-                errorMessage: 'Sesja wygasła. Zaloguj się ponownie i ponów wysyłkę.',
+                errorMessage: i18n.t('inbox.uploadErrorSessionExpired'),
               }
             : {
                 state: 'queued',
@@ -720,7 +705,7 @@ function useUploadQueueController(): UploadQueueContextValue {
         await patchDurableUploadJob(job.id, {
           state: 'waiting_for_auth',
           errorCode: 'AUTH_REQUIRED',
-          errorMessage: 'Sesja wygasła. Zaloguj się ponownie i ponów wysyłkę.',
+          errorMessage: i18n.t('inbox.uploadErrorSessionExpired'),
         });
         return;
       }
@@ -805,7 +790,7 @@ function useUploadQueueController(): UploadQueueContextValue {
     if (!job) return;
     const updated = await patchDurableUploadJob(jobId, {
       state: 'cancelled', finishedAt: Date.now(), errorCode: 'CANCELLED',
-      errorMessage: 'Wysyłka została anulowana.',
+      errorMessage: i18n.t('inbox.uploadErrorCancelled'),
     }, true);
     if (updated.changes === 0) return;
     await backgroundUploader.cancel(jobId).catch(() => undefined);
@@ -886,7 +871,7 @@ function useUploadQueueController(): UploadQueueContextValue {
               errorCode: 'FILE_NOT_RECOVERABLE',
               errorMessage: error instanceof Error
                 ? error.message
-                : 'Pliku nie można odzyskać po restarcie aplikacji.',
+                : i18n.t('inbox.uploadErrorFileNotRecoverable'),
               finishedAt: Date.now(),
             });
           }
@@ -917,13 +902,13 @@ function useUploadQueueController(): UploadQueueContextValue {
           await patchDurableUploadJob(persistedJob.id, {
             state: 'failed',
             errorCode: 'FILE_NOT_RECOVERABLE',
-            errorMessage: 'Lokalny plik wysyłki nie jest już dostępny.',
+            errorMessage: i18n.t('inbox.uploadErrorFileMissing'),
             finishedAt: Date.now(),
           });
         }
       }));
 
-      const legacy = await readUploadQueueNixeshot();
+      const legacy = await readUploadQueueSnapshot();
       if (legacy?.tasks.length) {
         const migrationResults = await Promise.all(legacy.tasks.map(async (task) => {
           if (await getDurableUploadJob(task.id)) return true;
@@ -947,7 +932,7 @@ function useUploadQueueController(): UploadQueueContextValue {
             return Boolean(await getDurableUploadJob(task.id));
           }
         }));
-        if (migrationResults.every(Boolean)) await clearUploadQueueNixeshot();
+        if (migrationResults.every(Boolean)) await clearUploadQueueSnapshot();
       }
 
       const nativeSnapshots = await backgroundUploader.reconcile();
@@ -1026,7 +1011,7 @@ function useUploadQueueController(): UploadQueueContextValue {
             await patchDurableUploadJob(snapshot.jobId, {
               state: 'failed',
               errorCode: 'UNKNOWN',
-              errorMessage: 'Brak kolejki moderacji po finalizacji.',
+              errorMessage: i18n.t('inbox.uploadErrorModerationQueueMissing'),
               finishedAt: Date.now(),
             });
             await refresh();
@@ -1085,7 +1070,7 @@ function useUploadQueueController(): UploadQueueContextValue {
                   state: 'waiting_for_auth',
                   authRefreshAttempted: true,
                   errorCode: 'AUTH_REQUIRED',
-                  errorMessage: 'Sesja wygasła. Zaloguj się ponownie i ponów wysyłkę.',
+                  errorMessage: i18n.t('inbox.uploadErrorSessionExpired'),
                 }
               : {
                   state: 'queued',
@@ -1118,7 +1103,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           nextAttemptAt: snapshot.nextRetryAt ?? null,
           errorCode: snapshotErrorCode,
           errorMessage: snapshotErrorCode === 'FILE_TOO_LARGE_PERMANENT'
-            ? 'Plik jest zbyt duży także po dodatkowej kompresji.'
+            ? i18n.t('inbox.uploadErrorTooLarge')
             : snapshot.errorMessage ?? null,
           finishedAt: snapshot.state === 'completed' || snapshot.state === 'cancelled'
             ? Date.now()

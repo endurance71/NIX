@@ -1,6 +1,30 @@
 import { DatabaseSync } from 'node:sqlite';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getDurableUploadJob, getUploadQueueDatabase, patchDurableUploadJob } from './durableUploadQueueDb';
+import {
+  getDurableUploadJob,
+  getUploadQueueDatabase,
+  patchDurableUploadJob,
+  purgeOwnerDurableUploadJobs,
+} from './durableUploadQueueDb';
+
+const clearedKeys: string[] = [];
+vi.mock('./uploadQueueSecrets', () => ({
+  // Reversible stand-in for AES-GCM that still binds the row identity.
+  uploadQueueSecretsCodec: {
+    seal: async (ownerId: string, jobId: string, secrets: unknown) =>
+      `sealed:${Buffer.from(JSON.stringify([ownerId, jobId, secrets])).toString('base64')}`,
+    open: async (ownerId: string, jobId: string, sealed: string) => {
+      const [sealedOwner, sealedJob, secrets] = JSON.parse(
+        Buffer.from(sealed.slice('sealed:'.length), 'base64').toString()
+      );
+      if (sealedOwner !== ownerId || sealedJob !== jobId) throw new Error('AAD mismatch');
+      return secrets;
+    },
+    clear: async (ownerId: string) => {
+      clearedKeys.push(ownerId);
+    },
+  },
+}));
 
 vi.mock('expo-sqlite', () => ({
   openDatabaseAsync: async () => {
@@ -42,5 +66,38 @@ describe('atomic durable upload control', () => {
     await patchDurableUploadJob('job', { state: 'paused' });
     await patchDurableUploadJob('job', { state: 'retry_scheduled' });
     expect(await getDurableUploadJob('job')).toMatchObject({ state: 'retry_scheduled', progress: 0.5, nextAttemptAt: 15_000 });
+  });
+});
+
+describe('upload capability secrets at rest', () => {
+  it('never stores the upload URL or finalize token in plaintext columns', async () => {
+    await patchDurableUploadJob('job', {
+      uploadUrl: 'https://storage.example/upload?token=secret-upload',
+      finalizeToken: 'secret-finalize',
+    });
+    const db = await getUploadQueueDatabase();
+    const raw = await db.getFirstAsync<Record<string, string | null>>('SELECT * FROM upload_jobs WHERE id = ?', 'job');
+    expect(raw?.upload_url).toBeNull();
+    expect(raw?.finalize_token).toBeNull();
+    expect(JSON.stringify(raw)).not.toContain('secret-upload');
+
+    const job = await getDurableUploadJob('job');
+    expect(job?.uploadUrl).toBe('https://storage.example/upload?token=secret-upload');
+    expect(job?.finalizeToken).toBe('secret-finalize');
+  });
+
+  it('keeps the other secret when only one is patched', async () => {
+    await patchDurableUploadJob('job', { uploadUrl: 'https://u', finalizeToken: 'f' });
+    await patchDurableUploadJob('job', { uploadUrl: null });
+    const job = await getDurableUploadJob('job');
+    expect(job?.uploadUrl).toBeNull();
+    expect(job?.finalizeToken).toBe('f');
+  });
+
+  it('hides another owner\'s job and clears the key on purge', async () => {
+    expect(await getDurableUploadJob('job', 'someone-else')).toBeNull();
+    expect(await getDurableUploadJob('job', 'owner')).not.toBeNull();
+    await purgeOwnerDurableUploadJobs('owner');
+    expect(clearedKeys).toContain('owner');
   });
 });

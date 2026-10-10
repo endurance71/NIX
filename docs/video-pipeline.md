@@ -54,7 +54,7 @@ Po migawce: `setPhotoUri(photo.uri)` + natychmiastowy `router.push('/preview')`.
 ## Upload
 
 - **Obrazy / małe pliki:** standardowa ścieżka uploadu do Storage.
-- **Wideo (resumable):** [`src/services/resumableUploadService.ts`](../src/services/resumableUploadService.ts) — `tus-js-client`, chunk **6 MB** (limit Supabase TUS), odczyt fragmentów przez `expo-file-system/legacy.readAsStringAsync` (base64) aby utrzymać RAM ~14–20 MB szczytowo.
+- **Wideo:** trwała kolejka (`begin-media-upload` → natywny upload w tle z pliku przez `modules/nix-background-uploader` → `finalize-media-upload`). Dawna ścieżka TUS (`tus-js-client`) została usunięta 2026-10-10.
 - Eventy: `resumable_upload_started`, `resumable_upload_success_ms`, `resumable_upload_failure`, `resumable_upload_retry`, `resumable_upload_non_retryable`, `resumable_upload_existing_resource`.
 
 ## Rekord `nixes`

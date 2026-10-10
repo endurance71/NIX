@@ -1,4 +1,5 @@
 import { Alert, Platform, Pressable, StyleSheet, Text } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Button, HStack, Host, Image as SwiftImage, Menu, Text as SwiftText } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel as swiftAccessibilityLabel,
@@ -41,6 +42,10 @@ export default function PreviewDurationMenu({
   colors,
   chromeVariant = 'glass',
 }: PreviewDurationMenuProps) {
+  const { t } = useTranslation();
+  const durationA11yLabel = t('preview.durationA11y', {
+    duration: formatNixViewDurationLabel(selectedDurationSec),
+  });
   const choose = (sec: NixViewDurationSec) => {
     selection();
     onSelect(sec);
@@ -53,20 +58,20 @@ export default function PreviewDurationMenu({
         style={[styles.fallbackButton, { backgroundColor: colors.cameraControlBackground }]}
         onPress={() => {
           Alert.alert(
-            'Czas wyświetlania',
-            'Jak długo zdjęcie będzie widoczne u odbiorcy po otwarciu.',
+            t('preview.durationTitle'),
+            t('preview.durationDescription'),
             [
               ...NIX_VIEW_DURATION_CHOICES.map((sec) => ({
                 text: `${formatNixViewDurationLabel(sec)}${sec === selectedDurationSec ? ' ✓' : ''}`,
                 onPress: () => choose(sec),
               })),
-              { text: 'Anuluj', style: 'cancel' as const },
+              { text: t('common.cancel'), style: 'cancel' as const },
             ],
             { cancelable: true }
           );
         }}
         hitSlop={10}
-        accessibilityLabel={`Czas wyświetlania: ${formatNixViewDurationLabel(selectedDurationSec)}`}
+        accessibilityLabel={durationA11yLabel}
         accessibilityRole="button">
         <AppIcon name="timer" size={APP_ICON_SIZE.lg} color={colors.cameraControlTint} />
         <Text style={[styles.fallbackLabel, { color: colors.cameraControlTint }]}>
@@ -91,7 +96,7 @@ export default function PreviewDurationMenu({
               ...(chromeVariant === 'glass'
                 ? [glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'capsule' as const })]
                 : []),
-              swiftAccessibilityLabel(`Czas wyświetlania: ${formatNixViewDurationLabel(selectedDurationSec)}`),
+              swiftAccessibilityLabel(durationA11yLabel),
             ]}>
             <SwiftImage
               systemName={resolveAppIconName('timer') as SFSymbol}

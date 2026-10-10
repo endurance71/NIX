@@ -254,9 +254,12 @@ function AppStack({
     </>
   );
 
-  if (!session || !canUseNetworkSession || Platform.OS !== 'ios') return content;
   return (
-    <PushNotificationsProvider userId={session.user.id} canNavigate={!needsOnboarding}>
+    <PushNotificationsProvider
+      userId={session?.user.id ?? null}
+      enabled={Boolean(session) && canUseNetworkSession && Platform.OS === 'ios'}
+      canNavigate={!needsOnboarding}
+    >
       {content}
     </PushNotificationsProvider>
   );

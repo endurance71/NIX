@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>NiX — confirm in the app</title>
+    <style>
+      :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #000; color: #fff; }
+      main { width: min(420px, calc(100% - 40px)); text-align: center; }
+      .mark { width: 92px; height: 92px; margin: 0 auto; border-radius: 22px; display: grid; place-items: center; background: #fff; color: #000; font-size: 27px; font-weight: 800; letter-spacing: -1px; }
+      h1 { margin: 24px 0 10px; font-size: 30px; }
+      p { color: #b8b8bd; font-size: 17px; line-height: 1.45; }
+      small { display: block; margin-top: 18px; color: #77777d; line-height: 1.4; }
+      small a { color: #b8b8bd; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-label="NiX">NiX</div>
+      <h1 data-i18n="title">Continue in NiX</h1>
+      <p data-i18n="body">Open this link on the iPhone where NiX is installed, or enter the 6-digit code from the email in the app.</p>
+      <small data-i18n="privacy">This page does not read or store the code from your link.</small>
+      <small><a href="/privacy/" data-i18n="privacyLink">Privacy Policy</a> · <a href="/support/" data-i18n="supportLink">Support</a></small>
+    </main>
+    <script>
+      // The confirmation token stays in the URL handled by the browser/OS.
+      // This page never reads, copies or persists it.
+      const copy = {
+        pl: {
+          title: 'Kontynuuj w NiX',
+          body: 'Otwórz ten link na iPhonie z zainstalowanym NiX albo wpisz w aplikacji 6-cyfrowy kod z wiadomości e-mail.',
+          privacy: 'Ta strona nie odczytuje ani nie zapisuje kodu z linku.',
+          privacyLink: 'Polityka prywatności',
+          supportLink: 'Pomoc'
+        }
+      };
+      if ((navigator.language || '').toLowerCase().startsWith('pl')) {
+        document.documentElement.lang = 'pl';
+        document.querySelectorAll('[data-i18n]').forEach((node) => {
+          node.textContent = copy.pl[node.dataset.i18n];
+        });
+      }
+    </script>
+  </body>
+</html>

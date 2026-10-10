@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { VStack } from '@expo/ui/swift-ui';
-import { isUsernameTaken, getCurrentUserProfile, saveUsernameForCurrentUser, updateCurrentUserProfile } from '../../services/profileService';
+import { isUsernameTaken, getCurrentUserProfile, saveUsernameForCurrentUser } from '../../services/profileService';
+import { getAuthFormErrorKey } from '../../lib/authFormError';
 import {
   AuthErrorText,
   AuthFieldGroup,
@@ -90,8 +91,7 @@ export default function OnboardingScreen() {
             setError(t('auth.onboardingUsernameTaken'));
             return;
           }
-          await saveUsernameForCurrentUser(cleaned);
-          await updateCurrentUserProfile({ display_name: cleanedDisplayName });
+          await saveUsernameForCurrentUser(cleaned, cleanedDisplayName);
         }
         if (iosRoadmapFeatures.analytics) {
           await setProductAnalyticsConsent(analyticsConsent);
@@ -108,8 +108,9 @@ export default function OnboardingScreen() {
         );
       },
       () => setLoading(false)
-    ).catch((err: any) => {
-      setError(t('auth.onboardingFailure', { message: err?.message || t('common.unknown') }));
+    ).catch((err: unknown) => {
+      const key = getAuthFormErrorKey(err instanceof Error ? err : null);
+      setError(key === 'auth.requestFailed' ? t('auth.onboardingSaveFailed') : t(key));
     });
   };
 

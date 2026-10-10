@@ -17,6 +17,7 @@ export type MemoryJobSeed = {
   materializedAt?: number | null;
   waitingReason?: string | null;
   nextAttemptAt?: number;
+  attemptCount?: number;
 };
 
 type Row = MemoryJobSeed & {
@@ -26,6 +27,8 @@ type Row = MemoryJobSeed & {
   materializedAt: number | null;
   waitingReason: string | null;
   nextAttemptAt: number;
+  attemptCount: number;
+  lastError: string | null;
   contentKind: "text" | "media";
   materializeCount: number;
   messagesPublished: number;
@@ -52,6 +55,8 @@ export function createMemoryIntegrationQueue(
       materializedAt: seed.materializedAt ?? null,
       waitingReason: seed.waitingReason ?? null,
       nextAttemptAt: seed.nextAttemptAt ?? 0,
+      attemptCount: seed.attemptCount ?? 0,
+      lastError: null,
       contentKind: seed.kind === "text" ? "text" : "media",
       materializeCount: 0,
       messagesPublished: 0,
@@ -65,6 +70,7 @@ export function createMemoryIntegrationQueue(
       path: row.path,
       text: row.text,
       contentKind: row.contentKind,
+      attemptCount: row.attemptCount,
     };
   }
 
@@ -87,6 +93,7 @@ export function createMemoryIntegrationQueue(
         row.leaseOwner = owner;
         row.leaseExpiresAt = t + leaseSeconds * 1000;
         row.waitingReason = null;
+        row.attemptCount += 1;
         claimed.push(toJob(row));
       }
       return claimed;
@@ -101,6 +108,17 @@ export function createMemoryIntegrationQueue(
       row.leaseOwner = null;
       row.leaseExpiresAt = null;
       row.waitingReason = null;
+    },
+    async retryLater(job, owner, lastError, delaySeconds) {
+      const row = rows.get(job.id);
+      if (!row || row.leaseOwner !== owner) {
+        throw new Error("retry_failed_or_lease_lost");
+      }
+      row.status = "pending";
+      row.lastError = lastError;
+      row.leaseOwner = null;
+      row.leaseExpiresAt = null;
+      row.nextAttemptAt = now() + delaySeconds * 1000;
     },
     async deferForBudget(job, owner, reason) {
       const row = rows.get(job.id);

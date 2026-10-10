@@ -9,6 +9,7 @@ import {
 } from '../services/socialAuthService';
 import { tap, notify } from '../lib/haptics';
 import { runWithFinally } from '../lib/runWithFinally';
+import { getAuthFormErrorKey } from '../lib/authFormError';
 
 function getAppleSignInErrorMessage(message: string, t: (key: string) => string) {
   if (message === APPLE_SIGN_IN_ERROR_CODES.NO_IDENTITY_TOKEN) {
@@ -23,11 +24,6 @@ function getAppleSignInErrorMessage(message: string, t: (key: string) => string)
   return message || t('auth.appleSignInFailed');
 }
 
-function getAuthErrorMessage(message: string, t: (key: string) => string) {
-  if (message.includes('Invalid login credentials')) return t('auth.invalidCredentials');
-  if (message.includes('Email not confirmed')) return t('auth.emailNotConfirmed');
-  return message;
-}
 
 function goToForgotPassword() {
   router.push('/(auth)/forgot-password');
@@ -102,13 +98,13 @@ export function useLoginScreen() {
           const { error: signInError } = await signIn(trimmedEmail, passwordValue);
 
           if (signInError) {
-            setError(getAuthErrorMessage(signInError.message, t));
+            setError(t(getAuthFormErrorKey(signInError)));
             notify('error');
           } else {
             notify('success');
           }
         } catch (cause) {
-          setError(getAuthErrorMessage(cause instanceof Error ? cause.message : String(cause), t));
+          setError(t(getAuthFormErrorKey(cause instanceof Error ? cause : null)));
           notify('error');
         }
       },

@@ -142,6 +142,7 @@ export async function runLiveWorker(
   const ledger = sqlBudgetLedger(rpc, {
     hardBudget: F0_HARD_BUDGET,
     externalUsed: cfg.externalUsed,
+    externalUsedMonth: cfg.externalUsedMonth,
   });
   const shutdown = createShutdownController();
   const worker = createIntegrationWorker(queue, provider, ledger, { shutdown });

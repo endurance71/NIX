@@ -34,11 +34,22 @@ export async function requestDataExport(): Promise<DataExportJob> {
   return decodeExportJob(data);
 }
 
+async function functionErrorCode(error: unknown): Promise<string | null> {
+  const context = (error as { context?: unknown } | null)?.context;
+  if (!(context instanceof Response)) return null;
+  try {
+    const body = await context.clone().json();
+    return typeof body?.code === 'string' ? body.code : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function createDataExportDownloadUrl(jobId: string): Promise<string> {
   const { data, error } = await supabase.functions.invoke('data-export-download', {
     body: { job_id: jobId },
   });
-  if (error) throw error;
+  if (error) throw new Error((await functionErrorCode(error)) ?? 'EXPORT_DOWNLOAD_FAILED');
   if (typeof data?.signed_url !== 'string') {
     const code = typeof data?.code === 'string' ? data.code : 'EXPORT_DOWNLOAD_FAILED';
     throw new Error(code);

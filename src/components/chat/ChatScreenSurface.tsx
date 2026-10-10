@@ -395,6 +395,7 @@ function MessageBubble({
   onReport,
   onRetry,
   onDeleteFailed,
+  onCancelSending,
 }: {
   message: OptimisticTextMessage;
   isOwn: boolean;
@@ -407,6 +408,7 @@ function MessageBubble({
   onReport: () => void;
   onRetry: () => void;
   onDeleteFailed: () => void;
+  onCancelSending: () => void;
 }) {
   const { colors } = useAppTheme();
   const bubbleRef = useRef<View>(null);
@@ -433,6 +435,13 @@ function MessageBubble({
         { text: i18n.t('chat.retrySend'), onPress: onRetry },
         { text: i18n.t('chat.deleteFailed'), style: 'destructive', onPress: onDeleteFailed },
         { text: i18n.t('common.cancel'), style: 'cancel' },
+      ]);
+      return;
+    }
+    if (message.isSending && message.outboxId) {
+      Alert.alert(i18n.t('chat.sendingTitle'), undefined, [
+        { text: i18n.t('chat.cancelSending'), style: 'destructive', onPress: onCancelSending },
+        { text: i18n.t('common.close'), style: 'cancel' },
       ]);
       return;
     }
@@ -1190,13 +1199,15 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     }
   );
 
+  // Follow the newest item only; prepending older history keeps the position.
+  const lastTimelineItemId = timeline.at(-1)?.id ?? null;
   useEffect(() => {
-    if (timeline.length === 0) return;
+    if (!lastTimelineItemId) return;
     const id = requestAnimationFrame(() => {
       listRef.current?.scrollToEnd({ animated: false });
     });
     return () => cancelAnimationFrame(id);
-  }, [timeline.length]);
+  }, [lastTimelineItemId]);
 
   const onListScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
@@ -1322,6 +1333,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
         onReport={() => openReportSheet(item.message)}
         onRetry={() => void vm.handleRetryTextMessage(item.message)}
         onDeleteFailed={() => void vm.handleDeleteFailedTextMessage(item.message)}
+        onCancelSending={() => void vm.handleCancelSendingTextMessage(item.message)}
       />
     );
   }, [bubbleMaxWidth, openPickerForMessage, openReportSheet, picker?.messageId, pickerOpen, requestClosePicker, vm]);
@@ -1365,6 +1377,9 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
             onScroll={onListScroll}
             scrollEventThrottle={16}
             onScrollBeginDrag={requestClosePicker}
+            onStartReached={vm.onReachedOldestMessage}
+            onStartReachedThreshold={0.25}
+            ListHeaderComponent={<OlderMessagesLoader visible={vm.loadingOlderMessages} />}
             renderItem={renderTimelineItem}
           />
         )}
@@ -1398,7 +1413,21 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
   );
 }
 
+function OlderMessagesLoader({ visible }: { visible: boolean }) {
+  const { colors } = useAppTheme();
+  if (!visible) return null;
+  return (
+    <View style={styles.olderLoader}>
+      <ActivityIndicator color={colors.secondaryLabel} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  olderLoader: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
   root: {
     flex: 1,
   },

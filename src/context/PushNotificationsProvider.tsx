@@ -14,7 +14,11 @@ import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { PushNotificationsContext, type PushNotificationUiState } from './pushNotifications';
+import {
+  PushNotificationsContext,
+  pushNotificationsFallback,
+  type PushNotificationUiState,
+} from './pushNotifications';
 import {
   disableCurrentPushDevice,
   ensureBadgePermission,
@@ -157,15 +161,22 @@ async function processPushNotificationResponse({
   await Notifications.clearLastNotificationResponseAsync();
 }
 
+/**
+ * Always mounted around the navigation tree; `enabled` turns push handling on
+ * and off so a session or connectivity change never remounts the children.
+ */
 export function PushNotificationsProvider({
-  userId,
+  userId: sessionUserId,
+  enabled,
   canNavigate,
   children,
 }: {
-  userId: string;
+  userId: string | null;
+  enabled: boolean;
   canNavigate: boolean;
   children: ReactNode;
 }) {
+  const userId = enabled ? sessionUserId : null;
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [state, setState] = useState<PushNotificationUiState>('loading');
@@ -174,7 +185,9 @@ export function PushNotificationsProvider({
   const pendingResponse = useRef<Notifications.NotificationResponse | null>(null);
 
   const refresh = useCallback(
-    () => refreshPushNotificationState(userId, setState),
+    async () => {
+      if (userId) await refreshPushNotificationState(userId, setState);
+    },
     [userId]
   );
 
@@ -186,7 +199,7 @@ export function PushNotificationsProvider({
   }, [t]);
 
   const enable = useCallback(async () => {
-    if (busy) return;
+    if (busy || !userId) return;
     await runWithBusyState(setBusy, async () => {
       try {
         const permission = await requestPushPermission();
@@ -214,7 +227,7 @@ export function PushNotificationsProvider({
   }, [busy, refresh, showSettingsAlert, t, userId]);
 
   const disable = useCallback(async () => {
-    if (busy) return;
+    if (busy || !userId) return;
     await runWithBusyState(setBusy, async () => {
       try {
         await disableCurrentPushDevice(userId, 'user_disabled');
@@ -229,7 +242,7 @@ export function PushNotificationsProvider({
   }, [busy, refresh, t, userId]);
 
   const offerPushRationale = useCallback(async () => {
-    if (state === 'enabled' || state === 'denied' || state === 'unavailable' || state === 'loading' || busy) {
+    if (!userId || state === 'enabled' || state === 'denied' || state === 'unavailable' || state === 'loading' || busy) {
       return;
     }
     if (await wasPushPromptOffered(userId)) return;
@@ -249,6 +262,7 @@ export function PushNotificationsProvider({
   });
 
   useEffect(() => {
+    if (!userId) return;
     const initialRefresh = setTimeout(
       () => void refresh(),
       0
@@ -260,16 +274,17 @@ export function PushNotificationsProvider({
       clearTimeout(initialRefresh);
       unsubscribe();
     };
-  }, [refresh]);
+  }, [refresh, userId]);
 
   // After onboarding, offer push once so receivers (not only senders) register a token.
   useEffect(() => {
-    if (!canNavigate || state !== 'disabled' || busy) return;
+    if (!userId || !canNavigate || state !== 'disabled' || busy) return;
     const timer = setTimeout(offerPushRationaleFromEffect, 800);
     return () => clearTimeout(timer);
-  }, [busy, canNavigate, state]);
+  }, [busy, canNavigate, state, userId]);
 
   useEffect(() => {
+    if (!userId) return;
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
       void processPushNotificationResponse({
         response,
@@ -316,7 +331,7 @@ export function PushNotificationsProvider({
     });
   }, [canNavigate, queryClient]);
 
-  const value = useMemo(() => ({
+  const value = useMemo(() => userId ? ({
     state,
     busy,
     enable,
@@ -324,7 +339,7 @@ export function PushNotificationsProvider({
     refresh,
     offerAfterSuccessfulSend,
     openSettings: openSystemNotificationSettings,
-  }), [busy, disable, enable, offerAfterSuccessfulSend, refresh, state]);
+  }) : pushNotificationsFallback, [busy, disable, enable, offerAfterSuccessfulSend, refresh, state, userId]);
 
   return <PushNotificationsContext.Provider value={value}>{children}</PushNotificationsContext.Provider>;
 }

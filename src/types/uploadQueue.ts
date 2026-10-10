@@ -42,7 +42,7 @@ export type UploadTask = {
   error?: string | null;
 };
 
-export type UploadQueueNixeshot = {
+export type UploadQueueSnapshot = {
   version: 1;
   tasks: UploadTask[];
   activeTaskId: string | null;

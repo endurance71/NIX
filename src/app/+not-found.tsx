@@ -1,20 +1,22 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { typography } from '../theme/typography';
 
 export default function NotFoundScreen() {
+  const { t } = useTranslation();
   const { colors } = useAppTheme();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.systemBackground }]}>
       <Text style={[styles.symbol, { color: colors.tertiaryLabel }]}>!</Text>
-      <Text style={[styles.title, { color: colors.label }]}>Nie znaleziono widoku</Text>
+      <Text style={[styles.title, { color: colors.label }]}>{t('notFound.title')}</Text>
       <Text selectable style={[styles.message, { color: colors.secondaryLabel }]}>
-        Ten adres nie prowadzi do aktywnego ekranu NiX.
+        {t('notFound.message')}
       </Text>
       <Pressable
-        accessibilityLabel="Wróć do aplikacji"
+        accessibilityLabel={t('notFound.backToApp')}
         accessibilityRole="button"
         style={({ pressed }) => [
           styles.button,
@@ -23,7 +25,7 @@ export default function NotFoundScreen() {
         ]}
         onPress={() => router.replace('/(tabs)')}
       >
-        <Text style={[styles.buttonLabel, { color: colors.buttonPrimaryText }]}>Wróć do aplikacji</Text>
+        <Text style={[styles.buttonLabel, { color: colors.buttonPrimaryText }]}>{t('notFound.backToApp')}</Text>
       </Pressable>
     </View>
   );

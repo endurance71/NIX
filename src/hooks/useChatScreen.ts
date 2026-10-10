@@ -9,7 +9,8 @@ import { queryKeys, avatarSignedUrlsQueryKey } from '../lib/queryKeys';
 import { sortMessagesAscending } from '../lib/chatTimeline';
 import { runWithFinally } from '../lib/runWithFinally';
 import {
-  fetchTextMessagesWithPeer,
+  cancelOwnTextMessage,
+  fetchRecentTextMessagesWithPeer,
 } from '../services/textMessageService';
 import {
   fetchMessageReactionsWithPeer,
@@ -39,6 +40,7 @@ import {
 } from '../services/notificationPreferencesService';
 import {
   deleteTextOutboxJob,
+  deleteUnclaimedTextOutboxJob,
   enqueueTextOutbox,
   flushTextOutbox,
   listTextOutbox,
@@ -107,14 +109,19 @@ function useChatPeerQueries(peerId: string, canUseNetworkSession: boolean) {
   return { peerProfileQuery, peerAvatarPath, peerAvatarQuery };
 }
 
+const CHAT_MESSAGE_PAGE_SIZE = 50;
+
 function useChatTimelineQueries(
   peerId: string,
   currentUserId: string,
   canUseNetworkSession: boolean,
+  messagePages: number,
 ) {
   const messagesQuery = useQuery({
     queryKey: queryKeys.textMessagesWithPeer(peerId),
-    queryFn: () => fetchTextMessagesWithPeer({ peerId, limit: 50 }),
+    // The page count is not part of the key: realtime, push and the offline
+    // cache share this entry, and every refetch reloads all requested pages.
+    queryFn: () => fetchRecentTextMessagesWithPeer(peerId, messagePages, CHAT_MESSAGE_PAGE_SIZE),
     staleTime: CHAT_STALE_TIME_MS,
     enabled: canUseNetworkSession && Boolean(peerId),
     refetchOnWindowFocus: true,
@@ -152,6 +159,66 @@ function useChatTimelineQueries(
   });
 
   return { messagesQuery, outboxQuery, reactionsQuery, nixesQuery, muteQuery };
+}
+
+/** Number of message pages requested for this peer; resets when the peer changes. */
+function useChatMessagePages(peerId: string) {
+  const [state, setState] = useState({ peerId, pages: 1 });
+  const pages = state.peerId === peerId ? state.pages : 1;
+  const setPages = useCallback((next: number) => setState({ peerId, pages: next }), [peerId]);
+  return [pages, setPages] as const;
+}
+
+function useOlderChatMessages({
+  peerId,
+  messagePages,
+  messagesQuery,
+  canUseNetworkSession,
+  onPagesChange,
+  failureMessage,
+}: {
+  peerId: string;
+  messagePages: number;
+  messagesQuery: { data?: TextMessage[]; isFetching: boolean };
+  canUseNetworkSession: boolean;
+  onPagesChange: (pages: number) => void;
+  failureMessage: string;
+}) {
+  const queryClient = useQueryClient();
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  // A full set of pages means the server may hold older, unexpired messages.
+  const loadedCount = messagesQuery.data?.length ?? 0;
+  const hasOlderMessages =
+    canUseNetworkSession &&
+    !messagesQuery.isFetching &&
+    loadedCount >= messagePages * CHAT_MESSAGE_PAGE_SIZE;
+
+  const loadOlderMessages = async () => {
+    if (loadingOlderMessages) return;
+    const nextPages = messagePages + 1;
+    setLoadingOlderMessages(true);
+    onPagesChange(nextPages);
+    await runWithFinally(
+      () =>
+        queryClient
+          .fetchQuery({
+            queryKey: queryKeys.textMessagesWithPeer(peerId),
+            queryFn: () =>
+              fetchRecentTextMessagesWithPeer(peerId, nextPages, CHAT_MESSAGE_PAGE_SIZE),
+            staleTime: 0,
+          })
+          .then(() => undefined)
+          .catch((error) => {
+            notifyDomainError(error, failureMessage);
+          }),
+      () => setLoadingOlderMessages(false),
+    );
+  };
+
+  return {
+    loadingOlderMessages,
+    onReachedOldestMessage: hasOlderMessages ? () => void loadOlderMessages() : undefined,
+  };
 }
 
 export function useChatScreen(peerId: string) {
@@ -193,8 +260,17 @@ export function useChatScreen(peerId: string) {
     peerId,
     canUseNetworkSession,
   );
+  const [messagePages, setMessagePages] = useChatMessagePages(peerId);
   const { messagesQuery, outboxQuery, reactionsQuery, nixesQuery, muteQuery } =
-    useChatTimelineQueries(peerId, currentUserId, canUseNetworkSession);
+    useChatTimelineQueries(peerId, currentUserId, canUseNetworkSession, messagePages);
+  const { loadingOlderMessages, onReachedOldestMessage } = useOlderChatMessages({
+    peerId,
+    messagePages,
+    messagesQuery,
+    canUseNetworkSession,
+    onPagesChange: setMessagePages,
+    failureMessage: t('chat.loadOlderFailed'),
+  });
   const messages = mergeChatOutboxMessages(
     messagesQuery.data ?? [],
     outboxQuery.data ?? [],
@@ -334,6 +410,32 @@ export function useChatScreen(peerId: string) {
     if (!message.outboxId) return;
     await deleteTextOutboxJob(message.outboxId);
     await outboxQuery.refetch();
+  };
+
+  const handleCancelSendingTextMessage = async (message: OptimisticTextMessage) => {
+    if (!message.outboxId) return;
+    if (!canUseNetworkSession) {
+      notifyInfo(t('chat.cancelSendOffline'));
+      return;
+    }
+    const outboxId = message.outboxId;
+    try {
+      // Remove the local row first so no later flush can enqueue it again.
+      const removedLocally = await deleteUnclaimedTextOutboxJob(outboxId);
+      const result = await cancelOwnTextMessage(message.receiver_id, outboxId);
+      if (result === 'already_sent') {
+        notifyInfo(t('chat.cancelSendTooLate'));
+      } else if (result === 'not_found' && !removedLocally) {
+        // A flush is sending it right now and the server has no job yet.
+        notifyInfo(t('chat.cancelSendRetry'));
+      } else {
+        await deleteTextOutboxJob(outboxId);
+      }
+    } catch (error) {
+      notifyDomainError(error, t('chat.cancelSendFailed'));
+    } finally {
+      await Promise.all([outboxQuery.refetch(), messagesQuery.refetch()]);
+    }
   };
 
   const peerUsername = peerProfileQuery.data?.username ?? 'user';
@@ -618,6 +720,8 @@ export function useChatScreen(peerId: string) {
     busyUploadActions,
     reactionsByMessageId,
     messagesLoading,
+    loadingOlderMessages,
+    onReachedOldestMessage,
     messagesError: canUseNetworkSession && (messagesQuery.isError || nixesQuery.isError),
     inputBody,
     setInputBody,
@@ -630,6 +734,7 @@ export function useChatScreen(peerId: string) {
     handleSend,
     handleRetryTextMessage,
     handleDeleteFailedTextMessage,
+    handleCancelSendingTextMessage,
     handleReportMessage,
     handleReportPeer,
     handleBlockPeer,

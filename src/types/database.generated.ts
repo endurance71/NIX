@@ -1749,6 +1749,13 @@ export type Database = {
                     "asset_id": string;
                 })[];
             };
+            "cancel_own_text_moderation_job": {
+                Args: {
+                    "p_receiver_id": string | null;
+                    "p_client_message_id": string | null;
+                };
+                Returns: string;
+            };
             "claim_approved_unmaterialized_moderation_jobs": {
                 Args: {
                     "p_lease_owner": string | null;

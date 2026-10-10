@@ -417,11 +417,12 @@ function PreviewMediaError({
   onBack: () => void;
   styles: ReturnType<typeof createStyles>;
 }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.container}>
       <Text style={styles.errorText}>{message}</Text>
       <Pressable style={styles.backButton} onPress={onBack}>
-        <Text style={styles.backButtonText}>Wróć</Text>
+        <Text style={styles.backButtonText}>{t('common.back')}</Text>
       </Pressable>
     </View>
   );
@@ -464,6 +465,7 @@ function PreviewVideoMedia({
   clearDraft: () => void;
   styles: ReturnType<typeof createStyles>;
 }) {
+  const { t } = useTranslation();
   return (
     <>
       {videoState.audioReady ? (
@@ -493,14 +495,14 @@ function PreviewVideoMedia({
         <Pressable
           style={styles.dismissArea}
           onPress={advanceClip}
-          accessibilityLabel="Następny fragment"
+          accessibilityLabel={t('preview.nextSegmentA11y')}
           accessibilityRole="button"
         />
       ) : null}
 
       {(!videoState.audioReady || !videoReady) && !videoError && !poster ? (
         <View style={styles.loadingOverlaySolid}>
-          <Text style={styles.loadingHint}>Ładowanie podglądu…</Text>
+          <Text style={styles.loadingHint}>{t('preview.loadingPreview')}</Text>
         </View>
       ) : null}
 
@@ -508,7 +510,7 @@ function PreviewVideoMedia({
         <View style={styles.errorOverlay}>
           <Text style={styles.errorText}>{videoError}</Text>
           <Pressable style={styles.backButton} onPress={() => discardVideoPreview(clearDraft)}>
-            <Text style={styles.backButtonText}>Wróć</Text>
+            <Text style={styles.backButtonText}>{t('common.back')}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -615,7 +617,7 @@ function PreviewVideoContent({
   };
 
   const handleVideoPlaybackError = () => {
-    dispatchVideoState({ type: 'error', clipKey, message: 'Nie udało się odtworzyć nagrania.' });
+    dispatchVideoState({ type: 'error', clipKey, message: t('preview.playRecordingFailed') });
   };
 
   useEffect(() => {
@@ -720,7 +722,7 @@ function PreviewVideoContent({
                 <>
                   <NativeChromeIconButton
                     name="close"
-                    accessibilityLabel="Porzuć nagranie"
+                    accessibilityLabel={t('preview.discardRecordingA11y')}
                     onPress={() => discardVideoPreview(clearDraft)}
                     backgroundColor={colors.cameraControlBackground}
                     tintColor={colors.cameraControlTint}
@@ -761,8 +763,8 @@ function PreviewVideoContent({
                 />
                 <View style={styles.sendButtonSlot}>
                   <NativePreviewSendButton
-                    label="Wyślij do"
-                    accessibilityLabel="Wyślij nagranie"
+                    label={t('sendTo.title')}
+                    accessibilityLabel={t('preview.sendRecordingA11y')}
                     onPress={openSendToVideo}
                     backgroundColor={colors.cameraControlBackground}
                     tintColor={colors.cameraControlTint}
@@ -781,6 +783,7 @@ function PreviewVideoContent({
 }
 
 export default function PreviewScreen() {
+  const { t } = useTranslation();
   const { colors } = useAppTheme();
   const styles = createStyles(colors);
   const raw = useLocalSearchParams<{
@@ -855,7 +858,7 @@ export default function PreviewScreen() {
     if (!previewVideoSegments?.length) {
       return (
         <PreviewMediaError
-          message="Brak nagrań do podglądu"
+          message={t('preview.noRecordings')}
           styles={styles}
           onBack={() => {
             clearSegments();
@@ -880,7 +883,7 @@ export default function PreviewScreen() {
   if (!photoUri) {
     return (
       <PreviewMediaError
-        message="Nie przechwycono zdjęcia"
+        message={t('preview.photoNotCaptured')}
         styles={styles}
         onBack={() => router.back()}
       />
@@ -890,7 +893,7 @@ export default function PreviewScreen() {
   if (imageLoadError) {
     return (
       <PreviewMediaError
-        message="Nie udało się wczytać zdjęcia"
+        message={t('preview.loadPhotoFailed')}
         styles={styles}
         onBack={() => {
           clearPhotoDraft();
@@ -1072,7 +1075,7 @@ function PreviewPhotoContent({
                   <View style={styles.topLeftCluster}>
                     <NativeChromeIconButton
                       name="close"
-                      accessibilityLabel="Odrzuć zdjęcie"
+                      accessibilityLabel={t('preview.discardPhotoA11y')}
                       onPress={() => discardPhotoPreview(clearPhotoDraft)}
                       backgroundColor={colors.cameraControlBackground}
                       tintColor={colors.cameraControlTint}
@@ -1119,8 +1122,8 @@ function PreviewPhotoContent({
                 />
                 <View style={styles.sendButtonSlot}>
                   <NativePreviewSendButton
-                    label="Wyślij do"
-                    accessibilityLabel="Wybierz odbiorców zdjęcia"
+                    label={t('sendTo.title')}
+                    accessibilityLabel={t('preview.choosePhotoRecipientsA11y')}
                     onPress={() => openSendToPhoto(viewDurationSec, recipientId)}
                     backgroundColor={colors.cameraControlBackground}
                     tintColor={colors.cameraControlTint}

@@ -2,7 +2,7 @@ Options -Indexes
 
 <IfModule mod_headers.c>
   <IfModule mod_setenvif.c>
-    SetEnvIf Request_URI "^/(privacy/|terms/|support/|invite/|nix-invite\.html$|legal\.css$|\.well-known/apple-app-site-association$)" NIX_PUBLIC_PATH
+    SetEnvIf Request_URI "^/(privacy/|terms/|support/|invite/|auth/|nix-invite\.html$|nix-auth-confirm\.html$|legal\.css$|\.well-known/apple-app-site-association$)" NIX_PUBLIC_PATH
     Header always set Referrer-Policy "no-referrer" env=NIX_PUBLIC_PATH
     Header always set X-Content-Type-Options "nosniff" env=NIX_PUBLIC_PATH
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()" env=NIX_PUBLIC_PATH
@@ -20,7 +20,9 @@ Options -Indexes
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteRule ^invite/[^/]+/?$ /nix-invite.html [END]
+  RewriteRule ^auth/confirm/?$ /nix-auth-confirm.html [END]
 </IfModule>
 
 # LiteSpeed/hosting access logs must additionally exclude /invite/* in the
-# hosting panel. Per-directory rewrite rules cannot guarantee log redaction.
+# hosting panel, and so must /auth/confirm (its query carries a one-time
+# token hash). Per-directory rewrite rules cannot guarantee log redaction.

@@ -8,7 +8,7 @@ import { useAppTheme } from '../../../hooks/useAppTheme';
 import { userHasAppleIdentity, userHasEmailPasswordIdentity } from '../../../lib/authProviders';
 import { reauthenticateForAccountDeletion } from '../../../lib/accountDeletionReauthentication';
 import { clearMediaMemoryCache } from '../../../lib/mediaCache';
-import { clearUploadQueueNixeshot } from '../../../lib/uploadQueuePersistence';
+import { clearUploadQueueSnapshot } from '../../../lib/uploadQueuePersistence';
 import { clearPendingViewedAcks } from '../../../lib/viewedAckQueue';
 import { getCurrentUserProfile, type CurrentUserProfileRow } from '../../../services/profileService';
 import { deleteCurrentAccount } from '../../../services/accountService';
@@ -63,7 +63,7 @@ export default function DeleteAccountScreen() {
           });
           await deleteCurrentAccount({ appleAuthorizationCode });
           await Promise.allSettled([
-            clearUploadQueueNixeshot(),
+            clearUploadQueueSnapshot(),
             clearPendingViewedAcks(user.id),
             clearMediaMemoryCache(),
           ]);

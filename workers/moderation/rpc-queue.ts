@@ -119,6 +119,9 @@ export function integrationRpcQueue(
       path: resolved.path,
       text: resolved.text,
       contentKind,
+      attemptCount: typeof row.attempt_count === "number"
+        ? row.attempt_count
+        : undefined,
     };
   }
 
@@ -156,6 +159,19 @@ export function integrationRpcQueue(
         throw new Error("completion_failed_or_lease_lost");
       }
       if (outcome.decision !== "approved") rows.delete(job.id);
+    },
+    async retryLater(job, owner, lastError, delaySeconds) {
+      const { error } = await rpc("complete_moderation_job", {
+        p_job_id: job.id,
+        p_lease_owner: owner,
+        p_status: "pending",
+        p_decision: "error",
+        p_policy_version: POLICY_VERSION,
+        p_last_error: lastError,
+        p_retry_delay_seconds: delaySeconds,
+      });
+      rows.delete(job.id);
+      if (error) throw new Error("retry_failed_or_lease_lost");
     },
     async deferForBudget(job, owner, reason) {
       const { error } = await rpc("complete_moderation_job", {
