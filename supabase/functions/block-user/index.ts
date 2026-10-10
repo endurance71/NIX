@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
       .from('media-vault')
       .remove(sharedPaths);
     if (storageError) {
-      // Assets already have status=deleting; the hourly orphan sweeper will
+      // Assets already have status=deleting; the 5-minute orphan sweeper will
       // retry physical deletion without affecting remaining recipients.
       return json({ error: 'Block was saved, but shared media cleanup was deferred' }, 500);
     }
