@@ -12,7 +12,7 @@ import {
 } from 'react';
 import { AppState } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
-import { getCurrentLocale } from '../lib/i18n';
+import i18n, { getCurrentLocale } from '../lib/i18n';
 import { assertPreparedMediaSize } from '../lib/uploadMediaLimits';
 import type { NetInfoState } from '@react-native-community/netinfo';
 
@@ -264,7 +264,7 @@ async function stageAndInsertUpload(
     await patchDurableUploadJob(jobId, {
       state: 'failed',
       errorCode: 'STAGING_FAILED',
-      errorMessage: error instanceof Error ? error.message : 'Nie udało się zabezpieczyć pliku.',
+      errorMessage: error instanceof Error ? error.message : i18n.t('inbox.uploadErrorStagingFailed'),
       finishedAt: Date.now(),
     });
     throw error;
@@ -361,7 +361,7 @@ function useUploadQueueController(): UploadQueueContextValue {
 
   const scheduleJsRetry = async (job: DurableUploadJob, error: unknown) => {
     const nextRetryCount = job.retryCount + 1;
-    const message = error instanceof Error ? error.message : 'Nie udało się wysłać pliku.';
+    const message = error instanceof Error ? error.message : i18n.t('inbox.uploadErrorSendFailed');
     const code = errorCode(error);
     if (isPermanentUploadError(error) || Date.now() >= job.expiresAt) {
       await patchDurableUploadJob(job.id, {
@@ -539,7 +539,7 @@ function useUploadQueueController(): UploadQueueContextValue {
                 storagePath: target.storagePath,
                 state: 'failed',
                 errorCode: 'UNKNOWN',
-                errorMessage: 'Brak kolejki moderacji po finalizacji.',
+                errorMessage: i18n.t('inbox.uploadErrorModerationQueueMissing'),
                 finishedAt: Date.now(),
               });
               return;
@@ -689,7 +689,7 @@ function useUploadQueueController(): UploadQueueContextValue {
                 state: 'waiting_for_auth',
                 authRefreshAttempted: true,
                 errorCode: 'AUTH_REQUIRED',
-                errorMessage: 'Sesja wygasła. Zaloguj się ponownie i ponów wysyłkę.',
+                errorMessage: i18n.t('inbox.uploadErrorSessionExpired'),
               }
             : {
                 state: 'queued',
@@ -705,7 +705,7 @@ function useUploadQueueController(): UploadQueueContextValue {
         await patchDurableUploadJob(job.id, {
           state: 'waiting_for_auth',
           errorCode: 'AUTH_REQUIRED',
-          errorMessage: 'Sesja wygasła. Zaloguj się ponownie i ponów wysyłkę.',
+          errorMessage: i18n.t('inbox.uploadErrorSessionExpired'),
         });
         return;
       }
@@ -1011,7 +1011,7 @@ function useUploadQueueController(): UploadQueueContextValue {
             await patchDurableUploadJob(snapshot.jobId, {
               state: 'failed',
               errorCode: 'UNKNOWN',
-              errorMessage: 'Brak kolejki moderacji po finalizacji.',
+              errorMessage: i18n.t('inbox.uploadErrorModerationQueueMissing'),
               finishedAt: Date.now(),
             });
             await refresh();
@@ -1070,7 +1070,7 @@ function useUploadQueueController(): UploadQueueContextValue {
                   state: 'waiting_for_auth',
                   authRefreshAttempted: true,
                   errorCode: 'AUTH_REQUIRED',
-                  errorMessage: 'Sesja wygasła. Zaloguj się ponownie i ponów wysyłkę.',
+                  errorMessage: i18n.t('inbox.uploadErrorSessionExpired'),
                 }
               : {
                   state: 'queued',

@@ -2,6 +2,7 @@ import { useEffect, useReducer } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { ThemeColors } from '../../theme/colors';
 import {
@@ -102,6 +103,7 @@ export function FriendInviteConfirmContent({
   avatarEmoji,
   onDismiss,
 }: FriendInviteConfirmContentProps) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { colors } = useAppTheme();
   const styles = createSheetStyles(colors);
@@ -128,12 +130,12 @@ export function FriendInviteConfirmContent({
               preview.status === 'invalid_or_expired' ||
               !preview.profile
             ) {
-              dispatchConfirmState({ type: 'error', error: 'Nie udało się wczytać tego profilu.' });
+              dispatchConfirmState({ type: 'error', error: i18n.t('invite.confirmProfileUnavailable') });
               return;
             }
 
             if (preview.status === 'own_profile' || preview.status === 'own_invite') {
-              dispatchConfirmState({ type: 'error', error: 'To jest Twój profil.' });
+              dispatchConfirmState({ type: 'error', error: i18n.t('invite.confirmOwnProfile') });
               return;
             }
 
@@ -166,9 +168,10 @@ export function FriendInviteConfirmContent({
               relationStatus: nextRelationStatus,
             });
           } catch (err: unknown) {
+            console.warn('Failed to load friend invite profile', err);
             dispatchConfirmState({
               type: 'error',
-              error: err instanceof Error ? err.message : 'Nie udało się wczytać profilu.',
+              error: i18n.t('invite.confirmLoadFailed'),
             });
           }
         },
@@ -188,7 +191,7 @@ export function FriendInviteConfirmContent({
   const displayUsername = friendProfile?.username ?? username;
 
   const primaryLabel = () =>
-    relationStatus === 'incoming_pending' ? 'Zaakceptuj zaproszenie' : 'Dodaj znajomego';
+    relationStatus === 'incoming_pending' ? t('invite.confirmAcceptInvite') : t('profile.addFriend');
 
   const handleSend = async () => {
     if (!profileId && !token) {
@@ -256,13 +259,13 @@ export function FriendInviteConfirmContent({
   if (loading) {
     return (
       <ActionSheetSurface
-        title="Dodaj znajomego"
-        message="Profil odczytany z kodu QR."
+        title={t('profile.addFriend')}
+        message={t('invite.confirmScannedMessage')}
         nativeBottomSheet>
         <View style={styles.loaderContent}>
           <ActivityIndicator color={colors.textPrimary} />
           <Text style={[styles.loaderLabel, { color: colors.textSecondary }]}>
-            Ładowanie profilu…
+            {t('invite.confirmLoadingProfile')}
           </Text>
         </View>
       </ActionSheetSurface>
@@ -272,18 +275,18 @@ export function FriendInviteConfirmContent({
   if (error) {
     return (
       <ActionSheetSurface
-        title="Dodaj znajomego"
+        title={t('profile.addFriend')}
         message={error}
         nativeBottomSheet
-        actions={<ActionSheetSecondaryButton label="Zamknij" onPress={onDismiss} />}
+        actions={<ActionSheetSecondaryButton label={t('common.close')} onPress={onDismiss} />}
       />
     );
   }
 
   return (
     <ActionSheetSurface
-      title="Dodaj znajomego"
-      message="Profil odczytany z kodu QR. Dodanie wymaga akceptacji drugiej osoby."
+      title={t('profile.addFriend')}
+      message={t('invite.confirmScannedApprovalMessage')}
       contentAlign="stretch"
       nativeBottomSheet
       actions={
@@ -298,8 +301,8 @@ export function FriendInviteConfirmContent({
           <ActionSheetSecondaryButton
             label={
               relationStatus === 'already_friends' || relationStatus === 'outgoing_pending'
-                ? 'Zamknij'
-                : 'Anuluj'
+                ? t('common.close')
+                : t('common.cancel')
             }
             onPress={onDismiss}
             disabled={actionLoading}
@@ -317,7 +320,7 @@ export function FriendInviteConfirmContent({
       </View>
 
       <Text style={[styles.handle, { color: colors.textPrimary }]} numberOfLines={1}>
-        @{displayUsername || 'nieznany'}
+        @{displayUsername || t('invite.confirmUnknownUsername')}
       </Text>
 
       <FriendRelationStatus relationStatus={relationStatus} />
@@ -326,9 +329,11 @@ export function FriendInviteConfirmContent({
 }
 
 function FriendRelationStatus({ relationStatus }: { relationStatus: FriendInviteRelationStatus }) {
+  const { t } = useTranslation();
   const { colors } = useAppTheme();
   const styles = createSheetStyles(colors);
-  const statusLine = relationStatusCopy(relationStatus);
+  const statusLineKey = relationStatusCopyKey(relationStatus);
+  const statusLine = statusLineKey ? t(statusLineKey) : null;
   return statusLine ? (
     <View style={styles.statusBlock}>
       {relationStatus === 'already_friends' ? (
@@ -360,10 +365,10 @@ function mapConfirmationMessage(result: string, username?: string) {
   return i18n.t('notify.inviteSendFailed');
 }
 
-function relationStatusCopy(status: FriendInviteRelationStatus): string | null {
-  if (status === 'already_friends') return 'Jesteście już znajomymi — nie musisz wysyłać zaproszenia.';
-  if (status === 'outgoing_pending') return 'Zaproszenie do tej osoby czeka już na akceptację.';
-  if (status === 'incoming_pending') return 'Ta osoba wysłała Ci zaproszenie — możesz je zaakceptować.';
+function relationStatusCopyKey(status: FriendInviteRelationStatus) {
+  if (status === 'already_friends') return 'invite.relationAlreadyFriends' as const;
+  if (status === 'outgoing_pending') return 'invite.relationOutgoingPending' as const;
+  if (status === 'incoming_pending') return 'invite.relationIncomingPending' as const;
   return null;
 }
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { buildFriendInviteTokenLink } from '../lib/friendInvite';
+import i18n from '../lib/i18n';
 import { createFriendInviteQrToken } from '../services/friendService';
 
 export function useProfileQrPayload(enabled = true) {
@@ -54,7 +55,7 @@ export function useProfileQrPayload(enabled = true) {
         void loadTokenRef.current();
       }, refreshInMs);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Nie udało się wygenerować kodu QR.';
+      const message = error instanceof Error ? error.message : i18n.t('profile.qrGenerateFailed');
       dispatch({ type: 'error', error: message });
     }
   };

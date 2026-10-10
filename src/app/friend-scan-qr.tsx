@@ -3,6 +3,7 @@ import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
 import { CameraView, BarcodeScanningResult, useCameraPermissions } from 'expo-camera';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
 import { extractFriendInvitePayload } from '../lib/friendInvite';
@@ -26,6 +27,7 @@ type ScannedData = {
 };
 
 export default function FriendScanQrScreen() {
+  const { t } = useTranslation();
   const { colors } = useAppTheme();
   const styles = createStyles(colors);
   const [permission, requestPermission] = useCameraPermissions();
@@ -202,15 +204,15 @@ export default function FriendScanQrScreen() {
     return (
       <View style={[styles.container, styles.center]}>
         <NativeSectionCard
-          title="Dostęp do kamery"
+          title={t('camera.qrPermissionTitle')}
           subtitle={
             canAskAgain
-              ? 'Aby skanować QR, potrzebny jest dostęp do kamery.'
-              : 'Dostęp do kamery został wcześniej odmówiony. Włącz go w Ustawieniach, aby skanować kody QR.'
+              ? t('camera.qrPermissionBody')
+              : t('camera.qrPermissionDeniedBody')
           }
         >
           <NativeButton
-            label={canAskAgain ? 'Udziel dostępu' : 'Otwórz Ustawienia'}
+            label={canAskAgain ? t('camera.grantAccess') : t('camera.openSettings')}
             onPress={canAskAgain ? requestPermission : () => void Linking.openSettings()}
           />
         </NativeSectionCard>
