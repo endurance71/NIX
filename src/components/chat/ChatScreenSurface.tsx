@@ -28,11 +28,8 @@ import {
   type ScrollViewProps,
   type ViewProps,
 } from 'react-native';
-import {
-  GlassView,
-  isGlassEffectAPIAvailable,
-  isLiquidGlassAvailable,
-} from 'expo-glass-effect';
+import { GlassView } from 'expo-glass-effect';
+import { canUseLiquidGlass } from '../../lib/liquidGlass';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
 import { FlashList, type FlashListProps, type FlashListRef } from '@shopify/flash-list';
@@ -121,7 +118,7 @@ import { appleUiSpring, duration, useMotionEnabled } from '../../theme/motion';
 import { STACK_NAV_BAR_HEIGHT } from '../../theme/safeArea';
 import { typography } from '../../theme/typography';
 import { AppIcon } from '../ui/app-icon';
-import { PressableScale } from '../ui/pressable-scale';
+import { NativeChromeIconButton } from '../ui/native-chrome-icon-button';
 import { TextInputWrapper } from 'expo-paste-input';
 import i18n from '../../lib/i18n';
 import { notifyError } from '../../lib/appNotify';
@@ -309,14 +306,6 @@ function layoutReactionPickerBar(params: {
   const preferredLeft = bubbleCenterX - barWidth / 2;
   const left = Math.min(Math.max(inset, preferredLeft), rootWidth - inset - barWidth);
   return { left, barWidth, slotSize };
-}
-
-function canUseLiquidGlass(): boolean {
-  try {
-    return isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
-  } catch {
-    return false;
-  }
 }
 
 function ReactionBadges({
@@ -1780,7 +1769,7 @@ const ChatComposer = memo(function ChatComposer({
   onSendVoice,
   onVoiceRecordingStart,
 }: ChatComposerProps) {
-  const { colors } = useAppTheme();
+  const { colors, colorScheme } = useAppTheme();
   const { fontScale } = useWindowDimensions();
   const [text, setText] = useState('');
   // Bumped only to put text back after a failed enqueue (remount with `defaultValue`). A normal
@@ -1875,27 +1864,6 @@ const ChatComposer = memo(function ChatComposer({
     inputField
   );
 
-  const sendControl = useGlass ? (
-    <GlassView style={styles.sendGlass} glassEffectStyle="regular" isInteractive>
-      <SymbolView
-        name={resolveAppIconName('send')}
-        size={APP_ICON_SIZE.md}
-        tintColor={colors.accent}
-        weight="semibold"
-        style={{ opacity: canSend ? 1 : 0.4 }}
-      />
-    </GlassView>
-  ) : (
-    <View style={[styles.sendGlass, fallbackFill, { opacity: canSend ? 1 : 0.4 }]}>
-      <SymbolView
-        name={resolveAppIconName('send')}
-        size={APP_ICON_SIZE.md}
-        tintColor={colors.accent}
-        weight="semibold"
-      />
-    </View>
-  );
-
   const renderControlShell = (glyph: ReactNode) =>
     useGlass ? (
       <GlassView style={styles.sendGlass} glassEffectStyle="regular" isInteractive>
@@ -1905,14 +1873,19 @@ const ChatComposer = memo(function ChatComposer({
       <View style={[styles.sendGlass, fallbackFill]}>{glyph}</View>
     );
 
-  const cameraSymbol = (
-    <SymbolView
-      name={resolveAppIconName('camera')}
-      size={APP_ICON_SIZE.md}
-      tintColor={colors.accent}
-      weight="semibold"
-    />
-  );
+  /**
+   * Camera and Send are native SwiftUI glass buttons (one press response, from the glass). The mic
+   * stays an RN `GlassView` shell: its hold-and-slide gesture needs Gesture Handler.
+   */
+  const composerButton = {
+    size: COMPOSER_CONTROL_SIZE,
+    iconSize: APP_ICON_SIZE.md,
+    iconWeight: 'semibold' as const,
+    // Pure glass on iOS 26+; the gray capsule below it, where `glassEffect` draws nothing.
+    backgroundColor: useGlass ? 'transparent' : colors.secondarySystemFill,
+    tintColor: colors.accent,
+    colorScheme,
+  };
 
   // The mic replaces Send while the draft is empty (iMessage); it stays while a take is running
   // even if the connection drops, so the gesture can always finish.
@@ -1921,14 +1894,14 @@ const ChatComposer = memo(function ChatComposer({
     const showMic = voice !== null && (recording || (voiceAvailable && !text.trim()));
     return (
       <View style={styles.composerRow}>
-        <Pressable
+        <NativeChromeIconButton
+          {...composerButton}
+          name="camera"
           onPress={onOpenCamera}
           disabled={recording}
-          accessibilityRole="button"
           accessibilityLabel={t('chat.openCamera')}
-          accessibilityHint={t('chat.openCameraHint')}>
-          {renderControlShell(cameraSymbol)}
-        </Pressable>
+          accessibilityHint={t('chat.openCameraHint')}
+        />
 
         {useGlass ? (
           <GlassView style={styles.inputGlass} glassEffectStyle="regular" isInteractive>
@@ -1951,14 +1924,13 @@ const ChatComposer = memo(function ChatComposer({
         {showMic && voice ? (
           <VoiceMicButton t={t} voice={voice} size={COMPOSER_CONTROL_SIZE} renderShell={renderControlShell} />
         ) : (
-          <PressableScale
+          <NativeChromeIconButton
+            {...composerButton}
+            name="send"
             onPress={send}
             disabled={!canSend}
-            accessibilityRole="button"
             accessibilityLabel={t('chat.send')}
-            accessibilityState={{ disabled: !canSend }}>
-            {sendControl}
-          </PressableScale>
+          />
         )}
       </View>
     );
