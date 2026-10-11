@@ -1,5 +1,5 @@
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text as RNText, View, useWindowDimensions } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { FlashList } from '@shopify/flash-list';
 import { useTranslation } from 'react-i18next';
@@ -64,10 +64,6 @@ export function MemoriesScreen() {
     return entry.recipientNames.length > 0
       ? t('memories.itemA11yTo', { kind, date, names: entry.recipientNames.join(', ') })
       : t('memories.itemA11y', { kind, date });
-  };
-
-  const openMemory = (entry: MemoryEntry) => {
-    router.push({ pathname: '/memory-viewer', params: { id: entry.id } });
   };
 
   const confirmDeleteAll = () => {
@@ -181,7 +177,7 @@ export function MemoriesScreen() {
             // Each column is a third of the inset width; pinning the outer cells to its edges keeps
             // the gaps between all three equal.
             <View style={[styles.cellWrap, { alignItems: CELL_ALIGN[row.column] }]}>
-              <MemoryGridCell entry={row.entry} size={cellSize} accessibilityLabel={cellLabel(row.entry)} onPress={openMemory} />
+              <MemoryGridCell entry={row.entry} size={cellSize} accessibilityLabel={cellLabel(row.entry)} />
             </View>
           )
         }
