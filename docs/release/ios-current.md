@@ -29,6 +29,9 @@ Second OTA (2026-10-11): update group `4b2509ef-fe14-4f0a-b39e-80101cc7401e`, so
 in-app notification grows out of the Dynamic Island.
 Third OTA (2026-10-11): update group `fd949aa5-db8a-4d07-aec3-1fd89a93ba84`, source `021f831` — the voice recording
 spectrum glides at display rate on the UI thread.
+Fourth OTA (2026-10-11): update group `c5609d52-c606-414a-9f7e-45018a26a72b`, source `e8c7655` — a reply to a NiX
+(viewer field or notification action) shows a quoted header attached to its chat bubble. Needs migration
+`20261013100000` (deployed first, see the backend record); without it the text is still delivered, without the header.
 
 The 1.0.12 App Review track
 (build 11) is unaffected.

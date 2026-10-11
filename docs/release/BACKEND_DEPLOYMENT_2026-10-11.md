@@ -39,3 +39,19 @@ not expire after 24 h, their reads fill `read_at` (new senders see „Opened”)
 ## Rollback
 
 Migrations are forward-only (repair with a new migration). Edge Functions: redeploy the bundles from the encrypted backup.
+
+## Follow-up — reply to a NiX (2026-10-11, ~10:10 UTC)
+
+| Input | Value |
+| --- | --- |
+| Source | `e8c7655` (branch `fix/app-cleanup-stage1`) |
+| Migration | `20261013100000_text_message_reply_to_nix.sql` (history now 67, local = remote) |
+| Edge Functions / worker | unchanged (`new_nix` push payloads already carry the NiX id as `entityId`) |
+| Encrypted backup SHA256 | `b01e617a2a75e445f3c6f94cf53c561c2b76aa4d36075b8fe26829eb5258b1dd` (`~/.nix-ops/reply-to-nix-2026-10-11/`) |
+
+`text_messages.reply_to_nix_id` and `moderation_jobs.reply_to_nix_id` (FK to `nixes`, `ON DELETE SET NULL`); a trigger
+keeps only a NiX the sender received from the receiver (otherwise NULL — the text is always delivered).
+`enqueue_own_text_moderation_job` gained a trailing `p_reply_to_nix_id DEFAULT NULL` (DROP + CREATE, grants restored;
+three-argument calls from shipped clients keep working), `materialize_approved_text_message` copies it and
+`fetch_text_messages_with_peer` returns `reply_to_nix_id` and `reply_to_nix_media_type`. Reviewed against the last
+deployed definitions: only the reply field was added.
