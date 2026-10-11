@@ -8,6 +8,9 @@
 -- friendship itself, so the invitee's choice to share the code is the consent. Accepting a request
 -- the private user sent (UPDATE) is unaffected, as are existing friendships.
 
+-- Fail fast instead of queueing behind a long transaction on hot tables (retry the push).
+SET lock_timeout = '5s';
+
 CREATE OR REPLACE FUNCTION private.is_profile_private(profile_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
