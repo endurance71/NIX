@@ -71,7 +71,8 @@ export function AccentAppearancePreview() {
           alignment="center"
           modifiers={[
             padding({ leading: 28, trailing: 28, top: 16, bottom: 16 }),
-            background(colors.cameraControlBackground, shapes.capsule()),
+            // Glass alone adapts to light/dark; the camera's fixed 35% black fill turned the pill
+            // muddy grey in light mode and sank the accent icons.
             glassEffect({ glass: { variant: 'regular', interactive: false }, shape: 'capsule' as const }),
           ]}>
           {PREVIEW_ICONS.map((name) => (
