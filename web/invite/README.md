@@ -8,6 +8,11 @@ Host this directory at `https://nix.damianmotylinski.pl`.
 - Keep `.htaccess`; it supplies the AASA content type, security headers and `/invite/*` rewrite.
 - Confirm `/.well-known/apple-app-site-association` returns `200 application/json`
   directly, without a redirect.
+- The AASA file also carries `webcredentials.apps` (`9Q39P5MUT9.com.damianmotylinski.nixapp`):
+  iOS Password AutoFill, „Save password” / strong-password suggestions and passkeys for NiX are
+  bound to this domain. The app entitlement lists `webcredentials:nix.damianmotylinski.pl`. Apple's
+  CDN caches the file — after uploading, check
+  `https://app-site-association.cdn-apple.com/a/v1/nix.damianmotylinski.pl` (can take up to ~24 h).
 - Disable access logging for `/invite/*` and `/auth/confirm` in the hosting panel. `.htaccess`
   cannot guarantee redaction of the token-bearing request path.
 - The App Store URL is `https://apps.apple.com/app/id6791332379`. Until the

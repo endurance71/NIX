@@ -17,5 +17,10 @@
         ]
       }
     ]
+  },
+  "webcredentials": {
+    "apps": [
+      "9Q39P5MUT9.com.damianmotylinski.nixapp"
+    ]
   }
 }
