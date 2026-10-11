@@ -39,6 +39,7 @@ VALUES
   ('private', 'broadcast_nix_reaction_changes', ARRAY[]::text[]),
   ('private', 'push_edge_auth_headers', ARRAY[]::text[]),
   ('private', 'record_daily_exchange', ARRAY[]::text[]),
+  ('private', 'validate_text_message_reply_to_nix', ARRAY[]::text[]),
   ('private', 'trigger_push_dispatch', ARRAY[]::text[]),
   ('public', 'archive_blocked_shared_media', ARRAY['service_role']),
   ('public', 'archive_shared_media_nix', ARRAY['service_role']),

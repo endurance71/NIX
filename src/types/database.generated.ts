@@ -804,6 +804,7 @@ export type Database = {
                     "completed_at": string | null;
                     "waiting_reason": string | null;
                     "materialized_at": string | null;
+                    "reply_to_nix_id": string | null;
                 };
                 Insert: {
                     "id"?: string;
@@ -829,6 +830,7 @@ export type Database = {
                     "completed_at"?: string | null;
                     "waiting_reason"?: string | null;
                     "materialized_at"?: string | null;
+                    "reply_to_nix_id"?: string | null;
                 };
                 Update: {
                     "id"?: string;
@@ -854,6 +856,7 @@ export type Database = {
                     "completed_at"?: string | null;
                     "waiting_reason"?: string | null;
                     "materialized_at"?: string | null;
+                    "reply_to_nix_id"?: string | null;
                 };
                 Relationships: [
                     {
@@ -874,6 +877,17 @@ export type Database = {
                         ];
                         isOneToOne: false;
                         referencedRelation: "media_upload_batches";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "moderation_jobs_reply_to_nix_id_fkey";
+                        columns: [
+                            "reply_to_nix_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "nixes";
                         referencedColumns: [
                             "id"
                         ];
@@ -1620,6 +1634,7 @@ export type Database = {
                     "voice_path": string | null;
                     "voice_duration_ms": number | null;
                     "voice_waveform": (number)[] | null;
+                    "reply_to_nix_id": string | null;
                 };
                 Insert: {
                     "id"?: string;
@@ -1638,6 +1653,7 @@ export type Database = {
                     "voice_path"?: string | null;
                     "voice_duration_ms"?: number | null;
                     "voice_waveform"?: (number)[] | null;
+                    "reply_to_nix_id"?: string | null;
                 };
                 Update: {
                     "id"?: string;
@@ -1656,6 +1672,7 @@ export type Database = {
                     "voice_path"?: string | null;
                     "voice_duration_ms"?: number | null;
                     "voice_waveform"?: (number)[] | null;
+                    "reply_to_nix_id"?: string | null;
                 };
                 Relationships: [
                     {
@@ -1665,6 +1682,17 @@ export type Database = {
                         ];
                         isOneToOne: false;
                         referencedRelation: "profiles";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "text_messages_reply_to_nix_id_fkey";
+                        columns: [
+                            "reply_to_nix_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "nixes";
                         referencedColumns: [
                             "id"
                         ];
@@ -2058,6 +2086,7 @@ export type Database = {
                     "p_receiver_id": string | null;
                     "p_body": string | null;
                     "p_client_message_id"?: string | null;
+                    "p_reply_to_nix_id"?: string | null;
                 };
                 Returns: Json;
             };
@@ -2120,6 +2149,8 @@ export type Database = {
                     "voice_path": string;
                     "voice_duration_ms": number;
                     "voice_waveform": (number)[];
+                    "reply_to_nix_id": string;
+                    "reply_to_nix_media_type": string;
                 })[];
             };
             "finalize_media_upload_batch": {

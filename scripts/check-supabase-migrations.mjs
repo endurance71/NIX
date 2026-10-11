@@ -70,6 +70,7 @@ const expected = [
   '20261012101000_voice_messages.sql',
   '20261012110000_nix_reactions.sql',
   '20261012120000_friend_streaks.sql',
+  '20261013100000_text_message_reply_to_nix.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
