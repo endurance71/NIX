@@ -1,6 +1,9 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useSharedValue } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import {
   Button,
   GlassEffectContainer,
@@ -29,6 +32,7 @@ import {
   padding,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
+import { selection as selectionHaptic } from '../../lib/haptics';
 import { canUseLiquidGlass } from '../../lib/liquidGlass';
 import type { LensOption } from '../../lib/cameraLenses';
 import type { ThemeColors } from '../../theme/colors';
@@ -39,6 +43,15 @@ const CHIP_HEIGHT = 44;
 const CAPSULE_PAD = 3;
 
 const SELECTION_SPRING = Animation.spring({ response: 0.38, dampingFraction: 0.82 });
+/** Horizontal travel before a drag takes over from the chips' taps. */
+const DRAG_ACTIVATION_PX = 8;
+
+/** Chip under the finger for an x inside the capsule (clamped to the ends). */
+function chipIndexAt(x: number, count: number): number {
+  'worklet';
+  const raw = Math.floor((x - CAPSULE_PAD) / CHIP_WIDTH);
+  return Math.max(0, Math.min(count - 1, raw));
+}
 
 /** Compact camera-style labels: 0,5 · 1× · 2 · 5 */
 function formatSwitcherLabel(option: LensOption): string {
@@ -91,6 +104,37 @@ export function NativeLensSwitcher({
     0,
     options.findIndex((option) => option.id === selection)
   );
+
+  // Drag across the capsule to pick a lens, like the Camera app; taps stay on the chips.
+  const dragIndex = useSharedValue(-1);
+  const optionIds = options.map((option) => option.id);
+  const selectDragged = (index: number) => {
+    const id = optionIds[index];
+    if (!id || id === selection) return;
+    selectionHaptic();
+    onSelect(id);
+  };
+  const drag = Gesture.Pan()
+    .enabled(!disabled && options.length > 1)
+    .activeOffsetX([-DRAG_ACTIVATION_PX, DRAG_ACTIVATION_PX])
+    .failOffsetY([-24, 24])
+    .onStart((event) => {
+      'worklet';
+      const index = chipIndexAt(event.x, optionIds.length);
+      dragIndex.set(index);
+      scheduleOnRN(selectDragged, index);
+    })
+    .onUpdate((event) => {
+      'worklet';
+      const index = chipIndexAt(event.x, optionIds.length);
+      if (index === dragIndex.get()) return;
+      dragIndex.set(index);
+      scheduleOnRN(selectDragged, index);
+    })
+    .onFinalize(() => {
+      'worklet';
+      dragIndex.set(-1);
+    });
 
   if (options.length === 0 || !selection) return null;
 
@@ -171,6 +215,7 @@ export function NativeLensSwitcher({
   );
 
   return (
+    <GestureDetector gesture={drag}>
     <Host
       matchContents
       colorScheme="dark"
@@ -187,6 +232,7 @@ export function NativeLensSwitcher({
         )}
       </Namespace>
     </Host>
+    </GestureDetector>
   );
 }
 
