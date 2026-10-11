@@ -3,8 +3,8 @@ import {
   ActivityIndicator,
   Linking,
   StyleSheet,
-  Text,
   View,
+  useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
 import {
@@ -20,7 +20,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from '
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
-import { typography, APP_FONT_FAMILY } from '../theme/typography';
+import { APP_FONT_FAMILY } from '../theme/typography';
 import { extractFriendInvitePayload } from '../lib/friendInvite';
 import {
   friendErrorTelemetryCode,
@@ -32,6 +32,7 @@ import { trackEvent } from '../lib/telemetry';
 import { Button } from '../components/ui/button';
 import { NativeSectionCard } from '../components/ui/native-section-card';
 import { NativeChromeIconButton } from '../components/ui/native-chrome-icon-button';
+import { NativeGlassPill } from '../components/ui/native-glass-pill';
 import { AppBottomSheet } from '../components/ui/app-bottom-sheet';
 import { FriendInviteConfirmContent } from '../components/friend/friend-invite-confirm-content';
 import i18n from '../lib/i18n';
@@ -248,6 +249,7 @@ export default function FriendScanQrScreen() {
   const [torchOn, setTorchOn] = useState(false);
   const viewfinder = useViewfinderFrame(motionEnabled);
   const { bottom: bottomInset } = useScreenInsets('fullscreen');
+  const { width: windowWidth } = useWindowDimensions();
 
   const scanInFlightRef = useRef(false);
   const handledSuccessRef = useRef(false);
@@ -437,15 +439,18 @@ export default function FriendScanQrScreen() {
               styles.instructionWrap,
               { top: viewfinder.rest.y + viewfinder.rest.height + 20 },
             ]}>
-            <Text
-              importantForAccessibility="no"
-              accessibilityElementsHidden
-              style={[
-                styles.instruction,
-                { color: colors.cameraControlTint, backgroundColor: colors.cinemaScrim },
-              ]}>
-              {t('friends.scanInstruction')}
-            </Text>
+            {/* Hidden from VoiceOver: the screen's own label already says it. */}
+            <NativeGlassPill
+              label={t('friends.scanInstruction')}
+              tintColor={colors.cameraControlTint}
+              fill={colors.cinemaScrim}
+              textStyle="callout"
+              numberOfLines={0}
+              cornerRadius={16}
+              size="compact"
+              maxWidth={windowWidth - INSTRUCTION_SIDE_INSET * 2}
+              accessibilityHidden
+            />
           </View>
         </>
       ) : null}
@@ -504,6 +509,8 @@ export default function FriendScanQrScreen() {
   );
 }
 
+const INSTRUCTION_SIDE_INSET = 24;
+
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: {
@@ -528,19 +535,9 @@ const createStyles = (colors: ThemeColors) =>
     },
     instructionWrap: {
       position: 'absolute',
-      left: 24,
-      right: 24,
+      left: INSTRUCTION_SIDE_INSET,
+      right: INSTRUCTION_SIDE_INSET,
       alignItems: 'center',
-    },
-    instruction: {
-      ...typography.callout,
-      fontWeight: '600',
-      textAlign: 'center',
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 16,
-      borderCurve: 'continuous',
-      overflow: 'hidden',
     },
     controls: {
       position: 'absolute',

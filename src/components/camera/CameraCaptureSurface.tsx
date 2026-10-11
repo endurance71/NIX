@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ComponentProps, type RefObject } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView } from 'expo-camera';
 import Animated, {
@@ -22,6 +22,7 @@ import {
   VIDEO_RECORDING_BITRATE,
 } from '../../lib/cameraCaptureProfile';
 import { NativeChromeIconButton } from '../ui/native-chrome-icon-button';
+import { NativeGlassPill } from '../ui/native-glass-pill';
 import { VIDEO_TOTAL_MAX_DURATION_MS } from '../../lib/videoRecordingLimits';
 import { getCameraLightProps } from '../../lib/cameraLightProps';
 import { NativeLensSwitcher } from './NativeLensSwitcher';
@@ -34,8 +35,6 @@ import {
   formatZoomFactorLabel,
   isZoomedAwayFromPreset,
 } from '../../lib/cameraLenses';
-import { AppIcon } from '../ui/app-icon';
-import { APP_ICON_SIZE } from '../../theme/app-icons';
 import { useMotionEnabled } from '../../theme/motion';
 
 type Props = {
@@ -44,6 +43,10 @@ type Props = {
 
 /** While a gesture is zooming, push every Nth UI-thread zoom change to the native preview. */
 const LIVE_ZOOM_FRAME_STRIDE = 3;
+/** Pill sizes of the RN chrome they replaced. */
+const RECIPIENT_CHIP_MAX_WIDTH = 200;
+const RECORDING_DOT_SIZE = 10;
+const CAPTURE_ERROR_MAX_WIDTH = 220;
 
 type ZoomedCameraViewProps = Omit<ComponentProps<typeof CameraView>, 'zoom' | 'ref'> & {
   cameraRef: RefObject<CameraView | null>;
@@ -339,32 +342,22 @@ function RecordingProgressRing({
 
 function RecipientChip({ vm }: Props) {
   const { t } = useTranslation();
-  const { styles, colors, presetRecipient, clearPresetRecipient, recordingVideo, videoPreparing } = vm;
+  const { colors, presetRecipient, clearPresetRecipient, recordingVideo, videoPreparing } = vm;
   if (!presetRecipient) return null;
   const username = presetRecipient.username;
   return (
-    <View
-      style={styles.recipientChip}
-      accessible
+    <NativeGlassPill
+      label={t('camera.recipientChip', { username })}
       accessibilityLabel={t('camera.recipientChipA11y', { username })}
-      accessibilityActions={[{ name: 'clear', label: t('camera.clearRecipient') }]}
-      onAccessibilityAction={(event) => {
-        if (event.nativeEvent.actionName === 'clear') clearPresetRecipient();
-      }}>
-      <Text style={styles.recipientChipText} numberOfLines={1}>
-        {t('camera.recipientChip', { username })}
-      </Text>
-      {recordingVideo || videoPreparing ? null : (
-        <Pressable
-          onPress={clearPresetRecipient}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={t('camera.clearRecipient')}
-          style={styles.recipientChipClose}>
-          <AppIcon name="close" size={APP_ICON_SIZE.xs} color={colors.cameraControlTint} />
-        </Pressable>
-      )}
-    </View>
+      tintColor={colors.cameraControlTint}
+      fill={colors.cameraControlBackground}
+      maxWidth={RECIPIENT_CHIP_MAX_WIDTH}
+      trailingAction={
+        recordingVideo || videoPreparing
+          ? null
+          : { icon: 'close', accessibilityLabel: t('camera.clearRecipient'), onPress: clearPresetRecipient }
+      }
+    />
   );
 }
 
@@ -386,20 +379,24 @@ function CameraTopControls({ vm }: Props) {
     <View style={styles.topControls} pointerEvents="box-none">
       {recordingVideo ? (
         <View style={styles.recordingTimerTopLeft} pointerEvents="none">
-          <View style={styles.recordingPill}>
-            <View style={styles.recordingDot} />
-            <Text
-              style={styles.recordingHudText}
-              accessibilityLabel={t('camera.recordingTimer', {
-                seconds: recordingElapsedSec,
-                max: maxSeconds,
-              })}>
-              {t('camera.recordingClock', {
-                elapsed: formatRecordingClock(recordingElapsedSec * 1000),
-                max: formatRecordingClock(VIDEO_TOTAL_MAX_DURATION_MS),
-              })}
-            </Text>
-          </View>
+          <NativeGlassPill
+            label={t('camera.recordingClock', {
+              elapsed: formatRecordingClock(recordingElapsedSec * 1000),
+              max: formatRecordingClock(VIDEO_TOTAL_MAX_DURATION_MS),
+            })}
+            accessibilityLabel={t('camera.recordingTimer', {
+              seconds: recordingElapsedSec,
+              max: maxSeconds,
+            })}
+            leadingIcon="circleFill"
+            leadingIconColor={colors.destructive}
+            leadingIconSize={RECORDING_DOT_SIZE}
+            tintColor={colors.cameraControlTint}
+            fill={colors.cameraControlBackground}
+            textStyle="callout"
+            weight="bold"
+            monospacedDigits
+          />
         </View>
       ) : (
         <View style={styles.topLeadingCluster}>
@@ -482,22 +479,31 @@ function CameraStatusSlot({ vm }: Props) {
   if (captureError) {
     return (
       <View style={styles.captureStatusSlot} pointerEvents="none">
-        <Text style={styles.captureError}>{captureError}</Text>
+        <NativeGlassPill
+          label={captureError}
+          tintColor={colors.cameraControlTint}
+          fill={colors.cameraControlBackground}
+          weight="regular"
+          numberOfLines={0}
+          cornerRadius={14}
+          maxWidth={CAPTURE_ERROR_MAX_WIDTH}
+          size="compact"
+        />
       </View>
     );
   }
   if (!holdHintVisible || recordingVideo || videoPreparing) return null;
   return (
     <View style={styles.captureStatusSlot} pointerEvents="box-none">
-      <Pressable
+      <NativeGlassPill
+        label={t('camera.holdToRecordHint')}
         onPress={dismissHoldHint}
-        accessibilityRole="button"
+        trailingIcon="close"
         accessibilityLabel={t('camera.holdToRecordHintA11y')}
         accessibilityHint={t('camera.dismissHint')}
-        style={styles.holdHint}>
-        <Text style={styles.holdHintText}>{t('camera.holdToRecordHint')}</Text>
-        <AppIcon name="close" size={APP_ICON_SIZE.xs} color={colors.cameraControlTint} />
-      </Pressable>
+        tintColor={colors.cameraControlTint}
+        fill={colors.cameraControlBackground}
+      />
     </View>
   );
 }
