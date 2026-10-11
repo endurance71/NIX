@@ -35,7 +35,7 @@ const BACKDROP: readonly { image: ImageSource; x: number; y: number; rotate: num
 
 /** Space the hero takes above the form, below the safe area. */
 function loginHeroHeight(width: number) {
-  return Math.round(logoSize(width) * 2.2 + 30);
+  return Math.round(logoSize(width) * 1.9 + 22);
 }
 
 function logoSize(width: number) {

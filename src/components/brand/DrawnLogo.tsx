@@ -14,19 +14,22 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
  * follow it (see assets/brand/README.md). An N whose right leg is an X on a 1024 grid, one 100 px
  * round stroke. Lengths are the path lengths, for the draw-on dash.
  */
-const STEM = { d: 'M272 752 L272 272 L512 512', length: 480 + 339.41 };
-const FALL = { d: 'M388 388 L752 752', length: 514.77 };
+// The N in one pen move: up the stem, then down the diagonal to the far corner. The icon draws
+// the diagonal as two overlapping strokes (stem to the centre, fall from inside it); drawn
+// separately, the fall spent its first third hidden under the stem and the pen seemed to stall.
+const N_STROKE = { d: 'M272 752 L272 272 L752 752', length: 480 + 678.82 };
 // Drawn from its bright top end down into the glass, so it starts as a clear stroke.
 const RISE = { d: 'M752 272 L272 752', length: 678.82 };
 const WORD = ['N', 'i', 'X'] as const;
 
 /**
- * Timeline (fractions of `progress`): the strokes share 0 → 0.78 in proportion to their lengths
- * (819 : 515 : 679) with a 0.03 lift between them; the letters follow.
+ * Timeline (fractions of `progress`): the two strokes share 0 → 0.78 in proportion to their
+ * lengths (1159 : 679) with a short lift between them; the letters follow.
  */
-const STEM_AT = [0, 0.31] as const;
-const FALL_AT = [0.34, 0.53] as const;
-const RISE_AT = [0.56, 0.78] as const;
+const N_AT = [0, 0.47] as const;
+/** Where the pen turns at the top of the stem (480 of 1159 along the N). */
+const N_CORNER = N_AT[1] * (480 / 1158.82);
+const RISE_AT = [0.5, 0.78] as const;
 const LETTERS_AT = 0.8;
 const LETTER_STEP = 0.05;
 
@@ -61,13 +64,9 @@ export function DrawnLogo({
   // neither rushes nor the later ones crawl. A stroke stays hidden until its pen-down (a
   // zero-length dash still paints a round cap) and the dash gap is twice the length, so the
   // pattern's next dash never caps the far end.
-  const stemProps = useAnimatedProps(() => {
-    const p = seg(progress.get(), STEM_AT[0], STEM_AT[1]);
-    return { strokeDashoffset: STEM.length * (1 - pen(p)), strokeOpacity: p > 0 ? 1 : 0 };
-  });
-  const fallProps = useAnimatedProps(() => {
-    const p = seg(progress.get(), FALL_AT[0], FALL_AT[1]);
-    return { strokeDashoffset: FALL.length * (1 - pen(p)), strokeOpacity: p > 0 ? 1 : 0 };
+  const nProps = useAnimatedProps(() => {
+    const p = seg(progress.get(), N_AT[0], N_AT[1]);
+    return { strokeDashoffset: N_STROKE.length * (1 - pen(p)), strokeOpacity: p > 0 ? 1 : 0 };
   });
   // The rising stroke is glass from the first frame and stays under the other two, as in the icon.
   const riseProps = useAnimatedProps(() => {
@@ -82,8 +81,8 @@ export function DrawnLogo({
       if (before == null || now <= before) return;
       const crossed = (mark: number) => before < mark && now >= mark;
       if (crossed(0.01)) scheduleOnRN(tap, 'soft');
-      if (crossed(STEM_AT[1])) scheduleOnRN(tap, 'light');
-      if (crossed(FALL_AT[1])) scheduleOnRN(tap, 'light');
+      if (crossed(N_CORNER)) scheduleOnRN(tap, 'light');
+      if (crossed(N_AT[1])) scheduleOnRN(tap, 'light');
       if (crossed(RISE_AT[1])) scheduleOnRN(tap, 'heavy');
       for (let index = 0; index < WORD.length; index += 1) {
         if (crossed(LETTERS_AT + index * LETTER_STEP + 0.03)) scheduleOnRN(tap, 'soft');
@@ -133,16 +132,10 @@ export function DrawnLogo({
                 animatedProps={riseProps}
               />
               <AnimatedPath
-                d={STEM.d}
+                d={N_STROKE.d}
                 stroke={inkColor}
-                strokeDasharray={`${STEM.length} ${STEM.length * 2}`}
-                animatedProps={stemProps}
-              />
-              <AnimatedPath
-                d={FALL.d}
-                stroke={inkColor}
-                strokeDasharray={`${FALL.length} ${FALL.length * 2}`}
-                animatedProps={fallProps}
+                strokeDasharray={`${N_STROKE.length} ${N_STROKE.length * 2}`}
+                animatedProps={nProps}
               />
             </G>
           </Svg>
