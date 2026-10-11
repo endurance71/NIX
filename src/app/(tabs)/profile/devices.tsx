@@ -18,6 +18,8 @@ import {
 } from '../../../services/appInstallationService';
 import { notifyDomainError, notifySuccess } from '../../../lib/appNotify';
 import { useAuth } from '../../../hooks/useAuth';
+import { formatDeviceLastSeen } from '../../../lib/deviceActivity';
+import { getCurrentLocale } from '../../../lib/i18n';
 
 export default function DevicesScreen() {
   const { t } = useTranslation();
@@ -79,22 +81,25 @@ export default function DevicesScreen() {
                 supportingText={
                   row.revoked_at
                     ? t('devices.revoked')
-                    : t('devices.lastSeen', { date: new Date(row.last_seen_at).toLocaleString() })
+                    : formatDeviceLastSeen(row.last_seen_at, Date.now(), getCurrentLocale(), t)
                 }
                 icon="devices"
                 disabled={Boolean(row.revoked_at)}
               />
             ))
           )}
-          {otherActive.length > 0 ? (
+        </NativeSettingsSection>
+        {otherActive.length > 0 ? (
+          <NativeSettingsSection>
             <NativeSettingsActionRow
               title={t('devices.signOutOthers')}
               destructive
+              appearance="row"
               disabled={!canUseNetworkSession}
               onPress={signOutOthers}
             />
-          ) : null}
-        </NativeSettingsSection>
+          </NativeSettingsSection>
+        ) : null}
       </SettingsListScreen>
       <Stack.Screen.Title style={{ color: colors.label }}>{t('devices.title')}</Stack.Screen.Title>
     </>

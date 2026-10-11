@@ -118,7 +118,8 @@ export default function DataExportScreen() {
           if (canUseNetworkSession) await query.refetch();
         }}
       >
-        <NativeSettingsSection title={t('dataExport.title')}>
+        {/* No header: it would only repeat the screen title. */}
+        <NativeSettingsSection>
           <NativeSettingsRow
             title={t('dataExport.description')}
             supportingText={t('dataExport.retention')}

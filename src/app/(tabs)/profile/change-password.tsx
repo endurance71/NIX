@@ -137,7 +137,8 @@ export default function ChangePasswordScreen() {
   return (
     <>
       <SettingsListScreen loading={authLoading}>
-        <FieldGroup.Section title={t('profile.passwordSectionTitle')}>
+        {/* The current password is not part of "New password": its own group, like iOS Settings. */}
+        <FieldGroup.Section>
           <TextInput
             placeholder={t('profile.currentPassword')}
             secureTextEntry
@@ -148,6 +149,9 @@ export default function ChangePasswordScreen() {
             }
             testID="current-password"
           />
+        </FieldGroup.Section>
+
+        <FieldGroup.Section title={t('profile.passwordSectionTitle')}>
           <TextInput
             placeholder={t('profile.newPassword')}
             secureTextEntry

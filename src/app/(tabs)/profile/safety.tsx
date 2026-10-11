@@ -110,7 +110,7 @@ export default function SafetyScreen() {
           )}
         </NativeSettingsSection>
       </SettingsListScreen>
-      <Stack.Screen.Title style={{ color: colors.label }}>{t('profile.safetyCenter')}</Stack.Screen.Title>
+      <Stack.Screen.Title style={{ color: colors.label }}>{t('profile.safetyCenterSummary')}</Stack.Screen.Title>
     </>
   );
 }

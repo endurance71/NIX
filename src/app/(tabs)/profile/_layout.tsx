@@ -62,7 +62,7 @@ export default function ProfileTabLayout() {
       <Stack.Screen
         name="safety"
         options={{
-          title: t('profile.safetyCenter'),
+          title: t('profile.safetyCenterSummary'),
           headerLargeTitleEnabled: false,
         }}
       />

@@ -308,11 +308,17 @@ export function NativeSettingsActionRow({
   destructive,
   disabled,
   onPress,
+  appearance = 'button',
 }: {
   title: string;
   destructive?: boolean;
   disabled?: boolean;
   onPress: () => void;
+  /**
+   * `row`: a plain list-row button (red text when destructive), like "Sign Out of All Devices"
+   * in iOS Settings — no capsule drawn inside the row.
+   */
+  appearance?: 'button' | 'row';
 }) {
   return (
     <SwiftUIButton
@@ -320,7 +326,9 @@ export function NativeSettingsActionRow({
       role={destructive ? 'destructive' : 'default'}
       onPress={onPress}
       modifiers={[
-        buttonStyle(destructive ? 'bordered' : 'borderedProminent'),
+        ...(appearance === 'row'
+          ? [buttonStyle('automatic')]
+          : [buttonStyle(destructive ? 'bordered' : 'borderedProminent')]),
         swiftDisabled(Boolean(disabled)),
       ]}
     />
