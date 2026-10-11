@@ -5,7 +5,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { tap } from '../../lib/haptics';
 import { darkColors } from '../../theme/colors';
 import { APP_FONT_FAMILY } from '../../theme/typography';
-import { backOut, easeInOut, easeOut, seg } from '../welcome/welcomeMotion';
+import { backOut, easeOut, seg } from '../welcome/welcomeMotion';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -16,7 +16,8 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
  */
 const STEM = { d: 'M272 752 L272 272 L512 512', length: 480 + 339.41 };
 const FALL = { d: 'M388 388 L752 752', length: 514.77 };
-const RISE = { d: 'M272 752 L752 272', length: 678.82 };
+// Drawn from its bright top end down into the glass, so it starts as a clear stroke.
+const RISE = { d: 'M752 272 L272 752', length: 678.82 };
 const WORD = ['N', 'i', 'X'] as const;
 
 const ink = darkColors;
@@ -39,23 +40,21 @@ export function DrawnLogo({
   inkColor?: string;
 }) {
   // A stroke stays hidden until its pen-down: a zero-length dash still paints the round cap.
+  // The dash gap is twice the length, so the pattern's next dash never caps the far end. Each
+  // stroke leaves fast and lands softly (ease-out): no lingering pen-down dot.
   const stemProps = useAnimatedProps(() => {
     const p = seg(progress.get(), 0, 0.36);
-    return { strokeDashoffset: STEM.length * (1 - easeInOut(p)), strokeOpacity: p > 0 ? 1 : 0 };
+    return { strokeDashoffset: STEM.length * (1 - easeOut(p)), strokeOpacity: p > 0 ? 1 : 0 };
   });
   const fallProps = useAnimatedProps(() => {
     const p = seg(progress.get(), 0.28, 0.52);
-    return { strokeDashoffset: FALL.length * (1 - easeInOut(p)), strokeOpacity: p > 0 ? 1 : 0 };
+    return { strokeDashoffset: FALL.length * (1 - easeOut(p)), strokeOpacity: p > 0 ? 1 : 0 };
   });
-  // The rising stroke is drawn in solid ink: its glass gradient starts faint, and a faint tip
-  // growing along the diagonal read as a dot floating across the mark. Once drawn, the solid
-  // stroke dissolves into the glass one underneath.
+  // The rising stroke is glass from the first frame and stays under the other two, as in the icon.
   const riseProps = useAnimatedProps(() => {
     const p = seg(progress.get(), 0.44, 0.74);
-    const dissolve = seg(progress.get(), 0.76, 0.9);
-    return { strokeDashoffset: RISE.length * (1 - easeInOut(p)), strokeOpacity: p > 0 ? 1 - dissolve : 0 };
+    return { strokeDashoffset: RISE.length * (1 - easeOut(p)), strokeOpacity: p > 0 ? 1 : 0 };
   });
-  const riseGlassProps = useAnimatedProps(() => ({ strokeOpacity: seg(progress.get(), 0.74, 0.88) }));
   // Felt as it is written: a tick as the pen touches down, a tap as each stroke lands, a firmer
   // one for the last, and soft taps as the letters drop in.
   useAnimatedReaction(
@@ -109,23 +108,22 @@ export function DrawnLogo({
               </LinearGradient>
             </Defs>
             <G fill="none" strokeWidth={100} strokeLinecap="round" strokeLinejoin="round">
-              <AnimatedPath d={RISE.d} stroke="url(#rise)" animatedProps={riseGlassProps} />
               <AnimatedPath
                 d={RISE.d}
-                stroke={inkColor}
-                strokeDasharray={`${RISE.length} ${RISE.length}`}
+                stroke="url(#rise)"
+                strokeDasharray={`${RISE.length} ${RISE.length * 2}`}
                 animatedProps={riseProps}
               />
               <AnimatedPath
                 d={STEM.d}
                 stroke={inkColor}
-                strokeDasharray={`${STEM.length} ${STEM.length}`}
+                strokeDasharray={`${STEM.length} ${STEM.length * 2}`}
                 animatedProps={stemProps}
               />
               <AnimatedPath
                 d={FALL.d}
                 stroke={inkColor}
-                strokeDasharray={`${FALL.length} ${FALL.length}`}
+                strokeDasharray={`${FALL.length} ${FALL.length * 2}`}
                 animatedProps={fallProps}
               />
             </G>
