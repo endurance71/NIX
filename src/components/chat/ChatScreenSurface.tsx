@@ -103,6 +103,8 @@ import {
 } from '../../lib/messageStatus';
 import type { MessageReaction, MessageReactionEmoji } from '../../types/database.types';
 import { NixReactionBadge } from '../nix/NixReactionBadge';
+import { ScrollViewMarker } from 'react-native-screens/experimental';
+import { SOFT_SCROLL_EDGE_EFFECTS } from '../../theme/scrollEdge';
 import type { DurableUploadJob } from '../../types/uploadQueue';
 import {
   chatMediaBubblePresentation,
@@ -2058,7 +2060,13 @@ function ChatListScrollView({ ref, ...props }: ScrollViewProps & { ref?: Ref<Scr
       scrollIndicatorInsets: { top: 0, left: 0, right: 0, bottom: indicator },
     };
   });
-  return <Animated.ScrollView {...props} ref={setRefs} animatedProps={animatedProps} />;
+  // The marker puts the soft scroll edge effect on this exact scroll view: the stack's own lookup
+  // follows the first-child chain of the screen and never reached the list (hard iOS 27 cutoff).
+  return (
+    <ScrollViewMarker style={styles.listMarker} scrollEdgeEffects={SOFT_SCROLL_EDGE_EFFECTS}>
+      <Animated.ScrollView {...props} ref={setRefs} animatedProps={animatedProps} />
+    </ScrollViewMarker>
+  );
 }
 
 /**
@@ -3161,6 +3169,9 @@ const styles = StyleSheet.create({
   bubbleText: {
     ...typography.body,
     textAlign: 'left',
+  },
+  listMarker: {
+    flex: 1,
   },
   focusedCell: {
     zIndex: 1,
