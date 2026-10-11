@@ -54,6 +54,8 @@ Twenty-third OTA (2026-10-11): update group `7cd2bf8a-debb-407b-be52-dbc575123a2
 permission is already granted; they show "Turned On" and wait for Continue.
 Twenty-fourth OTA (2026-10-11): update group `1fc9ba14-dd0b-4277-81da-c63e5cc6ee74`, source `88eecf2` — welcome
 set-up gains an accent colour step (live recolour).
+Twenty-fifth OTA (2026-10-11): update group `8f1b5b33-a2d1-47a0-8f73-692fb1a86140`, source `7fa720c` — haptics
+in step with the welcome motion (scene beats, logo strokes, page snaps, set-up, finale checklist).
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
