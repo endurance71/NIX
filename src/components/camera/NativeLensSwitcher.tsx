@@ -29,7 +29,7 @@ import {
   padding,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
-import { isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { canUseLiquidGlass } from '../../lib/liquidGlass';
 import type { LensOption } from '../../lib/cameraLenses';
 import type { ThemeColors } from '../../theme/colors';
 
@@ -39,14 +39,6 @@ const CHIP_HEIGHT = 44;
 const CAPSULE_PAD = 3;
 
 const SELECTION_SPRING = Animation.spring({ response: 0.38, dampingFraction: 0.82 });
-
-function canUseLiquidGlass(): boolean {
-  try {
-    return isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
-  } catch {
-    return false;
-  }
-}
 
 /** Compact camera-style labels: 0,5 · 1× · 2 · 5 */
 function formatSwitcherLabel(option: LensOption): string {

@@ -101,7 +101,9 @@ export type AppIconName =
   | 'unsaveMessage'
   | 'savedMessage'
   | 'micFill'
-  | 'chevronLeft';
+  | 'chevronLeft'
+  // Search fields: clears the query.
+  | 'clearText';
 
 /** Canonical point sizes for SF Symbols across AppIcon / SwiftImage / SymbolView. */
 export const APP_ICON_SIZE = {
@@ -223,6 +225,7 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   savedMessage: 'bookmark.fill',
   micFill: 'mic.fill',
   chevronLeft: 'chevron.left',
+  clearText: 'xmark.circle.fill',
 };
 
 export function resolveAppIconName(name: AppIconName): SFSymbol {

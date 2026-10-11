@@ -13,7 +13,7 @@ import {
   padding,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
-import { isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { canUseLiquidGlass } from '../../lib/liquidGlass';
 import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 
 const BUTTON_SIZE = 44;
@@ -31,14 +31,6 @@ type NativePreviewToolGroupProps = {
   backgroundColor: string;
   tintColor: ColorValue;
 };
-
-function canUseLiquidGlass() {
-  try {
-    return isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
-  } catch {
-    return false;
-  }
-}
 
 export function NativePreviewToolGroup({
   tools,
