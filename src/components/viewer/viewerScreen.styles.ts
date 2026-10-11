@@ -6,7 +6,6 @@ import type { ThemeColors } from '../../theme/colors';
 const SEGMENT_HEIGHT = 3;
 export const VIEWER_AVATAR_SIZE = 32;
 export const VIEWER_CHROME_BUTTON_SIZE = 44;
-const REPLY_PILL_HEIGHT = 44;
 
 /** Cinema surfaces stay black in both light and dark (same as camera / preview). */
 export function createViewerStyles(colors: ThemeColors) {
@@ -113,18 +112,6 @@ export function createViewerStyles(colors: ThemeColors) {
       color: colors.cinemaSecondaryLabel,
       fontVariant: ['tabular-nums'],
     },
-    replayChip: {
-      paddingHorizontal: 8,
-      paddingVertical: 2,
-      borderRadius: 10,
-      borderCurve: 'continuous',
-      backgroundColor: colors.viewerChromeFill,
-    },
-    replayChipText: {
-      ...typography.caption,
-      color: chromeTint,
-      fontWeight: '600',
-    },
     headerButtons: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -162,60 +149,6 @@ export function createViewerStyles(colors: ThemeColors) {
       alignItems: 'center',
       gap: 10,
     },
-    replyPill: {
-      flex: 1,
-      minHeight: REPLY_PILL_HEIGHT,
-      borderRadius: REPLY_PILL_HEIGHT / 2,
-      borderCurve: 'continuous',
-      borderWidth: StyleSheet.hairlineWidth * 2,
-      borderColor: colors.cinemaTrack,
-      backgroundColor: colors.cameraControlBackground,
-      paddingHorizontal: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    replyInput: {
-      ...typography.body,
-      flex: 1,
-      color: chromeTint,
-      paddingVertical: 10,
-      maxHeight: 120,
-    },
-    reactionRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      paddingHorizontal: 4,
-    },
-    reactionButton: {
-      width: 48,
-      height: 48,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    reactionGlyph: {
-      fontSize: 30,
-      lineHeight: 36,
-    },
-    /** The viewer's current NiX reaction in the emoji row (tap again to remove). */
-    reactionButtonSelected: {
-      borderRadius: 24,
-      borderCurve: 'continuous',
-      borderWidth: 2,
-      borderColor: colors.accent,
-      backgroundColor: colors.viewerChromeFill,
-    },
-    /** Own reaction at the end of the reply pill; opens the emoji row. */
-    ownReaction: {
-      marginLeft: 8,
-      minWidth: 28,
-      height: 28,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    ownReactionGlyph: {
-      fontSize: 20,
-      lineHeight: 24,
-    },
     /** Reaction confirmation: one large glyph over the centre of the media. */
     reactionPopLayer: {
       ...StyleSheet.absoluteFill,
@@ -252,21 +185,6 @@ export function createViewerStyles(colors: ThemeColors) {
       color: chromeTint,
       textAlign: 'center',
       marginBottom: 4,
-    },
-    errorButton: {
-      minHeight: 44,
-      minWidth: 120,
-      paddingHorizontal: 18,
-      borderRadius: 22,
-      borderCurve: 'continuous',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.viewerChromeFill,
-    },
-    errorButtonText: {
-      ...typography.callout,
-      color: chromeTint,
-      fontWeight: '600',
     },
   });
 }

@@ -4,9 +4,7 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Keyboard,
-  Pressable,
   Text,
-  TextInput,
   View,
   useWindowDimensions,
   type AccessibilityActionEvent,
@@ -20,19 +18,20 @@ import { useViewerScreen, type ViewerScreenViewModel } from '../../hooks/useView
 import { useStableHandler } from '../../hooks/useStableHandler';
 import { ViewerNixVideo } from './ViewerNixVideo';
 import { ViewerSegmentTimerHud } from './ViewerSegmentTimerHud';
+import { ViewerReplyField, type ViewerReplyFieldRef } from './ViewerReplyField';
+import { ViewerEmojiRow } from './ViewerEmojiRow';
 import { useViewerGestures } from './useViewerGestures';
 import { VIEWER_AVATAR_SIZE, VIEWER_CHROME_BUTTON_SIZE } from './viewerScreen.styles';
 import { NativeChromeIconButton } from '../ui/native-chrome-icon-button';
+import { NativeGlassPill } from '../ui/native-glass-pill';
+import { NativeMediaActions } from '../ui/native-media-actions';
 import { AvatarCircle } from '../ui/avatar-circle';
 import { mediaContentFit } from '../../lib/mediaPresentation';
 import { selection } from '../../lib/haptics';
 import type { MessageReactionEmoji } from '../../types/database.types';
 import type { ViewerTapZone } from '../../lib/viewerGestures';
 import { TEXT_MESSAGE_MAX_LENGTH } from '../../services/textMessageService';
-import {
-  MESSAGE_REACTION_EMOJIS,
-  MESSAGE_REACTION_GLYPHS,
-} from '../../services/messageReactionService';
+import { MESSAGE_REACTION_GLYPHS } from '../../services/messageReactionService';
 import { APP_ICON_SIZE } from '../../theme/app-icons';
 import { duration, useMotionEnabled } from '../../theme/motion';
 
@@ -197,36 +196,33 @@ function ViewerMedia({ vm, motionEnabled }: { vm: ViewerScreenViewModel; motionE
 function ViewerErrorOverlay({ vm }: { vm: ViewerScreenViewModel }) {
   const { t } = useTranslation();
   if (!vm.viewerError) return null;
+  const actions = [
+    ...(vm.viewerError.kind === 'transient'
+      ? [{ key: 'retry', label: t('common.retry'), accessibilityLabel: t('common.retry'), onPress: vm.retryViewer }]
+      : []),
+    ...(vm.viewerError.kind === 'permanentMissing' && vm.currentNix
+      ? [
+          {
+            key: 'skip',
+            label: t('viewer.skip'),
+            accessibilityLabel: t('viewer.skipUnavailable'),
+            onPress: vm.skipUnavailable,
+          },
+        ]
+      : []),
+    {
+      key: 'back',
+      label: t('viewer.back'),
+      accessibilityLabel: t('viewer.back'),
+      onPress: () => vm.leaveViewer('explicit_back'),
+    },
+  ];
   return (
     <View style={vm.styles.errorOverlay} accessibilityViewIsModal>
       <Text style={vm.styles.errorText} selectable accessibilityRole="alert">
         {vm.viewerError.message}
       </Text>
-      {vm.viewerError.kind === 'transient' ? (
-        <Pressable
-          style={vm.styles.errorButton}
-          onPress={vm.retryViewer}
-          accessibilityLabel={t('common.retry')}
-          accessibilityRole="button">
-          <Text style={vm.styles.errorButtonText}>{t('common.retry')}</Text>
-        </Pressable>
-      ) : null}
-      {vm.viewerError.kind === 'permanentMissing' && vm.currentNix ? (
-        <Pressable
-          style={vm.styles.errorButton}
-          onPress={vm.skipUnavailable}
-          accessibilityLabel={t('viewer.skipUnavailable')}
-          accessibilityRole="button">
-          <Text style={vm.styles.errorButtonText}>{t('viewer.skip')}</Text>
-        </Pressable>
-      ) : null}
-      <Pressable
-        style={vm.styles.errorButton}
-        onPress={() => vm.leaveViewer('explicit_back')}
-        accessibilityLabel={t('viewer.back')}
-        accessibilityRole="button">
-        <Text style={vm.styles.errorButtonText}>{t('viewer.back')}</Text>
-      </Pressable>
+      <NativeMediaActions actions={actions} tintColor={vm.colors.cameraControlTint} />
     </View>
   );
 }
@@ -243,8 +239,6 @@ function ViewerHeader({ vm }: { vm: ViewerScreenViewModel }) {
     iconSize: APP_ICON_SIZE.lg,
     backgroundColor: vm.colors.cameraControlBackground,
     tintColor: vm.colors.cameraControlTint,
-    // Solid: Liquid Glass dims ambiently over full-screen media.
-    chromeVariant: 'solid' as const,
   };
   return (
     <View style={[vm.styles.header, { top }]} pointerEvents="box-none">
@@ -271,9 +265,15 @@ function ViewerHeader({ vm }: { vm: ViewerScreenViewModel }) {
           {sender?.timeLabel ? <Text style={vm.styles.senderTime}>{sender.timeLabel}</Text> : null}
         </View>
         {vm.isReplay ? (
-          <View style={vm.styles.replayChip}>
-            <Text style={vm.styles.replayChipText}>{t('viewer.replay')}</Text>
-          </View>
+          // Spoken through the header's combined label.
+          <NativeGlassPill
+            label={t('viewer.replay')}
+            tintColor={vm.colors.cameraControlTint}
+            fill={vm.colors.viewerChromeFill}
+            textStyle="caption"
+            size="compact"
+            accessibilityHidden
+          />
         ) : null}
       </View>
       <View style={vm.styles.headerButtons}>
@@ -305,69 +305,6 @@ function ViewerHeader({ vm }: { vm: ViewerScreenViewModel }) {
   );
 }
 
-/** Quick-reply emoji: a NiX reaction (tap the selected one again to remove) or a text reply. */
-function ViewerEmojiRow({
-  vm,
-  disabled,
-  onPick,
-}: {
-  vm: ViewerScreenViewModel;
-  disabled: boolean;
-  onPick: (emoji: MessageReactionEmoji) => void;
-}) {
-  const { t } = useTranslation();
-  const reactionMode = vm.emojiMode === 'reaction';
-  return (
-    <View style={vm.styles.reactionRow}>
-      {MESSAGE_REACTION_EMOJIS.map((emoji) => {
-        const glyph = MESSAGE_REACTION_GLYPHS[emoji];
-        const selected = reactionMode && vm.nixReaction === emoji;
-        return (
-          <Pressable
-            key={emoji}
-            style={[vm.styles.reactionButton, selected ? vm.styles.reactionButtonSelected : null]}
-            onPress={() => onPick(emoji)}
-            disabled={disabled}
-            accessibilityRole="button"
-            accessibilityState={reactionMode ? { selected, disabled } : { disabled }}
-            accessibilityHint={selected ? t('viewer.nixReactionRemoveHint') : undefined}
-            accessibilityLabel={
-              reactionMode
-                ? t('viewer.nixReactionA11y', { emoji: glyph })
-                : t('viewer.reactionA11y', { emoji: glyph })
-            }>
-            <Text style={vm.styles.reactionGlyph}>{glyph}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-/** Own reaction at the end of the reply pill; opens the emoji row to change or remove it. */
-function ViewerOwnReaction({
-  vm,
-  emoji,
-  onPress,
-}: {
-  vm: ViewerScreenViewModel;
-  emoji: MessageReactionEmoji;
-  onPress: () => void;
-}) {
-  const { t } = useTranslation();
-  const glyph = MESSAGE_REACTION_GLYPHS[emoji];
-  return (
-    <Pressable
-      style={vm.styles.ownReaction}
-      onPress={onPress}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel={t('viewer.nixReactionOwnA11y', { emoji: glyph })}>
-      <Text style={vm.styles.ownReactionGlyph}>{glyph}</Text>
-    </Pressable>
-  );
-}
-
 function ViewerBottomBar({
   vm,
   onReacted,
@@ -376,9 +313,10 @@ function ViewerBottomBar({
   onReacted: (emoji: MessageReactionEmoji) => void;
 }) {
   const { t } = useTranslation();
-  const inputRef = useRef<TextInput>(null);
-  const [text, setText] = useState('');
+  const inputRef = useRef<ViewerReplyFieldRef>(null);
   const [sending, setSending] = useState(false);
+  // Return and the emoji row can fire in the same frame; React state would let both through.
+  const sendingRef = useRef(false);
   const keyboard = useAnimatedKeyboard();
   const bottomInset = vm.insets.bottom;
   const liftStyle = useAnimatedStyle(() => ({
@@ -394,27 +332,31 @@ function ViewerBottomBar({
   };
 
   const send = (body: string) => {
-    if (sending || !body.trim()) return;
+    if (sendingRef.current || !body.trim()) return;
+    sendingRef.current = true;
     setSending(true);
     void vm
       .sendReply(body)
       .then((sent) => {
         if (!sent) return;
-        setText('');
         inputRef.current?.clear();
         backToNix();
       })
-      .finally(() => setSending(false));
+      .finally(() => {
+        sendingRef.current = false;
+        setSending(false);
+      });
   };
 
   const react = (emoji: MessageReactionEmoji) => {
-    if (sending) return;
+    if (sendingRef.current) return;
     const glyph = MESSAGE_REACTION_GLYPHS[emoji];
     const removing = vm.nixReaction === emoji;
     selection();
     // Confirmation right away (the write is optimistic); a typed draft stays in the field.
     if (!removing) onReacted(emoji);
     backToNix();
+    sendingRef.current = true;
     setSending(true);
     void vm
       .reactToNix(emoji)
@@ -425,50 +367,52 @@ function ViewerBottomBar({
           AccessibilityInfo.announceForAccessibility(t('viewer.nixReactionRemoved'));
         }
       })
-      .finally(() => setSending(false));
+      .finally(() => {
+        sendingRef.current = false;
+        setSending(false);
+      });
   };
+
+  const ownReaction =
+    vm.emojiMode === 'reaction' && vm.nixReaction && !vm.replyFocused
+      ? {
+          glyph: MESSAGE_REACTION_GLYPHS[vm.nixReaction],
+          accessibilityLabel: t('viewer.nixReactionOwnA11y', {
+            emoji: MESSAGE_REACTION_GLYPHS[vm.nixReaction],
+          }),
+          onPress: () => inputRef.current?.focus(),
+        }
+      : null;
 
   return (
     <Animated.View style={[vm.styles.bottomBar, { bottom: bottomInset + 12 }, liftStyle]}>
       {vm.canReply && vm.replyFocused ? (
         <ViewerEmojiRow
-          vm={vm}
+          mode={vm.emojiMode}
+          selected={vm.nixReaction}
           disabled={sending}
           onPick={(emoji) =>
             vm.emojiMode === 'reaction' ? react(emoji) : send(MESSAGE_REACTION_GLYPHS[emoji])
           }
+          fill={vm.colors.cameraControlBackground}
+          selectedFill={vm.colors.accent}
         />
       ) : null}
       <View style={vm.styles.bottomRow}>
         {vm.canReply ? (
-          <View style={vm.styles.replyPill}>
-            <TextInput
-              ref={inputRef}
-              value={text}
-              onChangeText={setText}
-              placeholder={t('viewer.replyPlaceholder')}
-              placeholderTextColor={vm.colors.cinemaSecondaryLabel}
-              maxLength={TEXT_MESSAGE_MAX_LENGTH}
-              multiline
-              submitBehavior="submit"
-              returnKeyType="send"
-              enablesReturnKeyAutomatically
-              keyboardAppearance="dark"
-              onSubmitEditing={() => send(text)}
-              onFocus={() => vm.setReplyFocused(true)}
-              onBlur={() => vm.setReplyFocused(false)}
-              editable={!sending}
-              accessibilityLabel={t('viewer.replyA11y')}
-              style={vm.styles.replyInput}
-            />
-            {vm.emojiMode === 'reaction' && vm.nixReaction && !vm.replyFocused ? (
-              <ViewerOwnReaction
-                vm={vm}
-                emoji={vm.nixReaction}
-                onPress={() => inputRef.current?.focus()}
-              />
-            ) : null}
-          </View>
+          <ViewerReplyField
+            ref={inputRef}
+            placeholder={t('viewer.replyPlaceholder')}
+            accessibilityLabel={t('viewer.replyA11y')}
+            maxLength={TEXT_MESSAGE_MAX_LENGTH}
+            editable={!sending}
+            onSubmit={send}
+            onFocusChange={vm.setReplyFocused}
+            trailing={ownReaction}
+            textColor={vm.colors.cameraControlTint}
+            placeholderColor={vm.colors.cinemaSecondaryLabel}
+            fill={vm.colors.cameraControlBackground}
+          />
         ) : (
           <View style={{ flex: 1 }} />
         )}
@@ -482,7 +426,6 @@ function ViewerBottomBar({
             iconSize={APP_ICON_SIZE.lg}
             backgroundColor={vm.colors.cameraControlBackground}
             tintColor={vm.colors.cameraControlTint}
-            chromeVariant="solid"
           />
         ) : null}
         {showSave ? (
@@ -490,12 +433,12 @@ function ViewerBottomBar({
             name="saveToPhotos"
             accessibilityLabel={vm.saveToGalleryA11y}
             onPress={vm.saveToGallery}
-            disabled={vm.isSavingToGallery || vm.closing || !vm.imageReady}
+            busy={vm.isSavingToGallery}
+            disabled={vm.closing || !vm.imageReady}
             size={VIEWER_CHROME_BUTTON_SIZE}
             iconSize={APP_ICON_SIZE.lg}
             backgroundColor={vm.colors.cameraControlBackground}
             tintColor={vm.colors.cameraControlTint}
-            chromeVariant="solid"
           />
         ) : null}
       </View>
