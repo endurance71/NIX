@@ -42,6 +42,9 @@ Eighteenth OTA (2026-10-11): update group `15071e7f-9e61-460b-a7b6-19de92cdf397`
 viewer is pushed instead of presented, so the zoom transition actually runs (it still slid up as a modal).
 Nineteenth OTA (2026-10-11): update group `714ce7a0-5808-4c1e-ac14-3ca2e9c54661`, source `238d5b0` — after
 paging in the Memories viewer, closing zooms into the cell of the memory on screen (not the first one opened).
+Twentieth OTA (2026-10-11): update group `06a32675-f71e-4847-9d36-8725d5801607`, source `e5aaf21` — motion-graphics
+welcome tour (`/welcome`). Not shown on first launch yet; Profile → Testing (owner account / simulator only) opens it
+or shows it on every launch.
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
