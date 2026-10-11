@@ -1,5 +1,17 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image as RNImage, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image as RNImage,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
@@ -25,13 +37,9 @@ import {
   exportMemoryToFile,
   listMemories,
   loadMemoryPhotoDataUri,
+  loadMemoryThumbnail,
   releaseMemoryFile,
 } from '../../services/memoriesStore';
-
-type ViewerState =
-  | { status: 'loading' }
-  | { status: 'failed' }
-  | { status: 'ready'; entry: MemoryEntry; photoUri: string | null; videoUri: string | null };
 
 function imageSize(uri: string) {
   return new Promise<{ width: number; height: number }>((resolve, reject) => {
@@ -61,67 +69,133 @@ function MemoryVideo({ uri, label }: { uri: string; label: string }) {
   );
 }
 
-function MemoryViewerContent({
-  state,
-  status,
-  busy,
+/** A photo the user can pinch to zoom (native UIScrollView zoom), like the Photos app. */
+function ZoomablePhoto({ uri, width, height, label }: { uri: string; width: number; height: number; label: string }) {
+  return (
+    <ScrollView
+      style={StyleSheet.absoluteFill}
+      contentContainerStyle={{ width, height }}
+      minimumZoomScale={1}
+      maximumZoomScale={4}
+      bouncesZoom
+      centerContent
+      showsHorizontalScrollIndicator={false}
+      showsVerticalScrollIndicator={false}>
+      <Image
+        source={{ uri }}
+        style={{ width, height }}
+        contentFit="contain"
+        cachePolicy="none"
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel={label}
+      />
+    </ScrollView>
+  );
+}
+
+/**
+ * One page of the gallery. Photos (and video posters) load while the page is the current one or
+ * a neighbour, so a swipe lands on a ready image; a video is decrypted into Caches only while its
+ * page is current and deleted when the user swipes away.
+ */
+function MemoryPage({
+  entry,
+  active,
+  nearby,
+  width,
+  height,
   label,
-  captionTop,
 }: {
-  state: ViewerState;
-  status: ViewerState['status'];
-  busy: boolean;
+  entry: MemoryEntry;
+  active: boolean;
+  nearby: boolean;
+  width: number;
+  height: number;
   label: string;
-  captionTop: number;
 }) {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
-  const ready = state.status === 'ready' ? state : null;
-  const names = ready?.entry.recipientNames ?? [];
+  const isVideo = entry.mediaType === 'video';
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [posterUri, setPosterUri] = useState<string | null>(null);
+  const [videoUri, setVideoUri] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (isVideo || !nearby || photoUri) return;
+    let alive = true;
+    loadMemoryPhotoDataUri(entry).then(
+      (uri) => {
+        if (alive) setPhotoUri(uri);
+      },
+      () => {
+        if (alive) setFailed(true);
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, [entry, isVideo, nearby, photoUri]);
+
+  useEffect(() => {
+    if (!isVideo || !nearby || posterUri) return;
+    let alive = true;
+    loadMemoryThumbnail(entry).then(
+      (uri) => {
+        if (alive) setPosterUri(uri);
+      },
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, [entry, isVideo, nearby, posterUri]);
+
+  useEffect(() => {
+    if (!isVideo || !active) return;
+    let alive = true;
+    let playbackUri: string | null = null;
+    exportMemoryToFile(entry, 'play').then(
+      (uri) => {
+        if (!alive) {
+          releaseMemoryFile(uri);
+          return;
+        }
+        playbackUri = uri;
+        setVideoUri(uri);
+      },
+      () => {
+        if (alive) setFailed(true);
+      },
+    );
+    return () => {
+      alive = false;
+      setVideoUri(null);
+      releaseMemoryFile(playbackUri);
+    };
+  }, [active, entry, isVideo]);
+
+  const loading = !failed && (isVideo ? active && !videoUri : !photoUri);
   return (
-    <>
-      {ready?.photoUri ? (
-        <Image
-          source={{ uri: ready.photoUri }}
-          style={StyleSheet.absoluteFill}
-          contentFit="contain"
-          cachePolicy="none"
-          accessible
-          accessibilityRole="image"
-          accessibilityLabel={label}
-        />
+    <View style={{ width, height }}>
+      {photoUri ? <ZoomablePhoto uri={photoUri} width={width} height={height} label={label} /> : null}
+      {isVideo && posterUri && !videoUri ? (
+        <Image source={{ uri: posterUri }} style={StyleSheet.absoluteFill} contentFit="contain" />
       ) : null}
-      {ready?.videoUri ? <MemoryVideo uri={ready.videoUri} label={label} /> : null}
-      {status === 'loading' || busy ? (
+      {videoUri ? <MemoryVideo uri={videoUri} label={label} /> : null}
+      {loading ? (
         <View style={styles.center} pointerEvents="none">
           <ActivityIndicator color={colors.cameraControlTint} accessibilityLabel={t('common.loading')} />
         </View>
       ) : null}
-      {status === 'failed' ? (
+      {failed ? (
         <View style={styles.center}>
           <Text style={[styles.message, { color: colors.cinemaSecondaryLabel }]}>{t('memories.loadFailed')}</Text>
         </View>
       ) : null}
-      {names.length > 0 ? (
-        <View style={[styles.caption, { top: captionTop }]} pointerEvents="none">
-          <Text
-            numberOfLines={2}
-            style={[styles.captionText, { color: colors.cinemaSecondaryLabel, textShadowColor: colors.cinemaScrim }]}>
-            {t('memories.sentTo', { names: names.join(', ') })}
-          </Text>
-        </View>
-      ) : null}
-    </>
+    </View>
   );
-}
-
-type LoadedMemory = { entry: MemoryEntry; photoUri: string | null; videoUri: string | null };
-
-async function loadMemoryForViewer(ownerId: string, memoryId: string): Promise<LoadedMemory> {
-  const entry = (await listMemories(ownerId)).find((item) => item.id === memoryId);
-  if (!entry) throw new Error('Memory not found');
-  if (entry.mediaType === 'image') return { entry, photoUri: await loadMemoryPhotoDataUri(entry), videoUri: null };
-  return { entry, photoUri: null, videoUri: await exportMemoryToFile(entry, 'play') };
 }
 
 type ResendDraft =
@@ -162,8 +236,10 @@ async function saveMemoryToPhotos(entry: MemoryEntry, viewportWidth: number, vie
 }
 
 /**
- * Full-screen memory: plain expo-image / expo-video, no NiX viewer (no view acks, no expiry).
- * Photos stay in memory; a video is decrypted into Caches for playback and deleted on close.
+ * Full-screen memories gallery: swipe between memories like the Photos app (same order as the
+ * grid, newest first), pinch to zoom photos. Plain expo-image / expo-video, no NiX viewer (no view
+ * acks, no expiry). Photos stay in memory; a video is decrypted into Caches only while its page is
+ * shown and deleted afterwards.
  */
 export function MemoryViewerScreen() {
   const { t } = useTranslation();
@@ -176,41 +252,49 @@ export function MemoryViewerScreen() {
   const memoryId = paramFirst(params.id);
   const { setDraft } = usePhotoDraft();
   const { setSegments } = useVideoDraft();
-  const [state, setState] = useState<ViewerState>({ status: 'loading' });
+  const [entries, setEntries] = useState<MemoryEntry[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
+  const listRef = useRef<FlatList<MemoryEntry>>(null);
 
   useEffect(() => {
     if (!ownerId || !memoryId) return;
     let active = true;
-    let playbackUri: string | null = null;
-    loadMemoryForViewer(ownerId, memoryId).then(
-      (loaded) => {
-        if (!active) {
-          releaseMemoryFile(loaded.videoUri);
+    listMemories(ownerId).then(
+      (all) => {
+        if (!active) return;
+        const start = all.findIndex((item) => item.id === memoryId);
+        if (start < 0) {
+          setFailed(true);
           return;
         }
-        playbackUri = loaded.videoUri;
-        setState({ status: 'ready', ...loaded });
+        setIndex(start);
+        setEntries(all);
       },
       () => {
-        if (active) setState({ status: 'failed' });
+        if (active) setFailed(true);
       },
     );
     return () => {
       active = false;
-      releaseMemoryFile(playbackUri);
     };
   }, [memoryId, ownerId]);
 
-  // A missing id (stale link) can never load.
-  const status = memoryId ? state.status : 'failed';
-  const entry = state.status === 'ready' ? state.entry : null;
+  const entry = entries?.[index] ?? null;
+  const loadingList = !failed && entries === null && Boolean(memoryId);
   const title = entry ? formatMemoryDate(entry.createdAt, getCurrentLocale(), true) : t('memories.title');
-  const mediaLabel = entry ? t(entry.mediaType === 'video' ? 'memories.video' : 'memories.photo') : '';
+  const labelFor = (item: MemoryEntry) => t(item.mediaType === 'video' ? 'memories.video' : 'memories.photo');
+  const names = entry?.recipientNames ?? [];
 
   const close = () => {
     if (router.canGoBack()) router.back();
     else router.replace('/(tabs)/profile/memories');
+  };
+
+  const onPageSettled = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const next = Math.round(event.nativeEvent.contentOffset.x / Math.max(1, width));
+    if (next !== index) setIndex(next);
   };
 
   const resend = () => {
@@ -242,17 +326,27 @@ export function MemoryViewerScreen() {
   };
 
   const confirmDelete = () => {
-    if (!entry || !ownerId) return;
+    if (!entry || !ownerId || !entries) return;
+    const removed = entry;
     Alert.alert(t('memories.deleteTitle'), t('memories.deleteMessage'), [
       { text: t('common.cancel'), style: 'cancel' },
       {
         text: t('memories.delete'),
         style: 'destructive',
         onPress: () => {
-          void deleteMemory(ownerId, entry.id).then(
+          void deleteMemory(ownerId, removed.id).then(
             () => {
               notify('success');
-              close();
+              const remaining = entries.filter((item) => item.id !== removed.id);
+              if (remaining.length === 0) {
+                close();
+                return;
+              }
+              // Like Photos: the next memory slides into place; after the last one, the previous.
+              const nextIndex = Math.min(index, remaining.length - 1);
+              setEntries(remaining);
+              setIndex(nextIndex);
+              requestAnimationFrame(() => listRef.current?.scrollToIndex({ index: nextIndex, animated: false }));
             },
             () => notify('error'),
           );
@@ -305,7 +399,53 @@ export function MemoryViewerScreen() {
         />
       </Stack.Toolbar>
 
-      <MemoryViewerContent state={state} status={status} busy={busy} label={mediaLabel} captionTop={insets.top + 52} />
+      {entries ? (
+        <FlatList
+          ref={listRef}
+          data={entries}
+          keyExtractor={(item) => item.id}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          initialScrollIndex={index}
+          getItemLayout={(_, itemIndex) => ({ length: width, offset: width * itemIndex, index: itemIndex })}
+          onMomentumScrollEnd={onPageSettled}
+          windowSize={3}
+          initialNumToRender={1}
+          maxToRenderPerBatch={2}
+          extraData={index}
+          renderItem={({ item, index: itemIndex }) => (
+            <MemoryPage
+              entry={item}
+              active={itemIndex === index}
+              nearby={Math.abs(itemIndex - index) <= 1}
+              width={width}
+              height={height}
+              label={labelFor(item)}
+            />
+          )}
+        />
+      ) : null}
+
+      {loadingList || busy ? (
+        <View style={styles.center} pointerEvents="none">
+          <ActivityIndicator color={colors.cameraControlTint} accessibilityLabel={t('common.loading')} />
+        </View>
+      ) : null}
+      {failed || !memoryId ? (
+        <View style={styles.center}>
+          <Text style={[styles.message, { color: colors.cinemaSecondaryLabel }]}>{t('memories.loadFailed')}</Text>
+        </View>
+      ) : null}
+      {names.length > 0 ? (
+        <View style={[styles.caption, { top: insets.top + 52 }]} pointerEvents="none">
+          <Text
+            numberOfLines={2}
+            style={[styles.captionText, { color: colors.cinemaSecondaryLabel, textShadowColor: colors.cinemaScrim }]}>
+            {t('memories.sentTo', { names: names.join(', ') })}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
