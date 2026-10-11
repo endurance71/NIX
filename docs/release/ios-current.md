@@ -18,7 +18,14 @@ fails with Homebrew `rsync` 3.4.4 on `PATH` (`--extended-attributes: unknown opt
 `env PATH=/usr/bin:/bin:/usr/sbin:/sbin …/Xcode.app/Contents/MacOS/Xcode` for Organizer uploads. ASC build
 `62a485e7-4b36-471b-82b4-fa1106fdc000` processed (**Ready to Submit**, expires in 90 days), assigned to **NiX Internal
 QA** and **Team (Expo)** (4 internal testers each), bilingual PL/EN What to Test saved and verified after reload.
-Device QA pending. The 1.0.12 App Review track
+Device QA pending.
+
+**OTA for runtime 1.0.13** (2026-10-11): update group `f8dd77b1-2a5b-4d08-8699-2d9a37ab0a7c`, channel `production`,
+iOS only, source `7d2cdfe` — JS only since build 12 (`b54f0ad`): native Liquid Glass chrome (viewer reply bar, camera
+pills, send-to search, chat composer buttons), voice messages with an explicit Send (tap to record, Stop, review, Send),
+the chat scroll edge effect and delivered uploads shown as NiX chips. Builds 10/11 (runtime 1.0.12) do not receive it.
+
+The 1.0.12 App Review track
 (build 11) is unaffected.
 
 ## Next candidate in preparation — build 11, 2026-10-10
