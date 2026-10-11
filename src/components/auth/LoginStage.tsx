@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image, type ImageSource } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,6 +19,7 @@ import { AmbientGlow } from '../brand/AmbientGlow';
 import { DrawnLogo } from '../brand/DrawnLogo';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useMotionEnabled } from '../../theme/motion';
+import { runWhenSettled } from '../welcome/welcomeMotion';
 import { typography } from '../../theme/typography';
 
 const LOGO_DRAW_MS = 2000;
@@ -33,7 +34,7 @@ const BACKDROP: readonly { image: ImageSource; x: number; y: number; rotate: num
 ];
 
 /** Space the hero takes above the form, below the safe area. */
-export function loginHeroHeight(width: number) {
+function loginHeroHeight(width: number) {
   return Math.round(logoSize(width) * 2.2 + 30);
 }
 
@@ -46,7 +47,7 @@ function logoSize(width: number) {
  * glow and faint moments drifting, the NiX logo drawing itself with the wordmark and tagline,
  * then the native form rising in. The hero steps aside while the keyboard is up.
  */
-export function LoginStage({ children }: { children: ReactNode }) {
+export function LoginStage({ children }: { children: (formTop: number) => ReactNode }) {
   const { t } = useTranslation();
   const { colors, isDark } = useAppTheme();
   const motionEnabled = useMotionEnabled();
@@ -59,15 +60,23 @@ export function LoginStage({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!motionEnabled) return;
-    logo.set(withDelay(250, withTiming(1, { duration: LOGO_DRAW_MS, easing: Easing.linear })));
-    formIn.set(withDelay(1250, withTiming(1, { duration: 700, easing: EASE_OUT })));
-    drift.set(withRepeat(withTiming(1, { duration: 14000, easing: Easing.linear }), -1, false));
+    // Starts once the screen has settled, so the first strokes are not drawn over dropped frames.
+    const stop = runWhenSettled(() => {
+      logo.set(withTiming(1, { duration: LOGO_DRAW_MS, easing: Easing.linear }));
+      formIn.set(withDelay(LOGO_DRAW_MS * 0.55, withTiming(1, { duration: 700, easing: EASE_OUT })));
+      drift.set(withRepeat(withTiming(1, { duration: 14000, easing: Easing.linear }), -1, false));
+    });
     return () => {
+      stop();
       cancelAnimation(logo);
       cancelAnimation(formIn);
       cancelAnimation(drift);
     };
   }, [drift, formIn, logo, motionEnabled]);
+
+  // The top inset is read once: a system sheet (Sign in with Apple, passkeys) pushes the app back
+  // and changes the live insets, which would make the hero and backdrop jump.
+  const [topInset] = useState(insets.top);
 
   const size = logoSize(width);
   const heroStyle = useAnimatedStyle(() => {
@@ -92,7 +101,7 @@ export function LoginStage({ children }: { children: ReactNode }) {
           {...card}
           drift={drift}
           width={width}
-          top={insets.top}
+          top={topInset}
           opacity={isDark ? 0.32 : 0.22}
           motionEnabled={motionEnabled}
         />
@@ -104,13 +113,13 @@ export function LoginStage({ children }: { children: ReactNode }) {
         locations={[0.12, 0.4]}
         style={StyleSheet.absoluteFill}
       />
-      <Animated.View pointerEvents="none" style={[styles.hero, { top: insets.top + 28 }, heroStyle]}>
+      <Animated.View pointerEvents="none" style={[styles.hero, { top: topInset + 28 }, heroStyle]}>
         <DrawnLogo progress={logo} size={size} glowColor={colors.accent} inkColor={colors.label} />
         <Animated.View style={taglineStyle}>
           <Text style={[styles.tagline, { color: colors.secondaryLabel }]}>{t('auth.tagline')}</Text>
         </Animated.View>
       </Animated.View>
-      <Animated.View style={[styles.form, formStyle]}>{children}</Animated.View>
+      <Animated.View style={[styles.form, formStyle]}>{children(topInset + 28 + loginHeroHeight(width))}</Animated.View>
     </View>
   );
 }

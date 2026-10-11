@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { RNHostView, VStack } from '@expo/ui/swift-ui';
-import { frame } from '@expo/ui/swift-ui/modifiers';
+import { frame, opacity } from '@expo/ui/swift-ui/modifiers';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { AUTH_SOCIAL_BUTTON_HEIGHT, AUTH_SOCIAL_BUTTON_RADIUS } from '../../theme/authLayout';
 import { useAuthContentWidth } from './auth-content-width';
@@ -17,11 +17,14 @@ export function AuthAppleSignInButton({ disabled, onPress }: AuthAppleSignInButt
   const contentWidth = useAuthContentWidth();
 
   return (
-    <VStack alignment="center" spacing={0} modifiers={[frame({ width: contentWidth, alignment: 'center' })]}>
+    // Busy state is a SwiftUI opacity on the host, not a style on the hosted RN view: restyling it
+    // made `RNHostView` re-measure, and the whole form jumped when Sign in with Apple started.
+    <VStack
+      alignment="center"
+      spacing={0}
+      modifiers={[frame({ width: contentWidth, height: AUTH_SOCIAL_BUTTON_HEIGHT, alignment: 'center' }), opacity(disabled ? 0.45 : 1)]}>
       <RNHostView matchContents>
-        <View
-          style={[styles.providerWrap, { width: contentWidth }, disabled && styles.disabled]}
-          pointerEvents={disabled ? 'none' : 'auto'}>
+        <View style={[styles.providerWrap, { width: contentWidth }]} pointerEvents={disabled ? 'none' : 'auto'}>
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
             buttonStyle={
@@ -48,8 +51,5 @@ const styles = StyleSheet.create({
   providerButton: {
     width: '100%',
     height: AUTH_SOCIAL_BUTTON_HEIGHT,
-  },
-  disabled: {
-    opacity: 0.45,
   },
 });

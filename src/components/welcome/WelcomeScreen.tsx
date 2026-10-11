@@ -35,6 +35,7 @@ import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme
 import { useMotionEnabled } from '../../theme/motion';
 import { APP_FONT_FAMILY, typography } from '../../theme/typography';
 import { AmbientGlow } from '../brand/AmbientGlow';
+import { runWhenSettled } from './welcomeMotion';
 import { DrawnLogo } from '../brand/DrawnLogo';
 import { WelcomeSetup, type WelcomeSetupSummary } from './WelcomeSetup';
 import {
@@ -117,20 +118,24 @@ export function WelcomeScreen() {
       const id = setTimeout(() => setCurtain(null), 700);
       return () => clearTimeout(id);
     }
-    logo.set(
-      withTiming(1, { duration: LOGO_DRAW_MS, easing: Easing.linear }, (finished) => {
-        if (!finished) return;
-        curtainOpacity.set(
-          withDelay(
-            320,
-            withTiming(0, { duration: 480, easing: CURTAIN_EASE }, (done) => {
-              if (done) scheduleOnRN(setCurtain, null);
-            }),
-          ),
-        );
-      }),
-    );
+    // Drawn once the tour behind it has mounted, so the first strokes do not stutter.
+    const stop = runWhenSettled(() => {
+      logo.set(
+        withTiming(1, { duration: LOGO_DRAW_MS, easing: Easing.linear }, (finished) => {
+          if (!finished) return;
+          curtainOpacity.set(
+            withDelay(
+              320,
+              withTiming(0, { duration: 480, easing: CURTAIN_EASE }, (done) => {
+                if (done) scheduleOnRN(setCurtain, null);
+              }),
+            ),
+          );
+        }),
+      );
+    });
     return () => {
+      stop();
       cancelAnimation(logo);
       cancelAnimation(curtainOpacity);
     };

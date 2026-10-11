@@ -46,10 +46,15 @@ export function DrawnLogo({
     const p = seg(progress.get(), 0.28, 0.52);
     return { strokeDashoffset: FALL.length * (1 - easeInOut(p)), strokeOpacity: p > 0 ? 1 : 0 };
   });
+  // The rising stroke is drawn in solid ink: its glass gradient starts faint, and a faint tip
+  // growing along the diagonal read as a dot floating across the mark. Once drawn, the solid
+  // stroke dissolves into the glass one underneath.
   const riseProps = useAnimatedProps(() => {
     const p = seg(progress.get(), 0.44, 0.74);
-    return { strokeDashoffset: RISE.length * (1 - easeInOut(p)), strokeOpacity: p > 0 ? 1 : 0 };
+    const dissolve = seg(progress.get(), 0.76, 0.9);
+    return { strokeDashoffset: RISE.length * (1 - easeInOut(p)), strokeOpacity: p > 0 ? 1 - dissolve : 0 };
   });
+  const riseGlassProps = useAnimatedProps(() => ({ strokeOpacity: seg(progress.get(), 0.74, 0.88) }));
   // Felt as it is written: a tick as the pen touches down, a tap as each stroke lands, a firmer
   // one for the last, and soft taps as the letters drop in.
   useAnimatedReaction(
@@ -103,9 +108,10 @@ export function DrawnLogo({
               </LinearGradient>
             </Defs>
             <G fill="none" strokeWidth={100} strokeLinecap="round" strokeLinejoin="round">
+              <AnimatedPath d={RISE.d} stroke="url(#rise)" animatedProps={riseGlassProps} />
               <AnimatedPath
                 d={RISE.d}
-                stroke="url(#rise)"
+                stroke={inkColor}
                 strokeDasharray={`${RISE.length} ${RISE.length}`}
                 animatedProps={riseProps}
               />

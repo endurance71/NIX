@@ -7,10 +7,9 @@ import { AppHost } from '../ui/app-host';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import {
   AUTH_FORM_HORIZONTAL_PADDING,
-  AUTH_LOGIN_TOP_PADDING,
   getAuthContentWidth,
 } from '../../theme/authLayout';
-import { frame, padding } from '@expo/ui/swift-ui/modifiers';
+import { frame, ignoreSafeArea, padding } from '@expo/ui/swift-ui/modifiers';
 
 function contentColumnModifiers(contentWidth: number) {
   return [frame({ width: contentWidth, alignment: 'leading' })];
@@ -18,9 +17,12 @@ function contentColumnModifiers(contentWidth: number) {
 
 /**
  * Login-only shell: the scrollable native form column. Transparent, over the `LoginStage`
- * backdrop; `topSpacing` leaves room for the hero drawn behind it.
+ * backdrop. `formTop` is measured from the top of the screen: the column ignores the top safe
+ * area, whose value the hosting view only gets after the first system event (an alert, a
+ * focused field), which made the whole form jump down under the hero. The keyboard is still
+ * avoided natively.
  */
-export function LoginAuthLayout({ children, topSpacing = 0 }: PropsWithChildren<{ topSpacing?: number }>) {
+export function LoginAuthLayout({ children, formTop }: PropsWithChildren<{ formTop: number }>) {
   const { statusBarStyle } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const contentWidth = getAuthContentWidth(windowWidth);
@@ -36,13 +38,16 @@ export function LoginAuthLayout({ children, topSpacing = 0 }: PropsWithChildren<
         <ScrollView
           axes="vertical"
           showsIndicators={false}
-          modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
+          modifiers={[
+            frame({ maxWidth: Infinity, maxHeight: Infinity }),
+            ignoreSafeArea({ regions: 'container', edges: 'top' }),
+          ]}>
           <VStack
             alignment="center"
             spacing={0}
             modifiers={[
               padding({
-                top: AUTH_LOGIN_TOP_PADDING + topSpacing,
+                top: formTop,
                 leading: AUTH_FORM_HORIZONTAL_PADDING,
                 bottom: AUTH_FORM_HORIZONTAL_PADDING,
                 trailing: AUTH_FORM_HORIZONTAL_PADDING,
