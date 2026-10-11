@@ -226,7 +226,7 @@ export default function ChatScreen() {
               </Stack.Toolbar.Menu>
             )
           ) : null}
-          <Stack.Toolbar.Menu title={vm.t('chat.report')} icon={resolveAppIconName('warning')}>
+          <Stack.Toolbar.Menu title={vm.t('chat.report')} icon={resolveAppIconName('report')}>
             {CHAT_PEER_REPORT_REASONS.map((reason) => (
               <Stack.Toolbar.MenuAction
                 key={reason}
@@ -239,7 +239,7 @@ export default function ChatScreen() {
             {vm.t('chat.block')}
           </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon={resolveAppIconName('trash')} destructive onPress={requestDelete}>
-            {vm.t('chat.delete')}
+            {vm.t('inbox.deleteConversation')}
           </Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
