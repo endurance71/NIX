@@ -31,6 +31,8 @@ export default function DevicesScreen() {
     queryFn: listAppInstallations,
     enabled: canUseNetworkSession,
   });
+  // Relative times are measured from when the list was fetched (pure during render; a pull to
+  // refresh updates both).
   const rows = (query.data ?? []) as Awaited<ReturnType<typeof listAppInstallations>>;
   const otherActive = rows.filter((row) => !row.is_current && !row.revoked_at);
 
@@ -81,7 +83,7 @@ export default function DevicesScreen() {
                 supportingText={
                   row.revoked_at
                     ? t('devices.revoked')
-                    : formatDeviceLastSeen(row.last_seen_at, Date.now(), getCurrentLocale(), t)
+                    : formatDeviceLastSeen(row.last_seen_at, query.dataUpdatedAt, getCurrentLocale(), t)
                 }
                 icon="devices"
                 disabled={Boolean(row.revoked_at)}
