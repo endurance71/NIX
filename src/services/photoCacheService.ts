@@ -3,6 +3,7 @@ import { encryptedPhotoCache, PHOTO_CACHE_FIRST_VIEW_TTL_MS } from '../lib/encry
 import { downloadPhotoToMemory } from './photoMemoryDownloader';
 import { DomainError } from './errors';
 import { preparePrivatePhotoCache } from '../lib/mediaCache';
+import i18n from '../lib/i18n';
 
 async function photoAccess(nixId: string, mediaPath: string, transport: AccountTransport) {
   transport.assertActive();
@@ -14,12 +15,12 @@ async function photoAccess(nixId: string, mediaPath: string, transport: AccountT
   if (error || !data || data.receiver_id !== transport.ownerId || data.media_path !== mediaPath || data.media_type !== 'image'
     || data.status === 'cleaned' || data.status === 'cleanup_failed' || data.is_replayed) {
     await encryptedPhotoCache.remove(transport.ownerId, nixId);
-    throw new DomainError('NOT_FOUND', 'Medium jest niedostępne.');
+    throw new DomainError('NOT_FOUND', i18n.t('viewer.mediaUnavailable'));
   }
   const replayExpiresAt = data.is_viewed ? Date.parse(data.replay_expires_at ?? '') : undefined;
   if (replayExpiresAt !== undefined && (!Number.isFinite(replayExpiresAt) || replayExpiresAt <= Date.now())) {
     await encryptedPhotoCache.remove(transport.ownerId, nixId);
-    throw new DomainError('NOT_FOUND', 'Okno odtworzenia wygasło.');
+    throw new DomainError('NOT_FOUND', i18n.t('viewer.mediaExpired'));
   }
   return replayExpiresAt;
 }
@@ -76,7 +77,7 @@ export async function loadPrivatePhoto(nixId: string, mediaPath: string, expecte
     const expiresAt = replayExpiresAt ?? cached.metadata.expiresAt;
     if (expiresAt <= Date.now()) {
       await encryptedPhotoCache.remove(expectedOwner, nixId);
-      throw new DomainError('NOT_FOUND', 'Okno dostępności medium wygasło.');
+      throw new DomainError('NOT_FOUND', i18n.t('viewer.mediaExpired'));
     }
     return { uri: `data:${cached.metadata.contentType};base64,${cached.base64}`, expiresAt, persisted: Promise.resolve(expiresAt) };
   }
@@ -91,7 +92,7 @@ export async function loadPrivatePhoto(nixId: string, mediaPath: string, expecte
   const provisionalExpiresAt = replayExpiresAt ?? Date.now() + PHOTO_CACHE_FIRST_VIEW_TTL_MS;
   if (provisionalExpiresAt <= Date.now()) {
     await encryptedPhotoCache.remove(expectedOwner, nixId);
-    throw new DomainError('NOT_FOUND', 'Okno dostępności medium wygasło.');
+    throw new DomainError('NOT_FOUND', i18n.t('viewer.mediaExpired'));
   }
   // Display does not wait for encryption: the photo was just authorized online, exactly like a cache hit.
   const persisted = (async () => {
@@ -104,7 +105,7 @@ export async function loadPrivatePhoto(nixId: string, mediaPath: string, expecte
     const expiresAt = Math.min(metadata.expiresAt, finalReplayExpiresAt ?? Infinity);
     if (expiresAt <= Date.now()) {
       await encryptedPhotoCache.remove(expectedOwner, nixId);
-      throw new DomainError('NOT_FOUND', 'Okno dostępności medium wygasło.');
+      throw new DomainError('NOT_FOUND', i18n.t('viewer.mediaExpired'));
     }
     return expiresAt;
   })();

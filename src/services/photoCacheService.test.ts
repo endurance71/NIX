@@ -10,6 +10,7 @@ const { cache, download, query, sign, row } = vi.hoisted(() => ({
 vi.mock('../lib/encryptedPhotoCache', () => ({ encryptedPhotoCache: cache, PHOTO_CACHE_FIRST_VIEW_TTL_MS: 600_000 }));
 vi.mock('../lib/mediaCache', () => ({ preparePrivatePhotoCache: vi.fn() }));
 vi.mock('./photoMemoryDownloader', () => ({ downloadPhotoToMemory: download }));
+vi.mock('../lib/i18n', () => ({ default: { t: (key: string) => key } }));
 vi.mock('../lib/supabase', async () => {
   const { captureSessionScope } = await import('../lib/sessionScope');
   const client = {

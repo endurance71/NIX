@@ -42,14 +42,14 @@ describe('i18n', () => {
   it('tłumaczy kamerę, odmowę uprawnień i błędy viewera w PL i EN', async () => {
     expect(i18nModule.default.t('camera.takePhoto')).toBe('Zrób zdjęcie');
     expect(i18nModule.default.t('camera.openSettings')).toBe('Otwórz Ustawienia');
-    expect(i18nModule.default.t('viewer.mediaExpired')).toBe('Okno dostępności medium wygasło.');
+    expect(i18nModule.default.t('viewer.mediaExpired')).toBe('Ten NiX już wygasł.');
     await i18nModule.default.changeLanguage('en');
     expect(i18nModule.default.t('camera.takePhoto')).toBe('Take photo');
     expect(i18nModule.default.t('camera.startVideo')).toBe('Start video recording');
     expect(i18nModule.default.t('camera.stopVideo')).toBe('Stop video recording');
     expect(i18nModule.default.t('camera.openSettings')).toBe('Open Settings');
     expect(i18nModule.default.t('camera.recordingTimer', { seconds: 3, max: 15 })).toBe('Recording: 3 of 15 seconds');
-    expect(i18nModule.default.t('viewer.mediaExpired')).toBe('The media availability window has expired.');
+    expect(i18nModule.default.t('viewer.mediaExpired')).toBe('This NiX has expired.');
   });
 
   it('odmienia podsumowanie oczekujących zaproszeń w profilu', async () => {
