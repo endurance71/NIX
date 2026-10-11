@@ -1,3 +1,18 @@
+diff --git a/node_modules/expo-camera/ios/Common/ExpoCameraUtils.swift b/node_modules/expo-camera/ios/Common/ExpoCameraUtils.swift
+--- a/node_modules/expo-camera/ios/Common/ExpoCameraUtils.swift
++++ b/node_modules/expo-camera/ios/Common/ExpoCameraUtils.swift
+@@ -20,8 +20,10 @@ struct ExpoCameraUtils {
+     if accelerometerData.acceleration.y <= -0.75 {
+       return .portrait
+     }
++    // NiX: the camera UI is portrait-only, so a phone tipped top-down (lying in bed) still frames
++    // the shot upright on screen; never store it upside down.
+     if accelerometerData.acceleration.y >= 0.75 {
+-      return .portraitUpsideDown
++      return .portrait
+     }
+ 
+     return orientation
 diff --git a/node_modules/expo-camera/ios/Current/CameraPhotoCapture.swift b/node_modules/expo-camera/ios/Current/CameraPhotoCapture.swift
 index fc9a9bb..a04bcfa 100644
 --- a/node_modules/expo-camera/ios/Current/CameraPhotoCapture.swift

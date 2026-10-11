@@ -54,6 +54,7 @@ import {
 import { createCameraStyles } from '../components/camera/cameraScreen.styles';
 import { setNativeVideoTorchForRecording } from '../lib/videoTorchSession';
 import { HOLD_ZOOM_GAIN } from '../lib/cameraHoldZoom';
+import { needsUprightRotation, rotatePhotoUpright, uprightCaptureOrientation } from '../lib/uprightCapture';
 import {
   addCaptureEventListener,
   boostScreenBrightnessAsync,
@@ -1296,12 +1297,19 @@ export function useCameraScreen(): CameraScreenViewModel {
                 height: photo.height,
                 capture_orientation: captureOrientation ?? 'unknown',
               });
+              // A portrait-only camera never means to store a still upside down (see uprightCapture).
+              let still = { uri: photo.uri, width: photo.width, height: photo.height };
+              if (needsUprightRotation(captureOrientation)) {
+                try {
+                  still = await rotatePhotoUpright(photo.uri);
+                } catch (rotateError) {
+                  console.warn('Nie udało się obrócić zdjęcia', rotateError);
+                }
+              }
               // Navigate immediately — bake/compress happens at send in mediaService.
               setPhotoDraft({
-                uri: photo.uri,
-                width: photo.width,
-                height: photo.height,
-                captureOrientation: captureOrientation ?? undefined,
+                ...still,
+                captureOrientation: uprightCaptureOrientation(captureOrientation),
               });
               trackDuration('photo_preview_nav_ms', captureStartedAt, {
                 status: 'success',
