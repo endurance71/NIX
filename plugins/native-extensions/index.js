@@ -27,6 +27,9 @@ const EXTENSIONS = [
     bundleSuffix: 'CaptureExtension',
     deploymentTarget: '18.0',
     extensionApiOnly: true,
+    // LockedCameraCapture is an ExtensionKit extension: App Store validation requires it in
+    // NiX.app/Extensions with EXAppExtensionAttributes, not in PlugIns with NSExtension.
+    extensionKit: true,
     sources: ['NixCaptureExtension.swift'],
   },
 ];
@@ -39,6 +42,9 @@ const SHARED = {
 };
 
 const APP_TARGET = 'NiX';
+const FOUNDATION_EMBED_SPEC = 13; // PlugIns
+const PRODUCTS_DIRECTORY_SPEC = 16; // with dstPath $(EXTENSIONS_FOLDER_PATH) = NiX.app/Extensions
+const EXTENSION_KIT_EMBED = 'Embed ExtensionKit Extensions';
 
 function uuid(key) {
   return crypto.createHash('md5').update(`nix-native-extension:${key}`).digest('hex').slice(0, 24).toUpperCase();
@@ -199,7 +205,9 @@ function addExtension(objects, projectId, app, extension) {
     productName: name,
     productReference: productRef,
     productReference_comment: `${name}.appex`,
-    productType: '"com.apple.product-type.app-extension"',
+    productType: extension.extensionKit
+      ? '"com.apple.product-type.extensionkit-extension"'
+      : '"com.apple.product-type.app-extension"',
   }, name);
   project.targets.push({ value: targetId, comment: name });
 
@@ -220,16 +228,65 @@ function addExtension(objects, projectId, app, extension) {
   }, 'PBXTargetDependency');
   app.target.dependencies.push({ value: dependencyId, comment: 'PBXTargetDependency' });
 
+  const phaseName = extension.extensionKit ? EXTENSION_KIT_EMBED : 'Embed Foundation Extensions';
   put(objects, 'PBXBuildFile', embedFile, {
     isa: 'PBXBuildFile',
     fileRef: productRef,
     fileRef_comment: `${name}.appex`,
     settings: { ATTRIBUTES: ['RemoveHeadersOnCopy'] },
-  }, `${name}.appex in Embed Foundation Extensions`);
+  }, `${name}.appex in ${phaseName}`);
+  const phase = extension.extensionKit ? extensionKitEmbedPhase(objects, app) : foundationEmbedPhase(objects, app);
+  phase.files.push({ value: embedFile, comment: `${name}.appex in ${phaseName}` });
+}
+
+function foundationEmbedPhase(objects, app) {
   const copyPhases = section(objects, 'PBXCopyFilesBuildPhase');
-  const embedRef = app.target.buildPhases.find((phase) => copyPhases[phase.value]?.dstSubfolderSpec === 13);
-  if (!embedRef) throw new Error('The app target has no "Embed Foundation Extensions" phase.');
-  copyPhases[embedRef.value].files.push({ value: embedFile, comment: `${name}.appex in Embed Foundation Extensions` });
+  const ref = app.target.buildPhases.find(
+    (phase) => copyPhases[phase.value]?.dstSubfolderSpec === FOUNDATION_EMBED_SPEC
+  );
+  if (!ref) throw new Error('The app target has no "Embed Foundation Extensions" phase.');
+  return copyPhases[ref.value];
+}
+
+/** The app's "Embed ExtensionKit Extensions" copy phase, created on first use. */
+function extensionKitEmbedPhase(objects, app) {
+  const copyPhases = section(objects, 'PBXCopyFilesBuildPhase');
+  const id = uuid(`${APP_TARGET}:extensionkit-embed`);
+  if (!copyPhases[id]) {
+    put(objects, 'PBXCopyFilesBuildPhase', id, {
+      isa: 'PBXCopyFilesBuildPhase',
+      buildActionMask: 2147483647,
+      dstPath: '"$(EXTENSIONS_FOLDER_PATH)"',
+      dstSubfolderSpec: PRODUCTS_DIRECTORY_SPEC,
+      files: [],
+      name: `"${EXTENSION_KIT_EMBED}"`,
+      runOnlyForDeploymentPostprocessing: 0,
+    }, EXTENSION_KIT_EMBED);
+  }
+  if (!app.target.buildPhases.some((phase) => phase.value === id)) {
+    app.target.buildPhases.push({ value: id, comment: EXTENSION_KIT_EMBED });
+  }
+  return copyPhases[id];
+}
+
+/**
+ * Projects created before `extensionKit` existed embedded the capture extension as a Foundation
+ * extension in PlugIns; move it to Extensions and fix the product type (idempotent).
+ */
+function migrateExtensionKit(objects, app, extension) {
+  if (!extension.extensionKit) return;
+  const { name } = extension;
+  const target = section(objects, 'PBXNativeTarget')[uuid(`${name}:target`)];
+  if (!target) return;
+  target.productType = '"com.apple.product-type.extensionkit-extension"';
+  const embedFile = uuid(`${name}:embed`);
+  const foundation = foundationEmbedPhase(objects, app);
+  foundation.files = foundation.files.filter((file) => file.value !== embedFile);
+  const phase = extensionKitEmbedPhase(objects, app);
+  if (!phase.files.some((file) => file.value === embedFile)) {
+    phase.files.push({ value: embedFile, comment: `${name}.appex in ${EXTENSION_KIT_EMBED}` });
+  }
+  section(objects, 'PBXBuildFile')[`${embedFile}_comment`] = `${name}.appex in ${EXTENSION_KIT_EMBED}`;
 }
 
 function addShared(objects, projectId) {
@@ -269,7 +326,10 @@ function applyNativeExtensions(project, { projectRoot, platformRoot }) {
   const projectId = project.hash.project.rootObject;
   const app = findTarget(objects, APP_TARGET);
   if (!app) throw new Error(`Missing app target ${APP_TARGET}`);
-  for (const extension of EXTENSIONS) addExtension(objects, projectId, app, extension);
+  for (const extension of EXTENSIONS) {
+    addExtension(objects, projectId, app, extension);
+    migrateExtensionKit(objects, app, extension);
+  }
   addShared(objects, projectId);
   return project;
 }

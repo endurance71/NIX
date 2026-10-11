@@ -11,7 +11,7 @@
 		0CC5378C7A174B5FAB52FB6E /* index.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E0B33CEC4B4F08881AE6D5 /* index.swift */; };
 		12F5C6305A241A7224F7CAA5 /* NixCaptureIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E34076D12A2E1081A577F860 /* NixCaptureIntent.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		27FF4EE48D62C7400F5D50EC /* NixCaptureExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C0C6BBBEF9634C5BC4BD1EDE /* NixCaptureExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		27FF4EE48D62C7400F5D50EC /* NixCaptureExtension.appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = C0C6BBBEF9634C5BC4BD1EDE /* NixCaptureExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		38AFAC0A42F44F437A599F9D /* libPods-ExpoWidgetsTarget.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 477C2049D3F1A64DE4CC6FB7 /* libPods-ExpoWidgetsTarget.a */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		4C305A4495BEB39C9C264A34 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E6B6E8723459350410B560D7 /* PrivacyInfo.xcprivacy */; };
@@ -75,9 +75,19 @@
 				608405D6CB7E4A65BB36FD14 /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */,
 				89336A530A85477D047F0665 /* NixShareExtension.appex in Embed Foundation Extensions */,
 				6A1E0FCDFE41C1E408FBA181 /* NixNotificationService.appex in Embed Foundation Extensions */,
-				27FF4EE48D62C7400F5D50EC /* NixCaptureExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0D08065F682D13F8A17151B4 /* Embed ExtensionKit Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				27FF4EE48D62C7400F5D50EC /* NixCaptureExtension.appex in Embed ExtensionKit Extensions */,
+			);
+			name = "Embed ExtensionKit Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -361,6 +371,7 @@
 				83E1E403E55D43E7905F2EAA /* Embed Foundation Extensions */,
 				9020F261E29C422E9464077B /* Upload Debug Symbols to Sentry */,
 				8C60F3BF077441689BBFE029 /* [CP] Embed Pods Frameworks */,
+				0D08065F682D13F8A17151B4 /* Embed ExtensionKit Extensions */,
 			);
 			buildRules = (
 			);
@@ -427,7 +438,7 @@
 			name = NixCaptureExtension;
 			productName = NixCaptureExtension;
 			productReference = C0C6BBBEF9634C5BC4BD1EDE /* NixCaptureExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
+			productType = "com.apple.product-type.extensionkit-extension";
 		};
 		7075A8D448E62E23D1AA2053 /* NixNotificationService */ = {
 			isa = PBXNativeTarget;
