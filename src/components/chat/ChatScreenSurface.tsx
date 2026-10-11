@@ -2925,9 +2925,8 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
           minTop={listTopInset}
           selectedEmoji={tapbackEmoji}
           onSelect={(emoji) => {
-            // Same emoji again = take it back (handled in the view model).
+            // Same emoji again = take it back (handled in the view model); the bar closes itself.
             void vm.handleSetReaction(tapbackMessage, emoji);
-            setTapback(null);
           }}
           onDismiss={() => setTapback(null)}
         />

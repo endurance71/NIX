@@ -1,12 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GlassView } from 'expo-glass-effect';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { canUseLiquidGlass } from '../../lib/liquidGlass';
 import { MESSAGE_REACTION_EMOJIS, MESSAGE_REACTION_GLYPHS } from '../../services/messageReactionService';
-import { appleUiSpring, useMotionEnabled } from '../../theme/motion';
+import { appleUiSpring, duration, useMotionEnabled } from '../../theme/motion';
 import type { MessageReactionEmoji } from '../../types/database.types';
 
 const SLOT = 50;
@@ -63,6 +64,28 @@ export function TapbackOverlay({
   const { left, top, width } = layoutTapbackBar(target, minTop);
   const progress = useSharedValue(motionEnabled ? 0 : 1);
   const firstRef = useRef<View>(null);
+  const closingRef = useRef(false);
+
+  /** Shrinks back into the bubble before the overlay goes away (the reverse of opening). */
+  const close = (after: () => void) => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    if (!motionEnabled) {
+      after();
+      return;
+    }
+    progress.set(
+      withTiming(0, { duration: duration.fast, easing: Easing.in(Easing.cubic) }, (finished) => {
+        if (finished) scheduleOnRN(after);
+      }),
+    );
+  };
+  const dismiss = () => close(onDismiss);
+  const select = (value: MessageReactionEmoji) => {
+    // The reaction lands at once (badge on the bubble); the bar then folds away.
+    onSelect(value);
+    close(onDismiss);
+  };
 
   useEffect(() => {
     if (motionEnabled) progress.set(withSpring(1, appleUiSpring));
@@ -74,7 +97,7 @@ export function TapbackOverlay({
 
   // Scale only: never opacity on a GlassView ancestor (expo-glass-effect).
   const barStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: 0.6 + progress.get() * 0.4 }],
+    transform: [{ scale: Math.max(0.001, progress.get()) }],
   }));
 
   const emoji = (
@@ -86,7 +109,7 @@ export function TapbackOverlay({
           <Pressable
             key={value}
             ref={index === 0 ? firstRef : undefined}
-            onPress={() => onSelect(value)}
+            onPress={() => select(value)}
             accessibilityRole="button"
             accessibilityLabel={
               selected ? t('chat.removeReactionWith', { emoji: glyph }) : t('chat.reactWith', { emoji: glyph })
@@ -105,10 +128,10 @@ export function TapbackOverlay({
   );
 
   return (
-    <View style={StyleSheet.absoluteFill} accessibilityViewIsModal onAccessibilityEscape={onDismiss}>
+    <View style={StyleSheet.absoluteFill} accessibilityViewIsModal onAccessibilityEscape={dismiss}>
       <Pressable
         style={StyleSheet.absoluteFill}
-        onPress={onDismiss}
+        onPress={dismiss}
         accessibilityRole="button"
         accessibilityLabel={t('chat.closeReactions')}
       />
