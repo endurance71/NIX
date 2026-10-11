@@ -53,7 +53,10 @@ export function FriendPreferencesSection({ vm }: { vm: FriendDetailVm }) {
   const captureKnown = vm.capturePolicy !== undefined;
   return (
     <NativeSettingsSection footer={vm.t('profile.screenshotPermissionHint')}>
+      {/* Keyed by state: the row turns from static into a toggle once the policy loads, and the
+          RN SymbolView icon did not survive that SwiftUI re-parenting (the row lost its icon). */}
       <NativeSettingsRow
+        key={captureKnown ? 'capture-toggle' : 'capture-loading'}
         title={vm.t('profile.screenshotPermission')}
         icon="saveToPhotos"
         switchValue={captureKnown ? vm.capturePolicy === 'allow' : undefined}
