@@ -75,6 +75,9 @@ login form holds still (host ignores safe areas; the stage lifts it above the ke
 a steady pace.
 Thirty-third OTA (2026-10-11): update group `649d5c96-948b-4c25-a88e-21fa185a2506`, source `622e740` — warmer
 login tagline.
+Thirty-fourth OTA (2026-10-11): update group `7eedf139-be50-4e86-bc2a-10e2240cc946`, source `55c4e7d` — the
+login form no longer jumps on any tap (RN scroll view around a content-sized native card) and the logo's N is
+drawn in one continuous move.
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
