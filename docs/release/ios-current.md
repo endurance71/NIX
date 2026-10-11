@@ -56,6 +56,8 @@ Twenty-fourth OTA (2026-10-11): update group `1fc9ba14-dd0b-4277-81da-c63e5cc6ee
 set-up gains an accent colour step (live recolour).
 Twenty-fifth OTA (2026-10-11): update group `8f1b5b33-a2d1-47a0-8f73-692fb1a86140`, source `7fa720c` — haptics
 in step with the welcome motion (scene beats, logo strokes, page snaps, set-up, finale checklist).
+Twenty-sixth OTA (2026-10-11): update group `ac2cffaa-af77-4ae3-bbe0-627148e506bb`, source `8a76626` — login on
+the welcome stage (dark backdrop, accent glow, drawn logo, form rising in).
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
