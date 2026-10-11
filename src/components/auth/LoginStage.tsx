@@ -22,7 +22,7 @@ import { useMotionEnabled } from '../../theme/motion';
 import { runWhenSettled } from '../welcome/welcomeMotion';
 import { typography } from '../../theme/typography';
 
-const LOGO_DRAW_MS = 2000;
+const LOGO_DRAW_MS = 2400;
 const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
 /** Faint moments drifting behind the logo (placeholder stock photos, see assets/onboarding). */
@@ -47,7 +47,7 @@ function logoSize(width: number) {
  * glow and faint moments drifting, the NiX logo drawing itself with the wordmark and tagline,
  * then the native form rising in. The hero steps aside while the keyboard is up.
  */
-export function LoginStage({ children }: { children: (formTop: number) => ReactNode }) {
+export function LoginStage({ children }: { children: (formTop: number, formBottom: number) => ReactNode }) {
   const { t } = useTranslation();
   const { colors, isDark } = useAppTheme();
   const motionEnabled = useMotionEnabled();
@@ -74,9 +74,11 @@ export function LoginStage({ children }: { children: (formTop: number) => ReactN
     };
   }, [drift, formIn, logo, motionEnabled]);
 
-  // The top inset is read once: a system sheet (Sign in with Apple, passkeys) pushes the app back
-  // and changes the live insets, which would make the hero and backdrop jump.
+  // Insets are read once: a system sheet (Sign in with Apple, passkeys) pushes the app back and
+  // changes the live insets, which would make the hero, backdrop and form jump.
   const [topInset] = useState(insets.top);
+  const [bottomInset] = useState(insets.bottom);
+  const heroHeight = loginHeroHeight(width);
 
   const size = logoSize(width);
   const heroStyle = useAnimatedStyle(() => {
@@ -87,10 +89,15 @@ export function LoginStage({ children }: { children: (formTop: number) => ReactN
     const p = Math.min(1, Math.max(0, (logo.get() - 0.85) / 0.15));
     return { opacity: p, transform: [{ translateY: (1 - p) * 8 }] };
   });
-  const formStyle = useAnimatedStyle(() => ({
-    opacity: formIn.get(),
-    transform: [{ translateY: (1 - formIn.get()) * 48 }],
-  }));
+  // With the keyboard up the hero steps aside and the form rises into its place, so the fields
+  // sit just under the status bar, clear of the keyboard.
+  const formStyle = useAnimatedStyle(() => {
+    const k = Math.min(1, keyboard.height.get() / 260);
+    return {
+      opacity: formIn.get(),
+      transform: [{ translateY: (1 - formIn.get()) * 48 - heroHeight * k }],
+    };
+  });
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -119,7 +126,7 @@ export function LoginStage({ children }: { children: (formTop: number) => ReactN
           <Text style={[styles.tagline, { color: colors.secondaryLabel }]}>{t('auth.tagline')}</Text>
         </Animated.View>
       </Animated.View>
-      <Animated.View style={[styles.form, formStyle]}>{children(topInset + 28 + loginHeroHeight(width))}</Animated.View>
+      <Animated.View style={[styles.form, formStyle]}>{children(topInset + 28 + heroHeight, bottomInset + 24)}</Animated.View>
     </View>
   );
 }

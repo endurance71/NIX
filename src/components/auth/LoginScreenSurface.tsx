@@ -17,8 +17,8 @@ export function LoginScreenSurface({ vm }: LoginScreenSurfaceProps) {
 
   return (
     <LoginStage>
-      {(formTop) => (
-        <LoginAuthLayout formTop={formTop}>
+      {(formTop, formBottom) => (
+        <LoginAuthLayout formTop={formTop} formBottom={formBottom}>
           <LoginCredentialsSection vm={vm} passwordRef={passwordRef} />
           <LoginActionsSection vm={vm} />
           {vm.showAppleSignIn || vm.showPasskeySignIn ? <LoginAlternativeAuthSection vm={vm} /> : null}

@@ -16,13 +16,18 @@ function contentColumnModifiers(contentWidth: number) {
 }
 
 /**
- * Login-only shell: the scrollable native form column. Transparent, over the `LoginStage`
- * backdrop. `formTop` is measured from the top of the screen: the column ignores the top safe
- * area, whose value the hosting view only gets after the first system event (an alert, a
- * focused field), which made the whole form jump down under the hero. The keyboard is still
- * avoided natively.
+ * Login-only shell: the scrollable native form column, transparent over the `LoginStage`.
+ *
+ * The host ignores every safe area (container and keyboard): it only learnt the insets after the
+ * first system event (opening, an alert, a tap), and then shifted the whole form down under the
+ * hero. Placement is ours instead: `formTop` / `formBottom` are measured from the screen edges
+ * with insets read once, and `LoginStage` lifts the form above the keyboard.
  */
-export function LoginAuthLayout({ children, formTop }: PropsWithChildren<{ formTop: number }>) {
+export function LoginAuthLayout({
+  children,
+  formTop,
+  formBottom,
+}: PropsWithChildren<{ formTop: number; formBottom: number }>) {
   const { statusBarStyle } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const contentWidth = getAuthContentWidth(windowWidth);
@@ -32,15 +37,14 @@ export function LoginAuthLayout({ children, formTop }: PropsWithChildren<{ formT
     <AuthContentWidthContext.Provider value={contentWidthValue}>
       <AppHost
         style={{ flex: 1, backgroundColor: 'transparent' }}
-        safeAreaMode="respect"
-        useViewportSizeMeasurement>
+        safeAreaMode="fullBleed">
         <StatusBar style={statusBarStyle} />
         <ScrollView
           axes="vertical"
           showsIndicators={false}
           modifiers={[
             frame({ maxWidth: Infinity, maxHeight: Infinity }),
-            ignoreSafeArea({ regions: 'container', edges: 'top' }),
+            ignoreSafeArea({ regions: 'all', edges: 'all' }),
           ]}>
           <VStack
             alignment="center"
@@ -49,7 +53,7 @@ export function LoginAuthLayout({ children, formTop }: PropsWithChildren<{ formT
               padding({
                 top: formTop,
                 leading: AUTH_FORM_HORIZONTAL_PADDING,
-                bottom: AUTH_FORM_HORIZONTAL_PADDING,
+                bottom: formBottom,
                 trailing: AUTH_FORM_HORIZONTAL_PADDING,
               }),
               frame({ maxWidth: Infinity, alignment: 'top' }),

@@ -66,7 +66,7 @@ const FEATURES: readonly { key: string; icon: AppIconName }[] = [
 const PAGE_COUNT = SCENE_PAGES.length + 1;
 const DOT = 7;
 /** The logo plays this long when the tour opens and again as it closes. */
-const LOGO_DRAW_MS = 2100;
+const LOGO_DRAW_MS = 2400;
 const CURTAIN_EASE = Easing.bezier(0.23, 1, 0.32, 1);
 
 type Curtain = 'intro' | 'outro' | null;
