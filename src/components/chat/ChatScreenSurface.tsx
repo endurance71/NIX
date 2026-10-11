@@ -651,9 +651,6 @@ function MessageBubbleContent({
           ) : (
             <Text style={[styles.bubbleText, { color: labelColor }]}>{body}</Text>
           )}
-          {outboxStatus === 'sending' ? (
-            <ActivityIndicator size="small" color={labelColor} style={styles.sendingSpinner} />
-          ) : null}
           {statusText ? (
             <Text
               style={[expired ? styles.expiredText : styles.outboxStatusText, { color: labelColor }]}>
@@ -661,6 +658,15 @@ function MessageBubbleContent({
             </Text>
           ) : null}
         </View>
+        {/* Beside the bubble, not inside it: inside, the spinner grew the bubble while sending
+            (and pushed a fresh bubble under the composer), then the bubble shrank again. */}
+        {outboxStatus === 'sending' ? (
+          <View
+            pointerEvents="none"
+            style={[styles.sendingSpinnerSlot, isOwn ? styles.sendingSpinnerOwn : styles.sendingSpinnerIncoming]}>
+            <ActivityIndicator size="small" color={colors.secondaryLabel} />
+          </View>
+        ) : null}
       </View>
       <ReactionBadges
         reactions={reactions}
@@ -3412,9 +3418,19 @@ const styles = StyleSheet.create({
     opacity: 0.5,
     transform: [{ scale: 0.94 }],
   },
-  sendingSpinner: {
-    marginTop: 4,
-    alignSelf: 'flex-start',
+  sendingSpinnerSlot: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendingSpinnerOwn: {
+    left: -30,
+  },
+  sendingSpinnerIncoming: {
+    right: -30,
   },
   outboxStatusText: {
     ...typography.caption,
