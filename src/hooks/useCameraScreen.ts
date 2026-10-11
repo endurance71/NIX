@@ -173,6 +173,9 @@ export type CameraScreenViewModel = {
   /** Friend preset by a chat / friend screen; the next capture goes to them first. */
   presetRecipient: FriendProfile | null;
   clearPresetRecipient: () => void;
+  /** Opened from a chat: a close button leads back to it. */
+  canExitToChat: boolean;
+  exitToChat: () => void;
   onCameraReady: () => void;
   onAvailableLensesChanged: (event: AvailableLenses) => void;
   onResponsiveOrientationChanged: (event: ResponsiveOrientationChanged) => void;
@@ -209,8 +212,14 @@ export function useCameraScreen(): CameraScreenViewModel {
   const { colors } = useAppTheme();
   const motionEnabled = useMotionEnabled();
   const { user, canUseNetworkSession } = useAuth();
-  const searchParams = useLocalSearchParams<{ recipientId?: string | string[] }>();
+  const searchParams = useLocalSearchParams<{
+    recipientId?: string | string[];
+    returnTo?: string | string[];
+  }>();
   const presetRecipientId = paramFirst(searchParams.recipientId)?.trim() || null;
+  /** Opened from a chat's camera button: the camera shows a close button back to that chat. */
+  const returnToChatPeerId =
+    paramFirst(searchParams.returnTo) === 'chat' ? presetRecipientId : null;
   const { setSegments } = useVideoDraft();
   const { setDraft: setPhotoDraft } = usePhotoDraft();
   const insets = useScreenInsets('cameraTab');
@@ -745,13 +754,22 @@ export function useCameraScreen(): CameraScreenViewModel {
     if (!recipientId) return {};
     presetRecipientIdRef.current = null;
     // Runs before the push, while the camera route is still the focused one.
-    router.setParams({ recipientId: undefined });
+    router.setParams({ recipientId: undefined, returnTo: undefined });
     return { recipientId };
   };
 
   const clearPresetRecipient = () => {
     presetRecipientIdRef.current = null;
-    router.setParams({ recipientId: undefined });
+    router.setParams({ recipientId: undefined, returnTo: undefined });
+  };
+
+  /** Leaves the camera for the chat it was opened from (nothing captured, nothing sent). */
+  const exitToChat = () => {
+    const peerId = returnToChatPeerId;
+    if (!peerId) return;
+    presetRecipientIdRef.current = null;
+    router.setParams({ recipientId: undefined, returnTo: undefined });
+    router.push({ pathname: '/chat/[peerId]', params: { peerId } });
   };
 
   // --- One-time "Hold to record" hint ---
@@ -1759,6 +1777,8 @@ export function useCameraScreen(): CameraScreenViewModel {
     dismissHoldHint,
     presetRecipient,
     clearPresetRecipient,
+    canExitToChat: returnToChatPeerId !== null,
+    exitToChat,
     onCameraReady,
     onAvailableLensesChanged,
     onResponsiveOrientationChanged,

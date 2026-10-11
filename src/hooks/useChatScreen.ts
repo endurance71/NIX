@@ -931,7 +931,8 @@ export function useChatScreen(peerId: string) {
    */
   const handleOpenCamera = () => {
     if (!peerId) return;
-    router.dismissTo({ pathname: '/(tabs)', params: { recipientId: peerId } });
+    // `returnTo` gives the camera a close button back to this chat.
+    router.dismissTo({ pathname: '/(tabs)', params: { recipientId: peerId, returnTo: 'chat' } });
   };
 
   const handleOpenNix = (nix: ChatNixEvent) => {

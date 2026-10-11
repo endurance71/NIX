@@ -119,6 +119,7 @@ export const resources = {
         recipientChip: 'Do: @{{username}}',
         recipientChipA11y: 'Odbiorca: @{{username}}',
         clearRecipient: 'Usuń odbiorcę',
+        backToChat: 'Wróć do czatu',
         videoTooLong: 'Ten film trwa dłużej niż 3 minuty. Przytnij go w Zdjęciach albo wybierz krótszy.',
       },
       auth: {
@@ -1255,6 +1256,7 @@ export const resources = {
         recipientChip: 'To: @{{username}}',
         recipientChipA11y: 'Recipient: @{{username}}',
         clearRecipient: 'Remove recipient',
+        backToChat: 'Back to chat',
         videoTooLong: 'This video is longer than 3 minutes. Trim it in Photos or choose a shorter one.',
       },
       auth: {

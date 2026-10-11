@@ -400,6 +400,16 @@ function CameraTopControls({ vm }: Props) {
         </View>
       ) : (
         <View style={styles.topLeadingCluster}>
+          {vm.canExitToChat ? (
+            <NativeChromeIconButton
+              name="close"
+              onPress={vm.exitToChat}
+              accessibilityLabel={t('camera.backToChat')}
+              disabled={videoPreparing}
+              backgroundColor={colors.cameraControlBackground}
+              tintColor={colors.cameraControlTint}
+            />
+          ) : null}
           <NativeChromeIconButton
             name={recordAudioMuted ? 'micOff' : 'mic'}
             onPress={toggleRecordingMicMuted}
