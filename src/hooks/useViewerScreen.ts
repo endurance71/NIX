@@ -1300,7 +1300,12 @@ export function useViewerScreen(): ViewerScreenViewModel {
   }, [viewerErrorMessage]);
 
   const canReply = Boolean(paramSenderId && ownerId && paramSenderId !== ownerId);
-  const sendReply = async (body: string): Promise<boolean> => {
+  /**
+   * A typed reply counts as having opened the NiX (Snapchat): once queued, the slide is marked
+   * viewed and the viewer moves on (next NiX, or closes after the last). Emoji fallbacks sent as
+   * text (`advance: false`) keep the NiX on screen.
+   */
+  const sendReply = async (body: string, options: { advance?: boolean } = {}): Promise<boolean> => {
     if (!paramSenderId || !ownerId) return false;
     try {
       const sent = await sendQuickTextReply({
@@ -1312,7 +1317,13 @@ export function useViewerScreen(): ViewerScreenViewModel {
         // The NiX on screen; the server ignores it unless this sender sent it to me.
         replyToNixId: displayedNix?.id ?? null,
       });
-      if (sent) notifySuccess(t('viewer.replySent'));
+      if (sent) {
+        notifySuccess(t('viewer.replySent'));
+        if (options.advance !== false) {
+          setReplyFocused(false);
+          finishCurrentSlide();
+        }
+      }
       return sent;
     } catch (error) {
       notifyDomainError(error, t('viewer.replyFailure'));
@@ -1336,7 +1347,9 @@ export function useViewerScreen(): ViewerScreenViewModel {
   const reactToNix = async (emoji: MessageReactionEmoji): Promise<ViewerReactionOutcome> => {
     const glyph = MESSAGE_REACTION_GLYPHS[emoji];
     const sendAsText = async (): Promise<ViewerReactionOutcome> =>
-      (await sendReply(glyph)) ? { status: 'sentAsText' } : { status: 'failed', error: null };
+      (await sendReply(glyph, { advance: false }))
+        ? { status: 'sentAsText' }
+        : { status: 'failed', error: null };
     if (emojiMode !== 'reaction' || !reactionNixId) return sendAsText();
     const result = await toggleNixReaction(reactionNixId, emoji);
     // The backend lost the RPCs (rollback / stale schema cache): keep the old text behaviour.
