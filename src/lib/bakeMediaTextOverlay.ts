@@ -201,6 +201,7 @@ export async function bakeMediaOverlays(params: {
     filter: drawingOverlay?.filter,
     sticker_count: drawingOverlay?.stickers?.length ?? 0,
     text_length: textOverlay?.text.length ?? 0,
+    text_variant: textOverlay?.variant,
     y: textOverlay?.y,
     bold: textOverlay?.bold,
     italic: textOverlay?.italic,

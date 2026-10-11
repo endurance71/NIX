@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  captionMinimumBarHeight,
   captionTopPxFromY,
   captionYFromTopPx,
   clampPreviewTextTopPx,
@@ -30,6 +31,7 @@ describe('mediaTextOverlay model', () => {
         fontSize: 36,
       })
     ).toEqual({
+      variant: 'sticker',
       text: 'hello',
       y: 0.25,
       fontSize: 36,
@@ -98,5 +100,23 @@ describe('caption position mapping (preview ↔ native bake)', () => {
     const top = 400;
     const y = captionYFromTopPx(top, frame, 44);
     expect(frame.top + frame.height * y - 22).toBeCloseTo(top);
+  });
+});
+
+describe('caption minimum height', () => {
+  it('keeps the sticker 44 pt floor and grows with its font', () => {
+    expect(captionMinimumBarHeight('sticker', 14)).toBe(44);
+    expect(captionMinimumBarHeight('sticker', 34)).toBe(54);
+  });
+  it('sizes the bar as one line of its fixed font plus the strip padding (the bake minimum)', () => {
+    // 17 pt × 1.2 line + 2 × 8 pt padding, independent of the stored sticker font size.
+    expect(captionMinimumBarHeight('bar', 34)).toBeCloseTo(36.4);
+    expect(captionMinimumBarHeight('bar', 60)).toBeCloseTo(36.4);
+  });
+  it('maps the bar centre like the sticker so the strip bakes where it was previewed', () => {
+    const frame = { top: 0, height: 874 };
+    const height = captionMinimumBarHeight('bar', 34);
+    const y = captionYFromTopPx(500, frame, height);
+    expect(frame.top + frame.height * y - height / 2).toBeCloseTo(500);
   });
 });

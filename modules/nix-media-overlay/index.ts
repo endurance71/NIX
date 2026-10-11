@@ -3,7 +3,9 @@ import * as FileSystem from 'expo-file-system/legacy';
 import {
   DEFAULT_MEDIA_TEXT_BAR_COLOR,
   DEFAULT_MEDIA_TEXT_COLOR,
+  DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE,
   resolveMediaTextBarColor,
+  resolveMediaTextRenderStyle,
   type MediaTextOverlay,
 } from '../../src/types/mediaTextOverlay';
 import type { MediaDrawingOverlay } from '../../src/types/mediaDrawingOverlay';
@@ -27,6 +29,8 @@ type NativeBakeOverlaysOptions = {
   fontSizePoints: number;
   viewportWidth: number;
   viewportHeight: number;
+  /** `bar` | `sticker`. Binaries without `supportsCaptionBar` ignore it (sticker geometry). */
+  variant: string;
   textColor: string;
   barColor: string;
   bold: boolean;
@@ -86,6 +90,8 @@ declare class NixMediaOverlayNativeModule extends NativeModule<NixMediaOverlayEv
    * Missing on older binaries (treated as 1), where those layers would not be baked.
    */
   featureLevel?: number;
+  /** True when the bake draws the full-width caption bar variant. Missing on older binaries. */
+  supportsCaptionBar?: boolean;
   bakeOverlaysOnImageAsync(options: NativeBakeOverlaysOptions): Promise<string>;
   bakeOverlaysOnVideoAsync(options: NativeBakeOverlaysOptions): Promise<string>;
   /** Missing on binaries built before PERF-23 (JS may arrive by OTA first). */
@@ -121,6 +127,15 @@ export function supportsMediaFiltersAndStickers(): boolean {
 }
 
 /**
+ * True when the installed binary bakes the Snapchat-style caption bar. Without it the editor
+ * offers only the text sticker, so an OTA bundle never previews a bar the bake would draw as a
+ * rounded sticker.
+ */
+export function supportsMediaTextCaptionBar(): boolean {
+  return NixMediaOverlay?.supportsCaptionBar === true;
+}
+
+/**
  * Applies a colour filter to an expo-video player (live preview). `filterMatrix` empty removes
  * it. Resolves false when unsupported or when the player has no item yet.
  */
@@ -142,27 +157,35 @@ async function ensureParentDir(targetUri: string) {
 }
 
 function styleArgs(overlay: MediaTextOverlay | null) {
+  // A binary without the caption bar draws every caption as a sticker; the editor does the same.
+  const variant =
+    overlay?.variant === 'bar' && supportsMediaTextCaptionBar() ? 'bar' : 'sticker';
+  // A caption bar sends its fixed look, so the bake never draws the hidden sticker format.
+  const style = overlay ? resolveMediaTextRenderStyle({ ...overlay, variant }) : null;
   return {
-    textColor: overlay?.textColor ?? DEFAULT_MEDIA_TEXT_COLOR,
-    barColor: resolveMediaTextBarColor(overlay?.barColor ?? DEFAULT_MEDIA_TEXT_BAR_COLOR),
-    bold: overlay?.bold ?? true,
-    italic: overlay?.italic ?? false,
-    underline: overlay?.underline ?? false,
-    strikethrough: overlay?.strikethrough ?? false,
-    monospace: overlay?.monospace ?? false,
-    fontDesign: overlay?.fontDesign ?? 'system',
-    align: overlay?.align ?? 'center',
+    variant,
+    fontSize: style?.fontSize ?? DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE,
+    textColor: style?.textColor ?? DEFAULT_MEDIA_TEXT_COLOR,
+    barColor: resolveMediaTextBarColor(style?.barColor ?? DEFAULT_MEDIA_TEXT_BAR_COLOR),
+    bold: style?.bold ?? true,
+    italic: style?.italic ?? false,
+    underline: style?.underline ?? false,
+    strikethrough: style?.strikethrough ?? false,
+    monospace: style?.monospace ?? false,
+    fontDesign: style?.fontDesign ?? 'system',
+    align: style?.align ?? 'center',
   };
 }
 
 function overlayArgs(args: BakeArgs) {
   const text = args.textOverlay;
   const drawing = args.drawingOverlay;
+  const style = styleArgs(text);
   return {
     text: text?.text ?? '',
     y: text?.y ?? 0.5,
-    fontSize: text?.fontSize ?? 34,
-    style: styleArgs(text),
+    fontSize: style.fontSize,
+    style,
     drawingData: drawing?.data ?? '',
     drawingWidth: drawing?.width ?? 0,
     drawingHeight: drawing?.height ?? 0,
@@ -181,6 +204,7 @@ function nativeBakeOptions(args: BakeArgs): NativeBakeOverlaysOptions {
     fontSizePoints: overlay.fontSize,
     viewportWidth: args.viewportWidth,
     viewportHeight: args.viewportHeight,
+    variant: overlay.style.variant,
     textColor: overlay.style.textColor,
     barColor: overlay.style.barColor,
     bold: overlay.style.bold,

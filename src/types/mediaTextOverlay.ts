@@ -22,6 +22,24 @@ const LEGACY_MEDIA_TEXT_TRANSLUCENT_BAR_COLOR = '#FFFFFFCC';
 /** Fully transparent bar (no fill in bake / solid preview). */
 export const TRANSPARENT_MEDIA_TEXT_BAR_COLOR = '#00000000';
 
+/**
+ * Snapchat-style caption bar: edge-to-edge strip, black at 60%, regular white text at a fixed
+ * size. Geometry constants are mirrored in `NixMediaOverlayModule.swift` (caption bar bake).
+ */
+export const MEDIA_TEXT_CAPTION_BAR_COLOR = '#00000099';
+export const MEDIA_TEXT_CAPTION_BAR_TEXT_COLOR = '#FFFFFF';
+export const MEDIA_TEXT_CAPTION_BAR_FONT_SIZE = 17;
+export const MEDIA_TEXT_CAPTION_BAR_PADDING_H = 16;
+export const MEDIA_TEXT_CAPTION_BAR_PADDING_V = 8;
+/** Line box the bar keeps even while empty (one line of the fixed font). */
+export const MEDIA_TEXT_CAPTION_BAR_LINE_HEIGHT_FACTOR = 1.2;
+
+/**
+ * `bar`: full-width Snapchat caption with no format options.
+ * `sticker`: the formatted rounded caption (colour, font, size, alignment).
+ */
+export type MediaTextVariant = 'bar' | 'sticker';
+
 export type MediaTextAlign = 'left' | 'center' | 'right';
 
 export type MediaTextPreset = 'title' | 'heading' | 'subheading' | 'body' | 'monospace';
@@ -43,6 +61,8 @@ export type MediaTextOverlayStyle = {
 };
 
 export type MediaTextOverlay = {
+  /** Drafts saved before the caption bar existed have no variant and stay stickers. */
+  variant: MediaTextVariant;
   text: string;
   /**
    * Vertical position 0–1 relative to the visible cover frame.
@@ -65,6 +85,7 @@ export type MediaTextOverlay = {
 
 /** Input may omit style fields — normalize fills defaults. */
 export type MediaTextOverlayInput = {
+  variant?: MediaTextVariant;
   text: string;
   y: number;
   fontSize: number;
@@ -110,6 +131,10 @@ export function normalizeMediaTextPreset(value: unknown): MediaTextPreset {
     return value;
   }
   return 'title';
+}
+
+export function normalizeMediaTextVariant(value: unknown): MediaTextVariant {
+  return value === 'bar' ? 'bar' : 'sticker';
 }
 
 export function normalizeMediaTextFontDesign(value: unknown): MediaTextFontDesign {
@@ -189,6 +214,7 @@ export function normalizeMediaTextOverlay(
   const defaults = defaultMediaTextOverlayStyle();
   const preset = normalizeMediaTextPreset(overlay.preset);
   return {
+    variant: normalizeMediaTextVariant(overlay.variant),
     text,
     y: clampOverlayY(overlay.y),
     fontSize:
@@ -209,11 +235,53 @@ export function normalizeMediaTextOverlay(
   };
 }
 
-export function createDefaultMediaTextOverlay(text = ''): MediaTextOverlay {
+export function createDefaultMediaTextOverlay(
+  text = '',
+  variant: MediaTextVariant = 'sticker'
+): MediaTextOverlay {
   return {
+    variant,
     text,
     y: DEFAULT_MEDIA_TEXT_OVERLAY_Y,
     fontSize: DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE,
     ...defaultMediaTextOverlayStyle(),
+  };
+}
+
+/** What the preview draws and the bake receives; style fields that affect the drawn text. */
+export type MediaTextRenderStyle = Omit<MediaTextOverlayStyle, 'preset'> & { fontSize: number };
+
+/**
+ * The style actually drawn for an overlay. A caption bar ignores the sticker format (which is
+ * kept on the overlay, so switching back to a sticker restores it) and uses its fixed look.
+ */
+export function resolveMediaTextRenderStyle(
+  overlay: Pick<MediaTextOverlay, 'variant' | 'fontSize' | keyof MediaTextOverlayStyle>
+): MediaTextRenderStyle {
+  if (overlay.variant === 'bar') {
+    return {
+      fontSize: MEDIA_TEXT_CAPTION_BAR_FONT_SIZE,
+      textColor: MEDIA_TEXT_CAPTION_BAR_TEXT_COLOR,
+      barColor: MEDIA_TEXT_CAPTION_BAR_COLOR,
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: false,
+      monospace: false,
+      fontDesign: 'system',
+      align: 'center',
+    };
+  }
+  return {
+    fontSize: overlay.fontSize,
+    textColor: overlay.textColor,
+    barColor: overlay.barColor,
+    bold: overlay.bold,
+    italic: overlay.italic,
+    underline: overlay.underline,
+    strikethrough: overlay.strikethrough,
+    monospace: overlay.monospace,
+    fontDesign: overlay.fontDesign,
+    align: overlay.align,
   };
 }

@@ -3,9 +3,13 @@ import { GestureDetector } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { DEFAULT_MEDIA_TEXT_COLOR } from '../../types/mediaTextOverlay';
+import {
+  DEFAULT_MEDIA_TEXT_COLOR,
+  MEDIA_TEXT_CAPTION_BAR_LINE_HEIGHT_FACTOR,
+} from '../../types/mediaTextOverlay';
 import { NativeChromeIconButton } from '../ui/native-chrome-icon-button';
 import { PreviewTextBar } from './PreviewTextBar';
+import { PreviewTextVariantPicker } from './PreviewTextVariantPicker';
 import type { PreviewTextStickerProps } from './PreviewTextSticker.types';
 import { placeholderColorForText } from './previewTextPlaceholder';
 import {
@@ -26,7 +30,8 @@ type PreviewTextStickerContentProps = Pick<
   | 'onConfirm'
   | 'onDelete'
 > &
-  Pick<PreviewTextStickerProps, 'style' | 'onBarHeightChange'> & {
+  Pick<PreviewTextStickerProps, 'style' | 'onBarHeightChange' | 'onChangeVariant'> & {
+    variant: NonNullable<PreviewTextStickerProps['variant']>;
     exiting: boolean;
     controller: ReturnType<typeof usePreviewTextStickerController>;
   };
@@ -104,6 +109,61 @@ function StickerTextInput({
   );
 }
 
+/** Edit-mode row above the caption: format (sticker only), bar / sticker switch, delete. */
+function StickerActionsRow({
+  variant,
+  onChangeVariant,
+  onDelete,
+  exiting,
+  controller,
+}: Pick<
+  PreviewTextStickerContentProps,
+  'variant' | 'onChangeVariant' | 'onDelete' | 'exiting' | 'controller'
+>) {
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
+  const { actionsStyle, isEditing, openFormatSheet } = controller;
+  const isBar = variant === 'bar';
+  return (
+    <Animated.View
+      style={[styles.actionsRow, isBar ? styles.actionsRowBar : null, actionsStyle]}
+      pointerEvents={isEditing && !exiting ? 'auto' : 'none'}>
+      <View style={styles.actionSlot}>
+        {/* The bar has a fixed look: no format sheet. The slot stays so the switch is centred. */}
+        {!isBar ? (
+          <NativeChromeIconButton
+            name="textFormat"
+            accessibilityLabel={t('preview.textFormat')}
+            onPress={openFormatSheet}
+            backgroundColor={colors.cameraControlBackground}
+            tintColor={colors.cameraControlTint}
+            chromeVariant="glass"
+          />
+        ) : null}
+      </View>
+      <View pointerEvents={onChangeVariant ? 'box-none' : 'none'} style={styles.actionsSpacer}>
+        {onChangeVariant ? (
+          <PreviewTextVariantPicker
+            variant={variant}
+            onChangeVariant={onChangeVariant}
+            backgroundColor={colors.cameraControlBackground}
+          />
+        ) : null}
+      </View>
+      <View style={styles.actionSlot}>
+        <NativeChromeIconButton
+          name="trash"
+          accessibilityLabel={t('preview.deleteText')}
+          onPress={onDelete}
+          backgroundColor={colors.cameraControlBackground}
+          tintColor={colors.destructive}
+          chromeVariant="glass"
+        />
+      </View>
+    </Animated.View>
+  );
+}
+
 export function PreviewTextStickerContent({
   text,
   fontSize,
@@ -116,20 +176,20 @@ export function PreviewTextStickerContent({
   exiting,
   style,
   onBarHeightChange,
+  variant,
+  onChangeVariant,
   controller,
 }: PreviewTextStickerContentProps) {
-  const { t } = useTranslation();
-  const { colors } = useAppTheme();
   const fontWeight = bold ? '700' : '400';
+  // The caption bar spans the media edge to edge (like the bake); the sticker keeps 90%.
+  const isBar = variant === 'bar';
   const {
-    actionsStyle,
     composed,
     contentPresenceStyle,
     displayTextStyle,
     emptyEditing,
     isEditing,
     minimumBarHeight,
-    openFormatSheet,
     placeholderText,
     setBarInnerWidth,
     setPlaceholderWidth,
@@ -141,44 +201,36 @@ export function PreviewTextStickerContent({
   return (
     <GestureDetector gesture={composed}>
       <Animated.View
-        style={[styles.shell, shellStyle, style]}
+        style={[styles.shell, isBar ? styles.shellBar : null, shellStyle, style]}
         pointerEvents="box-none"
         accessibilityRole={!isEditing ? 'button' : undefined}
         accessibilityLabel={!isEditing ? text : undefined}>
         <View
-          style={[styles.stickerWidth, { minHeight: minimumBarHeight }]}
+          style={[
+            styles.stickerWidth,
+            isBar ? styles.stripWidth : null,
+            { minHeight: minimumBarHeight },
+          ]}
           onLayout={(event) => onBarHeightChange?.(event.nativeEvent.layout.height)}>
-          <Animated.View
-            style={[styles.actionsRow, actionsStyle]}
-            pointerEvents={isEditing && !exiting ? 'auto' : 'none'}>
-            <View style={styles.actionSlot}>
-              <NativeChromeIconButton
-                name="textFormat"
-                accessibilityLabel={t('preview.textFormat')}
-                onPress={openFormatSheet}
-                backgroundColor={colors.cameraControlBackground}
-                tintColor={colors.cameraControlTint}
-                chromeVariant="glass"
-              />
-            </View>
-            <View pointerEvents="none" style={styles.actionsSpacer} />
-            <View style={styles.actionSlot}>
-              <NativeChromeIconButton
-                name="trash"
-                accessibilityLabel={t('preview.deleteText')}
-                onPress={onDelete}
-                backgroundColor={colors.cameraControlBackground}
-                tintColor={colors.destructive}
-                chromeVariant="glass"
-              />
-            </View>
-          </Animated.View>
+          <StickerActionsRow
+            variant={variant}
+            onChangeVariant={onChangeVariant}
+            onDelete={onDelete}
+            exiting={exiting}
+            controller={controller}
+          />
 
           <PreviewTextBar
             style={[styles.barWidth, { minHeight: minimumBarHeight }]}
-            barColor={barColor}>
+            barColor={barColor}
+            variant={variant}
+            contentInsetH={BAR_TEXT_HORIZONTAL_PADDING}>
             <View
-              style={[styles.barInner, { minHeight: fontSize * 1.25 }]}
+              style={[
+                styles.barInner,
+                // The bar's empty line matches the bake's one-line minimum.
+                { minHeight: fontSize * (isBar ? MEDIA_TEXT_CAPTION_BAR_LINE_HEIGHT_FACTOR : 1.25) },
+              ]}
               onLayout={(event) => setBarInnerWidth(event.nativeEvent.layout.width)}>
               <Animated.View style={[styles.barContentLayer, contentPresenceStyle]}>
                 {emptyEditing ? (
@@ -261,10 +313,16 @@ const styles = StyleSheet.create({
     zIndex: 20,
     paddingHorizontal: 16,
   },
+  shellBar: {
+    paddingHorizontal: 0,
+  },
   stickerWidth: {
     width: '90%',
     alignSelf: 'center',
     position: 'relative',
+  },
+  stripWidth: {
+    width: '100%',
   },
   barWidth: {
     width: '100%',
@@ -283,8 +341,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     zIndex: 2,
   },
+  actionsRowBar: {
+    left: 16,
+    right: 16,
+  },
   actionsSpacer: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actionSlot: {
     width: 48,

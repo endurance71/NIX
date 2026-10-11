@@ -1,3 +1,10 @@
+import {
+  MEDIA_TEXT_CAPTION_BAR_FONT_SIZE,
+  MEDIA_TEXT_CAPTION_BAR_LINE_HEIGHT_FACTOR,
+  MEDIA_TEXT_CAPTION_BAR_PADDING_V,
+  type MediaTextVariant,
+} from '../types/mediaTextOverlay';
+
 export function clampPreviewTextTopPx(topPx: number, minTopPx: number, maxTopPx: number): number {
   return Math.max(minTopPx, Math.min(maxTopPx, topPx));
 }
@@ -38,4 +45,19 @@ export function captionTopPxFromY(y: number, frame: CaptionFrame, barHeight: num
 
 export function captionYFromTopPx(topPx: number, frame: CaptionFrame, barHeight: number): number {
   return (topPx + barHeight / 2 - frame.top) / Math.max(1, frame.height);
+}
+
+/**
+ * Height the caption keeps before (and while) its text is laid out. The caption bar matches
+ * the bake's strip: one line of the fixed font plus the vertical padding. The sticker keeps its
+ * 44 pt touch-target floor.
+ */
+export function captionMinimumBarHeight(variant: MediaTextVariant, fontSize: number): number {
+  if (variant === 'bar') {
+    return (
+      MEDIA_TEXT_CAPTION_BAR_FONT_SIZE * MEDIA_TEXT_CAPTION_BAR_LINE_HEIGHT_FACTOR +
+      MEDIA_TEXT_CAPTION_BAR_PADDING_V * 2
+    );
+  }
+  return Math.max(44, fontSize + 20);
 }

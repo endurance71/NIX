@@ -17,6 +17,7 @@ import { appleUiSpring, duration, useMotionEnabled } from '../../theme/motion';
 import type { MediaTextOverlayStyle } from '../../types/mediaTextOverlay';
 import { resolveMediaTextFontFamily } from '../../theme/mediaTextOverlayFonts';
 import {
+  captionMinimumBarHeight,
   clampPreviewTextTopPx,
   previewTextTopAboveObstacle,
 } from '../../lib/mediaTextOverlayGeometry';
@@ -93,6 +94,7 @@ type ControllerArgs = Required<
   Pick<
     PreviewTextStickerProps,
     | 'mode'
+    | 'variant'
     | 'text'
     | 'fontSize'
     | 'textColor'
@@ -139,6 +141,7 @@ function resolveStickerTextStyle({
 
 export function usePreviewTextStickerController({
   mode,
+  variant,
   text,
   fontSize,
   textColor,
@@ -207,7 +210,7 @@ export function usePreviewTextStickerController({
           Math.max(BAR_TEXT_HORIZONTAL_PADDING, (barInnerWidth + placeholderWidth) / 2),
         )
       : undefined;
-  const minimumBarHeight = Math.max(44, fontSize + 20);
+  const minimumBarHeight = captionMinimumBarHeight(variant, fontSize);
 
   useEffect(() => {
     formatOpenRef.current = formatOpen;

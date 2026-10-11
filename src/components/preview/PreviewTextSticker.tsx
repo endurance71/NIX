@@ -5,6 +5,7 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import {
   DEFAULT_MEDIA_TEXT_BAR_COLOR,
   DEFAULT_MEDIA_TEXT_COLOR,
+  type MediaTextVariant,
 } from '../../types/mediaTextOverlay';
 import { PreviewTextFormatSheet } from './PreviewTextFormatSheet';
 import { PreviewTrashTarget } from './PreviewTrashTarget';
@@ -16,6 +17,8 @@ export type { PreviewTextStickerMode } from './PreviewTextSticker.types';
 
 export function PreviewTextSticker({
   mode,
+  variant = 'sticker',
+  onChangeVariant,
   text,
   fontSize,
   textColor = DEFAULT_MEDIA_TEXT_COLOR,
@@ -48,6 +51,7 @@ export function PreviewTextSticker({
   const { colors } = useAppTheme();
   const controller = usePreviewTextStickerController({
     mode,
+    variant,
     text,
     fontSize,
     textColor,
@@ -111,10 +115,20 @@ export function PreviewTextSticker({
         exiting={exiting}
         style={style}
         onBarHeightChange={onBarHeightChange}
+        variant={variant}
+        onChangeVariant={
+          onChangeVariant
+            ? (next: MediaTextVariant) => {
+                // The bar has no format options; never leave its sheet open behind it.
+                if (next === 'bar') controller.closeFormatSheet();
+                onChangeVariant(next);
+              }
+            : undefined
+        }
         controller={controller}
       />
 
-      {onChangeStyle ? (
+      {onChangeStyle && variant === 'sticker' ? (
         <PreviewTextFormatSheet
           isPresented={controller.sheetPresented}
           onDismiss={controller.closeFormatSheet}

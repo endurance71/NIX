@@ -23,6 +23,8 @@ private struct BakeOverlaysOptions: Record {
   @Field var fontSizePoints: Double = 34
   @Field var viewportWidth: Double = 0
   @Field var viewportHeight: Double = 0
+  /// `bar`: full-width Snapchat-style caption strip. Anything else: the rounded text sticker.
+  @Field var variant: String = "sticker"
   @Field var textColor: String = "#000000"
   @Field var barColor: String = "#FFFFFFCC"
   @Field var bold: Bool = true
@@ -59,6 +61,9 @@ public class NixMediaOverlayModule: Module {
     // 2: colour filters, emoji stickers, NixFilteredImageView, applyPlayerFilterAsync.
     // JS hides those tools below this level so an OTA bundle never shows a layer the bake drops.
     Constant("featureLevel") { 2 }
+    // The bake draws the `variant: "bar"` caption strip. JS offers the bar only when this is true,
+    // so an OTA bundle on an older binary never previews a bar that would bake as a sticker.
+    Constant("supportsCaptionBar") { true }
 
     View(NixDrawingCanvasView.self) {
       Events("onUndoStateChange")
@@ -272,6 +277,7 @@ public class NixMediaOverlayModule: Module {
       fontSizePoints = CGFloat(options.fontSizePoints)
       viewport = CGSize(width: options.viewportWidth, height: options.viewportHeight)
       style = OverlayStyle(
+        variant: options.variant,
         textColor: options.textColor,
         barColor: options.barColor,
         bold: options.bold,
@@ -308,6 +314,8 @@ public class NixMediaOverlayModule: Module {
   }
 
   private struct OverlayStyle {
+    /// Full-width caption strip instead of the rounded sticker (`variant: "bar"`).
+    let captionBar: Bool
     let textColor: UIColor
     let barColor: UIColor
     let bold: Bool
@@ -320,6 +328,7 @@ public class NixMediaOverlayModule: Module {
     let caAlign: CATextLayerAlignmentMode
 
     init(
+      variant: String,
       textColor: String,
       barColor: String,
       bold: Bool,
@@ -330,6 +339,7 @@ public class NixMediaOverlayModule: Module {
       fontDesign: String,
       align: String
     ) {
+      self.captionBar = variant.lowercased() == "bar"
       self.textColor = Self.parseHexColor(textColor) ?? .white
       self.barColor = Self.parseHexColor(barColor) ?? UIColor.white.withAlphaComponent(0.8)
       self.bold = bold
@@ -495,6 +505,63 @@ public class NixMediaOverlayModule: Module {
     captionBarCorner * scale
   }
 
+  // Caption strip (`variant: "bar"`). Mirrors MEDIA_TEXT_CAPTION_BAR_* in
+  // src/types/mediaTextOverlay.ts; the colours and the fixed font size arrive from JS.
+  private static let captionStripPaddingH: CGFloat = 16
+  private static let captionStripPaddingV: CGFloat = 8
+  private static let captionStripLineHeightFactor: CGFloat = 1.2
+
+  private struct CaptionStripLayout {
+    let attributed: NSAttributedString
+    let barRect: CGRect
+    let textRect: CGRect
+  }
+
+  /// Edge-to-edge strip across the visible frame, centred on `normalizedY`, no corner radius.
+  /// The text wraps inside the horizontal padding; one line of the font is the minimum height.
+  private static func captionStripLayout(
+    text: String,
+    normalizedY: CGFloat,
+    fontSizePoints: CGFloat,
+    mediaSize: CGSize,
+    viewport: CGSize,
+    visible: CGRect,
+    style: OverlayStyle
+  ) -> CaptionStripLayout {
+    let y = max(0, min(1, normalizedY))
+    let centerY = visible.minY + visible.height * y
+    let drawnFont = mediaFontSize(
+      mediaSize: mediaSize,
+      viewportSize: viewport,
+      fontSizePoints: fontSizePoints
+    )
+    let scale = drawnFont / max(fontSizePoints, 1)
+    let attributed = makeAttributedText(text: text, fontSize: drawnFont, style: style)
+    let paddingH = captionStripPaddingH * scale
+    let paddingV = captionStripPaddingV * scale
+    let maxTextWidth = visible.width - paddingH * 2
+    let textBounds = attributed.boundingRect(
+      with: CGSize(width: max(1, maxTextWidth), height: .greatestFiniteMagnitude),
+      options: [.usesLineFragmentOrigin, .usesFontLeading],
+      context: nil
+    )
+    let contentHeight = max(textBounds.height, drawnFont * captionStripLineHeightFactor)
+    let barHeight = contentHeight + paddingV * 2
+    let barRect = CGRect(
+      x: visible.minX,
+      y: centerY - barHeight / 2,
+      width: visible.width,
+      height: barHeight
+    )
+    let textRect = CGRect(
+      x: barRect.minX + paddingH,
+      y: barRect.midY - textBounds.height / 2,
+      width: max(1, maxTextWidth),
+      height: textBounds.height
+    )
+    return CaptionStripLayout(attributed: attributed, barRect: barRect, textRect: textRect)
+  }
+
   private static func loadDrawing(_ base64: String) -> PKDrawing? {
     guard !base64.isEmpty,
           let data = Data(base64Encoded: base64),
@@ -577,6 +644,25 @@ public class NixMediaOverlayModule: Module {
     visible: CGRect,
     style: OverlayStyle
   ) {
+    if style.captionBar {
+      let layout = captionStripLayout(
+        text: text,
+        normalizedY: normalizedY,
+        fontSizePoints: fontSizePoints,
+        mediaSize: mediaSize,
+        viewport: viewport,
+        visible: visible,
+        style: style
+      )
+      style.barColor.setFill()
+      UIBezierPath(rect: layout.barRect).fill()
+      layout.attributed.draw(
+        with: layout.textRect,
+        options: [.usesLineFragmentOrigin, .usesFontLeading],
+        context: nil
+      )
+      return
+    }
     let y = max(0, min(1, normalizedY))
     let centerY = visible.minY + visible.height * y
     let drawnFont = mediaFontSize(
@@ -839,7 +925,35 @@ public class NixMediaOverlayModule: Module {
       parentLayer.addSublayer(drawingLayer)
     }
 
-    if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+    if style.captionBar, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      let layout = captionStripLayout(
+        text: text,
+        normalizedY: normalizedY,
+        fontSizePoints: fontSizePoints,
+        mediaSize: renderSize,
+        viewport: viewport,
+        visible: visible,
+        style: style
+      )
+      let barLayer = CALayer()
+      barLayer.backgroundColor = style.barColor.cgColor
+      barLayer.frame = layout.barRect
+      parentLayer.addSublayer(barLayer)
+
+      let textLayer = CATextLayer()
+      textLayer.string = layout.attributed
+      textLayer.alignmentMode = style.caAlign
+      textLayer.contentsScale = UIScreen.main.scale
+      textLayer.isWrapped = true
+      textLayer.foregroundColor = style.textColor.cgColor
+      textLayer.frame = CGRect(
+        x: layout.textRect.minX,
+        y: layout.textRect.minY,
+        width: layout.textRect.width,
+        height: ceil(layout.textRect.height)
+      )
+      parentLayer.addSublayer(textLayer)
+    } else if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       let y = max(0, min(1, normalizedY))
       let centerY = visible.minY + visible.height * y
       let drawnFont = mediaFontSize(

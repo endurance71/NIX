@@ -10,13 +10,16 @@ import Animated, {
 import { useTranslation } from 'react-i18next';
 import { NativeChromeIconButton, type ChromeVariant } from '../ui/native-chrome-icon-button';
 import { PreviewTextSticker } from './PreviewTextSticker';
+import { supportsMediaTextCaptionBar } from '../../../modules/nix-media-overlay';
 import { usePreviewTextOverlay } from '../../hooks/usePreviewTextOverlay';
 import {
   DEFAULT_MEDIA_TEXT_BAR_COLOR,
   DEFAULT_MEDIA_TEXT_COLOR,
   DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE,
   DEFAULT_MEDIA_TEXT_OVERLAY_Y,
+  resolveMediaTextRenderStyle,
   type MediaTextOverlay,
+  type MediaTextVariant,
 } from '../../types/mediaTextOverlay';
 import type { ThemeColors } from '../../theme/colors';
 import { appleUiSpring, duration, useMotionEnabled } from '../../theme/motion';
@@ -44,25 +47,34 @@ type PreviewTextToolsProps = {
   stickerPointerEvents?: 'box-none' | 'none';
 };
 
-function resolveStickerContent(controls: ReturnType<typeof usePreviewTextOverlay>) {
+function resolveStickerContent(
+  controls: ReturnType<typeof usePreviewTextOverlay>,
+  captionBarAvailable: boolean,
+) {
   const source = controls.isEditing ? controls.editor : controls.committed;
   const stickerText = controls.isEditing
     ? (controls.editor?.draftText ?? '')
     : (controls.committed?.text ?? '');
-  const stickerFontSize = source?.fontSize ?? DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE;
+  // Without the native bar bake every caption is shown (and baked) as a sticker.
+  const stickerVariant: MediaTextVariant =
+    captionBarAvailable && source?.variant === 'bar' ? 'bar' : 'sticker';
+  // The bar draws its fixed look; the sticker format stays on the overlay for switching back.
+  const drawn = source ? resolveMediaTextRenderStyle({ ...source, variant: stickerVariant }) : null;
+  const stickerFontSize = drawn?.fontSize ?? DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE;
   const stickerY = source?.y ?? DEFAULT_MEDIA_TEXT_OVERLAY_Y;
-  const stickerTextColor = source?.textColor ?? DEFAULT_MEDIA_TEXT_COLOR;
-  const stickerBarColor = source?.barColor ?? DEFAULT_MEDIA_TEXT_BAR_COLOR;
-  const stickerBold = source?.bold ?? true;
-  const stickerItalic = source?.italic ?? false;
-  const stickerUnderline = source?.underline ?? false;
-  const stickerStrikethrough = source?.strikethrough ?? false;
-  const stickerMonospace = source?.monospace ?? false;
-  const stickerFontDesign = source?.fontDesign ?? 'system';
+  const stickerTextColor = drawn?.textColor ?? DEFAULT_MEDIA_TEXT_COLOR;
+  const stickerBarColor = drawn?.barColor ?? DEFAULT_MEDIA_TEXT_BAR_COLOR;
+  const stickerBold = drawn?.bold ?? true;
+  const stickerItalic = drawn?.italic ?? false;
+  const stickerUnderline = drawn?.underline ?? false;
+  const stickerStrikethrough = drawn?.strikethrough ?? false;
+  const stickerMonospace = drawn?.monospace ?? false;
+  const stickerFontDesign = drawn?.fontDesign ?? 'system';
   const stickerPreset = source?.preset ?? 'title';
-  const stickerAlign = source?.align ?? 'center';
+  const stickerAlign = drawn?.align ?? 'center';
 
   return {
+    stickerVariant,
     stickerText,
     stickerFontSize,
     stickerY,
@@ -96,6 +108,7 @@ export function PreviewTextTools({
   const { t } = useTranslation();
   const motionEnabled = useMotionEnabled();
   const [barHeight, setBarHeight] = useState(0);
+  const captionBarAvailable = supportsMediaTextCaptionBar();
   const controls = usePreviewTextOverlay({
     overlay,
     onChangeOverlay,
@@ -104,6 +117,7 @@ export function PreviewTextTools({
     viewportHeight,
     mediaFrame,
     barHeight,
+    captionBarAvailable,
   });
   const [stickerExiting, setStickerExiting] = useState(false);
   const stickerExitActionRef = useRef<'confirm' | 'delete' | null>(null);
@@ -186,6 +200,7 @@ export function PreviewTextTools({
   );
 
   const {
+    stickerVariant,
     stickerText,
     stickerFontSize,
     stickerY,
@@ -199,7 +214,7 @@ export function PreviewTextTools({
     stickerFontDesign,
     stickerPreset,
     stickerAlign,
-  } = resolveStickerContent(controls);
+  } = resolveStickerContent(controls, captionBarAvailable);
 
   return (
     <>
@@ -209,6 +224,10 @@ export function PreviewTextTools({
         {showSticker ? (
           <PreviewTextSticker
             mode={mode}
+            variant={stickerVariant}
+            onChangeVariant={
+              controls.isEditing && captionBarAvailable ? controls.setDraftVariant : undefined
+            }
             text={stickerText}
             fontSize={stickerFontSize}
             textColor={stickerTextColor}
