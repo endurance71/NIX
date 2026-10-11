@@ -24,6 +24,9 @@ Device QA pending.
 iOS only, source `7d2cdfe` — JS only since build 12 (`b54f0ad`): native Liquid Glass chrome (viewer reply bar, camera
 pills, send-to search, chat composer buttons), voice messages with an explicit Send (tap to record, Stop, review, Send),
 the chat scroll edge effect and delivered uploads shown as NiX chips. Builds 10/11 (runtime 1.0.12) do not receive it.
+Second OTA (2026-10-11): update group `4b2509ef-fe14-4f0a-b39e-80101cc7401e`, source `4c43f63` — soft chat scroll edge via
+`ScrollViewMarker`, camera close button back to the originating chat, live loudness spectrum while recording, every
+in-app notification grows out of the Dynamic Island.
 
 The 1.0.12 App Review track
 (build 11) is unaffected.
