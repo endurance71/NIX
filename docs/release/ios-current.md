@@ -35,6 +35,9 @@ Fifteenth OTA (2026-10-11): update group `6b6cb58c-06b1-4832-88ab-3d94c7b25231`,
 field becomes the native search button next to Compose; closing it restores the pinned grid.
 Sixteenth OTA (2026-10-11): update group `4de0479d-db24-46c8-997f-a9e8571e8732`, source `3ef611f` — Memories uses the
 inline title like the other profile screens and its grid shares the 16 pt screen inset.
+Seventeenth OTA (2026-10-11): update group `730173ed-1d47-4371-9b3b-8b59825bd307`, source `be50e89` — close
+animations where only the open was animated (reply / edit banner, focus square, sticker trash, text sticker actions,
+preview Save / Send) and the native zoom from a Memories cell into the viewer.
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
