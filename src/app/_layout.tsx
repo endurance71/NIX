@@ -419,6 +419,16 @@ function AppStack({
             contentStyle: { backgroundColor: 'transparent' },
           }}
         />
+        <Stack.Screen
+          name="forward-message"
+          options={{
+            presentation: 'formSheet',
+            sheetGrabberVisible: true,
+            sheetInitialDetentIndex: 0,
+            sheetAllowedDetents: [0.6, 0.9],
+            contentStyle: { backgroundColor: 'transparent' },
+          }}
+        />
       </Stack>
     </>
   );

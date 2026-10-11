@@ -17,6 +17,8 @@ export type DomainErrorCode =
   | 'CANNOT_ADD_SELF'
   | 'FRIENDSHIP_EXISTS'
   | 'FRIEND_REQUEST_NOT_FOUND'
+  | 'EDIT_WINDOW_CLOSED'
+  | 'EDIT_LIMIT_REACHED'
   | 'UNKNOWN';
 
 export class DomainError extends Error {

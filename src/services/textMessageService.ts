@@ -11,6 +11,8 @@ export type SendTextMessageParams = {
   clientMessageId?: string;
   /** NiX this text answers (20261013100000); dropped on backends without the migration. */
   replyToNixId?: string | null;
+  /** Earlier message of the chat this text quotes (20261014100000); dropped likewise. */
+  replyToMessageId?: string | null;
   transport?: AccountTransport;
 };
 
@@ -57,6 +59,50 @@ export function isMissingNixReplySupportError(
   const code = error.code ?? '';
   if (code === 'PGRST202' || code === '42883') return true;
   return (code === 'PGRST204' || code === '42703') && (error.message ?? '').includes('reply_to_nix_id');
+}
+
+/** Same fallback for the quoted message (20261014100000_text_message_reply_edit_unsend). */
+const messageReplyGate = createRpcFallbackGate();
+
+export function isMissingMessageReplySupportError(
+  error: { message?: string; code?: string } | null | undefined
+): boolean {
+  if (!error) return false;
+  const code = error.code ?? '';
+  if (code === 'PGRST202' || code === '42883') return true;
+  return (code === 'PGRST204' || code === '42703') && (error.message ?? '').includes('reply_to_message_id');
+}
+
+type ReplyArgs = { nix: string | null; message: string | null };
+
+/**
+ * Runs a send attempt with the reply context, dropping first the quoted message and then the NiX
+ * while the backend does not know them. The text itself is always delivered.
+ */
+async function withReplyFallback<T extends { error: { message?: string; code?: string } | null }>(
+  reply: ReplyArgs,
+  transport: AccountTransport,
+  attempt: (args: ReplyArgs) => PromiseLike<T>
+): Promise<T> {
+  let args: ReplyArgs = {
+    nix: reply.nix && nixReplyGate.shouldTryRpc() ? reply.nix : null,
+    message: reply.message && messageReplyGate.shouldTryRpc() ? reply.message : null,
+  };
+  for (;;) {
+    const result = await attempt(args);
+    transport.assertActive();
+    if (args.message && isMissingMessageReplySupportError(result.error)) {
+      messageReplyGate.markUnavailable();
+      args = { ...args, message: null };
+      continue;
+    }
+    if (args.nix && isMissingNixReplySupportError(result.error)) {
+      nixReplyGate.markUnavailable();
+      args = { ...args, nix: null };
+      continue;
+    }
+    return result;
+  }
 }
 
 function asJobView(data: unknown): TextModerationJobView | null {
@@ -134,6 +180,7 @@ export async function sendTextMessage({
   body,
   clientMessageId,
   replyToNixId = null,
+  replyToMessageId = null,
   transport: suppliedTransport,
 }: SendTextMessageParams): Promise<TextMessage> {
   const trimmedBody = body.trim();
@@ -154,19 +201,15 @@ export async function sendTextMessage({
     p_body: trimmedBody,
     p_client_message_id: clientMessageId ?? null,
   };
-  const withReply = Boolean(replyToNixId) && nixReplyGate.shouldTryRpc();
-  const enqueue = (withReplyArg: boolean) =>
-    transport.client.rpc(
-      'enqueue_own_text_moderation_job',
-      withReplyArg ? { ...enqueueArgs, p_reply_to_nix_id: replyToNixId } : enqueueArgs
-    );
-  let enqueued = await enqueue(withReply);
-  transport.assertActive();
-  if (withReply && isMissingNixReplySupportError(enqueued.error)) {
-    nixReplyGate.markUnavailable();
-    enqueued = await enqueue(false);
-    transport.assertActive();
-  }
+  const reply: ReplyArgs = { nix: replyToNixId, message: replyToMessageId };
+  // Only the parameters in use are sent: older backends never see an unknown one.
+  const enqueued = await withReplyFallback(reply, transport, (args) =>
+    transport.client.rpc('enqueue_own_text_moderation_job', {
+      ...enqueueArgs,
+      ...(args.nix ? { p_reply_to_nix_id: args.nix } : {}),
+      ...(args.message ? { p_reply_to_message_id: args.message } : {}),
+    })
+  );
   const { data: enqueueData, error: enqueueError } = enqueued;
 
   if (enqueueError) {
@@ -211,21 +254,18 @@ export async function sendTextMessage({
     body: trimmedBody,
     client_message_id: clientMessageId ?? null,
   };
-  const insertWithReply = Boolean(replyToNixId) && nixReplyGate.shouldTryRpc();
-  const insertRow = (withReplyColumn: boolean) =>
+  const inserted = await withReplyFallback(reply, transport, (args) =>
     transport.client
       .from('text_messages')
       // An undefined key is left out of the JSON body: older backends never see the column.
-      .insert({ ...row, reply_to_nix_id: withReplyColumn ? replyToNixId : undefined })
+      .insert({
+        ...row,
+        reply_to_nix_id: args.nix ?? undefined,
+        reply_to_message_id: args.message ?? undefined,
+      })
       .select('*')
-      .single();
-  let inserted = await insertRow(insertWithReply);
-  transport.assertActive();
-  if (insertWithReply && isMissingNixReplySupportError(inserted.error)) {
-    nixReplyGate.markUnavailable();
-    inserted = await insertRow(false);
-    transport.assertActive();
-  }
+      .single()
+  );
   const { data, error } = inserted;
 
   if (error) {
@@ -296,6 +336,99 @@ export async function fetchRecentTextMessagesWithPeer(
     beforeCreatedAt = batch[batch.length - 1].created_at;
   }
   return rows;
+}
+
+/**
+ * `applied`: the new body is live; `pending`: it waits for moderation (`jobId`); `unchanged`: the
+ * same text was submitted.
+ */
+export type EditTextMessageResult =
+  | { status: 'applied' | 'unchanged' }
+  | { status: 'pending'; jobId: string };
+
+function editErrorFromText(text: string, fallback: string): DomainError {
+  if (text.includes('EDIT_WINDOW_CLOSED')) {
+    return new DomainError('EDIT_WINDOW_CLOSED', 'Tej wiadomości nie można już edytować.');
+  }
+  if (text.includes('EDIT_LIMIT_REACHED')) {
+    return new DomainError('EDIT_LIMIT_REACHED', 'Tę wiadomość edytowano już maksymalną liczbę razy.');
+  }
+  if (text.includes('CONTENT_NOT_ALLOWED')) {
+    return new DomainError('CONTENT_NOT_ALLOWED', 'Ta wiadomość nie może zostać wysłana.');
+  }
+  if (text.includes('NOT_FRIEND')) {
+    return new DomainError('NOT_FRIEND', 'Nie możesz już pisać do tego użytkownika.');
+  }
+  if (text.includes('NOT_FOUND') || text.includes('NOT_EDITABLE')) {
+    return new DomainError('NOT_FOUND', 'Wiadomość już zniknęła.');
+  }
+  if (text.includes('INVALID_INPUT')) {
+    return new DomainError('INVALID_INPUT', 'Wiadomość nie może być pusta.');
+  }
+  if (text.includes('UNAUTHORIZED')) return new DomainError('UNAUTHORIZED', 'Wymagane logowanie.');
+  return new DomainError('UNKNOWN', fallback);
+}
+
+/** Sender edits their own text (within 15 minutes, at most 5 times). */
+export async function editOwnTextMessage(messageId: string, body: string): Promise<EditTextMessageResult> {
+  const trimmed = body.trim();
+  if (!trimmed) throw new DomainError('INVALID_INPUT', 'Wiadomość nie może być pusta.');
+  if (trimmed.length > TEXT_MESSAGE_MAX_LENGTH) {
+    throw new DomainError('INVALID_INPUT', 'Wiadomość przekracza limit 2000 znaków.');
+  }
+  const { data, error } = await supabase.rpc('edit_own_text_message', {
+    p_message_id: messageId,
+    p_body: trimmed,
+  });
+  if (error) {
+    // Keep the PostgREST code: the caller hides the feature when the RPC is not deployed.
+    throw Object.assign(editErrorFromText(errorText(error), error.message || 'Nie udało się edytować wiadomości.'), {
+      postgrestCode: error.code,
+    });
+  }
+  const view = asJobView(data);
+  if (view?.status === 'pending' && typeof view.jobId === 'string' && view.jobId) {
+    return { status: 'pending', jobId: view.jobId };
+  }
+  if (view?.status === 'applied' || view?.status === 'unchanged') return { status: view.status };
+  throw new DomainError('UNKNOWN', 'Nie udało się edytować wiadomości.');
+}
+
+/**
+ * Waits until a moderated edit is applied (`applied`) or turned down (throws). `unknown` when the
+ * worker is slow: the chat simply refetches later.
+ */
+export async function waitForTextEdit(jobId: string): Promise<'applied' | 'unknown'> {
+  const transport = await captureAccountTransport();
+  const deadline = Date.now() + MODERATION_POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    transport.assertActive();
+    const { data, error } = await transport.client.rpc('get_own_text_moderation_job', { p_job_id: jobId });
+    transport.assertActive();
+    if (error) throw editErrorFromText(errorText(error), 'Nie udało się sprawdzić edycji.');
+    const job = asJobView(data);
+    if (job?.status === 'rejected') {
+      throw new DomainError('CONTENT_NOT_ALLOWED', 'Ta wiadomość nie może zostać wysłana.');
+    }
+    if (job?.status === 'error') throw new DomainError('UNKNOWN', 'Nie udało się edytować wiadomości.');
+    if (job?.status === 'approved' && typeof job.messageId === 'string' && job.messageId) return 'applied';
+    await sleep(MODERATION_POLL_INTERVAL_MS, transport);
+  }
+  return 'unknown';
+}
+
+export type UnsendTextMessageResult = 'unsent' | 'window_closed' | 'not_found';
+
+/** Sender deletes their own text or voice message for both people (within 5 minutes). */
+export async function unsendOwnTextMessage(messageId: string): Promise<UnsendTextMessageResult> {
+  const { data, error } = await supabase.rpc('unsend_own_text_message', { p_message_id: messageId });
+  if (error) {
+    throw Object.assign(editErrorFromText(errorText(error), error.message || 'Nie udało się cofnąć wysłania.'), {
+      postgrestCode: error.code,
+    });
+  }
+  if (data === 'unsent' || data === 'window_closed' || data === 'not_found') return data;
+  throw new DomainError('UNKNOWN', 'Nie udało się cofnąć wysłania.');
 }
 
 export type CancelTextMessageResult = 'cancelled' | 'already_sent' | 'not_sent' | 'not_found';

@@ -100,13 +100,13 @@ SELECT is(
 );
 
 SELECT is(
-  has_function_privilege('anon', 'public.enqueue_own_text_moderation_job(uuid, text, text, uuid)', 'EXECUTE'),
+  has_function_privilege('anon', 'public.enqueue_own_text_moderation_job(uuid, text, text, uuid, uuid)', 'EXECUTE'),
   FALSE,
   'anon cannot enqueue own text moderation'
 );
 
 SELECT is(
-  has_function_privilege('authenticated', 'public.enqueue_own_text_moderation_job(uuid, text, text, uuid)', 'EXECUTE'),
+  has_function_privilege('authenticated', 'public.enqueue_own_text_moderation_job(uuid, text, text, uuid, uuid)', 'EXECUTE'),
   TRUE,
   'authenticated can enqueue own text moderation'
 );

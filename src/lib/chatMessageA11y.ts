@@ -2,7 +2,7 @@ export type ChatReactionA11yEntry = { glyph: string; by: string };
 
 /**
  * VoiceOver label of a text bubble:
- * „{Ty | name}: {body}[, {replyContext}], {time}[, {status}][, {saved}][, reakcje: …]”.
+ * „{Ty | name}: {body}[, {replyContext}], {time}[, {edited}][, {status}][, {saved}][, reakcje: …]”.
  * Every piece is already localized by the caller; this only joins them.
  */
 export function chatMessageAccessibilityLabel({
@@ -10,6 +10,7 @@ export function chatMessageAccessibilityLabel({
   body,
   replyContext,
   time,
+  edited,
   status,
   saved,
   reactions,
@@ -20,6 +21,8 @@ export function chatMessageAccessibilityLabel({
   /** „odpowiedź na Twojego NiXa” for a text that answers a NiX. */
   replyContext?: string | null;
   time: string;
+  /** „edytowana” once the sender changed the text. */
+  edited?: string | null;
   status?: string | null;
   /** „zapisana przez Ciebie” etc. for a message saved in the chat. */
   saved?: string | null;
@@ -29,6 +32,7 @@ export function chatMessageAccessibilityLabel({
   const parts = [body.trim() ? `${sender}: ${body.trim()}` : sender];
   if (replyContext) parts.push(replyContext);
   if (time) parts.push(time);
+  if (edited) parts.push(edited);
   if (status) parts.push(status);
   if (saved) parts.push(saved);
   if (reactions.length > 0) {

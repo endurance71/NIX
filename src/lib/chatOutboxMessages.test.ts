@@ -16,6 +16,7 @@ function job(partial: Partial<TextOutboxJob> & Pick<TextOutboxJob, 'id'>): TextO
     expiresAt: Date.parse('2026-10-11T10:00:00.000Z'),
     errorCode: null,
     replyToNixId: null,
+    replyToMessageId: null,
     ...partial,
   };
 }
@@ -47,6 +48,18 @@ describe('chatOutboxStatus', () => {
 });
 
 describe('mergeChatOutboxMessages', () => {
+  it('shows a pending reply with its quote from the loaded chat', () => {
+    const quoted = server({ id: 'q1', sender_id: 'peer', receiver_id: 'me', body: 'Idziemy?', created_at: '2026-10-10T09:00:00.000Z' });
+    const merged = mergeChatOutboxMessages([quoted], [job({ id: 'r1', replyToMessageId: 'q1' })], 'me');
+    expect(merged.at(-1)).toMatchObject({
+      id: 'temp-r1',
+      reply_to_message_id: 'q1',
+      reply_to_message_sender_id: 'peer',
+      reply_to_message_kind: 'text',
+      reply_to_message_body: 'Idziemy?',
+    });
+  });
+
   it('maps outbox jobs to optimistic bubbles with their status', () => {
     const merged = mergeChatOutboxMessages(
       [],

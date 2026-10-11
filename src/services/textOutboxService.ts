@@ -45,13 +45,20 @@ export type TextOutboxJob = {
   errorCode: string | null;
   /** NiX this text answers (viewer / notification reply); `null` for a plain chat text. */
   replyToNixId: string | null;
+  /** Earlier chat message this text quotes (swipe to reply); `null` otherwise. */
+  replyToMessageId: string | null;
 };
 
 /**
  * Sealed with the account key. `replyToNixId` lives here (not in a SQLite column) so the table
  * needs no migration and older rows simply lack it.
  */
-type OutboxPayload = { receiverId: string; body: string; replyToNixId?: string | null };
+type OutboxPayload = {
+  receiverId: string;
+  body: string;
+  replyToNixId?: string | null;
+  replyToMessageId?: string | null;
+};
 type OutboxRow = {
   id: string;
   owner_id: string;
@@ -138,6 +145,8 @@ function toJob(row: OutboxRow, payload: OutboxPayload): TextOutboxJob {
     expiresAt: row.expires_at,
     errorCode: row.error_code,
     replyToNixId: typeof payload.replyToNixId === 'string' && payload.replyToNixId ? payload.replyToNixId : null,
+    replyToMessageId:
+      typeof payload.replyToMessageId === 'string' && payload.replyToMessageId ? payload.replyToMessageId : null,
   };
 }
 
@@ -146,7 +155,8 @@ export async function enqueueTextOutbox(
   receiverId: string,
   body: string,
   clientMessageId: string,
-  replyToNixId: string | null = null
+  replyToNixId: string | null = null,
+  replyToMessageId: string | null = null
 ) {
   const scope = captureSessionScope(ownerId);
   return operations.run(ownerId, async (assertActive) => {
@@ -154,10 +164,12 @@ export async function enqueueTextOutbox(
   assertActive();
   scope.assertActive();
   const now = Date.now();
-  const encrypted = await encryptPayload(
-    ownerId,
-    replyToNixId ? { receiverId, body, replyToNixId } : { receiverId, body }
-  );
+  const encrypted = await encryptPayload(ownerId, {
+    receiverId,
+    body,
+    ...(replyToNixId ? { replyToNixId } : {}),
+    ...(replyToMessageId ? { replyToMessageId } : {}),
+  });
   assertActive();
   scope.assertActive();
   await db.runAsync(
@@ -390,6 +402,7 @@ async function flushOwner(ownerId: string, signal: AbortSignal) {
         body: job.body,
         clientMessageId: job.id,
         replyToNixId: job.replyToNixId,
+        replyToMessageId: job.replyToMessageId,
         transport,
       });
       transport.assertActive();

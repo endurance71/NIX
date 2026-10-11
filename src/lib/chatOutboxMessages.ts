@@ -31,10 +31,13 @@ export function mergeChatOutboxMessages(
   // and a realtime DELETE. Outbox rows keep their own TTL / tombstone handling (OFF-4).
   const visibleServerMessages =
     now === undefined ? serverMessages : serverMessages.filter((server) => !isTextMessageExpired(server, now));
+  const serverById = new Map(serverMessages.map((server) => [server.id, server]));
   const outboxMessages: OptimisticTextMessage[] = [];
   for (const job of jobs) {
     if (serverClientIds.has(job.id)) continue;
     const outboxStatus = chatOutboxStatus(job, online);
+    // The quote shows at once from the loaded chat, like the server preview will.
+    const quoted = job.replyToMessageId ? serverById.get(job.replyToMessageId) : undefined;
     outboxMessages.push({
       id: `temp-${job.id}`,
       sender_id: currentUserId,
@@ -46,6 +49,14 @@ export function mergeChatOutboxMessages(
       is_system: false,
       metadata: null,
       reply_to_nix_id: job.replyToNixId,
+      ...(quoted
+        ? {
+            reply_to_message_id: quoted.id,
+            reply_to_message_sender_id: quoted.sender_id,
+            reply_to_message_kind: (quoted as OptimisticTextMessage).kind ?? 'text',
+            reply_to_message_body: quoted.body.slice(0, 200),
+          }
+        : {}),
       isSending: outboxStatus === 'sending',
       sendFailed: outboxStatus === 'failed',
       outboxStatus,

@@ -39,6 +39,19 @@ describe('chatMessageAccessibilityLabel', () => {
     ).toBe('Anna: Super!, odpowiedź na Twojego NiX-a, 9:30');
   });
 
+  it('says an edited message was edited right after the time', () => {
+    expect(
+      chatMessageAccessibilityLabel({
+        sender: 'Ty',
+        body: 'Poprawione',
+        time: '9:31',
+        edited: 'edytowana',
+        reactions: [],
+        formatReactions,
+      })
+    ).toBe('Ty: Poprawione, 9:31, edytowana');
+  });
+
   it('falls back to the sender when there is no body (expired tombstone)', () => {
     expect(
       chatMessageAccessibilityLabel({ sender: 'Ty', body: '', time: '', status: 'Wygasło', reactions: [], formatReactions })

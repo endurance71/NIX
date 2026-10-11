@@ -248,6 +248,10 @@ type DomainRows = {
         read_at?: string | null;
         /** NiX this text replies to; absent on backends before 20261013100000. */
         reply_to_nix_id?: string | null;
+        /** Quoted chat message, last edit and edit count; absent before 20261014100000. */
+        reply_to_message_id?: string | null;
+        edited_at?: string | null;
+        edit_count?: number;
     };
     message_reactions: {
         id: string;

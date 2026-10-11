@@ -63,7 +63,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useTranslation } from 'react-i18next';
-import type { ChatScreenViewModel, OptimisticTextMessage } from '../../hooks/useChatScreen';
+import type { ChatComposerContext, ChatScreenViewModel, OptimisticTextMessage } from '../../hooks/useChatScreen';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
 import { useStableHandler } from '../../hooks/useStableHandler';
@@ -138,6 +138,21 @@ import { NixReplyHeader } from './NixReplyHeader';
 import { chatNixReplyContext, chatTimelineNixIndex, type ChatNixReplyContext } from '../../lib/chatNixReply';
 import { ComposerVoiceHost, VoiceRecordingStrip, VoiceReviewStrip } from './ComposerVoice';
 import type { ComposerVoiceState } from '../../hooks/useComposerVoice';
+import {
+  chatMessageReplyContext,
+  chatTimelineMessageIndex,
+  type ChatMessageActions,
+} from '../../lib/chatMessageActions';
+import { layoutMessageMenu } from '../../lib/chatMessageMenuLayout';
+import { MessageReplyHeader } from './MessageReplyHeader';
+import { SwipeToReply } from './SwipeToReply';
+import { ComposerContextBar } from './ComposerContextBar';
+import {
+  MESSAGE_ACTION_MENU_WIDTH,
+  MessageActionMenu,
+  messageActionMenuHeight,
+  type MessageActionMenuItem,
+} from './MessageActionMenu';
 
 type ChatTimelineEntry = ChatTimelineItem<OptimisticTextMessage>;
 
@@ -168,6 +183,20 @@ export type ChatComposerProps = {
   onSendVoice: (recording: VoiceRecordingResult) => void;
   /** Recording starts: stop any voice message that is playing. */
   onVoiceRecordingStart: () => void;
+  /** Reply / edit in progress, shown above the input. */
+  context: ComposerContextView | null;
+  onCancelContext: () => void;
+};
+
+/** The composer's reply / edit banner, already localized. */
+export type ComposerContextView = {
+  mode: ChatComposerContext['mode'];
+  /** Changes for every new reply / edit, so the composer re-seeds and focuses once. */
+  key: string;
+  title: string;
+  snippet: string;
+  /** Edit: the text the input starts with. */
+  seedText: string | null;
 };
 
 type BubbleWindowLayout = {
@@ -191,6 +220,7 @@ type ReactionPickerState = {
   width: number;
   height: number;
   rootWidth: number;
+  rootHeight: number;
 };
 
 const BUBBLE_CORNER_RADIUS = 18;
@@ -413,131 +443,38 @@ function PickerEmojiButtons({
   });
 }
 
-type PickerSymbolSlot = {
-  key: string;
-  label: string;
-  icon: AppIconName;
-  destructive: boolean;
-  onPress: () => void;
-};
-
-/** Copy, Save / Unsave and Report, in this order, as far as they apply. */
-function pickerSymbolSlots(
-  t: ChatScreenViewModel['t'],
-  params: {
-    canCopy: boolean;
-    saveAction: PickerSaveAction;
-    canReport: boolean;
-    onCopy: () => void;
-    onToggleSave: () => void;
-    onReport: () => void;
-  },
-): PickerSymbolSlot[] {
-  const slots: PickerSymbolSlot[] = [];
-  if (params.canCopy) {
-    slots.push({ key: 'copy', label: t('chat.copy'), icon: 'copy', destructive: false, onPress: params.onCopy });
-  }
-  if (params.saveAction === 'save') {
-    slots.push({ key: 'save', label: t('chat.saveMessage'), icon: 'saveMessage', destructive: false, onPress: params.onToggleSave });
-  } else if (params.saveAction === 'unsave') {
-    slots.push({ key: 'save', label: t('chat.unsaveMessage'), icon: 'unsaveMessage', destructive: false, onPress: params.onToggleSave });
-  }
-  if (params.canReport) {
-    slots.push({ key: 'report', label: t('chat.reportMessage'), icon: 'report', destructive: true, onPress: params.onReport });
-  }
-  return slots;
-}
-
-/** Copy / Save / Report in the long-press bar. */
-function PickerSymbolButton({
-  focusRef,
-  onPress,
-  label,
-  icon,
-  tint,
-  slotStyle,
-}: {
-  focusRef: RefObject<View | null> | undefined;
-  onPress: () => void;
-  label: string;
-  icon: AppIconName;
-  tint: string;
-  slotStyle: { width: number; height: number; borderRadius: number };
-}) {
-  return (
-    <Pressable
-      ref={focusRef}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      hitSlop={4}
-      style={[styles.reactionBarEmojiHit, slotStyle]}>
-      <SymbolView name={resolveAppIconName(icon)} size={APP_ICON_SIZE.xl} tintColor={tint} weight="medium" />
-    </Pressable>
-  );
-}
 
 /**
  * Horizontal Tapback bar — GlassView + large hit targets. Tapping the reaction that is already
- * mine takes it back (iMessage), so there is no separate „remove” button.
+ * mine takes it back (iMessage), so there is no separate „remove” button. Every other action lives
+ * in the menu under the bubble.
  */
 function ReactionPickerBar({
-  isOwn,
-  canReact,
-  canCopy,
   selectedEmoji,
   slotSize,
   barWidth,
   onSelect,
-  onCopy,
-  onReport,
-  saveAction,
-  onToggleSave,
   focusRef,
 }: {
-  isOwn: boolean;
-  canReact: boolean;
-  canCopy: boolean;
   selectedEmoji: MessageReactionEmoji | null;
   slotSize: number;
   barWidth: number;
   onSelect: (emoji: MessageReactionEmoji) => void;
-  onCopy: () => void;
-  onReport: () => void;
-  saveAction: PickerSaveAction;
-  onToggleSave: () => void;
-  /** Attached to the first button, so VoiceOver focus can move into the bar. */
+  /** Attached to the first emoji, so VoiceOver focus can move into the bar. */
   focusRef: RefObject<View | null>;
 }) {
   const { colors } = useAppTheme();
-  const { t } = useTranslation();
   const useGlass = canUseLiquidGlass();
   const slotStyle = { width: slotSize, height: slotSize, borderRadius: slotSize / 2 };
 
-  // VoiceOver focus lands on the first slot the bar shows.
-  const symbolSlots = pickerSymbolSlots(t, { canCopy, saveAction, canReport: !isOwn, onCopy, onToggleSave, onReport });
-
   const content = (
     <View style={styles.reactionBarContent}>
-      {canReact ? (
-        <PickerEmojiButtons
-          selectedEmoji={selectedEmoji}
-          onSelect={onSelect}
-          focusRef={focusRef}
-          slotStyle={slotStyle}
-        />
-      ) : null}
-      {symbolSlots.map((slot, index) => (
-        <PickerSymbolButton
-          key={slot.key}
-          focusRef={!canReact && index === 0 ? focusRef : undefined}
-          onPress={slot.onPress}
-          label={slot.label}
-          icon={slot.icon}
-          tint={slot.destructive ? colors.destructive : colors.label}
-          slotStyle={slotStyle}
-        />
-      ))}
+      <PickerEmojiButtons
+        selectedEmoji={selectedEmoji}
+        onSelect={onSelect}
+        focusRef={focusRef}
+        slotStyle={slotStyle}
+      />
     </View>
   );
 
@@ -736,6 +673,18 @@ type MessageBubbleProps = {
   replyToNixId: string | null;
   replyToNixKind: ChatNixReplyContext['kind'];
   replyToNixInTimeline: boolean;
+  /** Quoted chat message (primitives keep the memo cheap); `null` author = no quote. */
+  quoteAuthor: string | null;
+  quoteSnippet: string;
+  quoteIsVoice: boolean;
+  quoteMessageId: string | null;
+  quoteInTimeline: boolean;
+  /** The sender changed the text after sending. */
+  edited: boolean;
+  /** Briefly marked after a quote scrolled to it. */
+  highlighted: boolean;
+  /** Reply / edit / unsend / forward available right now (rotor and swipe). */
+  actions: ChatMessageActions;
   onOpenPicker: (messageId: string, isOwn: boolean, canReact: boolean, layout: BubbleWindowLayout) => void;
   onReact: (messageId: string, emoji: MessageReactionEmoji) => void;
   onCopy: (messageId: string) => void;
@@ -746,6 +695,11 @@ type MessageBubbleProps = {
   onSetSaved: (messageId: string, saved: boolean) => void;
   onToggleVoice: (messageId: string) => void;
   onShowRepliedNix: (nixId: string) => void;
+  onReply: (messageId: string) => void;
+  onEdit: (messageId: string) => void;
+  onUnsend: (messageId: string) => void;
+  onForward: (messageId: string) => void;
+  onShowQuotedMessage: (messageId: string) => void;
 };
 
 type BubbleAccessibilityAction = { name: string; label: string };
@@ -765,10 +719,14 @@ function bubbleAccessibilityActions(
     retryable: boolean;
     deletable: boolean;
     showRepliedNix: boolean;
+    showQuoted: boolean;
+    messageActions: ChatMessageActions;
   },
 ): BubbleAccessibilityAction[] {
   const actions: BubbleAccessibilityAction[] = [];
   if (flags.showRepliedNix) actions.push({ name: 'showNix', label: t('chat.replyShowNix') });
+  if (flags.showQuoted) actions.push({ name: 'showQuoted', label: t('chat.replyShowMessage') });
+  if (flags.messageActions.reply) actions.push({ name: 'reply', label: t('chat.reply') });
   if (flags.playable) {
     actions.push({ name: 'activate', label: flags.playing ? t('chat.voicePause') : t('chat.voicePlay') });
   }
@@ -788,6 +746,9 @@ function bubbleAccessibilityActions(
     actions.push({ name: 'toggleSave', label: flags.saved ? t('chat.unsaveMessage') : t('chat.saveMessage') });
   }
   if (flags.copyable) actions.push({ name: 'copy', label: t('chat.copy') });
+  if (flags.messageActions.edit) actions.push({ name: 'edit', label: t('chat.edit') });
+  if (flags.messageActions.forward) actions.push({ name: 'forward', label: t('chat.forward') });
+  if (flags.messageActions.unsend) actions.push({ name: 'unsend', label: t('chat.unsend') });
   if (flags.reportable) actions.push({ name: 'report', label: t('chat.reportMessage') });
   if (flags.retryable) actions.push({ name: 'retry', label: t('chat.retrySend') });
   if (flags.deletable) actions.push({ name: 'delete', label: t('chat.deleteFailed') });
@@ -814,9 +775,27 @@ type BubbleActionHandlers = {
   retry: () => void;
   delete: () => void;
   showNix: () => void;
+  showQuoted: () => void;
+  reply: () => void;
+  edit: () => void;
+  forward: () => void;
+  unsend: () => void;
 };
 
-const SIMPLE_BUBBLE_ACTIONS = ['activate', 'toggleSave', 'copy', 'report', 'retry', 'delete', 'showNix'] as const;
+const SIMPLE_BUBBLE_ACTIONS = [
+  'activate',
+  'toggleSave',
+  'copy',
+  'report',
+  'retry',
+  'delete',
+  'showNix',
+  'showQuoted',
+  'reply',
+  'edit',
+  'forward',
+  'unsend',
+] as const;
 
 function runBubbleAccessibilityAction(name: string, handlers: BubbleActionHandlers) {
   if (name.startsWith('react:')) {
@@ -844,6 +823,8 @@ function bubbleInteractionMode(params: {
   canSave: boolean;
   isOwn: boolean;
   sending: boolean;
+  /** Reply / edit / unsend / forward: the menu has something to offer. */
+  hasMenuActions: boolean;
 }): BubbleInteractionMode {
   if (params.expired) return { press: 'expired', longPress: 'expired' };
   if (params.failed && params.outboxId) return { press: 'retry', longPress: 'failed' };
@@ -851,7 +832,7 @@ function bubbleInteractionMode(params: {
   if (params.sending && params.outboxId) return { press: null, longPress: 'cancelSending' };
   const press = params.isVoice ? 'voice' : null;
   // Offline or still sending: no reactions, but Copy / Save (and Report) stay available.
-  if (!params.canReact && !params.copyable && !params.canSave) {
+  if (!params.canReact && !params.copyable && !params.canSave && !params.hasMenuActions) {
     return { press, longPress: params.isOwn ? 'none' : 'report' };
   }
   return { press, longPress: 'picker' };
@@ -944,6 +925,14 @@ const MessageBubble = memo(function MessageBubble({
   replyToNixId,
   replyToNixKind,
   replyToNixInTimeline,
+  quoteAuthor,
+  quoteSnippet,
+  quoteIsVoice,
+  quoteMessageId,
+  quoteInTimeline,
+  edited,
+  highlighted,
+  actions,
   onOpenPicker,
   onReact,
   onCopy,
@@ -954,6 +943,11 @@ const MessageBubble = memo(function MessageBubble({
   onSetSaved,
   onToggleVoice,
   onShowRepliedNix,
+  onReply,
+  onEdit,
+  onUnsend,
+  onForward,
+  onShowQuotedMessage,
 }: MessageBubbleProps) {
   const { colors } = useAppTheme();
   const { t } = useTranslation();
@@ -1002,6 +996,7 @@ const MessageBubble = memo(function MessageBubble({
     canSave,
     isOwn,
     sending: outboxStatus === 'sending',
+    hasMenuActions: actions.reply || actions.edit || actions.unsend || actions.forward,
   });
 
   const openPickerFromBubble = () => {
@@ -1058,11 +1053,15 @@ const MessageBubble = memo(function MessageBubble({
         }
       : null;
   const replyTexts = replyContext ? nixReplyTexts(t, isOwn) : null;
+  const hasQuote = quoteAuthor !== null && !expired;
+  const quoteText = quoteIsVoice ? t('chat.quotedVoice') : quoteSnippet;
+  const quoteA11y = hasQuote ? t('chat.a11yReplyToMessage', { author: quoteAuthor, text: quoteText }) : null;
   const accessibilityLabel = chatMessageAccessibilityLabel({
     sender: senderName,
     body: bubbleAccessibilityBody(t, { expired, voiceDurationMs, body }),
-    replyContext: replyTexts?.a11y ?? null,
+    replyContext: [replyTexts?.a11y, quoteA11y].filter(Boolean).join(', ') || null,
     time: formatChatTime(createdAt, locale),
+    edited: edited ? t('chat.a11yEdited') : null,
     status: statusText,
     saved: savedAccessibilityText(t, savedBy, peerName),
     reactions: reactions.map((reaction) => ({
@@ -1084,6 +1083,8 @@ const MessageBubble = memo(function MessageBubble({
     retryable: failed && outboxId !== null,
     deletable: (failed || expired) && outboxId !== null,
     showRepliedNix: replyContext?.inTimeline === true,
+    showQuoted: hasQuote && quoteInTimeline,
+    messageActions: actions,
   });
   const onAccessibilityAction = (event: AccessibilityActionEvent) => {
     runBubbleAccessibilityAction(event.nativeEvent.actionName, {
@@ -1095,6 +1096,11 @@ const MessageBubble = memo(function MessageBubble({
       retry: () => (outboxId ? onRetry(outboxId) : undefined),
       delete: () => (outboxId ? onDeleteOutbox(outboxId) : undefined),
       showNix: () => (replyContext ? onShowRepliedNix(replyContext.nixId) : undefined),
+      showQuoted: () => (quoteMessageId ? onShowQuotedMessage(quoteMessageId) : undefined),
+      reply: () => onReply(messageId),
+      edit: () => onEdit(messageId),
+      forward: () => onForward(messageId),
+      unsend: () => onUnsend(messageId),
     });
   };
 
@@ -1104,9 +1110,14 @@ const MessageBubble = memo(function MessageBubble({
         styles.row,
         { paddingTop: shape.paddingTop, paddingBottom: shape.paddingBottom },
         hasReactions ? styles.rowWithReactions : null,
-        // Snapchat-style: a saved message sits on a soft band, for both participants.
-        savedBy ? { backgroundColor: colors.secondarySystemFill } : null,
+        // A saved message keeps its bubble; the „Zapisane przez …” marker below says so. (A grey
+        // band behind it swallowed incoming bubbles of the same grey.)
+        highlighted ? { backgroundColor: colors.systemFill } : null,
       ]}>
+      <SwipeToReply
+        enabled={actions.reply}
+        onReply={() => onReply(messageId)}
+        style={[styles.bubbleAnchor, isOwn ? styles.bubbleOwn : styles.bubbleIncoming, { maxWidth }]}>
       <Animated.View
         entering={
           motionEnabled && isOptimistic ? FadeIn.duration(duration.fast) : undefined
@@ -1114,9 +1125,17 @@ const MessageBubble = memo(function MessageBubble({
         style={[
           styles.bubbleAnchor,
           isOwn ? styles.bubbleOwn : styles.bubbleIncoming,
-          { maxWidth },
           focusStyle,
         ]}>
+        {hasQuote ? (
+          <MessageReplyHeader
+            author={quoteAuthor}
+            snippet={quoteText}
+            isVoice={quoteIsVoice}
+            isOwn={isOwn}
+            onPress={quoteMessageId && quoteInTimeline ? () => onShowQuotedMessage(quoteMessageId) : null}
+          />
+        ) : null}
         {replyContext && replyTexts ? (
           <NixReplyHeader
             context={replyContext}
@@ -1154,12 +1173,28 @@ const MessageBubble = memo(function MessageBubble({
             />
           </Pressable>
         </View>
+        {edited && !expired ? <EditedMarker isOwn={isOwn} /> : null}
         {savedBy ? <SavedMarker savedBy={savedBy} peerName={peerName} isOwn={isOwn} /> : null}
         {receipt ? <MessageReceipt status={receipt} /> : null}
       </Animated.View>
+      </SwipeToReply>
     </View>
   );
 });
+
+/** „Edytowano” under an edited bubble, on its side (iMessage „Edited”). */
+function EditedMarker({ isOwn }: { isOwn: boolean }) {
+  const { colors } = useAppTheme();
+  const { t } = useTranslation();
+  return (
+    <View
+      style={[styles.savedRow, isOwn ? styles.savedRowOwn : styles.savedRowIncoming]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants">
+      <Text style={[styles.savedText, { color: colors.secondaryLabel }]}>{t('chat.edited')}</Text>
+    </View>
+  );
+}
 
 function MessageReceipt({ status }: { status: 'delivered' | 'opened' }) {
   const { colors } = useAppTheme();
@@ -1179,81 +1214,101 @@ function MessageReceipt({ status }: { status: 'delivered' | 'opened' }) {
   );
 }
 
+/** How far the clear window around the lifted bubble reaches past it. */
+const SCRIM_HOLE_OUTSET = 6;
+
+/**
+ * iMessage frosts everything but the long-pressed bubble. The bubble stays in the list (no copy
+ * to keep in sync), so the scrim is four panes around it that leave it clear.
+ */
+function PickerScrim({ picker, progress }: { picker: ReactionPickerState; progress: SharedValue<number> }) {
+  const { colors } = useAppTheme();
+  const fade = useAnimatedStyle(() => ({ opacity: Math.min(1, Math.max(0, progress.get())) }));
+  const top = Math.max(0, picker.y - SCRIM_HOLE_OUTSET);
+  const bottom = picker.y + picker.height + SCRIM_HOLE_OUTSET;
+  const left = Math.max(0, picker.x - SCRIM_HOLE_OUTSET);
+  const right = picker.x + picker.width + SCRIM_HOLE_OUTSET;
+  const fill = { backgroundColor: colors.overlay };
+  return (
+    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, fade]}>
+      <View style={[styles.scrimPane, fill, { top: 0, left: 0, right: 0, height: top }]} />
+      <View style={[styles.scrimPane, fill, { top: bottom, left: 0, right: 0, bottom: 0 }]} />
+      <View style={[styles.scrimPane, fill, { top, height: bottom - top, left: 0, width: left }]} />
+      <View style={[styles.scrimPane, fill, { top, height: bottom - top, left: right, right: 0 }]} />
+    </Animated.View>
+  );
+}
+
 function ReactionPickerOverlay({
   picker,
   open,
   selectedEmoji,
-  canCopy,
+  menuItems,
   minTop,
+  bottomLimit,
   onSelect,
-  onCopy,
-  onReport,
-  saveAction,
-  onToggleSave,
   onDismiss,
   onExited,
 }: {
   picker: ReactionPickerState;
   open: boolean;
   selectedEmoji: MessageReactionEmoji | null;
-  canCopy: boolean;
-  saveAction: PickerSaveAction;
-  onToggleSave: () => void;
-  /** Below the transparent navigation bar: the bar must never slide under it. */
+  menuItems: readonly MessageActionMenuItem[];
+  /** Below the transparent navigation bar: nothing may slide under it. */
   minTop: number;
+  /** Above the home indicator. */
+  bottomLimit: number;
   onSelect: (emoji: MessageReactionEmoji) => void;
-  onCopy: () => void;
-  onReport: () => void;
   onDismiss: () => void;
   onExited: () => void;
 }) {
   const { t } = useTranslation();
   const motionEnabled = useMotionEnabled();
-  const liveLayout = layoutReactionPickerBar({
+  const liveBar = layoutReactionPickerBar({
     bubbleX: picker.x,
     bubbleWidth: picker.width,
     rootWidth: picker.rootWidth,
     canReact: picker.canReact,
-    showCopy: canCopy,
-    showReport: !picker.isOwn,
-    showSave: saveAction !== null,
+    showCopy: false,
+    showReport: false,
   });
-  /** Above the bubble; below it when the header leaves no room. */
-  const above = picker.y - REACTION_BAR_HEIGHT - REACTION_BAR_GAP;
-  const top =
-    above >= Math.max(REACTION_BAR_SIDE_INSET, minTop)
-      ? above
-      : picker.y + picker.height + REACTION_BAR_GAP;
+  const liveMenu = layoutMessageMenu({
+    bubble: { x: picker.x, y: picker.y, width: picker.width, height: picker.height },
+    rootWidth: picker.rootWidth,
+    rootHeight: picker.rootHeight,
+    minTop: Math.max(REACTION_BAR_SIDE_INSET, minTop),
+    bottomLimit,
+    barHeight: REACTION_BAR_HEIGHT,
+    showBar: picker.canReact,
+    menuWidth: MESSAGE_ACTION_MENU_WIDTH,
+    menuHeight: messageActionMenuHeight(menuItems),
+    isOwn: picker.isOwn,
+    gap: REACTION_BAR_GAP,
+    sideInset: REACTION_BAR_SIDE_INSET,
+  });
 
   /**
    * Przy wyborze emoji React batchuje: open=false + nowy selectedEmoji.
    * Bez snapshota pasek zmienia width/left w trakcie close → skok wyglądający jak scale.
    * Aktualizacja snapshota w trakcie renderu gdy open (dozwolony pattern „adjusting state”).
    */
-  const [frozenLayout, setFrozenLayout] = useState({
-    left: liveLayout.left,
-    barWidth: liveLayout.barWidth,
-    slotSize: liveLayout.slotSize,
-    selectedEmoji,
-  });
-  if (open) {
-    if (
-      frozenLayout.left !== liveLayout.left ||
-      frozenLayout.barWidth !== liveLayout.barWidth ||
-      frozenLayout.slotSize !== liveLayout.slotSize ||
-      frozenLayout.selectedEmoji !== selectedEmoji
-    ) {
-      setFrozenLayout({
-        left: liveLayout.left,
-        barWidth: liveLayout.barWidth,
-        slotSize: liveLayout.slotSize,
-        selectedEmoji,
-      });
-    }
+  // Items carry fresh closures every render: compare their keys, never their identity.
+  const live = { ...liveBar, ...liveMenu, selectedEmoji, menuItems, menuKey: menuItems.map((item) => item.key).join() };
+  const [frozen, setFrozen] = useState(live);
+  if (
+    open
+    && (frozen.left !== live.left
+      || frozen.barWidth !== live.barWidth
+      || frozen.slotSize !== live.slotSize
+      || frozen.barTop !== live.barTop
+      || frozen.menuTop !== live.menuTop
+      || frozen.menuLeft !== live.menuLeft
+      || frozen.selectedEmoji !== live.selectedEmoji
+      || frozen.menuKey !== live.menuKey)
+  ) {
+    setFrozen(live);
   }
-  const { left, barWidth, slotSize, selectedEmoji: displayEmoji } = open
-    ? { ...liveLayout, selectedEmoji }
-    : frozenLayout;
+  const shown = open ? live : frozen;
 
   const progress = useSharedValue(0);
   /** 0 = open curve (0.55→1), 1 = close curve (1→0). Bez skoku w momencie startu close. */
@@ -1283,12 +1338,12 @@ function ReactionPickerOverlay({
     );
   }, [open, onExited, progress, closing, motionEnabled]);
 
-  // VoiceOver: move focus into the bar when it opens (the overlay is modal).
-  const barRef = useRef<View>(null);
+  // VoiceOver: move focus into the overlay when it opens (it is modal).
+  const focusRef = useRef<View>(null);
   useEffect(() => {
     if (!open) return;
     const frame = requestAnimationFrame(() => {
-      if (barRef.current) AccessibilityInfo.sendAccessibilityEvent(barRef.current, 'focus');
+      if (focusRef.current) AccessibilityInfo.sendAccessibilityEvent(focusRef.current, 'focus');
     });
     return () => cancelAnimationFrame(frame);
   }, [open]);
@@ -1307,6 +1362,12 @@ function ReactionPickerOverlay({
       ],
     };
   });
+  // The menu grows out of the bubble's corner, like a UIKit context menu.
+  const menuStyle = useAnimatedStyle(() => {
+    const p = Math.min(1, Math.max(0, progress.get()));
+    return { transform: [{ scale: closing.get() === 1 ? p : 0.4 + p * 0.6 }] };
+  });
+  const menuOrigin = `${picker.isOwn ? 'right' : 'left'} ${shown.menuBelowBubble ? 'top' : 'bottom'}`;
 
   return (
     <View
@@ -1318,26 +1379,33 @@ function ReactionPickerOverlay({
         style={styles.pickerBackdrop}
         onPress={onDismiss}
         accessibilityRole="button"
-        accessibilityLabel={t('chat.closeReactions')}
-      />
-      <Animated.View
-        pointerEvents="box-none"
-        style={[styles.reactionBarOverlay, { top, left, width: barWidth }, barStyle]}>
-        <ReactionPickerBar
-          isOwn={picker.isOwn}
-          canReact={picker.canReact}
-          canCopy={canCopy}
-          selectedEmoji={displayEmoji}
-          slotSize={slotSize}
-          barWidth={barWidth}
-          onSelect={onSelect}
-          onCopy={onCopy}
-          onReport={onReport}
-          saveAction={saveAction}
-          onToggleSave={onToggleSave}
-          focusRef={barRef}
-        />
-      </Animated.View>
+        accessibilityLabel={t('chat.closeReactions')}>
+        <PickerScrim picker={picker} progress={progress} />
+      </Pressable>
+      {picker.canReact ? (
+        <Animated.View
+          pointerEvents="box-none"
+          style={[styles.reactionBarOverlay, { top: shown.barTop, left: shown.left, width: shown.barWidth }, barStyle]}>
+          <ReactionPickerBar
+            selectedEmoji={shown.selectedEmoji}
+            slotSize={shown.slotSize}
+            barWidth={shown.barWidth}
+            onSelect={onSelect}
+            focusRef={focusRef}
+          />
+        </Animated.View>
+      ) : null}
+      {shown.menuItems.length > 0 ? (
+        <Animated.View
+          pointerEvents="box-none"
+          style={[
+            styles.menuOverlay,
+            { top: shown.menuTop, left: shown.menuLeft, transformOrigin: menuOrigin },
+            menuStyle,
+          ]}>
+          <MessageActionMenu items={shown.menuItems} focusRef={picker.canReact ? undefined : focusRef} />
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
@@ -1846,6 +1914,8 @@ const ChatComposer = memo(function ChatComposer({
   voiceAvailable,
   onSendVoice,
   onVoiceRecordingStart,
+  context,
+  onCancelContext,
 }: ChatComposerProps) {
   const { colors, colorScheme } = useAppTheme();
   const { fontScale } = useWindowDimensions();
@@ -1856,6 +1926,30 @@ const ChatComposer = memo(function ChatComposer({
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
   const inputRef = useRef<TextInput>(null);
+  const editing = context?.mode === 'edit';
+  // A new edit puts the message's text into the input once (adjusting state during render).
+  const [seededKey, setSeededKey] = useState<string | null>(null);
+  if (context?.seedText != null && context.key !== seededKey) {
+    setSeededKey(context.key);
+    setText(context.seedText);
+    setInputKey((key) => key + 1);
+  }
+  // Reply / edit: the keyboard comes up on the input, like Messages.
+  const contextKey = context?.key ?? null;
+  useEffect(() => {
+    if (!contextKey) return;
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [contextKey]);
+  const cancelContext = () => {
+    // Leaving an edit drops the edited text; a reply keeps what was typed.
+    if (editing) {
+      inputRef.current?.clear();
+      setText('');
+      onDraftChange('');
+    }
+    onCancelContext();
+  };
   const canSend = Boolean(text.trim()) && !sending;
   const useGlass = canUseLiquidGlass();
   const showCounter = shouldShowComposerCounter(text.length, TEXT_MESSAGE_MAX_LENGTH);
@@ -1971,7 +2065,7 @@ const ChatComposer = memo(function ChatComposer({
     const recording = voice?.recording ?? false;
     const pendingVoice = voice?.pending ?? null;
     const voiceBusy = recording || pendingVoice !== null;
-    const showMic = voice !== null && !voiceBusy && voiceAvailable && !text.trim();
+    const showMic = voice !== null && !voiceBusy && voiceAvailable && !text.trim() && !editing;
     const voiceStrip =
       recording && voice ? (
         <VoiceRecordingStrip
@@ -2030,10 +2124,10 @@ const ChatComposer = memo(function ChatComposer({
         ) : (
           <NativeChromeIconButton
             {...composerButton}
-            name="send"
+            name={editing ? 'checkmark' : 'send'}
             onPress={send}
             disabled={!canSend}
-            accessibilityLabel={t('chat.send')}
+            accessibilityLabel={editing ? t('chat.saveEdit') : t('chat.send')}
           />
         )}
       </View>
@@ -2053,6 +2147,19 @@ const ChatComposer = memo(function ChatComposer({
           style={StyleSheet.absoluteFill}
         />
       </View>
+
+      {context ? (
+        <View style={styles.composerContextRow}>
+          <ComposerContextBar
+            key={context.key}
+            icon={context.mode === 'edit' ? 'edit' : 'reply'}
+            title={context.title}
+            snippet={context.snippet}
+            cancelLabel={context.mode === 'edit' ? t('chat.cancelEdit') : t('chat.cancelReply')}
+            onCancel={cancelContext}
+          />
+        </View>
+      ) : null}
 
       {voiceEnabled ? (
         <ComposerVoiceHost t={t} onSend={onSendVoice} onRecordingStart={onVoiceRecordingStart}>
@@ -2368,7 +2475,7 @@ function useChatTimelineHandlers(
 ) {
   const onOpenPicker = useStableHandler(
     (messageId: string, isOwn: boolean, canReact: boolean, layout: BubbleWindowLayout) => {
-      rootRef.current?.measureInWindow((rootX, rootY, rootW) => {
+      rootRef.current?.measureInWindow((rootX, rootY, rootW, rootH) => {
         onPickerOpen({
           messageId,
           isOwn,
@@ -2378,6 +2485,7 @@ function useChatTimelineHandlers(
           width: layout.width,
           height: layout.height,
           rootWidth: rootW > 0 ? rootW : layout.width,
+          rootHeight: rootH,
         });
       });
     }
@@ -2421,6 +2529,20 @@ function useChatTimelineHandlers(
     const job = vm.chatUploadJobs.find((candidate) => candidate.id === jobId);
     if (job) openChatUploadActions(vm, job);
   });
+  const withMessage = (messageId: string, run: (message: OptimisticTextMessage) => void) => {
+    const message = vm.messages.find((candidate) => candidate.id === messageId);
+    if (message) run(message);
+  };
+  const onReply = useStableHandler((messageId: string) => {
+    requestClosePicker();
+    withMessage(messageId, vm.handleStartReply);
+  });
+  const onEdit = useStableHandler((messageId: string) => withMessage(messageId, vm.handleStartEdit));
+  const onUnsend = useStableHandler((messageId: string) =>
+    withMessage(messageId, (message) => void vm.handleUnsendMessage(message)),
+  );
+  const onForward = useStableHandler((messageId: string) => withMessage(messageId, vm.handleForwardMessage));
+  const messageActionsFor = useStableHandler((message: OptimisticTextMessage) => vm.messageActions(message));
   const onRetryUpload = useStableHandler((jobId: string) => {
     const job = vm.chatUploadJobs.find((candidate) => candidate.id === jobId);
     if (!job) return;
@@ -2440,6 +2562,11 @@ function useChatTimelineHandlers(
     onOpenNix,
     onOpenUploadActions,
     onRetryUpload,
+    onReply,
+    onEdit,
+    onUnsend,
+    onForward,
+    messageActionsFor,
   };
 }
 
@@ -2677,6 +2804,7 @@ function ChatReactionPickerLayer({
   picker,
   open,
   minTop,
+  bottomLimit,
   onClose,
   onExited,
 }: {
@@ -2684,6 +2812,7 @@ function ChatReactionPickerLayer({
   picker: ReactionPickerState;
   open: boolean;
   minTop: number;
+  bottomLimit: number;
   onClose: () => void;
   onExited: () => void;
 }) {
@@ -2706,32 +2835,56 @@ function ChatReactionPickerLayer({
         ? 'unsave'
         : 'save'
       : null;
+  const actions = vm.messageActions(message);
+  const isOwn = message.sender_id === vm.currentUserId;
+  const run = (action: () => void) => () => {
+    onClose();
+    action();
+  };
+  // iMessage order: Reply, Copy, Edit, then the rest, destructive actions last.
+  const items: MessageActionMenuItem[] = [];
+  if (actions.reply) {
+    items.push({ key: 'reply', section: 0, label: vm.t('chat.reply'), icon: 'reply', destructive: false, onPress: run(() => vm.handleStartReply(message)) });
+  }
+  if (canCopy) {
+    items.push({ key: 'copy', section: 1, label: vm.t('chat.copy'), icon: 'copy', destructive: false, onPress: run(() => void vm.handleCopyMessage(message)) });
+  }
+  if (actions.edit) {
+    items.push({ key: 'edit', section: 1, label: vm.t('chat.edit'), icon: 'edit', destructive: false, onPress: run(() => vm.handleStartEdit(message)) });
+  }
+  if (actions.forward) {
+    items.push({ key: 'forward', section: 1, label: vm.t('chat.forward'), icon: 'forward', destructive: false, onPress: run(() => vm.handleForwardMessage(message)) });
+  }
+  if (saveAction) {
+    items.push({
+      key: 'save',
+      section: 1,
+      label: saveAction === 'save' ? vm.t('chat.saveMessage') : vm.t('chat.unsaveMessage'),
+      icon: saveAction === 'save' ? 'saveMessage' : 'unsaveMessage',
+      destructive: false,
+      onPress: run(() => void vm.handleSetSaved(message, saveAction === 'save')),
+    });
+  }
+  if (actions.unsend) {
+    items.push({ key: 'unsend', section: 2, label: vm.t('chat.unsend'), icon: 'unsend', destructive: true, onPress: run(() => void vm.handleUnsendMessage(message)) });
+  }
+  if (!isOwn && !message.outboxStatus) {
+    items.push({ key: 'report', section: 2, label: vm.t('chat.reportMessage'), icon: 'report', destructive: true, onPress: run(() => openReportSheet(vm, message)) });
+  }
   return (
     <ReactionPickerOverlay
       picker={picker}
       open={open}
       selectedEmoji={selectedEmoji}
-      canCopy={canCopy}
-      saveAction={saveAction}
-      onToggleSave={() => {
-        onClose();
-        void vm.handleSetSaved(message, saveAction === 'save');
-      }}
+      menuItems={items}
       minTop={minTop}
+      bottomLimit={bottomLimit}
       onDismiss={onClose}
       onExited={onExited}
       onSelect={(emoji) => {
         // Same emoji again = take it back (handled in the view model).
         void vm.handleSetReaction(message, emoji);
         onClose();
-      }}
-      onCopy={() => {
-        onClose();
-        void vm.handleCopyMessage(message);
-      }}
-      onReport={() => {
-        onClose();
-        openReportSheet(vm, message);
       }}
     />
   );
@@ -2766,6 +2919,62 @@ function useRepliedNixJump(
   });
   return { highlightedNixId, nixesById, onShowRepliedNix };
 }
+
+/**
+ * Tapping a quote (or its VoiceOver action) scrolls to the quoted message and briefly marks its
+ * row. A message outside the loaded timeline: nothing happens.
+ */
+function useQuotedMessageJump(
+  timeline: readonly ChatTimelineEntry[],
+  listRef: RefObject<FlashListRef<ChatTimelineEntry> | null>,
+  motionEnabled: boolean
+) {
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const loadedMessageIds = useMemo(
+    () => new Set(timeline.flatMap((item) => (item.type === 'text' ? [item.message.id] : []))),
+    [timeline],
+  );
+  useEffect(() => {
+    if (!highlightedMessageId) return;
+    const timer = setTimeout(() => setHighlightedMessageId(null), REPLIED_NIX_HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [highlightedMessageId]);
+  const onShowQuotedMessage = useStableHandler((messageId: string) => {
+    const index = chatTimelineMessageIndex(timeline, messageId);
+    if (index < 0) return;
+    selection();
+    void listRef.current?.scrollToIndex({ index, animated: motionEnabled, viewPosition: 0.5 });
+    setHighlightedMessageId(messageId);
+  });
+  return { highlightedMessageId, loadedMessageIds, onShowQuotedMessage };
+}
+
+/** The composer banner for the view model's reply / edit state. */
+function composerContextView(
+  context: ChatComposerContext | null,
+  t: ChatScreenViewModel['t'],
+  peerName: string,
+): ComposerContextView | null {
+  if (!context) return null;
+  if (context.mode === 'edit') {
+    return {
+      mode: 'edit',
+      key: `edit:${context.messageId}:${context.seed}`,
+      title: t('chat.editingMessage'),
+      snippet: '',
+      seedText: context.body,
+    };
+  }
+  return {
+    mode: 'reply',
+    key: `reply:${context.messageId}`,
+    title: context.authorIsMe ? t('chat.replyingToSelf') : t('chat.replyingTo', { name: peerName }),
+    snippet: context.kind === 'voice' ? t('chat.quotedVoice') : context.snippet,
+    seedText: null,
+  };
+}
+
+const EMPTY_ACTIONS: ChatMessageActions = { reply: false, edit: false, unsend: false, forward: false };
 
 export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
   const { colors } = useAppTheme();
@@ -2834,7 +3043,13 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     onOpenNix,
     onOpenUploadActions,
     onRetryUpload,
+    onReply,
+    onEdit,
+    onUnsend,
+    onForward,
+    messageActionsFor,
   } = useChatTimelineHandlers(vm, rootRef, openPicker, requestClosePicker);
+  const onCancelContext = useStableHandler(() => vm.handleCancelComposerContext());
   const onSend = useStableHandler((body: string) => vm.handleSend(body));
   const onPaste = useStableHandler((payload: ChatPastePayload) => vm.handlePaste(payload));
   const onDraftChange = useStableHandler((text: string) => vm.onComposerInput(text));
@@ -2888,6 +3103,12 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     listRef,
     motionEnabled
   );
+  const { highlightedMessageId, loadedMessageIds, onShowQuotedMessage } = useQuotedMessageJump(
+    timeline,
+    listRef,
+    motionEnabled
+  );
+  const composerContext = composerContextView(vm.composerContext, t, peerName);
 
   const renderTimelineItem = useCallback(({ item }: { item: ChatTimelineEntry }) => {
     if (item.type === 'separator') {
@@ -2943,6 +3164,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     const receipt = message.id === receiptMessageId ? outgoingTextStatus(message) : null;
     const voice = chatVoiceInfo(message);
     const reply = chatNixReplyContext(message, currentUserId, nixesById);
+    const quote = chatMessageReplyContext(message, currentUserId);
     return (
       <MessageBubble
         messageId={message.id}
@@ -2970,6 +3192,14 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
         replyToNixId={reply?.nixId ?? null}
         replyToNixKind={reply?.kind ?? 'photo'}
         replyToNixInTimeline={reply?.inTimeline ?? false}
+        quoteAuthor={quote ? (quote.author === 'me' ? t('chat.quoteAuthorYou') : peerName) : null}
+        quoteSnippet={quote?.snippet ?? ''}
+        quoteIsVoice={quote?.kind === 'voice'}
+        quoteMessageId={quote?.messageId ?? null}
+        quoteInTimeline={quote ? loadedMessageIds.has(quote.messageId) : false}
+        edited={Boolean(message.edited_at)}
+        highlighted={highlightedMessageId === message.id}
+        actions={outboxStatus === 'expired' ? EMPTY_ACTIONS : messageActionsFor(message)}
         onOpenPicker={onOpenPicker}
         onReact={onReactToMessage}
         onCopy={onCopyMessage}
@@ -2980,6 +3210,11 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
         onSetSaved={onSetSaved}
         onToggleVoice={onToggleVoice}
         onShowRepliedNix={onShowRepliedNix}
+        onReply={onReply}
+        onEdit={onEdit}
+        onUnsend={onUnsend}
+        onForward={onForward}
+        onShowQuotedMessage={onShowQuotedMessage}
       />
     );
   }, [
@@ -2990,8 +3225,16 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     canSaveMessages,
     currentUserId,
     focusedMessageId,
+    highlightedMessageId,
     highlightedNixId,
+    loadedMessageIds,
     locale,
+    messageActionsFor,
+    onEdit,
+    onForward,
+    onReply,
+    onShowQuotedMessage,
+    onUnsend,
     nixesById,
     onCancelSending,
     onCopyMessage,
@@ -3084,6 +3327,8 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
           voiceAvailable={vm.canRecordVoice}
           onSendVoice={onSendVoice}
           onVoiceRecordingStart={pauseVoice}
+          context={composerContext}
+          onCancelContext={onCancelContext}
         />
         <ScrollToBottomButton
           visible={scrolledUp && !isEmpty}
@@ -3101,6 +3346,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
           picker={picker}
           open={pickerOpen}
           minTop={listTopInset}
+          bottomLimit={restingPad}
           onClose={requestClosePicker}
           onExited={finishClosePicker}
         />
@@ -3321,6 +3567,13 @@ const styles = StyleSheet.create({
     zIndex: 21,
     borderRadius: REACTION_BAR_HEIGHT / 2,
   },
+  menuOverlay: {
+    position: 'absolute',
+    zIndex: 21,
+  },
+  scrimPane: {
+    position: 'absolute',
+  },
   reactionBar: {
     height: REACTION_BAR_HEIGHT,
     borderRadius: REACTION_BAR_HEIGHT / 2,
@@ -3490,6 +3743,11 @@ const styles = StyleSheet.create({
     right: 0,
     top: -COMPOSER_EDGE_FADE_EXTRA,
     bottom: 0,
+  },
+  composerContextRow: {
+    // Lines up with the input pill, past the camera button.
+    marginLeft: COMPOSER_CONTROL_SIZE + 8,
+    marginRight: COMPOSER_CONTROL_SIZE + 8,
   },
   composerRow: {
     flexDirection: 'row',

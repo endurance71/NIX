@@ -6,7 +6,12 @@ describe('chatCapabilities', () => {
     expect(parseChatCapabilities({ v: 1, saved_messages: true, voice_messages: true })).toEqual({
       savedMessages: true,
       voiceMessages: true,
+      messageReplies: false,
+      messageEdits: false,
     });
+    expect(
+      parseChatCapabilities({ saved_messages: true, voice_messages: true, message_replies: true, message_edits: true }),
+    ).toEqual({ savedMessages: true, voiceMessages: true, messageReplies: true, messageEdits: true });
     expect(parseChatCapabilities({ saved_messages: 'yes' })).toEqual(NO_CHAT_CAPABILITIES);
     expect(parseChatCapabilities(null)).toEqual(NO_CHAT_CAPABILITIES);
     expect(parseChatCapabilities([])).toEqual(NO_CHAT_CAPABILITIES);

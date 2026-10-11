@@ -805,6 +805,9 @@ export type Database = {
                     "waiting_reason": string | null;
                     "materialized_at": string | null;
                     "reply_to_nix_id": string | null;
+                    "reply_to_message_id": string | null;
+                    "is_edit": boolean;
+                    "edit_of_message_id": string | null;
                 };
                 Insert: {
                     "id"?: string;
@@ -831,6 +834,9 @@ export type Database = {
                     "waiting_reason"?: string | null;
                     "materialized_at"?: string | null;
                     "reply_to_nix_id"?: string | null;
+                    "reply_to_message_id"?: string | null;
+                    "is_edit"?: boolean;
+                    "edit_of_message_id"?: string | null;
                 };
                 Update: {
                     "id"?: string;
@@ -857,6 +863,9 @@ export type Database = {
                     "waiting_reason"?: string | null;
                     "materialized_at"?: string | null;
                     "reply_to_nix_id"?: string | null;
+                    "reply_to_message_id"?: string | null;
+                    "is_edit"?: boolean;
+                    "edit_of_message_id"?: string | null;
                 };
                 Relationships: [
                     {
@@ -877,6 +886,28 @@ export type Database = {
                         ];
                         isOneToOne: false;
                         referencedRelation: "media_upload_batches";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "moderation_jobs_edit_of_message_id_fkey";
+                        columns: [
+                            "edit_of_message_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "text_messages";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "moderation_jobs_reply_to_message_id_fkey";
+                        columns: [
+                            "reply_to_message_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "text_messages";
                         referencedColumns: [
                             "id"
                         ];
@@ -1616,6 +1647,39 @@ export type Database = {
                     }
                 ];
             };
+            "text_message_edits": {
+                Row: {
+                    "id": string;
+                    "message_id": string;
+                    "previous_body": string;
+                    "edited_at": string;
+                };
+                Insert: {
+                    "id"?: string;
+                    "message_id": string;
+                    "previous_body": string;
+                    "edited_at"?: string;
+                };
+                Update: {
+                    "id"?: string;
+                    "message_id"?: string;
+                    "previous_body"?: string;
+                    "edited_at"?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "text_message_edits_message_id_fkey";
+                        columns: [
+                            "message_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "text_messages";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    }
+                ];
+            };
             "text_messages": {
                 Row: {
                     "id": string;
@@ -1635,6 +1699,9 @@ export type Database = {
                     "voice_duration_ms": number | null;
                     "voice_waveform": (number)[] | null;
                     "reply_to_nix_id": string | null;
+                    "reply_to_message_id": string | null;
+                    "edited_at": string | null;
+                    "edit_count": number;
                 };
                 Insert: {
                     "id"?: string;
@@ -1654,6 +1721,9 @@ export type Database = {
                     "voice_duration_ms"?: number | null;
                     "voice_waveform"?: (number)[] | null;
                     "reply_to_nix_id"?: string | null;
+                    "reply_to_message_id"?: string | null;
+                    "edited_at"?: string | null;
+                    "edit_count"?: number;
                 };
                 Update: {
                     "id"?: string;
@@ -1673,6 +1743,9 @@ export type Database = {
                     "voice_duration_ms"?: number | null;
                     "voice_waveform"?: (number)[] | null;
                     "reply_to_nix_id"?: string | null;
+                    "reply_to_message_id"?: string | null;
+                    "edited_at"?: string | null;
+                    "edit_count"?: number;
                 };
                 Relationships: [
                     {
@@ -1682,6 +1755,17 @@ export type Database = {
                         ];
                         isOneToOne: false;
                         referencedRelation: "profiles";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "text_messages_reply_to_message_id_fkey";
+                        columns: [
+                            "reply_to_message_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "text_messages";
                         referencedColumns: [
                             "id"
                         ];
@@ -2081,12 +2165,20 @@ export type Database = {
                 };
                 Returns: undefined;
             };
+            "edit_own_text_message": {
+                Args: {
+                    "p_message_id": string | null;
+                    "p_body": string | null;
+                };
+                Returns: Json;
+            };
             "enqueue_own_text_moderation_job": {
                 Args: {
                     "p_receiver_id": string | null;
                     "p_body": string | null;
                     "p_client_message_id"?: string | null;
                     "p_reply_to_nix_id"?: string | null;
+                    "p_reply_to_message_id"?: string | null;
                 };
                 Returns: Json;
             };
@@ -2151,6 +2243,11 @@ export type Database = {
                     "voice_waveform": (number)[];
                     "reply_to_nix_id": string;
                     "reply_to_nix_media_type": string;
+                    "edited_at": string;
+                    "reply_to_message_id": string;
+                    "reply_to_message_sender_id": string;
+                    "reply_to_message_kind": string;
+                    "reply_to_message_body": string;
                 })[];
             };
             "finalize_media_upload_batch": {
@@ -2633,6 +2730,12 @@ export type Database = {
                     "p_blocked_user_id": string | null;
                 };
                 Returns: undefined;
+            };
+            "unsend_own_text_message": {
+                Args: {
+                    "p_message_id": string | null;
+                };
+                Returns: string;
             };
             "update_user_activation_state": {
                 Args: {

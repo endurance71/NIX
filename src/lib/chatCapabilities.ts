@@ -2,9 +2,18 @@
 export type ChatCapabilities = {
   savedMessages: boolean;
   voiceMessages: boolean;
+  /** Swipe / menu „Odpowiedz” quoting a message (20261014100000). */
+  messageReplies: boolean;
+  /** Edit and unsend own messages (20261014100000). */
+  messageEdits: boolean;
 };
 
-export const NO_CHAT_CAPABILITIES: ChatCapabilities = { savedMessages: false, voiceMessages: false };
+export const NO_CHAT_CAPABILITIES: ChatCapabilities = {
+  savedMessages: false,
+  voiceMessages: false,
+  messageReplies: false,
+  messageEdits: false,
+};
 
 /** Reads the `get_chat_capabilities` answer; anything unexpected means „not supported”. */
 export function parseChatCapabilities(data: unknown): ChatCapabilities {
@@ -13,6 +22,8 @@ export function parseChatCapabilities(data: unknown): ChatCapabilities {
   return {
     savedMessages: value.saved_messages === true,
     voiceMessages: value.voice_messages === true,
+    messageReplies: value.message_replies === true,
+    messageEdits: value.message_edits === true,
   };
 }
 

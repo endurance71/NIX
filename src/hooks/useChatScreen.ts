@@ -14,9 +14,14 @@ import type { InboxBundle } from '../lib/inboxQuery';
 import { runWithFinally } from '../lib/runWithFinally';
 import {
   cancelOwnTextMessage,
+  editOwnTextMessage,
   fetchRecentTextMessagesWithPeer,
   setTextMessageSaved,
+  unsendOwnTextMessage,
+  waitForTextEdit,
 } from '../services/textMessageService';
+import { chatMessageActions, type ChatMessageActions } from '../lib/chatMessageActions';
+import { DomainError } from '../services/errors';
 import {
   deleteLocalRecording,
   discardVoiceUpload,
@@ -343,6 +348,8 @@ function useChatCapabilities(canUseNetworkSession: boolean) {
   const capabilities: ChatCapabilities = {
     savedMessages: data.savedMessages && !missing.savedMessages,
     voiceMessages: data.voiceMessages && !missing.voiceMessages,
+    messageReplies: data.messageReplies && !missing.messageReplies,
+    messageEdits: data.messageEdits && !missing.messageEdits,
   };
   const markMissing = useCallback((feature: keyof ChatCapabilities) => {
     setMissing((current) => (current[feature] ? current : { ...current, [feature]: true }));
@@ -353,6 +360,11 @@ function useChatCapabilities(canUseNetworkSession: boolean) {
 function generateVoiceClientId(): string {
   return generateClientMessageId();
 }
+
+/** What the composer is doing on top of a plain message: answering one, or editing my own. */
+export type ChatComposerContext =
+  | { mode: 'reply'; messageId: string; authorIsMe: boolean; kind: 'text' | 'voice'; snippet: string }
+  | { mode: 'edit'; messageId: string; body: string; seed: number };
 
 export function useChatScreen(peerId: string) {
   const { t, i18n } = useTranslation();
@@ -415,6 +427,13 @@ export function useChatScreen(peerId: string) {
   const { capabilities, markMissing } = useChatCapabilities(canUseNetworkSession);
   // Voice messages being uploaded / sent from this screen (in memory; see chatVoiceOutbox).
   const [pendingVoice, setPendingVoice] = useState<PendingVoiceMessage[]>([]);
+  // Swipe / menu „Odpowiedz” and „Edytuj”: shown above the composer until sent or cancelled.
+  const [composerContextState, setComposerContext] = useState<{
+    peerId: string;
+    context: ChatComposerContext;
+  } | null>(null);
+  const composerContext = composerContextState?.peerId === peerId ? composerContextState.context : null;
+  const editSeedRef = useRef(0);
   const pendingVoiceRef = useRef<PendingVoiceMessage[]>(pendingVoice);
   useEffect(() => {
     pendingVoiceRef.current = pendingVoice;
@@ -508,8 +527,10 @@ export function useChatScreen(peerId: string) {
   const handleSend = async (body: string): Promise<boolean> => {
     const trimmed = body.trim();
     if (!trimmed || sendingRef.current || !peerId) return false;
+    if (composerContext?.mode === 'edit') return handleSubmitEdit(composerContext.messageId, trimmed);
 
     const clientMessageId = generateClientMessageId();
+    const replyToMessageId = composerContext?.mode === 'reply' ? composerContext.messageId : null;
     sendingRef.current = true;
     typing.onComposerStop();
 
@@ -517,8 +538,9 @@ export function useChatScreen(peerId: string) {
     await runWithFinally(
       async () => {
         try {
-          await enqueueTextOutbox(currentUserId, peerId, trimmed, clientMessageId);
+          await enqueueTextOutbox(currentUserId, peerId, trimmed, clientMessageId, null, replyToMessageId);
           enqueued = true;
+          if (replyToMessageId) setComposerContext(null);
           await outboxQuery.refetch();
         } catch (error) {
           notifyDomainError(error, t('chat.sendFailure'));
@@ -918,6 +940,137 @@ export function useChatScreen(peerId: string) {
     }
   };
 
+  const messagesKey = queryKeys.textMessagesWithPeer(peerId);
+
+  /** What the menu offers for this message right now (windows checked at open time). */
+  const messageActions = (message: OptimisticTextMessage): ChatMessageActions =>
+    chatMessageActions(message, {
+      currentUserId,
+      now: Date.now(),
+      online: networkAvailable,
+      capabilities,
+    });
+
+  const handleStartReply = (message: OptimisticTextMessage) => {
+    if (!messageActions(message).reply) return;
+    selection();
+    const isVoice = message.kind === 'voice';
+    setComposerContext({
+      peerId,
+      context: {
+        mode: 'reply',
+        messageId: message.id,
+        authorIsMe: message.sender_id === currentUserId,
+        kind: isVoice ? 'voice' : 'text',
+        snippet: isVoice ? '' : message.body.replace(/\s+/g, ' ').trim(),
+      },
+    });
+  };
+
+  const handleStartEdit = (message: OptimisticTextMessage) => {
+    if (!messageActions(message).edit) return;
+    editSeedRef.current += 1;
+    setComposerContext({
+      peerId,
+      context: { mode: 'edit', messageId: message.id, body: message.body, seed: editSeedRef.current },
+    });
+  };
+
+  const handleCancelComposerContext = () => setComposerContext(null);
+
+  /** Edit: the new text shows at once; a moderated edit is checked in the background. */
+  const handleSubmitEdit = async (messageId: string, body: string): Promise<boolean> => {
+    if (!canUseNetworkSession) {
+      notifyOffline();
+      return false;
+    }
+    const original = queryClient.getQueryData<TextMessage[]>(messagesKey)?.find((row) => row.id === messageId);
+    if (!original) {
+      setComposerContext(null);
+      notifyError(t('chat.editFailure'));
+      return false;
+    }
+    if (original.body === body) {
+      setComposerContext(null);
+      return true;
+    }
+    typing.onComposerStop();
+    const restore = () =>
+      queryClient.setQueryData<TextMessage[]>(messagesKey, (rows) =>
+        rows?.map((row) => (row.id === messageId ? { ...row, body: original.body, edited_at: original.edited_at } : row)),
+      );
+    queryClient.setQueryData<TextMessage[]>(messagesKey, (rows) =>
+      rows?.map((row) => (row.id === messageId ? { ...row, body, edited_at: new Date().toISOString() } : row)),
+    );
+    setComposerContext(null);
+    try {
+      const result = await editOwnTextMessage(messageId, body);
+      if (result.status === 'pending') {
+        void waitForTextEdit(result.jobId)
+          .then(() => queryClient.invalidateQueries({ queryKey: messagesKey }))
+          .catch((error: unknown) => {
+            restore();
+            void queryClient.invalidateQueries({ queryKey: messagesKey });
+            if (error instanceof DomainError && error.code === 'CONTENT_NOT_ALLOWED') {
+              notifyError(t('chat.editRejected'));
+            } else {
+              notifyDomainError(error, t('chat.editFailure'));
+            }
+          });
+      } else {
+        void queryClient.invalidateQueries({ queryKey: messagesKey });
+      }
+      refreshInboxInBackground();
+      return true;
+    } catch (error) {
+      restore();
+      if (isMissingChatFeatureError(error)) {
+        markMissing('messageEdits');
+        notifyError(t('chat.editFailure'));
+        return false;
+      }
+      notifyDomainError(error, t('chat.editFailure'));
+      return false;
+    }
+  };
+
+  /** Undo Send: gone for both people at once; put back if the server says it is too late. */
+  const handleUnsendMessage = async (message: OptimisticTextMessage) => {
+    if (!canUseNetworkSession) {
+      notifyOffline();
+      return;
+    }
+    if (!messageActions(message).unsend) return;
+    const previous = queryClient.getQueryData<TextMessage[]>(messagesKey);
+    queryClient.setQueryData<TextMessage[]>(messagesKey, (rows) => rows?.filter((row) => row.id !== message.id));
+    if (composerContext?.messageId === message.id) setComposerContext(null);
+    try {
+      const result = await unsendOwnTextMessage(message.id);
+      if (result === 'window_closed') {
+        queryClient.setQueryData(messagesKey, previous);
+        notifyInfo(t('chat.unsendTooLate'));
+        return;
+      }
+      notifySuccess(t('chat.unsent'));
+      refreshInboxInBackground();
+    } catch (error) {
+      queryClient.setQueryData(messagesKey, previous);
+      if (isMissingChatFeatureError(error)) {
+        markMissing('messageEdits');
+        return;
+      }
+      notifyDomainError(error, t('chat.unsendFailure'));
+    }
+  };
+
+  const handleForwardMessage = (message: OptimisticTextMessage) => {
+    if (!messageActions(message).forward) return;
+    router.push({
+      pathname: '/forward-message',
+      params: { peerId, messageId: message.id },
+    });
+  };
+
   const handleCopyMessage = async (message: TextMessage) => {
     const copied = await copyTextToClipboard(message.body);
     if (copied) notifySuccess(t('chat.copied'));
@@ -1055,6 +1208,14 @@ export function useChatScreen(peerId: string) {
     handleCopyMessage,
     handleSetSaved,
     handleSendVoice,
+    messageActions,
+    composerContext,
+    handleStartReply,
+    handleStartEdit,
+    handleCancelComposerContext,
+    handleUnsendMessage,
+    handleForwardMessage,
+    canReplyToMessages: capabilities.messageReplies,
     canSaveMessages: capabilities.savedMessages && canUseNetworkSession,
     canRecordVoice: capabilities.voiceMessages && networkAvailable,
     voiceMessagesSupported: capabilities.voiceMessages,

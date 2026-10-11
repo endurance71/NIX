@@ -23,6 +23,7 @@ function job(
     nextAttemptAt: 0,
     errorCode: null,
     replyToNixId: null,
+    replyToMessageId: null,
   };
 }
 const server: TextMessage = {

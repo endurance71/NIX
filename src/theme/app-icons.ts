@@ -105,7 +105,11 @@ export type AppIconName =
   | 'stopFill'
   | 'chevronLeft'
   // Search fields: clears the query.
-  | 'clearText';
+  | 'clearText'
+  // Chat message menu: reply, forward, undo send.
+  | 'reply'
+  | 'forward'
+  | 'unsend';
 
 /** Canonical point sizes for SF Symbols across AppIcon / SwiftImage / SymbolView. */
 export const APP_ICON_SIZE = {
@@ -229,6 +233,9 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   micFill: 'mic.fill',
   chevronLeft: 'chevron.left',
   clearText: 'xmark.circle.fill',
+  reply: 'arrowshape.turn.up.left',
+  forward: 'arrowshape.turn.up.right',
+  unsend: 'arrow.uturn.backward.circle',
 };
 
 export function resolveAppIconName(name: AppIconName): SFSymbol {

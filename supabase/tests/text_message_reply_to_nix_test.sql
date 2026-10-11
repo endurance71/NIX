@@ -69,9 +69,9 @@ SELECT is(
 );
 
 SELECT ok(
-  has_function_privilege('authenticated', 'public.enqueue_own_text_moderation_job(uuid,text,text,uuid)', 'EXECUTE')
-  AND has_function_privilege('service_role', 'public.enqueue_own_text_moderation_job(uuid,text,text,uuid)', 'EXECUTE')
-  AND NOT has_function_privilege('anon', 'public.enqueue_own_text_moderation_job(uuid,text,text,uuid)', 'EXECUTE'),
+  has_function_privilege('authenticated', 'public.enqueue_own_text_moderation_job(uuid,text,text,uuid,uuid)', 'EXECUTE')
+  AND has_function_privilege('service_role', 'public.enqueue_own_text_moderation_job(uuid,text,text,uuid,uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public.enqueue_own_text_moderation_job(uuid,text,text,uuid,uuid)', 'EXECUTE'),
   'enqueue_own_text_moderation_job: authenticated + service_role only'
 );
 
