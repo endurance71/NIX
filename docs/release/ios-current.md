@@ -40,6 +40,11 @@ Seventh OTA (2026-10-11): update group `5d2701d5-a5c2-4caf-a347-de9c2f4e3777`, s
 inbox search field visible again, new-chat sheet header, preview text on letterboxed media, centered Back on the media
 error screen, inline titles on settings subpages, accent preview pill, friend-detail row icon, chat menu labels and
 „NiX-a" spelling.
+Eighth OTA (2026-10-11): update group `ca9bb39d-f01a-491f-bf6f-c66f24b7b824`, source `e57cb18` — swipeable Memories
+gallery with pinch zoom, drag across the lens switcher, and the remaining QA fixes (startup remount hardening, send-to
+keyboard, inbox rows at accessibility sizes, accent text contrast, WYSIWYG text position, viewer copy, reply header,
+chat menu Pin + report confirmation, settings and legal copy). The PL/EN photo-library add purpose strings
+(`InfoPlist.strings`) ship only with the next native build.
 
 The 1.0.12 App Review track
 (build 11) is unaffected.
