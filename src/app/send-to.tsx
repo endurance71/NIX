@@ -1,6 +1,16 @@
 import { paramFirst, decodeParamUri } from '../lib/previewRoute';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { SFSymbol } from 'sf-symbols-typescript';
+import { Host } from '@expo/ui';
+import {
+  Button as SwiftButton,
+  HStack,
+  Image as SwiftImage,
+  Text as SwiftText,
+  VStack,
+} from '@expo/ui/swift-ui';
+import { buttonStyle, controlSize, font, foregroundStyle, frame, tint } from '@expo/ui/swift-ui/modifiers';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,12 +24,15 @@ import { typography } from '../theme/typography';
 import { AppIcon } from '../components/ui/app-icon';
 import { AvatarCircle } from '../components/ui/avatar-circle';
 import { Button } from '../components/ui/button';
+import { NativeChromeIconButton } from '../components/ui/native-chrome-icon-button';
+import { NativeSearchField } from '../components/ui/native-search-field';
+import { canUseLiquidGlass } from '../lib/liquidGlass';
 import { normalizeNixViewDurationSec } from '../lib/nixViewDuration';
 import { applySuggestedRecipientOnce } from '../lib/suggestedRecipient';
 import { toggleSetValue } from '../lib/selection';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { selection } from '../lib/haptics';
-import { APP_ICON_SIZE } from '../theme/app-icons';
+import { APP_ICON_SIZE, resolveAppIconName } from '../theme/app-icons';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { useSignedAvatarUrls } from '../hooks/useSignedAvatarUrls';
@@ -38,6 +51,8 @@ import { friendshipBadgeAccessibilityLabel, type FriendshipBadge } from '../lib/
 import { StreakBadge } from '../components/friend/StreakBadge';
 
 const RECENT_RECIPIENTS_LIMIT = 5;
+/** 44 pt: the sheet's close button and the matching empty slot on the left. */
+const HEADER_BUTTON_SIZE = 44;
 
 type RecipientListItem =
   | { type: 'header'; key: string; title: string }
@@ -123,6 +138,11 @@ function SectionHeader({ title }: { title: string }) {
   );
 }
 
+const EMPTY_ACTIONS = [
+  { path: '/friend-scan-qr', icon: 'personAdd', labelKey: 'sendTo.addFriendsCta' },
+  { path: '/friend-my-code', icon: 'myQrCode', labelKey: 'sendTo.myQrCodeCta' },
+] as const;
+
 function openFromEmptyState(pathname: '/friend-scan-qr' | '/friend-my-code') {
   router.dismiss();
   setTimeout(() => router.push(pathname), 50);
@@ -136,7 +156,7 @@ function EmptyRecipients({
   offlineSnapshotMissing: boolean;
 }) {
   const { t } = useTranslation();
-  const { colors } = useAppTheme();
+  const { colors, colorScheme } = useAppTheme();
   if (offlineSnapshotMissing) {
     return (
       <View style={stylesForTheme.emptyState}>
@@ -147,34 +167,31 @@ function EmptyRecipients({
   return (
     <View style={stylesForTheme.emptyState}>
       <Text style={stylesForTheme.emptyStateText}>{t('sendTo.empty')}</Text>
-      <View style={styles.emptyActions}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => openFromEmptyState('/friend-scan-qr')}
-          style={({ pressed }) => [
-            styles.emptyAction,
-            { backgroundColor: colors.secondarySystemFill },
-            pressed && styles.pressed,
-          ]}>
-          <AppIcon name="personAdd" size={APP_ICON_SIZE.md} color={colors.accent} />
-          <Text style={[styles.emptyActionText, { color: colors.accent }]}>
-            {t('sendTo.addFriendsCta')}
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => openFromEmptyState('/friend-my-code')}
-          style={({ pressed }) => [
-            styles.emptyAction,
-            { backgroundColor: colors.secondarySystemFill },
-            pressed && styles.pressed,
-          ]}>
-          <AppIcon name="myQrCode" size={APP_ICON_SIZE.md} color={colors.accent} />
-          <Text style={[styles.emptyActionText, { color: colors.accent }]}>
-            {t('sendTo.myQrCodeCta')}
-          </Text>
-        </Pressable>
-      </View>
+      <Host matchContents={{ vertical: true }} colorScheme={colorScheme} style={styles.emptyActions}>
+        <VStack spacing={10}>
+          {EMPTY_ACTIONS.map((action) => (
+            <SwiftButton
+              key={action.path}
+              onPress={() => openFromEmptyState(action.path)}
+              modifiers={[
+                buttonStyle(canUseLiquidGlass() ? 'glass' : 'bordered'),
+                controlSize('large'),
+                tint(colors.accent),
+              ]}>
+              <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity, minHeight: 32 })]}>
+                <SwiftImage
+                  systemName={resolveAppIconName(action.icon) as SFSymbol}
+                  size={APP_ICON_SIZE.md}
+                  color={colors.accent}
+                />
+                <SwiftText modifiers={[font({ textStyle: 'headline' }), foregroundStyle(colors.accent)]}>
+                  {t(action.labelKey)}
+                </SwiftText>
+              </HStack>
+            </SwiftButton>
+          ))}
+        </VStack>
+      </Host>
     </View>
   );
 }
@@ -256,7 +273,7 @@ function RecipientList({
 
 function SendToHeader({ disabled }: { disabled: boolean }) {
   const { t } = useTranslation();
-  const { colors } = useAppTheme();
+  const { colors, colorScheme } = useAppTheme();
   return (
     <View style={styles.header}>
       <View style={styles.headerSide} />
@@ -264,49 +281,20 @@ function SendToHeader({ disabled }: { disabled: boolean }) {
         {t('sendTo.title')}
       </Text>
       <View style={[styles.headerSide, styles.headerSideEnd]}>
-        <Pressable
-          accessibilityRole="button"
+        {/* The iOS 26 sheet close button: a glass circle (gray circle below iOS 26). */}
+        <NativeChromeIconButton
+          name="close"
           accessibilityLabel={t('common.close')}
-          accessibilityState={{ disabled }}
           disabled={disabled}
-          hitSlop={8}
           onPress={() => router.back()}
-          style={({ pressed }) => [
-            styles.closeButton,
-            { backgroundColor: colors.secondarySystemFill },
-            (pressed || disabled) && styles.pressed,
-          ]}>
-          <AppIcon name="close" size={APP_ICON_SIZE.sm} color={colors.secondaryLabel} />
-        </Pressable>
+          size={HEADER_BUTTON_SIZE}
+          iconSize={APP_ICON_SIZE.md}
+          iconWeight="semibold"
+          backgroundColor={canUseLiquidGlass() ? 'transparent' : colors.secondarySystemFill}
+          tintColor={colors.label}
+          colorScheme={colorScheme}
+        />
       </View>
-    </View>
-  );
-}
-
-function RecipientSearchField({
-  value,
-  onChangeText,
-}: {
-  value: string;
-  onChangeText: (value: string) => void;
-}) {
-  const { t } = useTranslation();
-  const { colors } = useAppTheme();
-  return (
-    <View style={[styles.searchField, { backgroundColor: colors.secondarySystemFill }]}>
-      <AppIcon name="search" size={APP_ICON_SIZE.sm} color={colors.secondaryLabel} />
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={t('sendTo.searchPlaceholder')}
-        placeholderTextColor={colors.secondaryLabel}
-        accessibilityLabel={t('sendTo.searchPlaceholder')}
-        autoCapitalize="none"
-        autoCorrect={false}
-        clearButtonMode="while-editing"
-        returnKeyType="search"
-        style={[styles.searchInput, { color: colors.label }]}
-      />
     </View>
   );
 }
@@ -477,7 +465,13 @@ export default function SendToSheet() {
       <SendToHeader disabled={isSending} />
       <OfflineStatusBanner />
       {profiles.length > 0 ? (
-        <RecipientSearchField value={searchQuery} onChangeText={setSearchQuery} />
+        <NativeSearchField
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder={t('sendTo.searchPlaceholder')}
+          clearAccessibilityLabel={t('sendTo.clearSearch')}
+          style={styles.searchField}
+        />
       ) : null}
 
       <RecipientList
@@ -517,7 +511,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   headerSide: {
-    width: 44,
+    width: HEADER_BUTTON_SIZE,
   },
   headerSideEnd: {
     alignItems: 'flex-end',
@@ -527,28 +521,9 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
   },
-  closeButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   searchField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
     marginHorizontal: 16,
     marginTop: 8,
-    paddingHorizontal: 10,
-    minHeight: 36,
-    borderRadius: 10,
-    borderCurve: 'continuous',
-  },
-  searchInput: {
-    ...typography.body,
-    flex: 1,
-    paddingVertical: 7,
   },
   sectionHeader: {
     ...typography.footnote,
@@ -595,23 +570,6 @@ const styles = StyleSheet.create({
   },
   emptyActions: {
     marginTop: 16,
-    gap: 10,
-  },
-  emptyAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 48,
-    borderRadius: 12,
-    borderCurve: 'continuous',
-    paddingHorizontal: 16,
-  },
-  emptyActionText: {
-    ...typography.headline,
-  },
-  pressed: {
-    opacity: 0.6,
   },
 });
 
