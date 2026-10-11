@@ -23,19 +23,15 @@ describe('resolveButtonAppearance', () => {
     });
   });
 
-  it('keeps secondary and tertiary readable on black media surfaces in light mode', () => {
-    expect(resolveButtonAppearance('secondary', lightColors).foregroundColor).toBe(lightColors.label);
-    expect(resolveButtonAppearance('secondary', lightColors, true)).toEqual({
-      backgroundColor: lightColors.viewerChromeFill,
-      foregroundColor: lightColors.cameraControlTint,
+  it('draws secondary on the system fill and tertiary as accent text', () => {
+    expect(resolveButtonAppearance('secondary', lightColors)).toEqual({
+      backgroundColor: lightColors.secondarySystemFill,
+      foregroundColor: lightColors.label,
     });
     expect(resolveButtonAppearance('tertiary', lightColors)).toEqual({
       backgroundColor: 'transparent',
       foregroundColor: lightColors.accent,
     });
-    expect(resolveButtonAppearance('tertiary', lightColors, true).foregroundColor).toBe(
-      lightColors.cameraControlTint,
-    );
   });
 });
 

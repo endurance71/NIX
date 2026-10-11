@@ -25,18 +25,15 @@ type ButtonPalette = Pick<
   | 'onDestructive'
   | 'label'
   | 'secondarySystemFill'
-  | 'viewerChromeFill'
-  | 'cameraControlTint'
 >;
 
 /**
- * Fill and ink for a `Button`. `onMedia` keeps the non-filled variants readable on the black
- * cinema surfaces (camera, preview, viewer) in light mode, where theme labels are black.
+ * Fill and ink for a `Button`. The black cinema surfaces (camera, preview, viewer) use native
+ * SwiftUI glass actions instead (`NativeMediaActions`, `NativeChromeIconButton`).
  */
 export function resolveButtonAppearance(
   variant: ButtonVariant,
   colors: ButtonPalette,
-  onMedia = false,
 ): ButtonAppearance {
   switch (variant) {
     case 'primary':
@@ -44,14 +41,9 @@ export function resolveButtonAppearance(
     case 'destructive':
       return { backgroundColor: colors.destructive, foregroundColor: colors.onDestructive };
     case 'secondary':
-      return onMedia
-        ? { backgroundColor: colors.viewerChromeFill, foregroundColor: colors.cameraControlTint }
-        : { backgroundColor: colors.secondarySystemFill, foregroundColor: colors.label };
+      return { backgroundColor: colors.secondarySystemFill, foregroundColor: colors.label };
     case 'tertiary':
-      return {
-        backgroundColor: 'transparent',
-        foregroundColor: onMedia ? colors.cameraControlTint : colors.accent,
-      };
+      return { backgroundColor: 'transparent', foregroundColor: colors.accent };
   }
 }
 

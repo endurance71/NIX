@@ -38,8 +38,6 @@ type ButtonProps = {
   disabled?: boolean;
   /** Stretch to the parent's width; otherwise the button hugs its content and centers itself. */
   fullWidth?: boolean;
-  /** Use on the black cinema surfaces (camera, preview, viewer): light ink in both themes. */
-  onMedia?: boolean;
   accessibilityLabel?: string;
   accessibilityHint?: string;
   testID?: string;
@@ -62,7 +60,6 @@ export function Button({
   loading = false,
   disabled = false,
   fullWidth = false,
-  onMedia = false,
   accessibilityLabel,
   accessibilityHint,
   testID,
@@ -71,7 +68,7 @@ export function Button({
   const { colors } = useAppTheme();
   const motionEnabled = useMotionEnabled();
   const interactive = isButtonInteractive(disabled, loading);
-  const { backgroundColor, foregroundColor } = resolveButtonAppearance(variant, colors, onMedia);
+  const { backgroundColor, foregroundColor } = resolveButtonAppearance(variant, colors);
   const height = BUTTON_HEIGHT[size];
 
   return (

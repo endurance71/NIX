@@ -37,8 +37,8 @@ import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
-import { Button } from '../components/ui/button';
 import { NativeChromeIconButton } from '../components/ui/native-chrome-icon-button';
+import { NativeMediaActions } from '../components/ui/native-media-actions';
 import { NativePreviewSendButton } from '../components/ui/native-preview-send-button';
 import PreviewDurationMenu from '../components/ui/preview-duration-menu';
 import { useScreenInsets } from '../hooks/useScreenInsets';
@@ -592,11 +592,17 @@ function PreviewMediaError({
   styles: ReturnType<typeof createStyles>;
 }) {
   const { t } = useTranslation();
+  const { colors } = useAppTheme();
   return (
     <View style={styles.container}>
       <StatusBar style="light" hidden={false} />
       <Text style={styles.errorText}>{message}</Text>
-      <Button title={t('common.back')} onPress={onBack} variant="secondary" onMedia style={styles.backButton} />
+      <View style={styles.backButton}>
+        <NativeMediaActions
+          actions={[{ key: 'back', label: t('common.back'), accessibilityLabel: t('common.back'), onPress: onBack }]}
+          tintColor={colors.cameraControlTint}
+        />
+      </View>
     </View>
   );
 }
@@ -650,6 +656,7 @@ function PreviewVideoMedia({
   styles: ReturnType<typeof createStyles>;
 }) {
   const { t } = useTranslation();
+  const { colors } = useAppTheme();
   return (
     <>
       {videoState.audioReady ? (
@@ -698,13 +705,19 @@ function PreviewVideoMedia({
       {videoError ? (
         <View style={styles.errorOverlay}>
           <Text style={styles.errorText}>{videoError}</Text>
-          <Button
-            title={t('common.back')}
-            onPress={() => discardPreview(clearDraft)}
-            variant="secondary"
-            onMedia
-            style={styles.backButton}
-          />
+          <View style={styles.backButton}>
+            <NativeMediaActions
+              actions={[
+                {
+                  key: 'back',
+                  label: t('common.back'),
+                  accessibilityLabel: t('common.back'),
+                  onPress: () => discardPreview(clearDraft),
+                },
+              ]}
+              tintColor={colors.cameraControlTint}
+            />
+          </View>
         </View>
       ) : null}
     </>
