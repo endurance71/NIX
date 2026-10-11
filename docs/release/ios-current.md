@@ -78,6 +78,8 @@ login tagline.
 Thirty-fourth OTA (2026-10-11): update group `7eedf139-be50-4e86-bc2a-10e2240cc946`, source `55c4e7d` — the
 login form no longer jumps on any tap (RN scroll view around a content-sized native card) and the logo's N is
 drawn in one continuous move.
+Thirty-fifth OTA (2026-10-11): update group `ab34273b-6aa9-44b6-bab7-0040bb431e80`, source `5c04f8a` — the
+accent picked during welcome set-up eases in (tile, progress, glow crossfade, button tint).
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
