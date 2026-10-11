@@ -40,6 +40,8 @@ animations where only the open was animated (reply / edit banner, focus square, 
 preview Save / Send) and the native zoom from a Memories cell into the viewer.
 Eighteenth OTA (2026-10-11): update group `15071e7f-9e61-460b-a7b6-19de92cdf397`, source `cd783eb` — the Memories
 viewer is pushed instead of presented, so the zoom transition actually runs (it still slid up as a modal).
+Nineteenth OTA (2026-10-11): update group `714ce7a0-5808-4c1e-ac14-3ca2e9c54661`, source `238d5b0` — after
+paging in the Memories viewer, closing zooms into the cell of the memory on screen (not the first one opened).
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
