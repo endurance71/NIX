@@ -45,6 +45,8 @@ paging in the Memories viewer, closing zooms into the cell of the memory on scre
 Twentieth OTA (2026-10-11): update group `06a32675-f71e-4847-9d36-8725d5801607`, source `e5aaf21` — motion-graphics
 welcome tour (`/welcome`). Not shown on first launch yet; Profile → Testing (owner account / simulator only) opens it
 or shows it on every launch.
+Twenty-first OTA (2026-10-11): update group `8916ff6e-46bd-4151-b8d1-2cf289bb95a6`, source `1b79d87` — the welcome
+tour opens and ends on the NiX logo drawing itself with the wordmark.
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
