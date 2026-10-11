@@ -2758,6 +2758,18 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
         />
       );
     }
+    if (item.type === 'media' && item.nix) {
+      // Delivered: the upload bubble becomes a regular NiX chip (icon + Snapchat-style status).
+      return (
+        <NixChip
+          nix={item.nix}
+          reaction={nixReactionsById[item.nix.id]?.emoji ?? null}
+          maxWidth={bubbleMaxWidth}
+          t={t}
+          onOpen={onOpenNix}
+        />
+      );
+    }
     if (item.type === 'media') {
       return (
         <OutgoingMediaBubble
