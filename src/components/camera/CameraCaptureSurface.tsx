@@ -289,10 +289,20 @@ function FocusIndicatorSquare({
     opacity: opacity.get(),
     transform: [{ scale: scale.get() }],
   }));
+  // A locked square cleared by a lens change, flip or leaving fades from where it is (an
+  // already faded one stays invisible) instead of vanishing.
+  const exiting = () => {
+    'worklet';
+    return {
+      initialValues: { opacity: opacity.get() },
+      animations: { opacity: withTiming(0, { duration: 150 }) },
+    };
+  };
 
   return (
     <Animated.View
       pointerEvents="none"
+      exiting={exiting}
       style={[style, { left: indicator.left, top: indicator.top }, animatedStyle]}
     />
   );

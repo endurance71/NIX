@@ -251,11 +251,11 @@ export function usePreviewTextStickerController({
   }, [animateEnter, motionEnabled, presence]);
 
   useEffect(() => {
-    if (!isEditing) {
-      actionsReady.set(0);
-      return;
-    }
+    // Leaving edit: the confirm / delete row fades out with `editProgress` (zeroing it here cut
+    // the row at once). The next edit re-arms it until the keyboard is up.
+    if (!isEditing) return;
     if (!animateEnter || !motionEnabled) actionsReady.set(1);
+    else if (keyboardHeightRef.current < 1) actionsReady.set(0);
   }, [actionsReady, animateEnter, isEditing, motionEnabled]);
 
   useLayoutEffect(() => {

@@ -24,6 +24,8 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import type { VideoThumbnail } from 'expo-video';
 import { StatusBar } from 'expo-status-bar';
 import Animated, {
+  LayoutAnimationConfig,
+  ReduceMotion,
   useSharedValue,
   useAnimatedStyle,
   cancelAnimation,
@@ -981,46 +983,76 @@ function PreviewVideoContent({
               enabled={!hasEdits && !isDrawing && !isTextEditing && !directSend.isSending}
             />
 
-            {!isDrawing ? (
-              <View style={styles.bottomControls} pointerEvents={isTextEditing ? 'none' : 'auto'}>
-                <PreviewSaveButton
-                  colors={colors}
-                  disabled={directSend.isSending}
-                  onSave={() =>
-                    saveLocalMediaToGallery({
-                      source: 'preview',
-                      uris: segments.map((segment) => segment.uri),
-                      mediaType: 'video',
-                      segmentCount: segments.length,
-                      textOverlay: normalizeMediaTextOverlay(textOverlay),
-                      drawingOverlay: normalizeMediaDrawingOverlay(drawingOverlay),
-                      viewportWidth: mediaViewport.width,
-                      viewportHeight: mediaViewport.height,
-                    })
-                  }
-                />
-                <View style={styles.sendButtonSlot}>
-                  <PreviewSendControls
-                    recipient={directSend.recipient}
-                    isSending={directSend.isSending}
-                    // Same duration as the send-to sheet uses for video (no picker on clips).
-                    onSendToRecipient={() =>
-                      directSend.sendToRecipient(normalizeNixViewDurationSec(undefined))
-                    }
-                    onOpenSendTo={() => openSendToVideo(recipientId)}
-                    sendToA11y={t('preview.sendRecordingA11y')}
+            <LayoutAnimationConfig skipEntering>
+              {!isDrawing ? (
+                <Animated.View
+                  entering={bottomControlsSlideIn}
+                  exiting={bottomControlsSlideOut}
+                  style={styles.bottomControls}
+                  pointerEvents={isTextEditing ? 'none' : 'auto'}>
+                  <PreviewSaveButton
                     colors={colors}
+                    disabled={directSend.isSending}
+                    onSave={() =>
+                      saveLocalMediaToGallery({
+                        source: 'preview',
+                        uris: segments.map((segment) => segment.uri),
+                        mediaType: 'video',
+                        segmentCount: segments.length,
+                        textOverlay: normalizeMediaTextOverlay(textOverlay),
+                        drawingOverlay: normalizeMediaDrawingOverlay(drawingOverlay),
+                        viewportWidth: mediaViewport.width,
+                        viewportHeight: mediaViewport.height,
+                      })
+                    }
                   />
-                </View>
-              </View>
-            ) : (
-              <View />
-            )}
+                  <View style={styles.sendButtonSlot}>
+                    <PreviewSendControls
+                      recipient={directSend.recipient}
+                      isSending={directSend.isSending}
+                      // Same duration as the send-to sheet uses for video (no picker on clips).
+                      onSendToRecipient={() =>
+                        directSend.sendToRecipient(normalizeNixViewDurationSec(undefined))
+                      }
+                      onOpenSendTo={() => openSendToVideo(recipientId)}
+                      sendToA11y={t('preview.sendRecordingA11y')}
+                      colors={colors}
+                    />
+                  </View>
+                </Animated.View>
+              ) : (
+                <View />
+              )}
+            </LayoutAnimationConfig>
           </View>
         )}
       />
     </View>
   );
+}
+
+/** Save / Send slide below the edge while drawing and back after; glass inside, so no opacity. */
+const BOTTOM_CONTROLS_SLIDE = {
+  duration: 180,
+  easing: Easing.bezier(0.23, 1, 0.32, 1),
+  reduceMotion: ReduceMotion.System,
+};
+const BOTTOM_CONTROLS_OFFSET = 160;
+
+function bottomControlsSlideIn() {
+  'worklet';
+  return {
+    initialValues: { transform: [{ translateY: BOTTOM_CONTROLS_OFFSET }] },
+    animations: { transform: [{ translateY: withTiming(0, BOTTOM_CONTROLS_SLIDE) }] },
+  };
+}
+
+function bottomControlsSlideOut() {
+  'worklet';
+  return {
+    initialValues: { transform: [{ translateY: 0 }] },
+    animations: { transform: [{ translateY: withTiming(BOTTOM_CONTROLS_OFFSET, BOTTOM_CONTROLS_SLIDE) }] },
+  };
 }
 
 export default function PreviewScreen() {
@@ -1351,37 +1383,43 @@ function PreviewPhotoContent({
               enabled={!hasEdits && !isDrawing && !isTextEditing && !directSend.isSending}
             />
 
-            {!isDrawing ? (
-              <View style={styles.bottomControls} pointerEvents={isTextEditing ? 'none' : 'auto'}>
-                <PreviewSaveButton
-                  colors={colors}
-                  disabled={directSend.isSending}
-                  onSave={() =>
-                    saveLocalMediaToGallery({
-                      source: 'preview',
-                      uris: [photoUri],
-                      mediaType: 'image',
-                      textOverlay: normalizeMediaTextOverlay(photoTextOverlay),
-                      drawingOverlay: normalizeMediaDrawingOverlay(photoDrawingOverlay),
-                      viewportWidth: photoViewport.width,
-                      viewportHeight: photoViewport.height,
-                    })
-                  }
-                />
-                <View style={styles.sendButtonSlot}>
-                  <PreviewSendControls
-                    recipient={directSend.recipient}
-                    isSending={directSend.isSending}
-                    onSendToRecipient={() => directSend.sendToRecipient(viewDurationSec)}
-                    onOpenSendTo={() => openSendToPhoto(viewDurationSec, recipientId)}
-                    sendToA11y={t('preview.choosePhotoRecipientsA11y')}
+            <LayoutAnimationConfig skipEntering>
+              {!isDrawing ? (
+                <Animated.View
+                  entering={bottomControlsSlideIn}
+                  exiting={bottomControlsSlideOut}
+                  style={styles.bottomControls}
+                  pointerEvents={isTextEditing ? 'none' : 'auto'}>
+                  <PreviewSaveButton
                     colors={colors}
+                    disabled={directSend.isSending}
+                    onSave={() =>
+                      saveLocalMediaToGallery({
+                        source: 'preview',
+                        uris: [photoUri],
+                        mediaType: 'image',
+                        textOverlay: normalizeMediaTextOverlay(photoTextOverlay),
+                        drawingOverlay: normalizeMediaDrawingOverlay(photoDrawingOverlay),
+                        viewportWidth: photoViewport.width,
+                        viewportHeight: photoViewport.height,
+                      })
+                    }
                   />
-                </View>
-              </View>
-            ) : (
-              <View />
-            )}
+                  <View style={styles.sendButtonSlot}>
+                    <PreviewSendControls
+                      recipient={directSend.recipient}
+                      isSending={directSend.isSending}
+                      onSendToRecipient={() => directSend.sendToRecipient(viewDurationSec)}
+                      onOpenSendTo={() => openSendToPhoto(viewDurationSec, recipientId)}
+                      sendToA11y={t('preview.choosePhotoRecipientsA11y')}
+                      colors={colors}
+                    />
+                  </View>
+                </Animated.View>
+              ) : (
+                <View />
+              )}
+            </LayoutAnimationConfig>
           </View>
         )}
       />

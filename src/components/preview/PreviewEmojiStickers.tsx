@@ -314,37 +314,39 @@ export function PreviewEmojiStickers({
   const trash = stickerTrashCenter(windowSize, bottomInset);
 
 
-  if (stickers.length === 0) return null;
-
   const updateSticker = (next: MediaEmojiSticker) =>
     onChangeStickers(stickers.map((item) => (item.id === next.id ? next : item)));
   const deleteSticker = (id: string) => onChangeStickers(stickers.filter((item) => item.id !== id));
 
   return (
     <>
-      <View
-        style={[StyleSheet.absoluteFill, styles.stage, stageStyle]}
-        pointerEvents={enabled ? 'box-none' : 'none'}
-        onLayout={(event) => {
-          const { width, height } = event.nativeEvent.layout;
-          if (width !== stage.width || height !== stage.height) setStage({ width, height });
-        }}>
-        {stage.width > 0
-          ? stickers.map((sticker) => (
-              <PreviewEmojiSticker
-                key={sticker.id}
-                sticker={sticker}
-                stage={stage}
-                trash={trash}
-                trashVisible={trashVisible}
-                trashActive={trashActive}
-                enabled={enabled}
-                onChange={updateSticker}
-                onDelete={deleteSticker}
-              />
-            ))
-          : null}
-      </View>
+      {/* The trash stays mounted (invisible at rest): dropping the last sticker lets it fade out
+          instead of unmounting with the sticker. */}
+      {stickers.length > 0 ? (
+        <View
+          style={[StyleSheet.absoluteFill, styles.stage, stageStyle]}
+          pointerEvents={enabled ? 'box-none' : 'none'}
+          onLayout={(event) => {
+            const { width, height } = event.nativeEvent.layout;
+            if (width !== stage.width || height !== stage.height) setStage({ width, height });
+          }}>
+          {stage.width > 0
+            ? stickers.map((sticker) => (
+                <PreviewEmojiSticker
+                  key={sticker.id}
+                  sticker={sticker}
+                  stage={stage}
+                  trash={trash}
+                  trashVisible={trashVisible}
+                  trashActive={trashActive}
+                  enabled={enabled}
+                  onChange={updateSticker}
+                  onDelete={deleteSticker}
+                />
+              ))
+            : null}
+        </View>
+      ) : null}
       {/* Drag target; VoiceOver users delete with the sticker's "Delete" action. */}
       <Animated.View
         pointerEvents="none"
