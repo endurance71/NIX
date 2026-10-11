@@ -26,7 +26,7 @@ type PreviewTextStickerContentProps = Pick<
   | 'onConfirm'
   | 'onDelete'
 > &
-  Pick<PreviewTextStickerProps, 'style'> & {
+  Pick<PreviewTextStickerProps, 'style' | 'onBarHeightChange'> & {
     exiting: boolean;
     controller: ReturnType<typeof usePreviewTextStickerController>;
   };
@@ -115,6 +115,7 @@ export function PreviewTextStickerContent({
   onDelete,
   exiting,
   style,
+  onBarHeightChange,
   controller,
 }: PreviewTextStickerContentProps) {
   const { t } = useTranslation();
@@ -144,7 +145,9 @@ export function PreviewTextStickerContent({
         pointerEvents="box-none"
         accessibilityRole={!isEditing ? 'button' : undefined}
         accessibilityLabel={!isEditing ? text : undefined}>
-        <View style={[styles.stickerWidth, { minHeight: minimumBarHeight }]}>
+        <View
+          style={[styles.stickerWidth, { minHeight: minimumBarHeight }]}
+          onLayout={(event) => onBarHeightChange?.(event.nativeEvent.layout.height)}>
           <Animated.View
             style={[styles.actionsRow, actionsStyle]}
             pointerEvents={isEditing && !exiting ? 'auto' : 'none'}>

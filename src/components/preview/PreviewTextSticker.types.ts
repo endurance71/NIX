@@ -34,6 +34,8 @@ export type PreviewTextStickerProps = {
   onDelete: () => void;
   exiting?: boolean;
   onExitComplete?: () => void;
+  /** Reports the caption bar height (the bake centres the caption on its `y`). */
+  onBarHeightChange?: (height: number) => void;
   /** Scale-in when mounting committed sticker in display mode. Skip on "Add text". */
   animateEnter?: boolean;
   style?: StyleProp<ViewStyle>;

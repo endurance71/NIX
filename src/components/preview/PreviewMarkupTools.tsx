@@ -48,6 +48,8 @@ type PreviewMarkupToolsProps = {
   clampBottomPx: number;
   drawingViewportStyle?: StyleProp<ViewStyle>;
   editingViewportHeight?: number;
+  /** Visible media frame in window coordinates (unrotated stage) for the caption position. */
+  textMediaFrame?: { top: number; height: number };
   colors: ThemeColors;
   chromeVariant?: ChromeVariant;
   renderChrome: (slots: PreviewMarkupChromeSlots) => ReactNode;
@@ -67,6 +69,7 @@ export function PreviewMarkupTools({
   clampBottomPx,
   drawingViewportStyle,
   editingViewportHeight,
+  textMediaFrame,
   colors,
   chromeVariant = 'glass',
   renderChrome,
@@ -219,6 +222,7 @@ export function PreviewMarkupTools({
           clampTopPx={clampTopPx}
           clampBottomPx={clampBottomPx}
           viewportHeight={editingViewportHeight}
+          mediaFrame={textMediaFrame}
           // Only a rotated stage gives the text its own (stage-relative) coordinates. Otherwise the
           // clamps, keyboard lift and trash zone are window-relative, so the sticker layer must
           // span the window — inside a letterboxed stage it would be offset by the stage top.

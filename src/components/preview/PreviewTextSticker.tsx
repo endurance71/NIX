@@ -41,6 +41,7 @@ export function PreviewTextSticker({
   exiting = false,
   onExitComplete,
   animateEnter = false,
+  onBarHeightChange,
   style,
 }: PreviewTextStickerProps) {
   const { t } = useTranslation();
@@ -109,6 +110,7 @@ export function PreviewTextSticker({
         onDelete={onDelete}
         exiting={exiting}
         style={style}
+        onBarHeightChange={onBarHeightChange}
         controller={controller}
       />
 

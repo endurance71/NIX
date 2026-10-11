@@ -913,6 +913,7 @@ function PreviewVideoContent({
         clampBottomPx={textClampBottom}
         drawingViewportStyle={stageStyle}
         editingViewportHeight={rotatedStage ? mediaViewport.height : undefined}
+        textMediaFrame={rotatedStage ? undefined : { top: mediaViewport.top, height: mediaViewport.height }}
         colors={colors}
         chromeVariant="glass"
         bottomInset={insets.bottomContentInset}
@@ -1303,6 +1304,7 @@ function PreviewPhotoContent({
         clampBottomPx={photoClampBottom}
         drawingViewportStyle={photoStageStyle}
         editingViewportHeight={photoRotatedStage ? photoViewport.height : undefined}
+        textMediaFrame={photoRotatedStage ? undefined : { top: photoViewport.top, height: photoViewport.height }}
         colors={colors}
         chromeVariant="glass"
         bottomInset={insets.bottomContentInset}

@@ -33,6 +33,8 @@ type PreviewTextToolsProps = {
   clampTopPx: number;
   clampBottomPx: number;
   viewportHeight?: number;
+  /** Visible media frame in the sticker layer's coordinates (see usePreviewTextOverlay). */
+  mediaFrame?: { top: number; height: number };
   stickerViewportStyle?: StyleProp<ViewStyle>;
   colors: ThemeColors;
   chromeVariant?: ChromeVariant;
@@ -83,6 +85,7 @@ export function PreviewTextTools({
   clampTopPx,
   clampBottomPx,
   viewportHeight,
+  mediaFrame,
   stickerViewportStyle,
   colors,
   chromeVariant = 'glass',
@@ -92,12 +95,15 @@ export function PreviewTextTools({
 }: PreviewTextToolsProps) {
   const { t } = useTranslation();
   const motionEnabled = useMotionEnabled();
+  const [barHeight, setBarHeight] = useState(0);
   const controls = usePreviewTextOverlay({
     overlay,
     onChangeOverlay,
     clampTopPx,
     clampBottomPx,
     viewportHeight,
+    mediaFrame,
+    barHeight,
   });
   const [stickerExiting, setStickerExiting] = useState(false);
   const stickerExitActionRef = useRef<'confirm' | 'delete' | null>(null);
@@ -219,6 +225,9 @@ export function PreviewTextTools({
             minTopPx={minTop}
             maxTopPx={maxTop}
             animateEnter={animateEnter}
+            onBarHeightChange={(height) => {
+              if (Math.abs(height - barHeight) >= 0.5) setBarHeight(height);
+            }}
             onTopPxChange={(top) =>
               controls.setY(controls.topPxToY(top), controls.isEditing ? 'editor' : 'committed')
             }

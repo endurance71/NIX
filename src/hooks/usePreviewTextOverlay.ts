@@ -1,3 +1,8 @@
+import {
+  captionTopPxFromY,
+  captionYFromTopPx,
+  clampPreviewTextTopPx,
+} from '../lib/mediaTextOverlayGeometry';
 import { useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
@@ -49,6 +54,13 @@ type UsePreviewTextOverlayArgs = {
   clampBottomPx: number;
   /** Height of the media stage when it differs from the locked screen viewport. */
   viewportHeight?: number;
+  /**
+   * Visible media frame in the sticker layer's coordinates (a letterboxed photo sits inside the
+   * window). Defaults to the whole editing height.
+   */
+  mediaFrame?: { top: number; height: number };
+  /** Measured height of the caption bar; 0 until laid out. */
+  barHeight?: number;
 };
 
 function applyPreviewTextStylePatch(
@@ -113,17 +125,33 @@ export function usePreviewTextOverlay({
   clampTopPx,
   clampBottomPx,
   viewportHeight,
+  mediaFrame,
+  barHeight = 0,
 }: UsePreviewTextOverlayArgs) {
   const { height: windowHeight } = useWindowDimensions();
   const [editor, setEditor] = useState<PreviewTextEditorState | null>(null);
 
   const editingHeight = viewportHeight ?? windowHeight;
   const usableHeight = Math.max(1, editingHeight - clampTopPx - clampBottomPx);
+  const frameTop = mediaFrame?.top ?? 0;
+  const frameHeight = mediaFrame?.height ?? editingHeight;
+  const currentFontSize = editor?.fontSize ?? overlay?.fontSize ?? 0;
+  // Same minimum as the sticker bar until the real bar has been measured.
+  const resolvedBarHeight = barHeight > 0 ? barHeight : Math.max(44, currentFontSize + 20);
+  const frame = { top: frameTop, height: frameHeight };
 
-  const yToTopPx = (y: number) => clampTopPx + clampOverlayY(y) * usableHeight;
+  // `y` is the caption bar's CENTRE as a fraction of the visible media frame — exactly what the
+  // native bake draws (`centerY = visible.minY + visible.height * y`). Mapping it through the
+  // chrome clamps instead moved the sent caption tens of points away from the preview.
+  const yToTopPx = (y: number) =>
+    clampPreviewTextTopPx(
+      captionTopPxFromY(clampOverlayY(y), frame, resolvedBarHeight),
+      clampTopPx,
+      clampTopPx + usableHeight,
+    );
 
   const topPxToY = (topPx: number) =>
-    clampOverlayY((topPx - clampTopPx) / usableHeight);
+    clampOverlayY(captionYFromTopPx(topPx, frame, resolvedBarHeight));
 
   const committed = normalizeMediaTextOverlay(overlay);
 

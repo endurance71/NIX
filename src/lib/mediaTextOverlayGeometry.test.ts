@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  captionTopPxFromY,
+  captionYFromTopPx,
   clampPreviewTextTopPx,
   previewTextTopAboveObstacle,
 } from './mediaTextOverlayGeometry';
@@ -76,5 +78,25 @@ describe('mediaTextOverlayGeometry', () => {
         gapPx: 32,
       })
     ).toBe(620);
+  });
+});
+
+describe('caption position mapping (preview ↔ native bake)', () => {
+  const frame = { top: 0, height: 874 };
+  it('treats y as the bar centre within the media frame, like the native bake', () => {
+    // Native: centerY = visible.minY + visible.height * y
+    expect(captionTopPxFromY(0.5, frame, 44) + 22).toBe(437);
+    expect(captionYFromTopPx(415, frame, 44)).toBeCloseTo(0.5);
+  });
+  it('round-trips for a letterboxed frame', () => {
+    const letterbox = { top: 230, height: 300 };
+    const y = captionYFromTopPx(300, letterbox, 60);
+    expect(captionTopPxFromY(y, letterbox, 60)).toBeCloseTo(300);
+    expect(y).toBeCloseTo((300 + 30 - 230) / 300);
+  });
+  it('places the baked bar exactly where the preview bar was', () => {
+    const top = 400;
+    const y = captionYFromTopPx(top, frame, 44);
+    expect(frame.top + frame.height * y - 22).toBeCloseTo(top);
   });
 });
