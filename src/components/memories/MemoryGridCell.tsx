@@ -86,6 +86,8 @@ export function MemoryGridCell({ entry, size, accessibilityLabel, onPress }: Mem
 
 const styles = StyleSheet.create({
   cell: {
+    borderRadius: 6,
+    borderCurve: 'continuous',
     overflow: 'hidden',
   },
   pressed: {

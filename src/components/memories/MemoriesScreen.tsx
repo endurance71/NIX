@@ -24,17 +24,25 @@ import { typography } from '../../theme/typography';
 import { MemoryGridCell } from './MemoryGridCell';
 
 const COLUMNS = 3;
-const GRID_GAP = 2;
+const GRID_GAP = 4;
+/** The grid lines up with the toggle card and the month headers. */
+const SIDE_INSET = 16;
+const CELL_ALIGN = ['flex-start', 'center', 'flex-end'] as const;
 const supportsContentUnavailableView = Number.parseFloat(String(Platform.Version)) >= 17;
 
 type MemoriesRow =
   | { type: 'header'; key: string; title: string }
-  | { type: 'item'; key: string; entry: MemoryEntry };
+  | { type: 'item'; key: string; entry: MemoryEntry; column: number };
 
 function buildRows(entries: readonly MemoryEntry[], locale: string): MemoriesRow[] {
   return groupMemoriesByMonth(entries).flatMap((section) => [
     { type: 'header' as const, key: `month-${section.key}`, title: formatMemoriesMonth(section.year, section.month, locale) },
-    ...section.entries.map((entry) => ({ type: 'item' as const, key: entry.id, entry })),
+    ...section.entries.map((entry, index) => ({
+      type: 'item' as const,
+      key: entry.id,
+      entry,
+      column: index % COLUMNS,
+    })),
   ]);
 }
 
@@ -47,7 +55,7 @@ export function MemoriesScreen() {
   const locale = getCurrentLocale();
   const entries = album.entries;
   const rows = entries ? buildRows(entries, locale) : [];
-  const cellSize = Math.floor((width - GRID_GAP * (COLUMNS - 1)) / COLUMNS);
+  const cellSize = Math.floor((width - SIDE_INSET * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS);
   const savingEnabled = album.preference === 'on';
 
   const cellLabel = (entry: MemoryEntry) => {
@@ -170,7 +178,9 @@ export function MemoriesScreen() {
               {row.title}
             </RNText>
           ) : (
-            <View style={styles.cellWrap}>
+            // Each column is a third of the inset width; pinning the outer cells to its edges keeps
+            // the gaps between all three equal.
+            <View style={[styles.cellWrap, { alignItems: CELL_ALIGN[row.column] }]}>
               <MemoryGridCell entry={row.entry} size={cellSize} accessibilityLabel={cellLabel(row.entry)} onPress={openMemory} />
             </View>
           )
@@ -190,10 +200,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    paddingHorizontal: SIDE_INSET,
     paddingBottom: 32,
   },
   header: {
-    paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 8,
     gap: 8,
@@ -216,13 +226,11 @@ const styles = StyleSheet.create({
   },
   monthHeader: {
     ...typography.headline,
-    paddingHorizontal: 16,
     paddingTop: 20,
     paddingBottom: 8,
   },
   cellWrap: {
     paddingBottom: GRID_GAP,
-    alignItems: 'center',
   },
   footer: {
     paddingTop: 20,
@@ -231,7 +239,7 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     paddingTop: 64,
-    paddingHorizontal: 32,
+    paddingHorizontal: 16,
     alignItems: 'center',
   },
 });
