@@ -19,7 +19,16 @@ declare class NixBackgroundUploaderNativeModule extends NativeModule<NativeBackg
   cancel(jobId: string): Promise<void>;
   listTasks(): Promise<NativeUploadSnapshot[]>;
   reconcile(): Promise<NativeUploadSnapshot[]>;
+  /**
+   * Delegates one Live Activity write to native. In the background native publishes its merged
+   * queue view (single writer, SEND-2); in front it starts/updates with `props` as given.
+   */
   syncLiveActivity(props: string): Promise<{ enabled: boolean; activeCount: number }>;
+  /**
+   * JSON `UploadLiveActivityNativeState` — JS queue view the native background writer merges
+   * with URLSession snapshots. Optional: binaries built before SEND-2 do not expose it.
+   */
+  reportLiveActivityState?(state: string): Promise<void>;
 }
 
 export default requireOptionalNativeModule<NixBackgroundUploaderNativeModule>('NixBackgroundUploader');

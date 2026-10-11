@@ -19,6 +19,12 @@ final class NixDrawingCanvasView: ExpoView, PKCanvasViewDelegate {
     super.init(appContext: appContext)
     clipsToBounds = true
     backgroundColor = .clear
+    // The bake renders ink in light appearance; PencilKit adapts ink colours to the trait
+    // collection, so a dark canvas would show different colours than the sent file.
+    overrideUserInterfaceStyle = .light
+    canvasView.overrideUserInterfaceStyle = .light
+    toolPicker.overrideUserInterfaceStyle = .light
+    toolPicker.colorUserInterfaceStyle = .light
 
     canvasView.backgroundColor = .clear
     canvasView.isOpaque = false

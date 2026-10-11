@@ -1,28 +1,35 @@
 diff --git a/node_modules/expo-widgets/ios/LiveActivity.swift b/node_modules/expo-widgets/ios/LiveActivity.swift
-index 5f34eb2..c9cbe7c 100644
+index 5f34eb2..c91c259 100644
 --- a/node_modules/expo-widgets/ios/LiveActivity.swift
 +++ b/node_modules/expo-widgets/ios/LiveActivity.swift
-@@ -1,6 +1,68 @@
+@@ -1,6 +1,73 @@
  import ExpoModulesCore
  import ActivityKit
  
 +@available(iOS 16.2, *)
 +public enum ExpoWidgetsLiveActivityBridge {
++  /// Only activities that can still be shown and updated. `Activity.activities` keeps ended
++  /// (still on the Lock Screen until dismissal) and dismissed activities around for a while;
++  /// updating those is a silent no-op, so treating them as "running" would make the native
++  /// fallback skip `Activity.request` and the upload would never get a Live Activity.
++  private static func liveActivities(named name: String) -> [Activity<LiveActivityAttributes>] {
++    Activity<LiveActivityAttributes>.activities.filter { activity in
++      let state = activity.activityState
++      return (state == .active || state == .stale) && activity.content.state.name == name
++    }
++  }
++
 +  public static func status(name: String) -> [String: Any] {
 +    [
 +      "enabled": ActivityAuthorizationInfo().areActivitiesEnabled,
-+      "activeCount": Activity<LiveActivityAttributes>.activities.filter {
-+        $0.content.state.name == name
-+      }.count
++      "activeCount": liveActivities(named: name).count
 +    ]
 +  }
 +
 +  public static func startOrUpdate(name: String, props: String, url: URL?) async {
 +    let state = LiveActivityAttributes.ContentState(name: name, props: props)
 +    let content = ActivityContent(state: state, staleDate: nil)
-+    let activities = Activity<LiveActivityAttributes>.activities.filter {
-+      $0.content.state.name == name
-+    }
++    let activities = liveActivities(named: name)
 +    if !activities.isEmpty {
 +      for activity in activities {
 +        await activity.update(content)
@@ -35,13 +42,10 @@ index 5f34eb2..c9cbe7c 100644
 +      return
 +    }
 +
-+    if let url {
-+      WidgetsStorage.set(url.absoluteString, forKey: "__expo_widgets_live_activity_\(name)_url")
-+    }
-+
 +    do {
++      // The widget reads the deep link from the static attributes (same as LiveActivityFactory).
 +      _ = try Activity.request(
-+        attributes: LiveActivityAttributes(),
++        attributes: LiveActivityAttributes(url: url?.absoluteString),
 +        content: content,
 +        pushType: nil
 +      )
@@ -54,7 +58,7 @@ index 5f34eb2..c9cbe7c 100644
 +  public static func update(name: String, props: String) async {
 +    let state = LiveActivityAttributes.ContentState(name: name, props: props)
 +    let content = ActivityContent(state: state, staleDate: nil)
-+    for activity in Activity<LiveActivityAttributes>.activities where activity.content.state.name == name {
++    for activity in liveActivities(named: name) {
 +      await activity.update(content)
 +    }
 +  }
@@ -62,7 +66,8 @@ index 5f34eb2..c9cbe7c 100644
 +  public static func end(name: String, props: String, after date: Date) async {
 +    let state = LiveActivityAttributes.ContentState(name: name, props: props)
 +    let content = ActivityContent(state: state, staleDate: nil)
-+    for activity in Activity<LiveActivityAttributes>.activities where activity.content.state.name == name {
++    // Already ended activities keep their own dismissal schedule.
++    for activity in liveActivities(named: name) {
 +      await activity.end(content, dismissalPolicy: .after(date))
 +    }
 +  }
@@ -71,3 +76,51 @@ index 5f34eb2..c9cbe7c 100644
  final class LiveActivity: SharedObject {
    let id: String
    let name: String
+diff --git a/node_modules/expo-widgets/plugin/build/ios/xcode/addXCConfigurationList.js b/node_modules/expo-widgets/plugin/build/ios/xcode/addXCConfigurationList.js
+index abe17af..ccf119d 100644
+--- a/node_modules/expo-widgets/plugin/build/ios/xcode/addXCConfigurationList.js
++++ b/node_modules/expo-widgets/plugin/build/ios/xcode/addXCConfigurationList.js
+@@ -15,7 +15,6 @@ function addXCConfigurationList(xcodeProject, props) {
+         INFOPLIST_KEY_CFBundleDisplayName: props.targetName,
+         INFOPLIST_KEY_NSHumanReadableCopyright: `""`,
+         MARKETING_VERSION: `"${props.marketingVersion}"`,
+-        SWIFT_OPTIMIZATION_LEVEL: `"-Onone"`,
+         CODE_SIGN_ENTITLEMENTS: `"${props.targetName}/${props.targetName}.entitlements"`,
+         APPLICATION_EXTENSION_API_ONLY: '"YES"',
+         ...(props.appleTeamId ? { DEVELOPMENT_TEAM: props.appleTeamId } : {}),
+@@ -30,6 +29,9 @@ function addXCConfigurationList(xcodeProject, props) {
+     return xcodeProject.addXCConfigurationList(['Debug', 'Release'].map((name) => ({
+         name,
+         isa: 'XCBuildConfiguration',
+-        buildSettings: { ...commonBuildSettings },
++        // Release keeps Xcode's default (-O); only Debug disables Swift optimization.
++        buildSettings: name === 'Debug'
++            ? { ...commonBuildSettings, SWIFT_OPTIMIZATION_LEVEL: `"-Onone"` }
++            : { ...commonBuildSettings },
+     })), 'Release', comment);
+ }
+diff --git a/node_modules/expo-widgets/plugin/src/ios/xcode/addXCConfigurationList.ts b/node_modules/expo-widgets/plugin/src/ios/xcode/addXCConfigurationList.ts
+index 8147997..c374bfe 100644
+--- a/node_modules/expo-widgets/plugin/src/ios/xcode/addXCConfigurationList.ts
++++ b/node_modules/expo-widgets/plugin/src/ios/xcode/addXCConfigurationList.ts
+@@ -26,7 +26,6 @@ export function addXCConfigurationList(
+     INFOPLIST_KEY_CFBundleDisplayName: props.targetName,
+     INFOPLIST_KEY_NSHumanReadableCopyright: `""`,
+     MARKETING_VERSION: `"${props.marketingVersion}"`,
+-    SWIFT_OPTIMIZATION_LEVEL: `"-Onone"`,
+     CODE_SIGN_ENTITLEMENTS: `"${props.targetName}/${props.targetName}.entitlements"`,
+     APPLICATION_EXTENSION_API_ONLY: '"YES"',
+     ...(props.appleTeamId ? { DEVELOPMENT_TEAM: props.appleTeamId } : {}),
+@@ -47,7 +46,11 @@ export function addXCConfigurationList(
+     ['Debug', 'Release'].map((name) => ({
+       name,
+       isa: 'XCBuildConfiguration',
+-      buildSettings: { ...commonBuildSettings },
++      // Release keeps Xcode's default (-O); only Debug disables Swift optimization.
++      buildSettings:
++        name === 'Debug'
++          ? { ...commonBuildSettings, SWIFT_OPTIMIZATION_LEVEL: `"-Onone"` }
++          : { ...commonBuildSettings },
+     })),
+     'Release',
+     comment

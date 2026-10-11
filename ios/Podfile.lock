@@ -245,6 +245,8 @@ PODS:
     - ExpoCamera
     - ZXingObjC/OneD
     - ZXingObjC/PDF417
+  - ExpoClipboard (57.0.2):
+    - ExpoModulesCore
   - ExpoCrypto (57.0.3):
     - ExpoModulesCore
   - ExpoDomWebView (57.0.1):
@@ -326,6 +328,8 @@ PODS:
   - ExpoNotifications (57.0.22):
     - ExpoModulesCore
   - ExpoPasteInput (1.0.0):
+    - ExpoModulesCore
+  - ExpoQuickActions (6.0.2):
     - ExpoModulesCore
   - ExpoRouter (57.0.25):
     - ExpoModulesCore
@@ -461,6 +465,8 @@ PODS:
   - NixCameraTorch (1.0.0):
     - ExpoModulesCore
   - NixMediaOverlay (1.0.0):
+    - ExpoModulesCore
+  - NixPasskeys (1.0.0):
     - ExpoModulesCore
   - PromisesObjC (2.4.1)
   - PromisesSwift (2.4.1):
@@ -3683,6 +3689,7 @@ DEPENDENCIES:
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
   - ExpoCamera (from `../node_modules/expo-camera/ios`)
   - ExpoCameraBarcodeScanning (from `../node_modules/expo-camera/ios`)
+  - ExpoClipboard (from `../node_modules/expo-clipboard/ios`)
   - ExpoCrypto (from `../node_modules/expo-crypto/ios`)
   - "ExpoDomWebView (from `../node_modules/@expo/dom-webview/ios`)"
   - ExpoFileSystem (from `../node_modules/expo-file-system/ios`)
@@ -3704,6 +3711,7 @@ DEPENDENCIES:
   - ExpoModulesWorkletsAdapter (from `../node_modules/expo-modules-core`)
   - ExpoNotifications (from `../node_modules/expo-notifications/ios`)
   - ExpoPasteInput (from `../node_modules/expo-paste-input/ios`)
+  - ExpoQuickActions (from `../node_modules/expo-quick-actions/ios`)
   - ExpoRouter (from `../node_modules/expo-router/ios`)
   - ExpoScreenCapture (from `../node_modules/expo-screen-capture/ios`)
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
@@ -3727,6 +3735,7 @@ DEPENDENCIES:
   - NixBackgroundUploader (from `../modules/nix-background-uploader/ios`)
   - NixCameraTorch (from `../modules/nix-camera-torch/ios`)
   - NixMediaOverlay (from `../modules/nix-media-overlay/ios`)
+  - NixPasskeys (from `../modules/nix-passkeys/ios`)
   - RCT-Folly (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
   - RCTRequired (from `../node_modules/react-native/Libraries/Required`)
@@ -3878,6 +3887,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-camera/ios"
   ExpoCameraBarcodeScanning:
     :path: "../node_modules/expo-camera/ios"
+  ExpoClipboard:
+    :path: "../node_modules/expo-clipboard/ios"
   ExpoCrypto:
     :path: "../node_modules/expo-crypto/ios"
   ExpoDomWebView:
@@ -3920,6 +3931,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-notifications/ios"
   ExpoPasteInput:
     :path: "../node_modules/expo-paste-input/ios"
+  ExpoQuickActions:
+    :path: "../node_modules/expo-quick-actions/ios"
   ExpoRouter:
     :path: "../node_modules/expo-router/ios"
   ExpoScreenCapture:
@@ -3965,6 +3978,8 @@ EXTERNAL SOURCES:
     :path: "../modules/nix-camera-torch/ios"
   NixMediaOverlay:
     :path: "../modules/nix-media-overlay/ios"
+  NixPasskeys:
+    :path: "../modules/nix-passkeys/ios"
   RCT-Folly:
     :podspec: "../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec"
   RCTDeprecation:
@@ -4160,6 +4175,7 @@ SPEC CHECKSUMS:
   ExpoBlur: 975b78b65b3c8f475c44bd8f8b53948146b1ff9b
   ExpoCamera: d3d3c6c6ddca5088d4eed2df010c0f33e78bebd1
   ExpoCameraBarcodeScanning: e20737140da28cfd614abccd86ef50b47f0f94b5
+  ExpoClipboard: 15b8cc88075d7c50af165ed8fca0a76915903bba
   ExpoCrypto: 3ba3d7fcf244a3ae8cb888c5759e0db70ecc236d
   ExpoDomWebView: beaec034e51bd028428b98bb1f2633ab79c6d095
   ExpoFileSystem: 28778f942725170102f7c6cf4dee05a526ddacd0
@@ -4181,6 +4197,7 @@ SPEC CHECKSUMS:
   ExpoModulesWorkletsAdapter: 85697593f57f6fd1375621d545c596dcd59dac1f
   ExpoNotifications: b91c7c9e21df9b9649b382d8fbf297262c6c4c76
   ExpoPasteInput: e8eba5274ad513ba3e02ceb71ad6524bf2e46ce1
+  ExpoQuickActions: edf2c5bc044f83dc9e9ed4dc4de7fe4a5b1b0422
   ExpoRouter: 72006aae54ac9e2b17b7211214fe3c7c29a39e97
   ExpoScreenCapture: 9895600e6d3aeeadbdfd776f8d7b309b8fd33a33
   ExpoSecureStore: ff1fd5e073957417ba8f9dec0bebcbd55a60e747
@@ -4207,6 +4224,7 @@ SPEC CHECKSUMS:
   NixBackgroundUploader: 9b7fc88e447f49d1659abef68f5bcc1e0d2fde1b
   NixCameraTorch: 4531f41a44261fe2626d576efcfa862a61c80a65
   NixMediaOverlay: 9bc4c250aed81fa2d975b08f1b142214c2edc725
+  NixPasskeys: f72148be42f5030eb2bffa9ff358ad1abcd1ca7f
   PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
   PromisesSwift: 217dea0fd5d2ad65222a109c48698add13cc1c5b
   RCT-Folly: 36c4f904fb6cd0219dcb76b94e9502d2a72fab0b

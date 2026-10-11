@@ -50,6 +50,10 @@ export type NativeEnqueueOptions = {
 };
 
 export type NativeBackgroundUploaderEvents = {
+  /**
+   * Throttled natively (PERF-8): at most every 250 ms with ≥1 % change, a 1 s heartbeat on slow
+   * links, and the final 100 % always. State transitions arrive as `onUploadState`.
+   */
   onUploadProgress: (event: {
     jobId: string;
     batchId: string;
@@ -72,4 +76,6 @@ export type NativeBackgroundUploaderModule = {
   cancel(jobId: string): Promise<void>;
   listTasks(): Promise<NativeUploadSnapshot[]>;
   reconcile(): Promise<NativeUploadSnapshot[]>;
+  syncLiveActivity(props: string): Promise<{ enabled: boolean; activeCount: number }>;
+  reportLiveActivityState?(state: string): Promise<void>;
 };

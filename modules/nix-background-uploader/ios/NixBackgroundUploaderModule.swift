@@ -3,7 +3,6 @@ import ExpoWidgets
 import Foundation
 
 private let uploadLiveActivityName = "UploadStatusActivity"
-private let uploadLiveActivityURL = URL(string: "nix://inbox")
 
 private struct EnqueueOptions: Record {
   @Field var jobId: String = ""
@@ -134,20 +133,17 @@ public final class NixBackgroundUploaderModule: Module {
       await BackgroundUploadCoordinator.shared.reconcile()
     }
 
+    // JS → native queue view for the background Live Activity writer (SEND-2). Synchronous
+    // body: runs in call order on the module queue, so it lands before a following sync.
+    AsyncFunction("reportLiveActivityState") { (state: String) in
+      BackgroundUploadCoordinator.shared.reportLiveActivityState(state)
+    }
+
     AsyncFunction("syncLiveActivity") { (props: String) in
       guard #available(iOS 16.2, *) else {
         return ["enabled": false, "activeCount": 0] as [String: Any]
       }
-      if let data = props.data(using: .utf8),
-        let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-        let locale = decoded["locale"] as? String {
-        BackgroundUploadCoordinator.shared.setLiveActivityLocale(locale)
-      }
-      await ExpoWidgetsLiveActivityBridge.startOrUpdate(
-        name: uploadLiveActivityName,
-        props: props,
-        url: uploadLiveActivityURL
-      )
+      await BackgroundUploadCoordinator.shared.syncLiveActivity(props: props)
       return ExpoWidgetsLiveActivityBridge.status(name: uploadLiveActivityName)
     }
   }

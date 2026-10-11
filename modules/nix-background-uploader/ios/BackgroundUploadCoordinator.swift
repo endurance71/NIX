@@ -1,11 +1,13 @@
 import ExpoWidgets
 import Foundation
 import Network
+import UIKit
 
 private let appGroupIdentifier = "group.com.damianmotylinski.nixapp.uploads"
 private let snapshotsStorageKey = "nix.background.upload.snapshots.v1"
 private let controlsStorageKey = "nix.background.upload.controls.v1"
 private let liveActivityLocaleStorageKey = "nix.background.upload.locale.v1"
+private let jsLiveActivityStateStorageKey = "nix.background.upload.js-live-activity.v1"
 private let liveActivityName = "UploadStatusActivity"
 private let liveActivityURL = URL(string: "nix://inbox")
 
@@ -182,6 +184,19 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
   private var lastLiveActivityPhase = ""
   private var lastLiveActivityLocale = ""
   private var lastLiveActivityCount = -1
+  /// Serializes ActivityKit writes so a slower earlier update never lands after a newer one.
+  private var liveActivityPublishTask: Task<Void, Never>?
+  /// SEND-2 single writer: JS owns the Live Activity while the app is in front; native
+  /// publishes only while the app is in the background (JS may be suspended).
+  private var appInBackground = false
+  /// Last queue view reported by JS (`reportLiveActivityState`), mirrored in the App Group.
+  private var jsLiveActivityState: UploadLiveActivityJSState?
+  private var jsLiveActivityStateLoaded = false
+  /// PERF-8: snapshots live in memory; UserDefaults is written on state changes and on
+  /// throttled progress only, never decoded per `didSendBodyData` chunk.
+  private var snapshotCache: [String: NativeUploadSnapshot]?
+  private var progressThrottles: [String: UploadProgressThrottle] = [:]
+  private var descriptorCache: [NativeUploadTaskKey: NativeTaskDescriptor] = [:]
 
   /// Large video / durable transfers that must survive app kill.
   private lazy var session: URLSession = {
@@ -235,6 +250,45 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     pathMonitor.start(queue: pathQueue)
     _ = session
     _ = foregroundSession
+    Task { @MainActor [weak self] in
+      self?.observeApplicationLifecycle()
+    }
+  }
+
+  @MainActor
+  private func observeApplicationLifecycle() {
+    let center = NotificationCenter.default
+    _ = center.addObserver(
+      forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil
+    ) { [weak self] _ in
+      self?.applicationStateChanged(background: true)
+    }
+    _ = center.addObserver(
+      forName: UIApplication.willEnterForegroundNotification, object: nil, queue: nil
+    ) { [weak self] _ in
+      self?.applicationStateChanged(background: false)
+    }
+    // A URLSession relaunch starts the process in the background: native is the writer then.
+    applicationStateChanged(background: UIApplication.shared.applicationState == .background)
+  }
+
+  private func applicationStateChanged(background: Bool) {
+    let changed = stateQueue.sync { () -> Bool in
+      guard appInBackground != background else { return false }
+      appInBackground = background
+      // The next writer starts from a clean throttle and its own first value.
+      lastLiveActivityPhase = ""
+      lastLiveActivityLocale = ""
+      lastLiveActivityCount = -1
+      lastLiveActivityProgress = -1
+      lastLiveActivityUpdateAt = 0
+      if background, let snapshotCache {
+        // Throttled progress may not be on disk yet; iOS can kill a suspended process.
+        storeSnapshotsUnlocked(snapshotCache)
+      }
+      return true
+    }
+    if changed && background { updateLiveActivity() }
   }
 
   public func attachBackgroundCompletion(_ completion: @escaping () -> Void) {
@@ -581,6 +635,48 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     }
   }
 
+  /// JS reports its queue view (jobs still in compression, begin, moderation…). Stored in the
+  /// App Group so a URLSession relaunch still knows about work URLSession never saw (SEND-2).
+  public func reportLiveActivityState(_ json: String) {
+    guard let data = json.data(using: .utf8),
+      let state = try? JSONDecoder().decode(UploadLiveActivityJSState.self, from: data)
+    else { return }
+    let background = stateQueue.sync { () -> Bool in
+      jsLiveActivityState = state
+      jsLiveActivityStateLoaded = true
+      let defaults = UserDefaults(suiteName: appGroupIdentifier)
+      defaults?.set(data, forKey: jsLiveActivityStateStorageKey)
+      if let locale = state.locale, locale == "pl" || locale == "en" {
+        defaults?.set(locale, forKey: liveActivityLocaleStorageKey)
+      }
+      return appInBackground
+    }
+    if background { updateLiveActivity() }
+  }
+
+  /// JS delegates one Live Activity write to native. In the background (JS about to be
+  /// suspended) native publishes its merged view instead, so there is still one writer. In
+  /// front this is only the fallback when the JS `start` failed.
+  public func syncLiveActivity(props: String) async {
+    if let data = props.data(using: .utf8),
+      let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let locale = decoded["locale"] as? String {
+      setLiveActivityLocale(locale)
+    }
+    let background = stateQueue.sync { appInBackground }
+    if background, liveActivityContent() != nil {
+      _ = await publishMergedLiveActivity()?.value
+      return
+    }
+    await enqueueLiveActivityPublish {
+      await ExpoWidgetsLiveActivityBridge.startOrUpdate(
+        name: liveActivityName,
+        props: props,
+        url: liveActivityURL
+      )
+    }.value
+  }
+
   private func hasTask(jobId: String) async -> Bool {
     await allTasks().contains { descriptor(for: $0)?.jobId == jobId }
   }
@@ -662,9 +758,7 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
       snapshot?.nextRetryAt = nil
       snapshot?.updatedAt = nowMilliseconds()
       snapshots[descriptor.jobId] = snapshot
-      if let encoded = try? JSONEncoder().encode(snapshots) {
-        UserDefaults(suiteName: appGroupIdentifier)?.set(encoded, forKey: snapshotsStorageKey)
-      }
+      storeSnapshotsUnlocked(snapshots)
       task.resume()
       return true
     }
@@ -888,29 +982,46 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     totalBytesSent: Int64,
     totalBytesExpectedToSend: Int64
   ) {
-    guard let descriptor = descriptor(for: task), descriptor.kind == .upload else { return }
-    guard NativeUploadControl.isCurrent(
-      snapshotAttempt: loadSnapshots()[descriptor.jobId]?.attemptId,
-      taskAttempt: descriptor.attemptId
-    ) else { return }
+    // Hot path (PERF-8): no UserDefaults decode, no JSON descriptor decode, throttled events.
+    guard let descriptor = cachedDescriptor(session: session, task: task), descriptor.kind == .upload
+    else { return }
     let total = max(totalBytesExpectedToSend, 1)
     let progress = min(1, max(0, Double(totalBytesSent) / Double(total)))
-    patchSnapshot(jobId: descriptor.jobId, attemptId: descriptor.attemptId) {
-      $0.state = .uploading
-      $0.progress = progress
-      $0.bytesSent = totalBytesSent
-      $0.bytesTotal = totalBytesExpectedToSend
-      $0.attempt = descriptor.attempt
-      $0.updatedAt = nowMilliseconds()
+    let isFinal = totalBytesExpectedToSend > 0 && totalBytesSent >= totalBytesExpectedToSend
+    let now = nowMilliseconds()
+    let outcome = stateQueue.sync { () -> (snapshot: NativeUploadSnapshot, stateChanged: Bool, emit: Bool)? in
+      var snapshots = loadSnapshotsUnlocked()
+      guard var snapshot = snapshots[descriptor.jobId],
+        NativeUploadControl.isCurrent(snapshotAttempt: snapshot.attemptId, taskAttempt: descriptor.attemptId)
+      else { return nil }
+      let previousState = snapshot.state
+      snapshot.state = NativeUploadState(rawValue: NativeUploadControl.preservedState(
+        previous: previousState.rawValue, proposed: NativeUploadState.uploading.rawValue,
+        allowPausedTransition: false
+      )) ?? previousState
+      snapshot.progress = progress
+      snapshot.bytesSent = totalBytesSent
+      snapshot.bytesTotal = totalBytesExpectedToSend
+      snapshot.attempt = descriptor.attempt
+      snapshot.updatedAt = now
+      snapshots[descriptor.jobId] = snapshot
+      let stateChanged = snapshot.state != previousState
+      var throttle = progressThrottles[descriptor.jobId] ?? UploadProgressThrottle()
+      let decision = throttle.sample(progress: progress, isFinal: isFinal, now: now / 1000)
+      progressThrottles[descriptor.jobId] = throttle
+      storeSnapshotsUnlocked(snapshots, persist: decision.persist || stateChanged)
+      return (snapshot, stateChanged, decision.emit || stateChanged)
     }
-    guard let latest = loadSnapshots()[descriptor.jobId], latest.state == .uploading,
-      NativeUploadControl.isCurrent(snapshotAttempt: latest.attemptId, taskAttempt: descriptor.attemptId)
-    else { return }
+    guard let outcome else { return }
+    if outcome.stateChanged {
+      eventSink?("onUploadState", outcome.snapshot.dictionary)
+    }
+    guard outcome.emit, outcome.snapshot.state == .uploading else { return }
     eventSink?("onUploadProgress", [
       "jobId": descriptor.jobId,
       "batchId": descriptor.batchId,
       "attemptId": descriptor.attemptId,
-      "updatedAt": latest.updatedAt,
+      "updatedAt": outcome.snapshot.updatedAt,
       "progress": progress,
       "bytesSent": totalBytesSent,
       "bytesTotal": totalBytesExpectedToSend
@@ -935,8 +1046,11 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
   ) {
     guard let descriptor = descriptor(for: task) else { return }
     let statusCode = (task.response as? HTTPURLResponse)?.statusCode
-    let responseData = stateQueue.sync {
-      responseBodies.removeValue(forKey: NativeUploadTaskKey(session: session, task: task))
+    let responseData = stateQueue.sync { () -> Data? in
+      let key = NativeUploadTaskKey(session: session, task: task)
+      descriptorCache.removeValue(forKey: key)
+      if descriptor.kind == .upload { progressThrottles.removeValue(forKey: descriptor.jobId) }
+      return responseBodies.removeValue(forKey: key)
     }
     let responseBody = responseData.flatMap { String(data: $0, encoding: .utf8) }
     let currentState = loadSnapshots()[descriptor.jobId]?.state
@@ -1100,84 +1214,116 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     }
   }
 
+  /// Native Live Activity writer (SEND-2). While the app is in front JS is the only writer —
+  /// it alone sees compression, `begin` and moderation. In the background native publishes the
+  /// same model JS uses (`UploadLiveActivityModel`), merged with JS's last reported queue view.
   private func updateLiveActivity() {
-    let snapshots = loadSnapshots().values
-    // An empty native store does not mean the global queue is empty: jobs
-    // started by the JS/TUS fallback are persisted in SQLite. Let JS own the
-    // Live Activity in that case instead of overwriting it with a false 0%.
-    guard !snapshots.isEmpty else { return }
-    let active = snapshots.filter {
-      ![NativeUploadState.completed, .cancelled].contains($0.state)
+    guard stateQueue.sync(execute: { appInBackground }) else { return }
+    publishMergedLiveActivity()
+  }
+
+  private func liveActivityContent() -> (content: UploadLiveActivityContent, locale: String)? {
+    let (snapshots, jsState, storedLocale) = stateQueue.sync {
+      () -> ([NativeUploadSnapshot], UploadLiveActivityJSState?, String?) in
+      (
+        Array(loadSnapshotsUnlocked().values),
+        loadJSLiveActivityStateUnlocked(),
+        UserDefaults(suiteName: appGroupIdentifier)?.string(forKey: liveActivityLocaleStorageKey)
+      )
     }
-    let completed = snapshots.filter { $0.state == .completed }
-    guard !active.isEmpty || !completed.isEmpty else { return }
-    let failed = active.filter {
-      $0.state == .failed || $0.state == .waitingForAuth || $0.state == .retryScheduled
+    let native = snapshots.map {
+      UploadLiveActivityNativeJob(
+        id: $0.jobId, state: $0.state.rawValue, progress: $0.progress,
+        updatedAt: $0.updatedAt, responseBody: $0.responseBody
+      )
     }
-    let waiting = active.filter { $0.state == .waitingNetwork }
-    let paused = active.filter { $0.state == .paused }
-    let progress = active.isEmpty
-      ? (completed.isEmpty ? 0 : 1)
-      : active.map(\.progress).reduce(0, +) / Double(active.count)
-    let phase: String
-    if !failed.isEmpty {
-      phase = "failed"
-    } else if !waiting.isEmpty {
-      phase = "waiting_network"
-    } else if !paused.isEmpty {
-      phase = "paused"
-    } else if active.contains(where: { $0.state == .finalizing }) {
-      phase = "finalizing"
-    } else if active.isEmpty && !completed.isEmpty {
-      phase = "completed"
-    } else {
-      phase = "uploading"
+    guard let content = UploadLiveActivityModel.build(js: jsState, native: native) else { return nil }
+    let locale = jsState?.locale
+      ?? storedLocale
+      ?? snapshots.max(by: { $0.updatedAt < $1.updatedAt })?.locale
+      ?? "en"
+    return (content, locale == "pl" ? "pl" : "en")
+  }
+
+  /// Updates (never starts — iOS refuses that in the background) or ends the activity JS
+  /// started. Ends it as completed only when the merged view has no pending job at all.
+  @discardableResult
+  private func publishMergedLiveActivity() -> Task<Void, Never>? {
+    guard let merged = liveActivityContent() else { return nil }
+    let content = merged.content
+    let locale = merged.locale
+    let progress = stateQueue.sync { () -> Double? in
+      var progress = content.progress
+      let sameShape = content.phase == lastLiveActivityPhase
+        && content.remainingCount == lastLiveActivityCount
+      // Monotonic within one shape; a new job or phase may legitimately restart the ring.
+      if sameShape && content.phase != "failed" {
+        progress = max(progress, lastLiveActivityProgress)
+      }
+      let currentTime = Date().timeIntervalSince1970
+      let phaseChanged = content.phase != lastLiveActivityPhase
+      let localeChanged = locale != lastLiveActivityLocale
+      let countChanged = content.remainingCount != lastLiveActivityCount
+      let progressChanged = abs(progress - lastLiveActivityProgress) >= 0.01
+      let intervalElapsed = currentTime - lastLiveActivityUpdateAt >= 1
+      guard phaseChanged || localeChanged || countChanged || (progressChanged && intervalElapsed)
+      else { return nil }
+      lastLiveActivityPhase = content.phase
+      lastLiveActivityLocale = locale
+      lastLiveActivityCount = content.remainingCount
+      lastLiveActivityProgress = progress
+      lastLiveActivityUpdateAt = currentTime
+      return progress
     }
-    let locale = stateQueue.sync {
-      UserDefaults(suiteName: appGroupIdentifier)?.string(forKey: liveActivityLocaleStorageKey)
-    } ?? snapshots.max(by: { $0.updatedAt < $1.updatedAt })?.locale ?? "en"
+    guard let progress else { return nil }
     let props: [String: Any] = [
-      "phase": phase,
+      "phase": content.phase,
       "progress": progress,
-      "remainingCount": active.count,
+      "remainingCount": content.remainingCount,
       "locale": locale,
       "updatedAt": nowMilliseconds()
     ]
-    let shouldPublish = stateQueue.sync { () -> Bool in
-      let currentTime = Date().timeIntervalSince1970
-      let phaseChanged = phase != lastLiveActivityPhase
-      let localeChanged = locale != lastLiveActivityLocale
-      let countChanged = active.count != lastLiveActivityCount
-      let progressChanged = abs(progress - lastLiveActivityProgress) >= 0.01
-      let intervalElapsed = currentTime - lastLiveActivityUpdateAt >= 1
-      guard phaseChanged || localeChanged || countChanged || (progressChanged && intervalElapsed) else { return false }
-      lastLiveActivityPhase = phase
-      lastLiveActivityLocale = locale
-      lastLiveActivityCount = active.count
-      lastLiveActivityProgress = progress
-      lastLiveActivityUpdateAt = currentTime
-      return true
-    }
-    guard shouldPublish else { return }
     guard let data = try? JSONSerialization.data(withJSONObject: props),
       let propsString = String(data: data, encoding: .utf8) else {
-      return
+      return nil
     }
-    Task {
-      if phase == "completed" {
+    let completed = content.phase == "completed"
+    return enqueueLiveActivityPublish {
+      if completed {
         await ExpoWidgetsLiveActivityBridge.end(
           name: liveActivityName,
           props: propsString,
           after: Date().addingTimeInterval(30)
         )
       } else {
-        await ExpoWidgetsLiveActivityBridge.startOrUpdate(
-          name: liveActivityName,
-          props: propsString,
-          url: liveActivityURL
-        )
+        await ExpoWidgetsLiveActivityBridge.update(name: liveActivityName, props: propsString)
       }
     }
+  }
+
+  private func enqueueLiveActivityPublish(
+    _ operation: @escaping @Sendable () async -> Void
+  ) -> Task<Void, Never> {
+    stateQueue.sync { () -> Task<Void, Never> in
+      let previous = liveActivityPublishTask
+      let task = Task {
+        await previous?.value
+        await operation()
+      }
+      liveActivityPublishTask = task
+      return task
+    }
+  }
+
+  // Only call while stateQueue is held.
+  private func loadJSLiveActivityStateUnlocked() -> UploadLiveActivityJSState? {
+    if !jsLiveActivityStateLoaded {
+      jsLiveActivityStateLoaded = true
+      if let data = UserDefaults(suiteName: appGroupIdentifier)?.data(forKey: jsLiveActivityStateStorageKey) {
+        jsLiveActivityState = try? JSONDecoder().decode(UploadLiveActivityJSState.self, from: data)
+      }
+    }
+    return jsLiveActivityState
   }
 
   private func emitState(jobId: String) {
@@ -1189,20 +1335,33 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
     stateQueue.sync { loadSnapshotsUnlocked() }
   }
 
-  // Only call while stateQueue is held.
+  // Only call while stateQueue is held. The process is the only writer of the snapshot key,
+  // so the in-memory copy is authoritative after the first decode.
   private func loadSnapshotsUnlocked() -> [String: NativeUploadSnapshot] {
+    if let snapshotCache { return snapshotCache }
     guard let defaults = UserDefaults(suiteName: appGroupIdentifier),
       let data = defaults.data(forKey: snapshotsStorageKey),
       let decoded = try? JSONDecoder().decode([String: NativeUploadSnapshot].self, from: data) else {
+      snapshotCache = [:]
       return [:]
     }
-    return decoded.mapValues { stored in
+    let snapshots = decoded.mapValues { stored in
       var snapshot = stored
       if snapshot.attemptId == nil {
         snapshot.attemptId = "legacy:\(snapshot.jobId):\(snapshot.attempt)"
       }
       return snapshot
     }
+    snapshotCache = snapshots
+    return snapshots
+  }
+
+  // Only call while stateQueue is held. `persist: false` keeps a progress-only change in
+  // memory; the next state change or throttled progress sample writes the whole map.
+  private func storeSnapshotsUnlocked(_ snapshots: [String: NativeUploadSnapshot], persist: Bool = true) {
+    snapshotCache = snapshots
+    guard persist, let encoded = try? JSONEncoder().encode(snapshots) else { return }
+    UserDefaults(suiteName: appGroupIdentifier)?.set(encoded, forKey: snapshotsStorageKey)
   }
 
   private func saveSnapshot(_ snapshot: NativeUploadSnapshot) {
@@ -1220,9 +1379,7 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
         )) ?? previous.state
       }
       snapshots[snapshot.jobId] = replacement
-      if let encoded = try? JSONEncoder().encode(snapshots) {
-        defaults.set(encoded, forKey: snapshotsStorageKey)
-      }
+      storeSnapshotsUnlocked(snapshots)
     }
     emitState(jobId: snapshot.jobId)
   }
@@ -1265,7 +1422,6 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
   ) {
     var updated: NativeUploadSnapshot?
     stateQueue.sync {
-      guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else { return }
       var snapshots = loadSnapshotsUnlocked()
       guard var snapshot = snapshots[jobId] else { return }
       if let attemptId,
@@ -1278,9 +1434,7 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
         allowPausedTransition: allowPausedTransition
       )) ?? previousState
       snapshots[jobId] = snapshot
-      if let encoded = try? JSONEncoder().encode(snapshots) {
-        defaults.set(encoded, forKey: snapshotsStorageKey)
-      }
+      storeSnapshotsUnlocked(snapshots)
       updated = snapshot
     }
     if let updated {
@@ -1290,19 +1444,20 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
 
   private func removeSnapshot(jobId: String) {
     stateQueue.sync {
-      guard let defaults = UserDefaults(suiteName: appGroupIdentifier),
-        let data = defaults.data(forKey: snapshotsStorageKey),
-        var snapshots = try? JSONDecoder().decode(
-          [String: NativeUploadSnapshot].self,
-          from: data
-        ) else {
-        return
-      }
-      snapshots.removeValue(forKey: jobId)
-      if let encoded = try? JSONEncoder().encode(snapshots) {
-        defaults.set(encoded, forKey: snapshotsStorageKey)
-      }
+      var snapshots = loadSnapshotsUnlocked()
+      guard snapshots.removeValue(forKey: jobId) != nil else { return }
+      progressThrottles.removeValue(forKey: jobId)
+      storeSnapshotsUnlocked(snapshots)
     }
+  }
+
+  /// `taskDescription` never changes after creation; decode it once per task.
+  private func cachedDescriptor(session: URLSession, task: URLSessionTask) -> NativeTaskDescriptor? {
+    let key = NativeUploadTaskKey(session: session, task: task)
+    if let cached = stateQueue.sync(execute: { descriptorCache[key] }) { return cached }
+    guard let decoded = descriptor(for: task) else { return nil }
+    stateQueue.sync { descriptorCache[key] = decoded }
+    return decoded
   }
 
   private func descriptor(for task: URLSessionTask) -> NativeTaskDescriptor? {

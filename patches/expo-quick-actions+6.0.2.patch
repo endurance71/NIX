@@ -1,0 +1,16 @@
+diff --git a/node_modules/expo-quick-actions/ios/AppDelegate.swift b/node_modules/expo-quick-actions/ios/AppDelegate.swift
+index 37558e0..0b8bdcd 100644
+--- a/node_modules/expo-quick-actions/ios/AppDelegate.swift
++++ b/node_modules/expo-quick-actions/ios/AppDelegate.swift
+@@ -17,6 +17,11 @@ public class ExpoQuickActionsAppDelegate: ExpoAppDelegateSubscriber {
+   }
+ 
+   public func application(_ application: UIApplication, performActionFor shortcutItem: UIApplicationShortcutItem, completionHandler: @escaping (Bool) -> Void) {
++    // With UIScene support a cold start delivers the shortcut through the scene (forwarded here)
++    // instead of launchOptions, before JS listens: keep it as the initial action too.
++    if initialAction == nil {
++      initialAction = shortcutItem
++    }
+     NotificationCenter.default.post(name: Notification.Name(onQuickAction), object: shortcutItem)
+     completionHandler(true)
+   }
