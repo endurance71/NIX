@@ -11,7 +11,12 @@ Notification Service and Lock Screen capture extensions, inbox widget, camera co
 **version 1.0.13, build 12, runtime 1.0.13**. OTA for runtime 1.0.12 must never carry this JS. The matching backend is
 **deployed** — see [deployment record](BACKEND_DEPLOYMENT_2026-10-11.md); it stays compatible with builds 10 and 11.
 Local Release Archive **PASS** (app and four extensions 1.0.13 (12), runtime 1.0.13, channel production, Hermes bundle
-with the production Supabase URL). TestFlight upload via Organizer and device QA pending. The 1.0.12 App Review track
+with the production Supabase URL). **Uploaded** from Organizer on 2026-10-11 (source `b54f0ad`; upload symbols off-warning only: the archive has no dSYM
+for `hermesvm.framework`). The first upload attempt was rejected because the Lock Screen camera extension was embedded
+as a Foundation extension; it is now an ExtensionKit extension in `NiX.app/Extensions`. Xcode's distribution copy step
+fails with Homebrew `rsync` 3.4.4 on `PATH` (`--extended-attributes: unknown option`); start Xcode with
+`env PATH=/usr/bin:/bin:/usr/sbin:/sbin …/Xcode.app/Contents/MacOS/Xcode` for Organizer uploads. ASC processing,
+group assignment and device QA pending. The 1.0.12 App Review track
 (build 11) is unaffected.
 
 ## Next candidate in preparation — build 11, 2026-10-10
