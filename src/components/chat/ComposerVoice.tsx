@@ -1,12 +1,14 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useComposerVoice, type ComposerVoiceState } from '../../hooks/useComposerVoice';
@@ -22,6 +24,41 @@ import type { ChatScreenViewModel } from '../../hooks/useChatScreen';
 type Translate = ChatScreenViewModel['t'];
 
 const STRIP_BUTTON_SIZE = 32;
+const SPECTRUM_BARS = 32;
+const SPECTRUM_HEIGHT = 22;
+const SPECTRUM_BAR_WIDTH = 3;
+const SPECTRUM_FLOOR = 0.08;
+const SPECTRUM_KEYS = Array.from({ length: SPECTRUM_BARS }, (_, index) => `spectrum-${index}`);
+const EMPTY_SPECTRUM = Array.from({ length: SPECTRUM_BARS }, () => 0);
+
+/**
+ * Live loudness bars while recording, newest on the right, scrolling left like the Voice Memos
+ * meter. Fed by the recorder's metering (~10 Hz); a steady low line with Reduce Motion.
+ */
+function LiveSpectrum({ level, color }: { level: SharedValue<number>; color: string }) {
+  const motionEnabled = useMotionEnabled();
+  const [levels, setLevels] = useState<readonly number[]>(EMPTY_SPECTRUM);
+  const push = (value: number) =>
+    setLevels((current) => [...current.slice(1), Math.max(0, Math.min(1, value))]);
+  useAnimatedReaction(
+    () => level.get(),
+    (current, previous) => {
+      if (current !== previous) scheduleOnRN(push, current);
+    },
+  );
+  return (
+    <View style={styles.spectrum} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {SPECTRUM_KEYS.map((key, index) => {
+        const value = motionEnabled ? (levels[index] ?? 0) : 0;
+        const height = Math.max(
+          SPECTRUM_BAR_WIDTH,
+          Math.round((SPECTRUM_FLOOR + value * (1 - SPECTRUM_FLOOR)) * SPECTRUM_HEIGHT),
+        );
+        return <View key={key} style={[styles.spectrumBar, { height, backgroundColor: color }]} />;
+      })}
+    </View>
+  );
+}
 
 /** Replaces the text field while recording: discard, a pulsing red dot and the timer. */
 export function VoiceRecordingStrip({
@@ -68,9 +105,7 @@ export function VoiceRecordingStrip({
         accessibilityLabel={t('chat.voiceRecordingA11y', { time })}>
         <Animated.View style={[styles.dot, { backgroundColor: colors.destructive }, dotStyle]} />
         <Text style={[styles.timer, { color: colors.label }]}>{time}</Text>
-        <Text numberOfLines={1} style={[styles.status, { color: colors.secondaryLabel }]}>
-          {t('chat.voiceRecordingLabel')}
-        </Text>
+        <LiveSpectrum level={level} color={colors.destructive} />
       </View>
     </View>
   );
@@ -165,9 +200,17 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     minWidth: 40,
   },
-  status: {
-    ...typography.footnote,
-    flexShrink: 1,
+  spectrum: {
+    flex: 1,
+    height: SPECTRUM_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    overflow: 'hidden',
+  },
+  spectrumBar: {
+    width: SPECTRUM_BAR_WIDTH,
+    borderRadius: SPECTRUM_BAR_WIDTH / 2,
   },
 });
 
