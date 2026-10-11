@@ -14,6 +14,15 @@ import { useAuth } from '../../hooks/useAuth';
 import { useStableHandler } from '../../hooks/useStableHandler';
 import { OfflineStatusBanner } from '../../components/auth/OfflineStatusBanner';
 import { PeerStreakBadge, usePeerFriendshipBadgeText } from '../../components/friend/StreakBadge';
+import { SOFT_SCROLL_EDGE_EFFECTS } from '../../theme/scrollEdge';
+
+/**
+ * react-native-screens applies the soft scroll edge effect to the first scroll view it finds when
+ * the screen appears or when the option changes. The chat list mounts only after the history
+ * loads (a placeholder shows before), so the option flips once the list exists and the effect
+ * is applied to it.
+ */
+const PRE_LIST_SCROLL_EDGE_EFFECTS = { top: 'automatic', bottom: 'automatic' } as const;
 
 const renderNoHeaderBackground = () => null;
 
@@ -184,8 +193,11 @@ export default function ChatScreen() {
       typingLabel,
     ],
   );
+  const chatListMounted =
+    vm.messages.length > 0 || vm.nixes.length > 0 || vm.chatUploadJobs.length > 0;
   const headerOptions = useMemo(
     () => ({
+      scrollEdgeEffects: chatListMounted ? SOFT_SCROLL_EDGE_EFFECTS : PRE_LIST_SCROLL_EDGE_EFFECTS,
       headerBackButtonDisplayMode: 'minimal' as const,
       headerTintColor: colors.accent,
       headerTransparent: !isOfflineAuthenticated,
@@ -196,7 +208,7 @@ export default function ChatScreen() {
       headerBackground: isOfflineAuthenticated ? undefined : renderNoHeaderBackground,
       headerTitle,
     }),
-    [colors.accent, colors.systemBackground, headerTitle, isOfflineAuthenticated],
+    [chatListMounted, colors.accent, colors.systemBackground, headerTitle, isOfflineAuthenticated],
   );
 
   return (
