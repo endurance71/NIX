@@ -132,6 +132,9 @@ function OnlineInboxScreen() {
           headerTitle: vm.t('inbox.title'),
           headerSearchBarOptions: {
             placeholder: vm.t('inbox.searchPlaceholder'),
+            // `automatic` lets iOS 26+ fold the field into the toolbar; on a tab's root screen a
+            // UIKit bug then hides it entirely. `stacked` keeps it under the large title.
+            placement: 'stacked',
             hideWhenScrolling: false,
             barTintColor: colors.secondarySystemGroupedBackground,
             textColor: colors.label,
