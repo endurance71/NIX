@@ -886,11 +886,12 @@ function bubbleAccessibilityBody(
 function nixReplyTexts(
   t: ChatScreenViewModel['t'],
   isOwn: boolean,
-  peerName: string,
 ): { label: string; a11y: string } {
   // My reply answers the peer's NiX; the peer's reply answers mine (see chatNixReplyContext).
+  // The pill carries no name: in a 1:1 chat it is redundant, and Polish would need the genitive
+  // ("od Damiana") — the undeclined name read wrong and truncated the pill.
   return isOwn
-    ? { label: t('chat.replyToPeerNix', { name: peerName }), a11y: t('chat.a11yReplyToPeerNix', { name: peerName }) }
+    ? { label: t('chat.replyToPeerNix'), a11y: t('chat.a11yReplyToPeerNix') }
     : { label: t('chat.replyToYourNix'), a11y: t('chat.a11yReplyToYourNix') };
 }
 
@@ -1050,7 +1051,7 @@ const MessageBubble = memo(function MessageBubble({
           inTimeline: replyToNixInTimeline,
         }
       : null;
-  const replyTexts = replyContext ? nixReplyTexts(t, isOwn, peerName) : null;
+  const replyTexts = replyContext ? nixReplyTexts(t, isOwn) : null;
   const accessibilityLabel = chatMessageAccessibilityLabel({
     sender: senderName,
     body: bubbleAccessibilityBody(t, { expired, voiceDurationMs, body }),
