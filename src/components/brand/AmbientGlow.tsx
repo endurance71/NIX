@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import Animated, {
   Easing,
+  FadeIn,
+  FadeOut,
   cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
@@ -49,20 +51,27 @@ export function AmbientGlow({
       transform: [{ translateX: -drift }, { scale: 1 + breath.get() * 0.08 }],
     };
   });
+  // Keyed by colour: a new accent fades in over the old glow, which fades out (no jump).
   return (
     <Animated.View
       pointerEvents="none"
       style={[styles.glow, { width: size, height: size, left: (width - size) / 2, top: height * centerY - size / 2 }, style]}>
-      <Svg width={size} height={size}>
-        <Defs>
-          <RadialGradient id="welcomeGlow" cx="50%" cy="50%" r="50%">
-            <Stop offset="0" stopColor={color} stopOpacity={0.55} />
-            <Stop offset="0.55" stopColor={color} stopOpacity={0.12} />
-            <Stop offset="1" stopColor={color} stopOpacity={0} />
-          </RadialGradient>
-        </Defs>
-        <Rect width={size} height={size} fill="url(#welcomeGlow)" />
-      </Svg>
+      <Animated.View
+        key={color}
+        style={StyleSheet.absoluteFill}
+        entering={motionEnabled ? FadeIn.duration(520) : undefined}
+        exiting={motionEnabled ? FadeOut.duration(520) : undefined}>
+        <Svg width={size} height={size}>
+          <Defs>
+            <RadialGradient id={`ambientGlow-${color}`} cx="50%" cy="50%" r="50%">
+              <Stop offset="0" stopColor={color} stopOpacity={0.55} />
+              <Stop offset="0.55" stopColor={color} stopOpacity={0.12} />
+              <Stop offset="1" stopColor={color} stopOpacity={0} />
+            </RadialGradient>
+          </Defs>
+          <Rect width={size} height={size} fill={`url(#ambientGlow-${color})`} />
+        </Svg>
+      </Animated.View>
     </Animated.View>
   );
 }

@@ -21,7 +21,17 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Host } from '@expo/ui';
 import { Button, Text as SwiftText, VStack } from '@expo/ui/swift-ui';
-import { buttonStyle, controlSize, disabled as swiftDisabled, font, foregroundStyle, frame, tint } from '@expo/ui/swift-ui/modifiers';
+import {
+  Animation,
+  animation,
+  buttonStyle,
+  controlSize,
+  disabled as swiftDisabled,
+  font,
+  foregroundStyle,
+  frame,
+  tint,
+} from '@expo/ui/swift-ui/modifiers';
 import { usePushNotifications } from '../../context/pushNotifications';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAuth } from '../../hooks/useAuth';
@@ -31,6 +41,7 @@ import { canUseLiquidGlass } from '../../lib/liquidGlass';
 import { queryKeys } from '../../lib/queryKeys';
 import { getCurrentUserProfile, updateCurrentUserProfile } from '../../services/profileService';
 import { useStageInk } from '../brand/stageInk';
+import { useAnimatedColor } from '../brand/useAnimatedColor';
 import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 import { ACCENT_PRESETS, resolveAccentColor, type AccentPresetId } from '../../theme/accent-presets';
 import { useMotionEnabled } from '../../theme/motion';
@@ -278,6 +289,7 @@ export function WelcomeSetup({
                 buttonStyle(canUseLiquidGlass() ? 'glassProminent' : 'borderedProminent'),
                 controlSize('large'),
                 tint(colors.accent),
+                animation(Animation.easeInOut({ duration: 0.42 }), ACCENT_PRESETS.findIndex((preset) => preset.id === accentPresetId)),
                 swiftDisabled(busy),
               ]}>
               <SwiftText
@@ -376,10 +388,11 @@ function ProgressSegment({ filled, accent }: { filled: boolean; accent: string }
   useEffect(() => {
     fill.set(withTiming(filled ? 1 : 0, { duration: 420, easing: Easing.bezier(0.23, 1, 0.32, 1) }));
   }, [fill, filled]);
-  const style = useAnimatedStyle(() => ({ transform: [{ scaleX: fill.get() }] }));
+  const color = useAnimatedColor(accent);
+  const style = useAnimatedStyle(() => ({ transform: [{ scaleX: fill.get() }], backgroundColor: color.get() }));
   return (
     <View style={[styles.segment, { backgroundColor: ink.cinemaTrack }]}>
-      <Animated.View style={[styles.segmentFill, { backgroundColor: accent }, style]} />
+      <Animated.View style={[styles.segmentFill, style]} />
     </View>
   );
 }
@@ -428,10 +441,16 @@ function HeroSymbol({
     return { transform: [{ scale: 1 + Math.sin(p * Math.PI * 2) * 0.035 }] };
   });
 
+  // A new accent eases in on the tile and its glow instead of jumping.
+  const tileColor = useAnimatedColor(accent);
+  const tileColorStyle = useAnimatedStyle(() => ({
+    backgroundColor: tileColor.get(),
+    shadowColor: tileColor.get(),
+  }));
   return (
     <View style={styles.heroWrap}>
       {step === 'notifications' ? <NotificationBanner loop={loop} text={t('welcome.setup.notifications.preview')} /> : null}
-      <Animated.View style={[styles.heroTile, { backgroundColor: accent, shadowColor: accent }, tileStyle]}>
+      <Animated.View style={[styles.heroTile, tileColorStyle, tileStyle]}>
         <SymbolView name={resolveAppIconName(HERO_ICON[step])} size={46} tintColor={onAccent} weight="semibold" />
       </Animated.View>
     </View>
