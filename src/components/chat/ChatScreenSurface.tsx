@@ -1347,8 +1347,10 @@ function nixStatusLabel(
   // Received chips name the action while one is available, like Snapchat's "Tap to view".
   if (isNixFirstOpenAvailable(nix)) return t('chat.nixNew');
   if (isNixReplayAvailable(nix, now)) return t('chat.nixReplay');
+  // The title already says „Otrzymano NiX-a”; the status line says what happened since: opened
+  // (or replayed) — the same words the sender sees, not a second „Otrzymano”.
   return t(
-    messageStatusPresentation(nix.replayed_at ? 'replayed' : 'received', messageKindForMedia(nix.media_type))
+    messageStatusPresentation(nix.replayed_at ? 'replayed' : 'opened', messageKindForMedia(nix.media_type))
       .labelKey
   );
 }
