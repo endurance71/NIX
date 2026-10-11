@@ -732,6 +732,7 @@ export const resources = {
           spam: 'Spam',
           privacy: 'Naruszenie prywatności',
           illegal_content: 'Treści nielegalne',
+          child_safety: 'Zagrożenie dla dziecka',
           other: 'Inny powód',
         },
         reportState: {
@@ -1205,7 +1206,7 @@ export const resources = {
         pages: {
           welcome: {
             title: 'Chwile tylko dla bliskich',
-            body: 'Zdjęcia i filmy, które zobaczą wyłącznie ci, do których je wyślesz.',
+            body: 'Zdjęcia i filmy tylko dla osób, którym je wyślesz, po automatycznej kontroli bezpieczeństwa (Microsoft Azure).',
           },
           capture: {
             title: 'Uchwyć to, co teraz',
@@ -1213,7 +1214,7 @@ export const resources = {
           },
           ephemeral: {
             title: 'Znika po obejrzeniu',
-            body: 'Ty decydujesz, jak długo widać NiX-a. Zrzuty ekranu są domyślnie zablokowane.',
+            body: 'Ty decydujesz, jak długo widać NiX-a. Zrzuty ekranu NiX-ów są domyślnie zablokowane.',
           },
           chat: {
             title: 'Rozmowy po Twojemu',
@@ -1221,7 +1222,7 @@ export const resources = {
           },
           memories: {
             title: 'Wspomnienia tylko na tym iPhonie',
-            body: 'Wysłane NiX-y możesz zachować w zaszyfrowanym albumie, który nigdy nie trafia na serwer.',
+            body: 'Wysłane NiX-y możesz zachować w zaszyfrowanym albumie na tym iPhonie, nigdy na naszych serwerach.',
           },
         },
         features: {
@@ -2018,6 +2019,7 @@ export const resources = {
           spam: 'Spam',
           privacy: 'Privacy violation',
           illegal_content: 'Illegal content',
+          child_safety: 'Child safety',
           other: 'Other',
         },
         reportState: {
@@ -2485,7 +2487,7 @@ export const resources = {
         pages: {
           welcome: {
             title: 'Moments just for your people',
-            body: 'Photos and videos seen only by the people you send them to.',
+            body: 'Photos and videos only for the people you send them to, after an automatic safety check (Microsoft Azure).',
           },
           capture: {
             title: 'Capture the moment',
@@ -2493,7 +2495,7 @@ export const resources = {
           },
           ephemeral: {
             title: 'Gone once it’s seen',
-            body: 'You choose how long a NiX stays on screen. Screenshots are blocked by default.',
+            body: 'You choose how long a NiX stays on screen. Screenshots of NiXes are blocked by default.',
           },
           chat: {
             title: 'Chat your way',
@@ -2501,7 +2503,7 @@ export const resources = {
           },
           memories: {
             title: 'Memories stay on this iPhone',
-            body: 'Keep the NiXes you send in an encrypted album that never reaches a server.',
+            body: 'Keep the NiXes you send in an encrypted album on this iPhone, never on our servers.',
           },
         },
         features: {

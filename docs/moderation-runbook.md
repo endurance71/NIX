@@ -30,13 +30,28 @@ raporty NiX/użytkownika zostają).
 
 | Priorytet | Przykłady | Potwierdzenie | Decyzja |
 |---|---|---:|---:|
-| Krytyczny | realna groźba przemocy, samookaleczenie, treść potencjalnie nielegalna | 2 godziny | 12 godzin |
+| Krytyczny | realna groźba przemocy, samookaleczenie, treść potencjalnie nielegalna, **zagrożenie dla dziecka** (`child_safety`) | 2 godziny | 12 godzin |
 | Normalny | nękanie, seksualne, hate, impersonation, spam, prywatność | 24 godziny | 72 godziny |
 
 Dyżurny sprawdza kolejkę co najmniej rano i wieczorem. Przekroczenie SLA oraz
 każdy błąd `evidence_failed` eskaluje do właściciela produktu. W bezpośrednim
 zagrożeniu życia należy skontaktować się z właściwymi służbami; aplikacja nie jest
 usługą ratunkową.
+
+### Zagrożenie dla dziecka (`child_safety`)
+
+NiX przyjmuje osoby od 16 lat, więc treść seksualna może dotyczyć osoby niepełnoletniej.
+Przy takim zgłoszeniu (powód `child_safety` albo każde zgłoszenie, które na to wskazuje):
+
+1. Nie pobieraj, nie przesyłaj dalej i nie kopiuj materiału poza `moderation-evidence`;
+   ogląd tylko przez krótkotrwały podpisany URL z `moderation-admin`.
+2. Usuń treść (`remove`) i zawieś konto nadawcy bez czekania na pełne SLA.
+3. Zabezpiecz dowód: przedłuż `evidence_expires_at`, aby 30-dniowe czyszczenie go nie
+   usunęło, dopóki sprawa jest otwarta.
+4. Zgłoś sprawę właściwym organom (w Polsce: Policja / Dyżurnet.pl — dyzurnet.pl), a dla
+   materiałów CSAM również przez kanał NCMEC CyberTipline, jeśli dotyczy usług w USA.
+   Zanotuj numer zgłoszenia w notatce decyzji.
+5. Nie informuj zgłoszonego użytkownika o treści zgłoszenia ani o przekazaniu sprawy.
 
 ## Dostęp operacyjny
 

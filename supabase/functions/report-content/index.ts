@@ -5,6 +5,7 @@ import { statusForRpcError, validateReportPayload } from './contract.ts';
 function extensionFor(mediaPath: string, mediaType: string) {
   const raw = mediaPath.split('?')[0].split('.').pop()?.toLowerCase();
   if (raw && /^[a-z0-9]{2,5}$/.test(raw)) return raw;
+  if (mediaType === 'audio') return 'm4a';
   return mediaType === 'video' ? 'mp4' : 'jpg';
 }
 
@@ -79,7 +80,7 @@ Deno.serve(async (req) => {
     if (!existing?.evidence_path) {
       const { data: textMsg } = await serviceClient
         .from('text_messages')
-        .select('id, sender_id, receiver_id, body, created_at')
+        .select('id, sender_id, receiver_id, body, created_at, kind, voice_path')
         .eq('id', report.text_message_id)
         .maybeSingle();
 
@@ -88,44 +89,69 @@ Deno.serve(async (req) => {
         return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
       }
 
-      // An edited message also keeps what the receiver read before (20261014100000); older
-      // backends have no history table, which simply leaves the list empty.
-      const { data: edits } = await serviceClient
-        .from('text_message_edits')
-        .select('previous_body, edited_at')
-        .eq('message_id', textMsg.id)
-        .order('edited_at', { ascending: true });
+      // A voice message's body is only a placeholder ("🎤 0:12"): the evidence is the recording
+      // itself, copied before the message expires (voice audio is not screened before delivery).
+      if (textMsg.kind === 'voice' && textMsg.voice_path) {
+        const { data: audio, error: audioError } = await serviceClient.storage
+          .from('voice-messages')
+          .download(textMsg.voice_path);
+        if (audioError || !audio) {
+          await markEvidenceFailed(serviceClient, report.report_id);
+          return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
+        }
+        const evidencePath = `${report.report_id}/evidence.${extensionFor(textMsg.voice_path, 'audio')}`;
+        const { error: uploadError } = await serviceClient.storage
+          .from('moderation-evidence')
+          .upload(evidencePath, audio, { contentType: audio.type || 'audio/mp4', upsert: true });
+        if (uploadError) {
+          await markEvidenceFailed(serviceClient, report.report_id);
+          return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
+        }
+        const { error: updateError } = await serviceClient
+          .from('content_reports')
+          .update({ evidence_path: evidencePath, status: 'open' })
+          .eq('id', report.report_id);
+        if (updateError) return json({ error: 'Evidence state could not be saved' }, 500);
+      } else {
+        // An edited message also keeps what the receiver read before (20261014100000); older
+        // backends have no history table, which simply leaves the list empty.
+        const { data: edits } = await serviceClient
+          .from('text_message_edits')
+          .select('previous_body, edited_at')
+          .eq('message_id', textMsg.id)
+          .order('edited_at', { ascending: true });
 
-      const evidenceJson = JSON.stringify({
-        textMessageId: textMsg.id,
-        senderId: textMsg.sender_id,
-        receiverId: textMsg.receiver_id,
-        body: textMsg.body,
-        createdAt: textMsg.created_at,
-        previousBodies: (edits ?? []).map((edit) => ({
-          body: edit.previous_body,
-          replacedAt: edit.edited_at,
-        })),
-        reportedAt: new Date().toISOString(),
-      });
-      const evidencePath = `${report.report_id}/evidence.json`;
-      const { error: uploadError } = await serviceClient.storage
-        .from('moderation-evidence')
-        .upload(evidencePath, new Blob([evidenceJson], { type: 'application/json' }), {
-          contentType: 'application/json',
-          upsert: true,
+        const evidenceJson = JSON.stringify({
+          textMessageId: textMsg.id,
+          senderId: textMsg.sender_id,
+          receiverId: textMsg.receiver_id,
+          body: textMsg.body,
+          createdAt: textMsg.created_at,
+          previousBodies: (edits ?? []).map((edit) => ({
+            body: edit.previous_body,
+            replacedAt: edit.edited_at,
+          })),
+          reportedAt: new Date().toISOString(),
         });
+        const evidencePath = `${report.report_id}/evidence.json`;
+        const { error: uploadError } = await serviceClient.storage
+          .from('moderation-evidence')
+          .upload(evidencePath, new Blob([evidenceJson], { type: 'application/json' }), {
+            contentType: 'application/json',
+            upsert: true,
+          });
 
-      if (uploadError) {
-        await markEvidenceFailed(serviceClient, report.report_id);
-        return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
+        if (uploadError) {
+          await markEvidenceFailed(serviceClient, report.report_id);
+          return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
+        }
+
+        const { error: updateError } = await serviceClient
+          .from('content_reports')
+          .update({ evidence_path: evidencePath, status: 'open' })
+          .eq('id', report.report_id);
+        if (updateError) return json({ error: 'Evidence state could not be saved' }, 500);
       }
-
-      const { error: updateError } = await serviceClient
-        .from('content_reports')
-        .update({ evidence_path: evidencePath, status: 'open' })
-        .eq('id', report.report_id);
-      if (updateError) return json({ error: 'Evidence state could not be saved' }, 500);
     }
   }
 
@@ -174,13 +200,15 @@ Deno.serve(async (req) => {
       priority:
         validated.value.reason === 'violence' ||
         validated.value.reason === 'self_harm' ||
-        validated.value.reason === 'illegal_content'
+        validated.value.reason === 'illegal_content' ||
+        validated.value.reason === 'child_safety'
           ? 'critical'
           : 'normal',
     },
     validated.value.reason === 'violence' ||
       validated.value.reason === 'self_harm' ||
-      validated.value.reason === 'illegal_content'
+      validated.value.reason === 'illegal_content' ||
+      validated.value.reason === 'child_safety'
       ? 'warning'
       : 'info'
   );

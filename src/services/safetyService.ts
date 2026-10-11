@@ -11,6 +11,7 @@ export type ReportReason =
   | 'spam'
   | 'privacy'
   | 'illegal_content'
+  | 'child_safety'
   | 'other';
 
 export type BlockedUser = {

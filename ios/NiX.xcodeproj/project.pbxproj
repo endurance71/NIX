@@ -32,6 +32,10 @@
 		D374DE1ECD50B95B4C1FA36B /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CACA2DE2BC8784A3CB350C0 /* ExpoModulesProvider.swift */; };
 		D4D137A6B5263362A8944E6F /* NixCaptureExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = F97B03F0DB9D591791D09E82 /* NixCaptureExtension.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		70D806097F73C4AB943D064C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 84CEEE4E9A905C5E09788B4D /* PrivacyInfo.xcprivacy */; };
+		495DA275FBD1426509A192DF /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3010AE4D237E1E4EB7212B8F /* PrivacyInfo.xcprivacy */; };
+		5021004B24F1285A5D5AD43A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AC2D0AD97F208EEDD92814E5 /* PrivacyInfo.xcprivacy */; };
+		9BD0615C9BF34A8F8021D11B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 80BAF6B5C24745E0A1C2678A /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -132,6 +136,10 @@
 		F807F0D50A580BBA6A6724D4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F97B03F0DB9D591791D09E82 /* NixCaptureExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NixCaptureExtension.swift; sourceTree = "<group>"; };
 		FEF958C51ECD7D6F26A76A32 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		84CEEE4E9A905C5E09788B4D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		3010AE4D237E1E4EB7212B8F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		AC2D0AD97F208EEDD92814E5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		80BAF6B5C24745E0A1C2678A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -190,6 +198,7 @@
 				075BE62A0A46CF0E31CBD004 /* ShareViewController.swift */,
 				F807F0D50A580BBA6A6724D4 /* Info.plist */,
 				823F1DFD475BA8353F44AD07 /* NixShareExtension.entitlements */,
+				84CEEE4E9A905C5E09788B4D /* PrivacyInfo.xcprivacy */,
 			);
 			path = NixShareExtension;
 			sourceTree = "<group>";
@@ -261,6 +270,7 @@
 				7A11C0DE0000000000000007 /* NixCameraControl.swift */,
 				7A11C0DE0000000000000005 /* NixInboxWidget.swift */,
 				7A11C0DE0000000000000002 /* Assets.xcassets */,
+				80BAF6B5C24745E0A1C2678A /* PrivacyInfo.xcprivacy */,
 			);
 			name = ExpoWidgetsTarget;
 			path = ExpoWidgetsTarget;
@@ -272,6 +282,7 @@
 				F97B03F0DB9D591791D09E82 /* NixCaptureExtension.swift */,
 				EADBDD071DA31A0E5777724D /* Info.plist */,
 				D7D137C3422F6F45B7BF5D3B /* NixCaptureExtension.entitlements */,
+				AC2D0AD97F208EEDD92814E5 /* PrivacyInfo.xcprivacy */,
 			);
 			path = NixCaptureExtension;
 			sourceTree = "<group>";
@@ -341,6 +352,7 @@
 				FEF958C51ECD7D6F26A76A32 /* NotificationService.swift */,
 				2B3A162D6BA75469CC0D829C /* Info.plist */,
 				2AA3AF85E35F27E348652CC3 /* NixNotificationService.entitlements */,
+				3010AE4D237E1E4EB7212B8F /* PrivacyInfo.xcprivacy */,
 			);
 			path = NixNotificationService;
 			sourceTree = "<group>";
@@ -517,6 +529,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				495DA275FBD1426509A192DF /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -525,6 +538,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7A11C0DE0000000000000001 /* Assets.xcassets in Resources */,
+				9BD0615C9BF34A8F8021D11B /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -532,6 +546,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				70D806097F73C4AB943D064C /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -539,6 +554,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5021004B24F1285A5D5AD43A /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

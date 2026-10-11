@@ -332,8 +332,8 @@ Dla lokalnego Archive → App Store Connect **automatic signing** jest właściw
 - **Sign in with Apple** — `com.apple.developer.applesignin`
 
 Nie dodawaj Associated Domains, Keychain Sharing ani Face ID „na zapas”.
-NiX 1.0.6 używa wyłącznie wymaganych trybów tła (`fetch`, `processing`) dla
-uzgadniania trwałej kolejki; natywny transfer pliku realizuje background
+NiX używa wyłącznie trybu tła `processing` (`expo-background-task`, `BGProcessingTask`) do
+uzgadniania trwałej kolejki (`fetch` usunięty w 1.0.13 build 15 — nic go nie używało); natywny transfer pliku realizuje background
 `URLSession`.
 
 ### `aps-environment`
@@ -375,7 +375,7 @@ NiX używa (i deklaruje) wyłącznie:
 
 | Uprawnienie | Klucz | Opis (EN w plist; PL w `pl.lproj`) |
 | --- | --- | --- |
-| Kamera | `NSCameraUsageDescription` | zdjęcia i wideo wysyłane do znajomych |
+| Kamera | `NSCameraUsageDescription` | zdjęcia i wideo wysyłane do znajomych, skanowanie kodów QR |
 | Mikrofon | `NSMicrophoneUsageDescription` | dźwięk w wideo |
 | Biblioteka zdjęć | `NSPhotoLibraryUsageDescription` | avatar / wybór mediów |
 
