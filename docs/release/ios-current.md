@@ -4,6 +4,20 @@
 > Dated sprint plans and audit snapshots are historical evidence and must link
 > here instead of presenting their old binary state as current.
 
+## Feature candidate — 1.0.13 (13), 2026-10-11
+
+Same branch and runtime as build 12 (**runtime 1.0.13**, channel production); build 13 adds native code that JS turns
+on only when the binary announces it, so OTA bundles stay valid on build 12:
+- `nix-media-overlay` constant `supportsCaptionBar` + `variant: "bar"` bake (Snapchat-style caption strip next to the
+  text sticker);
+- the `expo-camera` patch never records a photo or video upside down (JS also turns such stills upright on build 12);
+- the PL/EN photo-library add purpose strings from the eighth OTA.
+JS in the same source: reply (swipe or menu), edit, undo send and forward in the chat with the system context menu on
+bubbles, pinned conversations as an avatar grid in the inbox. Backend: migration `20261014100000` and `report-content`
+deployed first (see the [deployment record](BACKEND_DEPLOYMENT_2026-10-11.md)).
+Local Release Archive: source `1e16611` (version bump `f6579d9`), `~/.nix-ops/release-1.0.13-13/`. Upload and
+TestFlight assignment: pending.
+
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
 Branch `fix/app-cleanup-stage1` (source `385379c`, includes the build-11 branch) adds new native targets (Share,

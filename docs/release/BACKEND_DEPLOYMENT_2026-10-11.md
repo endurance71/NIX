@@ -55,3 +55,27 @@ keeps only a NiX the sender received from the receiver (otherwise NULL — the t
 three-argument calls from shipped clients keep working), `materialize_approved_text_message` copies it and
 `fetch_text_messages_with_peer` returns `reply_to_nix_id` and `reply_to_nix_media_type`. Reviewed against the last
 deployed definitions: only the reply field was added.
+
+## Follow-up — reply, edit, undo send (2026-10-11, ~13:50 UTC)
+
+| Input | Value |
+| --- | --- |
+| Source | `f276b86` (branch `fix/app-cleanup-stage1`) |
+| Migration | `20261014100000_text_message_reply_edit_unsend.sql` (history now 68, local = remote) |
+| Edge Functions | `report-content` (evidence JSON adds `previousBodies` of an edited message), deployed with `--use-api` |
+| Worker | unchanged (edit jobs are ordinary text jobs; `materialize_approved_text_message` routes them) |
+| Encrypted backup SHA256 | `c6f21f30f7f1828d2984edcd1187892610be20da6f69aa32ca2b64782a87e4c9` (`~/.nix-ops/reply-edit-unsend-2026-10-11/`) |
+
+- `text_messages.reply_to_message_id` (same-conversation quote, invalid → NULL, `ON DELETE SET NULL`), `edited_at`,
+  `edit_count`; the direct-insert policy refuses client-set edit fields.
+- `edit_own_text_message` (sender, text, 15 min, max 5 edits): with moderation ON it queues an edit job
+  (`moderation_jobs.is_edit` / `edit_of_message_id`), a newer edit supersedes unclaimed ones; with moderation OFF it
+  applies at once. Previous bodies go to `text_message_edits` (no client access, cascades with the message).
+- `unsend_own_text_message` (sender, 5 min) deletes the message; existing DELETE triggers broadcast
+  `messages_removed` and queue a voice object; a push not yet dispatched is skipped.
+- `enqueue_own_text_moderation_job` gained `p_reply_to_message_id DEFAULT NULL` (DROP + CREATE, grants restored);
+  `get_own_text_moderation_job` keeps the send-job behaviour of `20260912150000` and adds the edit case;
+  `fetch_text_messages_with_peer` returns `edited_at` and the quoted message preview; `get_chat_capabilities`
+  announces `message_replies` / `message_edits`.
+- Smoke on production from the simulator account (QA texts to the owner's account only): swipe reply delivered with its
+  quote after moderation, moderated edit applied with „Edytowano”, undo send removed the message.
