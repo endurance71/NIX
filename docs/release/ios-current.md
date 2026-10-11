@@ -32,6 +32,8 @@ spectrum glides at display rate on the UI thread.
 Fourth OTA (2026-10-11): update group `c5609d52-c606-414a-9f7e-45018a26a72b`, source `e8c7655` — a reply to a NiX
 (viewer field or notification action) shows a quoted header attached to its chat bubble. Needs migration
 `20261013100000` (deployed first, see the backend record); without it the text is still delivered, without the header.
+Fifth OTA (2026-10-11): update group `8c2c4a74-01a2-4dc2-bc88-9e10b8ceeb5a`, source `993e4f2` — a typed viewer reply
+marks the NiX opened and the viewer moves on to the next NiX (or closes after the last).
 
 The 1.0.12 App Review track
 (build 11) is unaffected.
