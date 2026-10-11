@@ -1,5 +1,6 @@
 import { resolveBootstrapFailure, resolveBootstrapRedirect } from '../lib/bootstrapPresentation';
 import { Stack, router, useNavigationContainerRef, useSegments } from 'expo-router';
+import { shouldPresentWelcome } from '../lib/welcomeOnboarding';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -329,6 +330,16 @@ function AppStack({
             contentStyle: { backgroundColor: 'transparent' },
           }}
         />
+        {/* The welcome tour: first launch, or every launch with the owner's test switch. */}
+        <Stack.Screen
+          name="welcome"
+          options={{
+            presentation: 'fullScreenModal',
+            headerShown: false,
+            gestureEnabled: false,
+            contentStyle: { backgroundColor: colors.cinemaBackground },
+          }}
+        />
         {/* Profile → Memories: one of the user's own sent NiXes, full screen (no view acks). */}
         <Stack.Screen
           name="memory-viewer"
@@ -596,6 +607,26 @@ function usePendingFriendInviteRedirect(enabled: boolean, segments: string[]) {
   }, [enabled, segments]);
 }
 
+let welcomePresentedThisLaunch = false;
+
+/** Opens the welcome tour once per launch when it is due, after routing has settled. */
+function useWelcomePresentation(enabled: boolean, segments: string[]) {
+  useEffect(() => {
+    // Not over the post-signup profile step, and only once the redirects are done.
+    if (!enabled || welcomePresentedThisLaunch || segments[1] === 'onboarding') return;
+    if (segments[0] !== '(tabs)' && segments[0] !== '(auth)') return;
+    let cancelled = false;
+    void shouldPresentWelcome().then((due) => {
+      if (cancelled || !due || welcomePresentedThisLaunch) return;
+      welcomePresentedThisLaunch = true;
+      router.push('/welcome');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, segments]);
+}
+
 function RootNavigator() {
   const { t } = useTranslation();
   const { colors, statusBarStyle } = useAppTheme();
@@ -670,6 +701,19 @@ function RootNavigator() {
     });
     return unsubscribe;
   }, [appReady, blockingStatus, bootstrap.status, navigationRef, needsOnboarding, segments, session]);
+
+  useWelcomePresentation(
+    appReady
+      && !blockingStatus
+      && !resolveBootstrapRedirect({
+        appReady: true,
+        status: bootstrap.status,
+        hasSession: Boolean(session),
+        needsOnboarding,
+        segments,
+      }),
+    segments,
+  );
 
   usePendingFriendInviteRedirect(
     appReady && bootstrap.status !== 'recoverableError' && Boolean(session) && canUseNetworkSession && !needsOnboarding,

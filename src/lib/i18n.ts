@@ -1201,6 +1201,62 @@ export const resources = {
         promptAccept: 'Zapisuj',
         promptDecline: 'Nie teraz',
       },
+      welcome: {
+        pages: {
+          welcome: {
+            title: 'Chwile tylko dla bliskich',
+            body: 'Zdjęcia i filmy, które zobaczą wyłącznie ci, do których je wyślesz.',
+          },
+          capture: {
+            title: 'Uchwyć to, co teraz',
+            body: 'Stuknij, żeby zrobić zdjęcie, przytrzymaj, żeby nagrać wideo. Dodaj tekst, emoji, rysunek albo filtr.',
+          },
+          ephemeral: {
+            title: 'Znika po obejrzeniu',
+            body: 'Ty decydujesz, jak długo widać NiX-a. Zrzuty ekranu są domyślnie zablokowane.',
+          },
+          chat: {
+            title: 'Rozmowy po Twojemu',
+            body: 'Odpowiadaj na konkretne wiadomości, reaguj, edytuj, cofaj wysłane i nagrywaj głosówki.',
+          },
+          memories: {
+            title: 'Wspomnienia tylko na tym iPhonie',
+            body: 'Wysłane NiX-y możesz zachować w zaszyfrowanym albumie, który nigdy nie trafia na serwer.',
+          },
+        },
+        features: {
+          title: 'Wszystko gotowe',
+          lead: 'Jeszcze kilka rzeczy, które warto znać.',
+          friends: { title: 'Znajomi w sekundę', body: 'Dodawaj przez kod QR albo wyślij zaproszenie.' },
+          streaks: { title: 'Serie', body: 'Wysyłajcie sobie NiX-y codziennie i podtrzymujcie płomień.' },
+          widgets: {
+            title: 'Widżety i Centrum sterowania',
+            body: 'Nowe NiX-y na ekranie początkowym, aparat jednym ruchem.',
+          },
+          safety: {
+            title: 'Bezpieczeństwo na pierwszym miejscu',
+            body: 'Zgłaszanie, blokowanie i kontrola nad tym, kto może do Ciebie pisać.',
+          },
+        },
+        next: 'Dalej',
+        start: 'Zaczynamy',
+        skip: 'Pomiń',
+        pageA11y: 'Strona {{current}} z {{total}}',
+        demo: {
+          sticker: 'Sobota! 🔥',
+          sent: 'Wysłano',
+          opened: 'Otwarto',
+          screenshotBlocked: 'Zrzut ekranu zablokowany',
+          chatName: 'Ola',
+          message1: 'Widziałaś ten zachód? 🌅',
+          message2: 'Wysłałam Ci NiX-a!',
+          reply: 'Bajka 😍',
+          encrypted: 'Zaszyfrowane, tylko na tym iPhonie',
+        },
+        testSectionTitle: 'Testy',
+        alwaysShow: 'Wprowadzenie przy każdym uruchomieniu',
+        showNow: 'Pokaż wprowadzenie',
+      },
     },
   },
   en: {
@@ -2378,6 +2434,62 @@ export const resources = {
         promptMessage: 'An encrypted copy of every NiX you send stays on this iPhone. NiXes you receive are never saved. You can change this in Profile → Memories.',
         promptAccept: 'Save',
         promptDecline: 'Not Now',
+      },
+      welcome: {
+        pages: {
+          welcome: {
+            title: 'Moments just for your people',
+            body: 'Photos and videos seen only by the people you send them to.',
+          },
+          capture: {
+            title: 'Capture the moment',
+            body: 'Tap to take a photo, hold to record a video. Add text, emoji, a drawing or a filter.',
+          },
+          ephemeral: {
+            title: 'Gone once it’s seen',
+            body: 'You choose how long a NiX stays on screen. Screenshots are blocked by default.',
+          },
+          chat: {
+            title: 'Chat your way',
+            body: 'Reply to a specific message, react, edit, undo send and record voice messages.',
+          },
+          memories: {
+            title: 'Memories stay on this iPhone',
+            body: 'Keep the NiXes you send in an encrypted album that never reaches a server.',
+          },
+        },
+        features: {
+          title: 'You’re all set',
+          lead: 'A few more things worth knowing.',
+          friends: { title: 'Friends in seconds', body: 'Add people with a QR code or send an invite.' },
+          streaks: { title: 'Streaks', body: 'Send each other a NiX every day to keep the flame going.' },
+          widgets: {
+            title: 'Widgets and Control Center',
+            body: 'New NiXes on your Home Screen, the camera one swipe away.',
+          },
+          safety: {
+            title: 'Safety comes first',
+            body: 'Report, block and decide who can message you.',
+          },
+        },
+        next: 'Continue',
+        start: 'Get Started',
+        skip: 'Skip',
+        pageA11y: 'Page {{current}} of {{total}}',
+        demo: {
+          sticker: 'Saturday! 🔥',
+          sent: 'Sent',
+          opened: 'Opened',
+          screenshotBlocked: 'Screenshot blocked',
+          chatName: 'Ola',
+          message1: 'Did you see that sunset? 🌅',
+          message2: 'Just sent you a NiX!',
+          reply: 'Unreal 😍',
+          encrypted: 'Encrypted, only on this iPhone',
+        },
+        testSectionTitle: 'Testing',
+        alwaysShow: 'Show Welcome on Every Launch',
+        showNow: 'Show Welcome',
       },
     },
   },

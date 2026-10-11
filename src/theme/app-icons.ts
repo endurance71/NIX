@@ -91,6 +91,7 @@ export type AppIconName =
   | 'chevronDown'
   // Memories album and passkey sign-in.
   | 'memories'
+  | 'widgets'
   | 'resend'
   | 'passkey'
   // Friend detail: streak and best-friend rows.
@@ -220,6 +221,7 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   chevronDown: 'chevron.down',
   // Memories: the private album of sent NiXes, and sending one again.
   memories: 'photo.stack',
+  widgets: 'square.grid.2x2',
   resend: 'arrowshape.turn.up.right',
   // Passkey sign-in on the login screen.
   passkey: 'person.badge.key',
