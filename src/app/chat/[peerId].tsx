@@ -14,6 +14,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useStableHandler } from '../../hooks/useStableHandler';
 import { OfflineStatusBanner } from '../../components/auth/OfflineStatusBanner';
 import { PeerStreakBadge, usePeerFriendshipBadgeText } from '../../components/friend/StreakBadge';
+import { useInboxPreferences } from '../../hooks/useInboxPreferences';
+import type { ReportReason } from '../../services/safetyService';
 
 
 const renderNoHeaderBackground = () => null;
@@ -99,13 +101,40 @@ export default function ChatScreen() {
   const { peerId } = useLocalSearchParams<{ peerId: string }>();
   const vm = useChatScreen(peerId ?? '');
   const { colors } = useAppTheme();
-  const { isOfflineAuthenticated } = useAuth();
+  const { isOfflineAuthenticated, user, canUseNetworkSession } = useAuth();
+  // Same server-synced pins as the inbox row menu (shared query cache), so both menus agree.
+  const preferences = useInboxPreferences({
+    currentUserId: user?.id ?? '',
+    canUseNetworkSession,
+    t: vm.t,
+  });
+  const pinned = peerId ? preferences.pinnedPeerIds.has(peerId) : false;
+  const togglePin = () => {
+    if (peerId) void preferences.setPinned(peerId, !pinned);
+  };
 
   const displayName = vm.peerProfile?.display_name?.trim() || null;
   const username = vm.peerProfile?.username ? `@${vm.peerProfile.username}` : null;
   const title = displayName || username || vm.t('chat.title');
   const fallbackInitial = (displayName || vm.peerProfile?.username || '?').charAt(0);
   const confirmUsername = vm.peerProfile?.username ?? null;
+
+  // Picking a reason in the submenu used to submit at once; reporting is confirmed first, like
+  // the inbox flow (an explicit, cancellable step before anything is sent).
+  const requestReport = (reason: ReportReason) => {
+    Alert.alert(
+      vm.t('chat.reportConfirmTitle'),
+      vm.t('chat.reportConfirmMessage', { reason: vm.t(`profile.reportReason.${reason}`) }),
+      [
+        { text: vm.t('common.cancel'), style: 'cancel' },
+        {
+          text: vm.t('chat.report'),
+          style: 'destructive',
+          onPress: () => void vm.handleReportPeer(reason),
+        },
+      ],
+    );
+  };
 
   const requestBlock = () => {
     Alert.alert(vm.t('viewer.blockConfirmTitle'), vm.t('viewer.blockConfirmMessage'), [
@@ -205,6 +234,9 @@ export default function ChatScreen() {
       <Stack.Screen options={headerOptions} />
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Menu icon={resolveAppIconName('more')} accessibilityLabel={vm.t('chat.moreA11y')}>
+          <Stack.Toolbar.MenuAction icon={resolveAppIconName(pinned ? 'unpin' : 'pin')} onPress={togglePin}>
+            {pinned ? vm.t('inbox.unpin') : vm.t('inbox.pin')}
+          </Stack.Toolbar.MenuAction>
           {iosRoadmapFeatures.communicationControls ? (
             vm.isMuted ? (
               <Stack.Toolbar.MenuAction
@@ -230,7 +262,7 @@ export default function ChatScreen() {
             {CHAT_PEER_REPORT_REASONS.map((reason) => (
               <Stack.Toolbar.MenuAction
                 key={reason}
-                onPress={() => void vm.handleReportPeer(reason)}>
+                onPress={() => requestReport(reason)}>
                 {vm.t(`profile.reportReason.${reason}`)}
               </Stack.Toolbar.MenuAction>
             ))}
