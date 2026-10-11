@@ -241,7 +241,7 @@ function UploadAccessory({ row, t }: { row: InboxRowModel; t: Translate }) {
   );
 }
 
-function MessageSubtitle({ row, label }: { row: InboxRowModel; label: string }) {
+function MessageSubtitle({ row, label, lines = 1 }: { row: InboxRowModel; label: string; lines?: number }) {
   const { colors } = useAppTheme();
   const uploadColor = useUploadPhaseColor(row.upload?.phase);
   if (!row.upload) {
@@ -263,7 +263,7 @@ function MessageSubtitle({ row, label }: { row: InboxRowModel; label: string }) 
                 ? color
                 : { type: 'hierarchical', style: 'secondary' },
             ),
-            lineLimit(1),
+            lineLimit(lines),
           ]}>
           {label}
         </Text>
@@ -279,7 +279,7 @@ function MessageSubtitle({ row, label }: { row: InboxRowModel; label: string }) 
             ? colors.destructive
             : (uploadColor ?? { type: 'hierarchical', style: 'secondary' }),
         ),
-        lineLimit(1),
+        lineLimit(lines),
       ]}>
       {label}
     </Text>
@@ -291,12 +291,15 @@ function MessageAccessory({
   busy,
   pinned,
   muted,
+  stacked = false,
   t,
 }: {
   row: InboxRowModel;
   busy: boolean;
   pinned: boolean;
   muted: boolean;
+  /** Accessibility-size layout: the time sits on its own line under the status, no chevron. */
+  stacked?: boolean;
   t: Translate;
 }) {
   const { colors } = useAppTheme();
@@ -324,14 +327,23 @@ function MessageAccessory({
         ]}>
         {row.timestampLabel}
       </Text>
-      <Image
-        systemName={resolveAppIconName('chevronRight')}
-        size={APP_ICON_SIZE.xs}
-        color={colors.tertiaryLabel}
-      />
+      {stacked ? null : (
+        <Image
+          systemName={resolveAppIconName('chevronRight')}
+          size={APP_ICON_SIZE.xs}
+          color={colors.tertiaryLabel}
+        />
+      )}
     </HStack>
   );
 }
+
+/**
+ * From this Dynamic Type scale (the accessibility sizes) a row stacks vertically: name and status
+ * may take two lines each and the time moves under them, instead of „Dami…” / „Dostarc…” squeezed
+ * beside a large timestamp.
+ */
+const INBOX_STACKED_ROW_FONT_SCALE = 1.5;
 
 function MessageRowContent({
   row,
@@ -353,11 +365,14 @@ function MessageRowContent({
   t: Translate;
 }) {
   const { colors } = useAppTheme();
+  const { fontScale } = useWindowDimensions();
+  const stacked = fontScale >= INBOX_STACKED_ROW_FONT_SCALE;
+  const textLines = stacked ? 2 : 1;
   const label = rowSubtitle(row, t, reactionGlyph);
 
   return (
     <HStack
-      alignment="center"
+      alignment={stacked ? 'top' : 'center'}
       spacing={10}
       modifiers={[
         frame({ maxWidth: Infinity, minHeight: 52, alignment: 'leading' }),
@@ -390,16 +405,19 @@ function MessageRowContent({
             modifiers={[
               font({ design: 'rounded', textStyle: 'body', weight: row.unread ? 'semibold' : 'regular' }),
               foregroundStyle({ type: 'hierarchical', style: 'primary' }),
-              lineLimit(1),
+              lineLimit(textLines),
             ]}>
             {row.display_name || `@${row.username}`}
           </Text>
           <FriendshipBadgeLabel badge={friendshipBadge} decorative />
         </HStack>
-        <MessageSubtitle row={row} label={label} />
+        <MessageSubtitle row={row} label={label} lines={textLines} />
+        {stacked ? (
+          <MessageAccessory row={row} busy={busy} pinned={pinned} muted={muted} stacked t={t} />
+        ) : null}
       </VStack>
 
-      <MessageAccessory row={row} busy={busy} pinned={pinned} muted={muted} t={t} />
+      {stacked ? null : <MessageAccessory row={row} busy={busy} pinned={pinned} muted={muted} t={t} />}
     </HStack>
   );
 }
