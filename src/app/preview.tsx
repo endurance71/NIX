@@ -1405,6 +1405,8 @@ const createStyles = (colors: ThemeColors) => {
     },
     backButton: {
       marginTop: spacing.xl,
+      // The native button host sizes to its content; without this it hugs the leading edge.
+      alignItems: 'center',
     },
     image: {
       flex: 1,
