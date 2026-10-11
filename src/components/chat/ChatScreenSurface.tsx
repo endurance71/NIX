@@ -142,7 +142,7 @@ import {
 } from '../../lib/chatMessageActions';
 import { MessageReplyHeader } from './MessageReplyHeader';
 import { SwipeToReply } from './SwipeToReply';
-import { ComposerContextBar } from './ComposerContextBar';
+import { ComposerContextPresence } from './ComposerContextBar';
 import type { MessageActionMenuItem } from './MessageActionMenu';
 import { MessageOverlay, type MessageOverlayRequest } from './MessageOverlay';
 
@@ -1860,18 +1860,21 @@ const ChatComposer = memo(function ChatComposer({
         />
       </View>
 
-      {context ? (
-        <View style={styles.composerContextRow}>
-          <ComposerContextBar
-            key={context.key}
-            icon={context.mode === 'edit' ? 'edit' : 'reply'}
-            title={context.title}
-            snippet={context.snippet}
-            cancelLabel={context.mode === 'edit' ? t('chat.cancelEdit') : t('chat.cancelReply')}
-            onCancel={cancelContext}
-          />
-        </View>
-      ) : null}
+      <ComposerContextPresence
+        style={styles.composerContextRow}
+        content={
+          context
+            ? {
+                key: context.key,
+                icon: context.mode === 'edit' ? 'edit' : 'reply',
+                title: context.title,
+                snippet: context.snippet,
+                cancelLabel: context.mode === 'edit' ? t('chat.cancelEdit') : t('chat.cancelReply'),
+              }
+            : null
+        }
+        onCancel={cancelContext}
+      />
 
       {voiceEnabled ? (
         <ComposerVoiceHost t={t} onSend={onSendVoice} onRecordingStart={onVoiceRecordingStart}>
