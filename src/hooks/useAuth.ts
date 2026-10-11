@@ -1,7 +1,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
-import NetInfo from '@react-native-community/netinfo';
+import { AppState } from 'react-native';
 import { SUPABASE_AUTH_STORAGE_KEY, supabase } from '../lib/supabase';
 import { authStorage, isSessionAccessTokenExpired, readPersistedSessionCandidate } from '../lib/authStorage';
 import {
@@ -9,12 +9,14 @@ import {
   classifyAuthBootstrap,
   type AuthBootstrapResult,
   type AuthStatus,
+  lookupSessionWithOfflineFallback,
 } from '../lib/authBootstrap';
 import { clearUserCache } from '../services/profileService';
 import {
   signInWithPassword as requestPasswordSignIn,
   signUpWithPassword as requestPasswordSignUp,
   requestPasswordReset as requestPasswordResetEmail,
+  resendSignupConfirmation as requestSignupConfirmationResend,
   updatePassword as requestPasswordUpdate,
   reauthenticatePasswordChange as requestPasswordReauthenticate,
   signOut as requestSignOut,
@@ -26,6 +28,7 @@ import { clearTextOutbox } from '../services/textOutboxService';
 import { clearPendingFriendInviteToken } from '../lib/pendingFriendInvite';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { setReactQueryAuthOnline } from '../lib/reactQueryNetwork';
+import { fetchConnectivity, getConnectivity, subscribeConnectivity } from '../lib/connectivity';
 import { clearRecipientSnapshot } from '../lib/recipientSnapshot';
 import { clearProfileBootstrapSnapshot } from '../lib/profileBootstrapSnapshot';
 import { clearOfflineCache } from '../lib/offlineCacheStore';
@@ -69,6 +72,11 @@ async function verifyOTP(email: string, token: string, type: 'signup' | 'recover
   return { data, error };
 }
 
+async function resendSignupConfirmation(email: string) {
+  const { data, error } = await requestSignupConfirmationResend(email);
+  return { data, error };
+}
+
 async function requestPasswordReset(email: string) {
   const { data, error } = await requestPasswordResetEmail(email);
   return { data, error };
@@ -90,6 +98,7 @@ async function cleanupBeforeLogout(user: User | null) {
     clearTextOutbox(user.id).catch((error) => console.warn('Text outbox cleanup before sign-out failed', error)),
     clearOfflineCache(user.id).catch((error) => console.warn('Offline cache cleanup before sign-out failed', error)),
     clearPhotoCache(user.id).catch((error) => console.warn('Photo cache cleanup before sign-out failed', error)),
+    import('../services/memoriesStore').then(({ clearMemories }) => clearMemories(user.id)).catch((error) => console.warn('Memories cleanup before sign-out failed', error)),
     clearPendingViewedAcks(user.id).catch(() => {}),
     clearRecipientSnapshot(user.id).catch(() => {}),
   ]) : Promise.resolve();
@@ -108,6 +117,7 @@ type AuthContextValue = AuthState & {
   signUp: typeof signUp;
   verifyOTP: typeof verifyOTP;
   requestPasswordReset: typeof requestPasswordReset;
+  resendSignupConfirmation: typeof resendSignupConfirmation;
   updatePassword: typeof updatePassword;
   reauthenticatePasswordChange: typeof reauthenticatePasswordChange;
   signOut: () => Promise<{ error: Error | null }>;
@@ -117,6 +127,7 @@ type AuthContextValue = AuthState & {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
@@ -231,11 +242,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const netInfo = await NetInfo.fetch().catch(() => null);
-      if (netInfo) {
-        networkOnlineRef.current = netInfo.isConnected !== false && netInfo.isInternetReachable !== false;
-      }
-      const { data, error } = await supabase.auth.getSession();
+      networkOnlineRef.current = (await fetchConnectivity()).online;
+      const { data, error } = await lookupSessionWithOfflineFallback(
+        () => supabase.auth.getSession(),
+        localSession,
+        networkOnlineRef.current
+      );
       const result = classifyAuthBootstrap({
         localSession,
         resolvedSession: data.session,
@@ -327,9 +339,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     });
 
-    const networkSubscription = NetInfo.addEventListener((networkState) => {
+    // The shared store already debounces going offline, so a short reachability blip no longer
+    // demotes the session (which unmounts realtime and the outbox sync).
+    const networkSubscription = subscribeConnectivity(() => {
       if (!mounted || loggingOutRef.current) return;
-      const online = networkState.isConnected !== false && networkState.isInternetReachable !== false;
+      const { online } = getConnectivity();
       const wasOnline = networkOnlineRef.current;
       networkOnlineRef.current = online;
       const currentSession = localSessionRef.current;
@@ -340,12 +354,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    // A transient refresh failure while the device was online leaves the session offline with no
+    // offline → online transition to wake it up; returning to the app retries the verification.
+    const appStateSubscription = AppState.addEventListener('change', (appState) => {
+      if (!mounted || loggingOutRef.current || appState !== 'active') return;
+      if (authStatusRef.current !== 'authenticatedOffline' || bootstrapPendingRef.current) return;
+      if (!getConnectivity().online) return;
+      void performBootstrap('network');
+    });
+
     void performBootstrap('initial');
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
       networkSubscription();
+      appStateSubscription.remove();
     };
   }, [commitSessionState, performBootstrap]);
 
@@ -391,6 +415,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUp,
     verifyOTP,
     requestPasswordReset,
+    resendSignupConfirmation,
     updatePassword,
     reauthenticatePasswordChange,
     signOut: logout,

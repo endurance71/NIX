@@ -1,10 +1,11 @@
 import { performCameraPermissionRequest } from '../lib/cameraPermissions';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from 'react';
-import type { ViewStyle } from 'react-native';
-import { Alert, AppState, Linking } from 'react-native';
+import type { LayoutChangeEvent, View, ViewStyle } from 'react-native';
+import { AccessibilityInfo, Alert, AppState, Linking } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import {
   CameraView,
+  PermissionStatus,
   useCameraPermissions,
   useMicrophonePermissions,
   type AvailableLenses,
@@ -13,21 +14,25 @@ import {
 } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
-import { tap, notify as hapticNotify } from '../lib/haptics';
-import type { AnimatedStyle } from 'react-native-reanimated';
+import { tap, notify as hapticNotify, selection as hapticSelection } from '../lib/haptics';
+import type { AnimatedStyle, SharedValue } from 'react-native-reanimated';
 import {
+  ReduceMotion,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  withDelay,
   Easing,
   withSequence,
-  withRepeat,
   cancelAnimation,
   useAnimatedReaction,
+  interpolate,
+  interpolateColor,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { Gesture } from 'react-native-gesture-handler';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { useScreenInsets, type ScreenInsetsResult } from './useScreenInsets';
 import { useAppTheme } from './useAppTheme';
 import { VIDEO_HOLD_THRESHOLD_MS, VIDEO_TOTAL_MAX_DURATION_MS } from '../lib/videoRecordingLimits';
@@ -49,8 +54,35 @@ import {
 import { createCameraStyles } from '../components/camera/cameraScreen.styles';
 import { setNativeVideoTorchForRecording } from '../lib/videoTorchSession';
 import { HOLD_ZOOM_GAIN } from '../lib/cameraHoldZoom';
-import { getBackLensPresetsAsync } from '../../modules/nix-camera-torch';
-import { duration as motionDuration } from '../theme/motion';
+import {
+  addCaptureEventListener,
+  boostScreenBrightnessAsync,
+  getBackLensPresetsAsync,
+  isCaptureEventsSupported,
+  isFocusPointSupported,
+  resetFocusAsync,
+  restoreScreenBrightnessAsync,
+  setCaptureEventsEnabledAsync,
+  setFocusPointAsync,
+  type NixCaptureEvent,
+} from '../../modules/nix-camera-torch';
+import { duration as motionDuration, useMotionEnabled } from '../theme/motion';
+import { focusIndicatorOrigin, viewPointToDevicePoint } from '../lib/cameraFocusPoint';
+import {
+  loadHoldHintCount,
+  nextHoldHintCount,
+  saveHoldHintCount,
+  shouldShowHoldHint,
+} from '../lib/cameraHoldHint';
+import { captureStatusVisibleMs } from '../lib/cameraStatusPill';
+import { paramFirst } from '../lib/previewRoute';
+import { queryKeys } from '../lib/queryKeys';
+import { useAuth } from './useAuth';
+import {
+  ACCEPTED_FRIENDS_LIMIT,
+  listAcceptedFriends,
+  type FriendProfile,
+} from '../services/friendService';
 import { uploadFeatures } from '../config/uploadFeatures';
 import {
   CAMERA_CAPTURE_PROFILE,
@@ -58,8 +90,29 @@ import {
 } from '../lib/cameraCaptureProfile';
 
 const VIDEO_RECORDING_MAX_FILE_SIZE_BYTES = 90 * 1024 * 1024;
-const STILL_FLASH_ARM_DELAY_MS = 80;
+/** Lets the white screen reach full brightness and the front camera re-expose before the shot. */
+const FRONT_SCREEN_FLASH_WARMUP_MS = 350;
 const VIDEO_TORCH_PROP_COMMIT_DELAY_MS = 50;
+/** Picked videos may run a frame or two past the limit after export rounding. */
+const PICKED_VIDEO_DURATION_TOLERANCE_MS = 500;
+/** Old preview fades to black before the flip so the remount does not blink. */
+const CAMERA_FLIP_FADE_OUT_MS = 120;
+const CAMERA_FLIP_FADE_IN_MS = 220;
+const SHUTTER_EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
+/** Inner disc → rounded square while recording (Camera app). */
+const SHUTTER_PRESSED_SCALE = 0.92;
+const SHUTTER_HOLD_SCALE = 1.1;
+const SHUTTER_PRESSED_OPACITY = 0.7;
+const SHUTTER_INNER_SIZE = 62;
+const SHUTTER_INNER_RECORDING_SIZE = 44;
+const SHUTTER_INNER_RECORDING_RADIUS = 12;
+
+export type CameraFocusIndicator = {
+  key: number;
+  left: number;
+  top: number;
+  locked: boolean;
+};
 
 export type CameraScreenViewModel = {
   permission: ReturnType<typeof useCameraPermissions>[0];
@@ -69,7 +122,6 @@ export type CameraScreenViewModel = {
   permissionLoadingTimedOut: boolean;
   styles: ReturnType<typeof createCameraStyles>;
   colors: ReturnType<typeof useAppTheme>['colors'];
-  statusBarStyle: ReturnType<typeof useAppTheme>['statusBarStyle'];
   insets: ScreenInsetsResult;
   facing: 'back' | 'front';
   flash: 'off' | 'on';
@@ -79,6 +131,8 @@ export type CameraScreenViewModel = {
   videoPreparing: boolean;
   recordingVideo: boolean;
   recordingElapsedSec: number;
+  /** UI-thread clock of the running recording (0 when idle), for the progress ring. */
+  recordingElapsedMs: SharedValue<number>;
   cameraReady: boolean;
   cameraActive: boolean;
   zoom: number;
@@ -94,15 +148,40 @@ export type CameraScreenViewModel = {
   takingPicture: boolean;
   captureError: string | null;
   isNativeSimulator: boolean;
+  frontScreenFlashLit: boolean;
+  frontRingLightActive: boolean;
   cameraRef: RefObject<CameraView | null>;
-  pinchGesture: ReturnType<typeof Gesture.Pinch>;
+  /**
+   * Live zoom on the UI thread (PERF-12). Gestures write only this; `zoom` above is committed once
+   * per gesture, so pinching never re-renders the camera controls.
+   */
+  zoomShared: SharedValue<number>;
+  /** True while a pinch / hold-to-record drag is changing `zoomShared`. */
+  zoomGestureActive: SharedValue<boolean>;
+  /** Pinch-to-zoom racing tap-to-focus and long-press AE/AF lock on the preview. */
+  previewGesture: ReturnType<typeof Gesture.Race>;
   shutterGesture: ReturnType<typeof Gesture.Pan>;
+  previewViewRef: RefObject<View | null>;
+  onPreviewLayout: (event: LayoutChangeEvent) => void;
+  focusIndicator: CameraFocusIndicator | null;
+  focusLocked: boolean;
+  focusSupported: boolean;
+  focusAtCenter: () => void;
+  toggleFocusLockAtCenter: () => void;
+  holdHintVisible: boolean;
+  dismissHoldHint: () => void;
+  /** Friend preset by a chat / friend screen; the next capture goes to them first. */
+  presetRecipient: FriendProfile | null;
+  clearPresetRecipient: () => void;
   onCameraReady: () => void;
   onAvailableLensesChanged: (event: AvailableLenses) => void;
   onResponsiveOrientationChanged: (event: ResponsiveOrientationChanged) => void;
   selectLens: (lensOptionId: string) => void;
   animatedShutterStyle: AnimatedStyle<ViewStyle>;
+  animatedShutterInnerStyle: AnimatedStyle<ViewStyle>;
   animatedFlashStyle: AnimatedStyle<ViewStyle>;
+  /** Black cover that crossfades the preview over a camera flip. */
+  previewCoverStyle: AnimatedStyle<ViewStyle>;
   pickFromGallery: () => Promise<void>;
   toggleFacing: () => void;
   toggleFlash: () => void;
@@ -127,7 +206,11 @@ function useLatestCallback<TArgs extends unknown[]>(
 export function useCameraScreen(): CameraScreenViewModel {
   const { t } = useTranslation();
   const isNativeSimulator = !Constants.isDevice;
-  const { colors, statusBarStyle } = useAppTheme();
+  const { colors } = useAppTheme();
+  const motionEnabled = useMotionEnabled();
+  const { user, canUseNetworkSession } = useAuth();
+  const searchParams = useLocalSearchParams<{ recipientId?: string | string[] }>();
+  const presetRecipientId = paramFirst(searchParams.recipientId)?.trim() || null;
   const { setSegments } = useVideoDraft();
   const { setDraft: setPhotoDraft } = usePhotoDraft();
   const insets = useScreenInsets('cameraTab');
@@ -188,7 +271,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   const cameraMountStartedAtRef = useRef<number | null>(null);
   const zoomAtGestureStart = useSharedValue(0);
   const zoomShared = useSharedValue(0);
-  const lastZoomCommitMs = useSharedValue(0);
+  const zoomGestureActive = useSharedValue(false);
   const recordingZoomEnabled = useSharedValue(false);
   const shutterEnabled = useSharedValue(true);
   const shutterFingerActive = useSharedValue(false);
@@ -197,12 +280,51 @@ export function useCameraScreen(): CameraScreenViewModel {
   const switchRecoveryUsedRef = useRef(false);
   const safeStopRecordingRef = useRef<() => void>(() => {});
   const disableNativeVideoTorchRef = useRef<() => void>(() => {});
+  const resetFocusRef = useRef<() => void>(() => {});
   const cameraOrientationRef = useRef<CameraOrientation | null>(null);
   const orientationWaitersRef = useRef<Set<() => void>>(new Set());
 
   const shutterScale = useSharedValue(1);
-  const recordingPulseScale = useSharedValue(1);
+  /** Reduce Motion stand-in for the press scale: a dim instead of a size change. */
+  const shutterPressOpacity = useSharedValue(1);
+  const motionEnabledShared = useSharedValue(motionEnabled);
+  /** 0 = round shutter, 1 = recording square; animated, not a style swap. */
+  const shutterRecordingMorph = useSharedValue(0);
+  const previewCoverOpacity = useSharedValue(0);
   const flashOpacity = useSharedValue(0);
+  const flipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hardwarePressActiveRef = useRef(false);
+  const recordingWithoutAudioRef = useRef(false);
+  const previewViewRef = useRef<View>(null);
+  const previewLayoutRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
+  const focusLockedRef = useRef(false);
+  const [focusIndicator, setFocusIndicator] = useState<CameraFocusIndicator | null>(null);
+  const [holdHintVisible, setHoldHintVisible] = useState(false);
+  const holdHintCountRef = useRef<number | null>(null);
+  const presetRecipientIdRef = useRef<string | null>(presetRecipientId);
+  useEffect(() => {
+    presetRecipientIdRef.current = presetRecipientId;
+  }, [presetRecipientId]);
+  useEffect(() => {
+    motionEnabledShared.set(motionEnabled);
+  }, [motionEnabled, motionEnabledShared]);
+  // Front-camera "flash": a white screen at full brightness for stills, a white ring while
+  // recording so the preview stays visible.
+  const [frontScreenFlashLit, setFrontScreenFlashLit] = useState(false);
+  const frontRingLightActive = flash === 'on' && facing === 'front' && recordingVideo;
+  useEffect(() => {
+    if (!frontRingLightActive) return;
+    void boostScreenBrightnessAsync();
+    return () => {
+      void restoreScreenBrightnessAsync();
+    };
+  }, [frontRingLightActive]);
+  useEffect(
+    () => () => {
+      void restoreScreenBrightnessAsync();
+    },
+    []
+  );
   const recordingElapsedMs = useSharedValue(0);
 
   const safeStopRecording = () => {
@@ -215,12 +337,10 @@ export function useCameraScreen(): CameraScreenViewModel {
       cameraRef.current?.stopRecording();
       logVideoTorchEvent('stop-recording-return');
     } catch (err) {
-      if (process.env.EXPO_OS === 'ios') {
-        const message = err instanceof Error ? err.message : String(err ?? '');
-        const simulatorUnsupported = message.toLowerCase().includes('simulator');
-        logVideoTorchEvent('stop-recording-catch', {}, { message, simulatorUnsupported });
-        if (simulatorUnsupported) return;
-      }
+      const message = err instanceof Error ? err.message : String(err ?? '');
+      const simulatorUnsupported = message.toLowerCase().includes('simulator');
+      logVideoTorchEvent('stop-recording-catch', {}, { message, simulatorUnsupported });
+      if (simulatorUnsupported) return;
       console.warn('stopRecording failed', err);
     }
   };
@@ -265,9 +385,18 @@ export function useCameraScreen(): CameraScreenViewModel {
     void setNativeVideoTorchForRecording({ facing: 'back', flash: 'on' }, false);
   };
 
+  /** Drops a tap-to-focus point / AE-AF lock (lens change, flip, leaving the camera). */
+  const resetFocus = () => {
+    const hadFocus = focusLockedRef.current || focusIndicator != null;
+    focusLockedRef.current = false;
+    setFocusIndicator(null);
+    if (hadFocus) void resetFocusAsync();
+  };
+
   useEffect(() => {
     safeStopRecordingRef.current = safeStopRecording;
     disableNativeVideoTorchRef.current = disableNativeVideoTorch;
+    resetFocusRef.current = resetFocus;
   });
 
   useFocusEffect(
@@ -283,6 +412,13 @@ export function useCameraScreen(): CameraScreenViewModel {
         dispatchCameraUi({ type: 'SET_CAMERA_ACTIVE', cameraActive: false });
         safeStopRecordingRef.current();
         disableNativeVideoTorchRef.current();
+        resetFocusRef.current();
+        hardwarePressActiveRef.current = false;
+        if (flipTimerRef.current) {
+          clearTimeout(flipTimerRef.current);
+          flipTimerRef.current = null;
+        }
+        previewCoverOpacity.set(0);
         if (switchWatchdogRef.current) {
           clearTimeout(switchWatchdogRef.current);
           switchWatchdogRef.current = null;
@@ -293,29 +429,42 @@ export function useCameraScreen(): CameraScreenViewModel {
           dispatchCameraUi({ type: 'SET_SWITCHING_CAMERA', isSwitchingCamera: false });
         }
       };
-    }, [])
+    }, [previewCoverOpacity])
   );
 
   useEffect(() => {
-    if (!recordingVideo) {
-      cancelAnimation(recordingPulseScale);
-      recordingPulseScale.set(1);
-      return;
-    }
-    recordingPulseScale.set(
-      withRepeat(
-        withSequence(
-          withTiming(1.1, { duration: 700, easing: Easing.inOut(Easing.sin) }),
-          withTiming(1, { duration: 700, easing: Easing.inOut(Easing.sin) })
-        ),
-        -1,
-        false
-      )
+    shutterRecordingMorph.set(
+      withTiming(recordingVideo ? 1 : 0, {
+        duration: motionEnabled ? motionDuration.medium : 0,
+        easing: SHUTTER_EASE_OUT,
+      })
     );
-  }, [recordingVideo, recordingPulseScale]);
+  }, [recordingVideo, motionEnabled, shutterRecordingMorph]);
 
   const animatedShutterStyle = useAnimatedStyle<ViewStyle>(() => ({
-    transform: [{ scale: shutterScale.get() * recordingPulseScale.get() }],
+    opacity: shutterPressOpacity.get(),
+    transform: [{ scale: shutterScale.get() }],
+  }));
+
+  const shutterIdleFill = colors.cameraControlTint;
+  const shutterRecordingFill = colors.destructive;
+  const animatedShutterInnerStyle = useAnimatedStyle<ViewStyle>(() => {
+    const morph = shutterRecordingMorph.get();
+    const scale = interpolate(morph, [0, 1], [1, SHUTTER_INNER_RECORDING_SIZE / SHUTTER_INNER_SIZE]);
+    return {
+      // Radius is in pre-scale units so the visible corner lands on 12 pt.
+      borderRadius: interpolate(
+        morph,
+        [0, 1],
+        [SHUTTER_INNER_SIZE / 2, SHUTTER_INNER_RECORDING_RADIUS / scale]
+      ),
+      backgroundColor: interpolateColor(morph, [0, 1], [shutterIdleFill, shutterRecordingFill]),
+      transform: [{ scale }],
+    };
+  });
+
+  const previewCoverStyle = useAnimatedStyle<ViewStyle>(() => ({
+    opacity: previewCoverOpacity.get(),
   }));
 
   const animatedFlashStyle = useAnimatedStyle<ViewStyle>(() => ({
@@ -369,36 +518,32 @@ export function useCameraScreen(): CameraScreenViewModel {
         .onBegin(() => {
           'worklet';
           zoomAtGestureStart.set(zoomShared.get());
-          lastZoomCommitMs.set(0);
+          zoomGestureActive.set(true);
         })
         .onUpdate((event) => {
           'worklet';
-          const nextZoom = Math.max(
+          // UI thread only (PERF-12): the preview subscribes to `zoomShared` on its own; React
+          // state is committed once, when the pinch ends.
+          zoomShared.set(Math.max(
             0,
             Math.min(1, zoomAtGestureStart.get() + (event.scale - 1) * 0.22)
-          );
-          zoomShared.set(nextZoom);
-          // Commit do React state co ~3. klatkę — bez Date/performance w ciele hooka.
-          const tick = lastZoomCommitMs.get() + 1;
-          lastZoomCommitMs.set(tick);
-          if (tick % 3 === 0) {
-            scheduleOnRN(setZoomFromGesture, nextZoom);
-          }
+          ));
         })
         .onEnd(() => {
           'worklet';
-          lastZoomCommitMs.set(0);
+          zoomGestureActive.set(false);
           scheduleOnRN(setZoomFromGesture, zoomShared.get());
         })
         .onFinalize(() => {
           'worklet';
-          lastZoomCommitMs.set(0);
+          if (!zoomGestureActive.get()) return;
+          zoomGestureActive.set(false);
           scheduleOnRN(setZoomFromGesture, zoomShared.get());
         }),
     [
-      lastZoomCommitMs,
       setZoomFromGesture,
       zoomAtGestureStart,
+      zoomGestureActive,
       zoomShared,
     ]
   );
@@ -464,11 +609,6 @@ export function useCameraScreen(): CameraScreenViewModel {
   };
 
   const applyLensOptions = useCallback((options: LensOption[]) => {
-    if (process.env.EXPO_OS !== 'ios') {
-      setLensOptions([]);
-      return;
-    }
-
     const facingNow = cameraUiRef.current.facing;
     if (facingNow !== 'back') {
       setLensOptions([]);
@@ -490,10 +630,6 @@ export function useCameraScreen(): CameraScreenViewModel {
   }, []);
 
   const refreshLensOptions = useCallback(async () => {
-    if (process.env.EXPO_OS !== 'ios') {
-      setLensOptions([]);
-      return;
-    }
     if (cameraUiRef.current.facing !== 'back') {
       setLensOptions([]);
       return;
@@ -541,7 +677,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   }, []);
 
   const waitForResponsiveOrientation = async (): Promise<CameraOrientation | null> => {
-    if (process.env.EXPO_OS !== 'ios' || cameraOrientationRef.current) {
+    if (cameraOrientationRef.current) {
       return cameraOrientationRef.current;
     }
 
@@ -575,6 +711,8 @@ export function useCameraScreen(): CameraScreenViewModel {
 
       if (ui.lensOptionId === option.id && Math.abs(ui.zoom - option.zoom) < 0.0001) return;
 
+      hapticSelection();
+      resetFocusRef.current();
       zoomAtGestureStart.set(option.zoom);
       zoomShared.set(option.zoom);
       dispatchCameraUi({
@@ -589,6 +727,158 @@ export function useCameraScreen(): CameraScreenViewModel {
   );
 
   const showLensSwitcher = shouldShowLensSwitcher(facing, lensOptions);
+
+  // --- Recipient preset by a chat / friend screen (`recipientId` search param) ---
+  const { data: acceptedFriends } = useQuery({
+    queryKey: queryKeys.acceptedFriends,
+    queryFn: () => listAcceptedFriends({ limit: ACCEPTED_FRIENDS_LIMIT }),
+    enabled: Boolean(presetRecipientId && user) && canUseNetworkSession,
+    staleTime: 1000 * 60 * 2,
+  });
+  const presetRecipient = presetRecipientId
+    ? (acceptedFriends?.find((friend) => friend.id === presetRecipientId) ?? null)
+    : null;
+
+  /** Hands the preset recipient to the preview once and clears it so the next capture is normal. */
+  const consumePresetRecipientParams = (): { recipientId?: string } => {
+    const recipientId = presetRecipientIdRef.current;
+    if (!recipientId) return {};
+    presetRecipientIdRef.current = null;
+    // Runs before the push, while the camera route is still the focused one.
+    router.setParams({ recipientId: undefined });
+    return { recipientId };
+  };
+
+  const clearPresetRecipient = () => {
+    presetRecipientIdRef.current = null;
+    router.setParams({ recipientId: undefined });
+  };
+
+  // --- One-time "Hold to record" hint ---
+  const holdHintLoadStartedRef = useRef(false);
+  const permissionGrantedForHint = Boolean(permission?.granted);
+  useEffect(() => {
+    if (!permissionGrantedForHint || holdHintLoadStartedRef.current) return;
+    holdHintLoadStartedRef.current = true;
+    let cancelled = false;
+    void loadHoldHintCount().then((count) => {
+      if (cancelled) return;
+      holdHintCountRef.current = count;
+      if (!shouldShowHoldHint(count)) return;
+      setHoldHintVisible(true);
+      const next = nextHoldHintCount(count, 'shown');
+      holdHintCountRef.current = next;
+      void saveHoldHintCount(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [permissionGrantedForHint]);
+
+  const retireHoldHint = (reason: 'dismissed' | 'recorded') => {
+    setHoldHintVisible(false);
+    const current = holdHintCountRef.current ?? 0;
+    const next = nextHoldHintCount(current, reason);
+    if (next === holdHintCountRef.current) return;
+    holdHintCountRef.current = next;
+    void saveHoldHintCount(next);
+  };
+  const dismissHoldHint = () => retireHoldHint('dismissed');
+
+  // --- Capture error / notice pill: hides itself instead of covering the lens switcher ---
+  useEffect(() => {
+    if (!captureError) return;
+    AccessibilityInfo.announceForAccessibility(captureError);
+    const timer = setTimeout(() => {
+      dispatchCameraUi({ type: 'SET_CAPTURE_ERROR', captureError: null });
+    }, captureStatusVisibleMs(captureError));
+    return () => clearTimeout(timer);
+  }, [captureError]);
+
+  // --- Tap to focus / expose, long press to lock AE/AF ---
+  const focusSupported = isFocusPointSupported();
+
+  const onPreviewLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    previewLayoutRef.current = { ...previewLayoutRef.current, width, height };
+    previewViewRef.current?.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+      previewLayoutRef.current = { x, y, width: measuredWidth || width, height: measuredHeight || height };
+    });
+  }, []);
+
+  const requestFocusAt = (x: number, y: number, windowX: number, windowY: number, lock: boolean) => {
+    if (!focusSupported) return;
+    const ui = cameraUiRef.current;
+    if (ui.isSwitchingCamera || isSwitchingCameraRef.current) return;
+    if (!cameraReadyRef.current && !ui.recordingVideo && !ui.videoPreparing) return;
+
+    const { width, height } = previewLayoutRef.current;
+    const wasLocked = focusLockedRef.current;
+    focusLockedRef.current = lock;
+    const origin = focusIndicatorOrigin(x, y, width, height);
+    setFocusIndicator((previous) => ({ key: (previous?.key ?? 0) + 1, ...origin, locked: lock }));
+
+    const fallback = viewPointToDevicePoint({
+      x,
+      y,
+      viewWidth: width,
+      viewHeight: height,
+      mirrored: ui.facing === 'front',
+    });
+    void setFocusPointAsync({
+      windowX,
+      windowY,
+      fallbackX: fallback.x,
+      fallbackY: fallback.y,
+      facing: ui.facing,
+      lensName: ui.selectedLens,
+      lock,
+    });
+
+    if (lock) {
+      hapticSelection();
+      AccessibilityInfo.announceForAccessibility(t('camera.focusLocked'));
+    } else if (wasLocked) {
+      AccessibilityInfo.announceForAccessibility(t('camera.focusUnlocked'));
+    }
+  };
+  const handleFocusRequest = useLatestCallback(requestFocusAt);
+
+  /** VoiceOver equivalents of the tap / long-press gestures: act on the preview centre. */
+  const focusAtCenter = () => {
+    const { x, y, width, height } = previewLayoutRef.current;
+    requestFocusAt(width / 2, height / 2, x + width / 2, y + height / 2, false);
+  };
+  const toggleFocusLockAtCenter = () => {
+    if (focusLockedRef.current) {
+      resetFocus();
+      AccessibilityInfo.announceForAccessibility(t('camera.focusUnlocked'));
+      return;
+    }
+    const { x, y, width, height } = previewLayoutRef.current;
+    requestFocusAt(width / 2, height / 2, x + width / 2, y + height / 2, true);
+  };
+
+  const previewGesture = useMemo(() => {
+    const focusTap = Gesture.Tap()
+      .maxDuration(300)
+      .maxDistance(12)
+      .onEnd((event, success) => {
+        'worklet';
+        if (!success) return;
+        scheduleOnRN(handleFocusRequest, event.x, event.y, event.absoluteX, event.absoluteY, false);
+      });
+    const focusLock = Gesture.LongPress()
+      .minDuration(600)
+      .maxDistance(12)
+      .numberOfPointers(1)
+      .onStart((event) => {
+        'worklet';
+        scheduleOnRN(handleFocusRequest, event.x, event.y, event.absoluteX, event.absoluteY, true);
+      });
+    // Pinch wins as soon as two fingers scale; otherwise a hold locks, a tap focuses.
+    return Gesture.Race(pinchGesture, Gesture.Exclusive(focusLock, focusTap));
+  }, [handleFocusRequest, pinchGesture]);
 
   const onCameraReady = () => {
     cameraReadyRef.current = true;
@@ -606,6 +896,7 @@ export function useCameraScreen(): CameraScreenViewModel {
     }
 
     if (clearSwitchingUi) {
+      previewCoverOpacity.set(withTiming(0, { duration: CAMERA_FLIP_FADE_IN_MS, easing: SHUTTER_EASE_OUT }));
       trackEvent('camera_switch_ready', {
         facing,
         recovered: switchRecoveryUsedRef.current,
@@ -614,23 +905,26 @@ export function useCameraScreen(): CameraScreenViewModel {
       switchRecoveryUsedRef.current = false;
     }
 
-    if (process.env.EXPO_OS === 'ios') {
-      void refreshLensOptions();
-    }
+    void refreshLensOptions();
   };
 
-  const ensureMicPermission = async (): Promise<boolean> => {
-    if (micPermission?.granted) return true;
-    if (micPermission?.canAskAgain === false) {
-      Alert.alert(t('camera.microphoneBlockedTitle'), t('camera.microphoneBlockedMessage'), [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('camera.openSettings'), onPress: () => { void Linking.openSettings(); } },
-      ]);
-      return false;
-    }
-    const res = await requestMicPermission();
-    return res.granted;
-  };
+  const micGranted = micPermission?.granted === true;
+  /** What the CameraView actually records: muted by the user or for lack of mic access. */
+  const effectiveAudioMuted = recordAudioMuted || !micGranted;
+
+  // Ask for the microphone once, right after the camera itself is allowed — never during the
+  // 500 ms hold (the system alert steals the touch and the first recording always aborted).
+  const micPromptRequestedRef = useRef(false);
+  const permissionGrantedForMic = Boolean(permission?.granted);
+  useEffect(() => {
+    if (!permissionGrantedForMic || !cameraActive || micPromptRequestedRef.current) return;
+    if (!micPermission || micPermission.granted) return;
+    if (micPermission.status !== PermissionStatus.UNDETERMINED || micPermission.canAskAgain === false) return;
+    micPromptRequestedRef.current = true;
+    void requestMicPermission().catch((error: unknown) => {
+      console.warn('Microphone permission request failed', error);
+    });
+  }, [permissionGrantedForMic, cameraActive, micPermission, requestMicPermission]);
 
   const waitForVideoTorchPropsCommit = async () => {
     logVideoTorchEvent('torch-props-commit-wait-begin', {}, { delayMs: VIDEO_TORCH_PROP_COMMIT_DELAY_MS });
@@ -655,6 +949,7 @@ export function useCameraScreen(): CameraScreenViewModel {
       recordingVideo: false,
     });
 
+    let recordingBegan = false;
     await runWithFinally(
       async () => {
         let result: { uri?: string } | undefined;
@@ -715,11 +1010,23 @@ export function useCameraScreen(): CameraScreenViewModel {
             }
           }
           recordingStartedRef.current = true;
+          recordingBegan = true;
+          AccessibilityInfo.announceForAccessibility(t('camera.recordingStarted'));
+          retireHoldHint('recorded');
+          if (recordingWithoutAudioRef.current) {
+            dispatchCameraUi({
+              type: 'SET_CAPTURE_ERROR',
+              captureError: t('camera.recordingWithoutAudio'),
+            });
+          }
           recordingElapsedMs.set(0);
           recordingElapsedMs.set(
             withTiming(VIDEO_TOTAL_MAX_DURATION_MS, {
               duration: VIDEO_TOTAL_MAX_DURATION_MS,
               easing: Easing.linear,
+              // This is a clock, not motion: with the system default, Reduce Motion would jump
+              // straight to 180 s.
+              reduceMotion: ReduceMotion.Never,
             })
           );
           logVideoTorchEvent('before-recordAsync', {
@@ -781,6 +1088,7 @@ export function useCameraScreen(): CameraScreenViewModel {
               mode: 'video',
               uri: result.uri,
               durationMs: String(durationMs),
+              ...consumePresetRecipientParams(),
             },
           });
         } else if (attemptedRecord) {
@@ -793,6 +1101,12 @@ export function useCameraScreen(): CameraScreenViewModel {
         }
       },
       () => {
+        if (recordingBegan) {
+          // Pairs with the start haptic; fired once the file is closed so recording-time
+          // haptic suppression cannot swallow it.
+          tap('medium');
+          AccessibilityInfo.announceForAccessibility(t('camera.recordingStopped'));
+        }
         recordingStartedRef.current = false;
         cancelAnimation(recordingElapsedMs);
         recordingElapsedMs.set(0);
@@ -815,24 +1129,9 @@ export function useCameraScreen(): CameraScreenViewModel {
       return;
     }
 
-    if (!recordAudioMuted) {
-      logVideoTorchEvent('mic-permission-check-begin', {}, { alreadyGranted: Boolean(micPermission?.granted) });
-      const micOk = await ensureMicPermission();
-      logVideoTorchEvent('mic-permission-check-end', {}, { micOk });
-      if (!micOk) {
-        hapticNotify('error');
-        dispatchCameraUi({
-          type: 'SET_CAPTURE_ERROR',
-          captureError: t('camera.microphoneRequired'),
-        });
-        fingerDownRef.current = false;
-        return;
-      }
-    }
-    if (!fingerDownRef.current) {
-      logVideoTorchEvent('start-video-flow-abort-after-mic');
-      return;
-    }
+    // No prompt here: without mic access the clip is recorded silently and a notice says so.
+    recordingWithoutAudioRef.current = !recordAudioMuted && !micGranted;
+    logVideoTorchEvent('mic-state', {}, { micGranted, withoutAudio: recordingWithoutAudioRef.current });
 
     try {
       logVideoTorchEvent('audio-session-recording-begin');
@@ -885,24 +1184,19 @@ export function useCameraScreen(): CameraScreenViewModel {
       });
       return;
     }
-    const shouldWaitForStillFlash = flash === 'on';
-    logVideoTorchEvent('take-picture-prepare', {}, { shouldWaitForStillFlash });
+    const useFrontScreenFlash = flash === 'on' && facing === 'front';
+    logVideoTorchEvent('take-picture-prepare');
     dispatchCameraUi({ type: 'PREPARE_STILL_CAPTURE' });
     tap('light');
 
-    shutterScale.set(
-      withSequence(
-        withTiming(0.85, { duration: motionDuration.fast, easing: Easing.out(Easing.ease) }),
-        withTiming(1, { duration: motionDuration.fast, easing: Easing.out(Easing.ease) })
-      )
-    );
-
-    flashOpacity.set(
-      withSequence(
-        withTiming(1, { duration: 50 }),
-        withTiming(0, { duration: motionDuration.slow, easing: Easing.out(Easing.ease) })
-      )
-    );
+    if (!useFrontScreenFlash) {
+      flashOpacity.set(
+        withSequence(
+          withTiming(1, { duration: 50 }),
+          withTiming(0, { duration: motionDuration.slow, easing: Easing.out(Easing.ease) })
+        )
+      );
+    }
 
     if (cameraRef.current) {
       const camera = cameraRef.current;
@@ -937,7 +1231,7 @@ export function useCameraScreen(): CameraScreenViewModel {
                     if (result.assets && result.assets.length > 0) {
                       const asset = result.assets[0];
                       setPhotoDraft({ uri: asset.uri, width: asset.width, height: asset.height });
-                      router.push({ pathname: '/preview' });
+                      router.push({ pathname: '/preview', params: consumePresetRecipientParams() });
                     }
                   }
                 } catch (err) {
@@ -957,18 +1251,18 @@ export function useCameraScreen(): CameraScreenViewModel {
               }
               return;
             }
-            if (shouldWaitForStillFlash) {
-              logVideoTorchEvent('still-flash-arm-delay-begin', {}, { delayMs: STILL_FLASH_ARM_DELAY_MS });
-              await new Promise((resolve) => setTimeout(resolve, STILL_FLASH_ARM_DELAY_MS));
-              logVideoTorchEvent('still-flash-arm-delay-end');
+            if (useFrontScreenFlash) {
+              setFrontScreenFlashLit(true);
+              await boostScreenBrightnessAsync();
+              await new Promise((resolve) => setTimeout(resolve, FRONT_SCREEN_FLASH_WARMUP_MS));
             }
             logVideoTorchEvent('before-takePictureAsync', {}, { facing });
             const captureOrientation = await waitForResponsiveOrientation();
+            // Selfie stills are mirrored by the `mirror` prop on CameraView (the per-call option
+            // is deprecated), so they match the preview.
             const photo = await camera.takePictureAsync({
               quality: 0.8,
               base64: false,
-              // Mirror selfie stills to match preview; also avoids bad crop on mirrored EXIF buffers.
-              mirror: facing === 'front',
             });
             logVideoTorchEvent('after-takePictureAsync', {}, {
               hasPhoto: Boolean(photo),
@@ -997,7 +1291,7 @@ export function useCameraScreen(): CameraScreenViewModel {
                 width: photo.width,
                 height: photo.height,
               });
-              router.push({ pathname: '/preview' });
+              router.push({ pathname: '/preview', params: consumePresetRecipientParams() });
             }
           } catch (err) {
             console.error('Nie udało się zrobić zdjęcia', err);
@@ -1012,7 +1306,13 @@ export function useCameraScreen(): CameraScreenViewModel {
             });
           }
         },
-        () => dispatchCameraUi({ type: 'SET_TAKING_PICTURE', takingPicture: false })
+        () => {
+          if (useFrontScreenFlash) {
+            setFrontScreenFlashLit(false);
+            void restoreScreenBrightnessAsync();
+          }
+          dispatchCameraUi({ type: 'SET_TAKING_PICTURE', takingPicture: false });
+        }
       );
     } else {
       hapticNotify('error');
@@ -1087,6 +1387,71 @@ export function useCameraScreen(): CameraScreenViewModel {
   const handleShutterPressIn = useLatestCallback(onShutterPressIn);
   const handleShutterPressOut = useLatestCallback(onShutterPressOut);
 
+  // Camera Control (iPhone 16+) and the volume buttons drive the same press-in / press-out path
+  // as the on-screen shutter: a short press takes a photo, a hold records.
+  const onHardwareCaptureEvent = (event: NixCaptureEvent) => {
+    if (event.phase === 'began') {
+      if (hardwarePressActiveRef.current || fingerDownRef.current) return;
+      const ui = cameraUiRef.current;
+      const shutterReady =
+        !ui.takingPicture &&
+        !ui.isSwitchingCamera &&
+        !isSwitchingCameraRef.current &&
+        (isNativeSimulator || ui.cameraReady || ui.videoPreparing || ui.recordingVideo);
+      if (!shutterReady) return;
+      hardwarePressActiveRef.current = true;
+      if (motionEnabled) {
+        shutterScale.set(withTiming(SHUTTER_PRESSED_SCALE, { duration: 100, easing: SHUTTER_EASE_OUT }));
+      } else {
+        shutterPressOpacity.set(withTiming(SHUTTER_PRESSED_OPACITY, { duration: 100 }));
+      }
+      onShutterPressIn();
+      return;
+    }
+
+    if (!hardwarePressActiveRef.current) return;
+    hardwarePressActiveRef.current = false;
+    shutterScale.set(withTiming(1, { duration: 150, easing: SHUTTER_EASE_OUT }));
+    shutterPressOpacity.set(withTiming(1, { duration: 150 }));
+
+    if (event.phase === 'ended') {
+      onShutterPressOut();
+      return;
+    }
+
+    // Cancelled (e.g. the system took the button back): never a surprise photo.
+    fingerDownRef.current = false;
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (recordingSessionRunningRef.current) {
+      safeStopRecording();
+    } else {
+      disableNativeVideoTorch();
+      dispatchCameraUi({ type: 'CLEAR_VIDEO_TORCH' });
+    }
+  };
+  const handleHardwareCaptureEvent = useLatestCallback(onHardwareCaptureEvent);
+  const captureEventsPermissionGranted = Boolean(permission?.granted);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!captureEventsPermissionGranted || !isCaptureEventsSupported()) return;
+      const subscription = addCaptureEventListener(handleHardwareCaptureEvent);
+      void setCaptureEventsEnabledAsync(true);
+      return () => {
+        subscription.remove();
+        // Gives the volume buttons back to the system as soon as the camera is left.
+        void setCaptureEventsEnabledAsync(false);
+        if (hardwarePressActiveRef.current) {
+          hardwarePressActiveRef.current = false;
+          fingerDownRef.current = false;
+        }
+      };
+    }, [captureEventsPermissionGranted, handleHardwareCaptureEvent])
+  );
+
   // Hold-to-record + Snapchat-style vertical drag-to-zoom while REC is active.
   // manualActivation keeps the touch alive through drag (Pressable would cancel on move).
   // Memoized: recreating Pan mid-hold (zoom commits / recording state) aborted Hermes in TF.
@@ -1102,39 +1467,58 @@ export function useCameraScreen(): CameraScreenViewModel {
           }
           shutterFingerActive.set(true);
           state.activate();
+          // Feedback on touch-down, on the UI thread: a press-in, then from ~150 ms a slow grow
+          // that previews the hold-to-record threshold (500 ms).
+          if (motionEnabledShared.get()) {
+            shutterScale.set(
+              withSequence(
+                withTiming(SHUTTER_PRESSED_SCALE, { duration: 100, easing: SHUTTER_EASE_OUT }),
+                withDelay(
+                  50,
+                  withTiming(SHUTTER_HOLD_SCALE, {
+                    duration: VIDEO_HOLD_THRESHOLD_MS - 150,
+                    easing: SHUTTER_EASE_OUT,
+                  })
+                )
+              )
+            );
+          } else {
+            shutterPressOpacity.set(withTiming(SHUTTER_PRESSED_OPACITY, { duration: 100 }));
+          }
           scheduleOnRN(handleShutterPressIn);
         })
         .onChange((event) => {
           'worklet';
           if (!recordingZoomEnabled.get()) return;
           // Inline hold-zoom math — do not call applyHoldZoomDelta (cross-file non-worklet).
-          const nextZoom = Math.max(
+          // UI thread only (PERF-12); committed to React state when the finger lifts.
+          zoomGestureActive.set(true);
+          zoomShared.set(Math.max(
             0,
             Math.min(1, zoomShared.get() - event.changeY * HOLD_ZOOM_GAIN)
-          );
-          zoomShared.set(nextZoom);
-          const tick = lastZoomCommitMs.get() + 1;
-          lastZoomCommitMs.set(tick);
-          if (tick % 3 === 0) {
-            scheduleOnRN(setZoomFromGesture, nextZoom);
-          }
+          ));
         })
         .onFinalize(() => {
           'worklet';
           if (!shutterFingerActive.get()) return;
           shutterFingerActive.set(false);
-          lastZoomCommitMs.set(0);
+          zoomGestureActive.set(false);
+          shutterScale.set(withTiming(1, { duration: 150, easing: SHUTTER_EASE_OUT }));
+          shutterPressOpacity.set(withTiming(1, { duration: 150 }));
           scheduleOnRN(setZoomFromGesture, zoomShared.get());
           scheduleOnRN(handleShutterPressOut);
         }),
     [
       handleShutterPressIn,
       handleShutterPressOut,
-      lastZoomCommitMs,
+      motionEnabledShared,
       recordingZoomEnabled,
       setZoomFromGesture,
       shutterEnabled,
       shutterFingerActive,
+      shutterPressOpacity,
+      shutterScale,
+      zoomGestureActive,
       zoomShared,
     ]
   );
@@ -1161,28 +1545,11 @@ export function useCameraScreen(): CameraScreenViewModel {
   const pickFromGallery = async () => {
     if (videoPreparing || recordingVideo || takingPicture || isSwitchingCamera) return;
     if (recordingSessionRunningRef.current) return;
-    tap('light');
     dispatchCameraUi({ type: 'SET_CAPTURE_ERROR', captureError: null });
 
     try {
-      const existingPermission = await ImagePicker.getMediaLibraryPermissionsAsync();
-      const perm = existingPermission.granted || existingPermission.canAskAgain === false
-        ? existingPermission : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        if (perm.canAskAgain === false) {
-          Alert.alert(t('camera.libraryBlockedTitle'), t('camera.libraryBlockedMessage'), [
-            { text: t('common.cancel'), style: 'cancel' },
-            { text: t('camera.openSettings'), onPress: () => { void Linking.openSettings(); } },
-          ]);
-        }
-        hapticNotify('error');
-        dispatchCameraUi({
-          type: 'SET_CAPTURE_ERROR',
-          captureError: t('camera.libraryRequired'),
-        });
-        return;
-      }
-
+      // PHPicker runs out of process and needs no Photos permission; asking for full library
+      // access first was a needless prompt and a dead gallery button after a refusal.
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images', 'videos'],
         allowsEditing: false,
@@ -1205,12 +1572,23 @@ export function useCameraScreen(): CameraScreenViewModel {
       trackEvent('camera_gallery_pick', { type: asset.type ?? 'unknown' });
 
       if (asset.type === 'video') {
-        const durationMs = Math.round(Math.min(asset.duration ?? 0, VIDEO_TOTAL_MAX_DURATION_MS));
+        // expo-image-picker reports the duration in milliseconds.
+        const pickedDurationMs = asset.duration ?? 0;
+        if (pickedDurationMs > VIDEO_TOTAL_MAX_DURATION_MS + PICKED_VIDEO_DURATION_TOLERANCE_MS) {
+          trackEvent('camera_gallery_video_too_long', { duration_ms: Math.round(pickedDurationMs) });
+          hapticNotify('error');
+          dispatchCameraUi({
+            type: 'SET_CAPTURE_ERROR',
+            captureError: t('camera.videoTooLong'),
+          });
+          return;
+        }
+        const durationMs = Math.round(Math.min(pickedDurationMs, VIDEO_TOTAL_MAX_DURATION_MS));
         setSegments([{ uri: asset.uri, durationMs, width: asset.width, height: asset.height }]);
-        router.push({ pathname: '/preview', params: { mode: 'video' } });
+        router.push({ pathname: '/preview', params: { mode: 'video', ...consumePresetRecipientParams() } });
       } else {
         setPhotoDraft({ uri: asset.uri, width: asset.width, height: asset.height });
-        router.push({ pathname: '/preview' });
+        router.push({ pathname: '/preview', params: consumePresetRecipientParams() });
       }
     } catch (err) {
       console.error('Wybór z galerii nie powiódł się', err);
@@ -1238,15 +1616,32 @@ export function useCameraScreen(): CameraScreenViewModel {
       holdTimerRef.current = null;
     }
     fingerDownRef.current = false;
-    disableNativeVideoTorch();
-    zoomAtGestureStart.set(0);
-    zoomShared.set(0);
-    setLensOptions([]);
+    hapticSelection();
+    resetFocus();
 
     isSwitchingCameraRef.current = true;
     switchRecoveryUsedRef.current = false;
 
     const nextFacing = facing === 'back' ? 'front' : 'back';
+    // Fade the old preview to black first, then remount on the new camera and fade back in on
+    // onCameraReady — a crossfade instead of a hard black blink. Opacity only, so it also stays
+    // under Reduce Motion.
+    previewCoverOpacity.set(withTiming(1, { duration: CAMERA_FLIP_FADE_OUT_MS, easing: SHUTTER_EASE_OUT }));
+    if (flipTimerRef.current) clearTimeout(flipTimerRef.current);
+    dispatchCameraUi({ type: 'SET_SWITCHING_CAMERA', isSwitchingCamera: true });
+    // Cleared on blur, so it only fires while the camera is still on screen.
+    flipTimerRef.current = setTimeout(() => {
+      flipTimerRef.current = null;
+      isSwitchingCameraRef.current = true;
+      startCameraSwitch(nextFacing);
+    }, CAMERA_FLIP_FADE_OUT_MS);
+  };
+
+  const startCameraSwitch = (nextFacing: 'back' | 'front') => {
+    disableNativeVideoTorch();
+    zoomAtGestureStart.set(0);
+    zoomShared.set(0);
+    setLensOptions([]);
     logVideoTorchEvent('toggle-facing-start', {}, { nextFacing });
     trackEvent('camera_switch_started', { from: facing, to: nextFacing });
     dispatchCameraUi({ type: 'START_CAMERA_SWITCH', nextFacing });
@@ -1268,6 +1663,7 @@ export function useCameraScreen(): CameraScreenViewModel {
         });
       },
       onSwitchFailure: () => {
+        previewCoverOpacity.set(withTiming(0, { duration: CAMERA_FLIP_FADE_IN_MS }));
         hapticNotify('error');
         dispatchCameraUi({
           type: 'SET_CAPTURE_ERROR',
@@ -1289,6 +1685,25 @@ export function useCameraScreen(): CameraScreenViewModel {
 
   const toggleRecordingMicMuted = () => {
     if (videoPreparing || recordingVideo || recordingSessionRunningRef.current) return;
+    if (!micGranted) {
+      // The mic button is the place to grant access later; it never toggles a muted state the
+      // user cannot hear anyway.
+      if (micPermission?.canAskAgain === false) {
+        Alert.alert(t('camera.microphoneBlockedTitle'), t('camera.microphoneBlockedMessage'), [
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('camera.openSettings'), onPress: () => { void Linking.openSettings(); } },
+        ]);
+        return;
+      }
+      void requestMicPermission()
+        .then((result) => {
+          if (result.granted && recordAudioMuted) dispatchCameraUi({ type: 'TOGGLE_RECORD_AUDIO_MUTED' });
+        })
+        .catch((error: unknown) => {
+          console.warn('Microphone permission request failed', error);
+        });
+      return;
+    }
     dispatchCameraUi({ type: 'TOGGLE_RECORD_AUDIO_MUTED' });
   };
 
@@ -1302,16 +1717,16 @@ export function useCameraScreen(): CameraScreenViewModel {
     permissionLoadingTimedOut,
     styles,
     colors,
-    statusBarStyle,
     insets,
     facing,
     flash,
     stillFlashArmed,
     videoTorchRequested,
-    recordAudioMuted,
+    recordAudioMuted: effectiveAudioMuted,
     videoPreparing,
     recordingVideo,
     recordingElapsedSec,
+    recordingElapsedMs,
     cameraReady,
     cameraActive,
     zoom,
@@ -1326,15 +1741,32 @@ export function useCameraScreen(): CameraScreenViewModel {
     takingPicture,
     captureError,
     isNativeSimulator,
+    frontScreenFlashLit,
+    frontRingLightActive,
     cameraRef,
-    pinchGesture,
+    zoomShared,
+    zoomGestureActive,
+    previewGesture,
     shutterGesture,
+    previewViewRef,
+    onPreviewLayout,
+    focusIndicator,
+    focusLocked: focusIndicator?.locked === true,
+    focusSupported,
+    focusAtCenter,
+    toggleFocusLockAtCenter,
+    holdHintVisible,
+    dismissHoldHint,
+    presetRecipient,
+    clearPresetRecipient,
     onCameraReady,
     onAvailableLensesChanged,
     onResponsiveOrientationChanged,
     selectLens,
     animatedShutterStyle,
+    animatedShutterInnerStyle,
     animatedFlashStyle,
+    previewCoverStyle,
     pickFromGallery,
     toggleFacing,
     toggleFlash,

@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  acceptFriendRequest,
   cancelOutgoingFriendRequest,
   createFriendInviteQrToken,
+  findProfileByUsername,
+  friendErrorTelemetryCode,
   getFriendInviteRelationStatus,
   listAcceptedFriends,
   listOutgoingFriendRequests,
@@ -13,6 +16,7 @@ import {
   sendFriendRequestByProfileQr,
   sendFriendRequest,
 } from './friendService';
+import { DomainError } from './errors';
 
 const {
   mockGetCurrentUser,
@@ -81,7 +85,64 @@ describe('sendFriendRequest', () => {
   it('blokuje self-invite', async () => {
     mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
 
-    await expect(sendFriendRequest('user-1')).rejects.toThrow('Nie możesz dodać siebie');
+    await expect(sendFriendRequest('user-1')).rejects.toMatchObject({ code: 'CANNOT_ADD_SELF' });
+  });
+
+  it('mapuje duplicate key na FRIENDSHIP_EXISTS zamiast surowego komunikatu SQL', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
+    mockFriendshipsSelect.mockReturnValue(buildFriendshipSelectMock([]));
+    mockFriendshipsInsert.mockResolvedValue({
+      error: { message: 'duplicate key value violates unique constraint "friendships_pair_key"' },
+    });
+
+    const error = await sendFriendRequest('user-2').catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error).toMatchObject({ code: 'FRIENDSHIP_EXISTS', messageKey: 'domainErrors.FRIENDSHIP_EXISTS' });
+  });
+
+  it('mapuje naruszenie RLS na FORBIDDEN', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
+    mockFriendshipsSelect.mockReturnValue(buildFriendshipSelectMock([]));
+    mockFriendshipsInsert.mockResolvedValue({
+      error: { message: 'new row violates row-level security policy for table "friendships"' },
+    });
+
+    await expect(sendFriendRequest('user-2')).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('przepuszcza błąd sieci bez opakowania, żeby baner pokazał wskazówkę o połączeniu', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'user-1' });
+    const networkError = new TypeError('Network request failed');
+    mockFriendshipsSelect.mockReturnValue({ or: vi.fn().mockResolvedValue({ data: null, error: networkError }) });
+
+    const error = await sendFriendRequest('user-2').catch((err: unknown) => err);
+    expect(error).toBe(networkError);
+    expect(friendErrorTelemetryCode(error)).toBe('network');
+  });
+
+  it('wymaga sesji (UNAUTHORIZED)', async () => {
+    mockGetCurrentUser.mockResolvedValue(null);
+    await expect(sendFriendRequest('user-2')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+    await expect(acceptFriendRequest('req-1')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+  });
+});
+
+describe('findProfileByUsername', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('odrzuca za krótką nazwę kodem USERNAME_TOO_SHORT bez zapytania do bazy', async () => {
+    await expect(findProfileByUsername('@ab')).rejects.toMatchObject({ code: 'USERNAME_TOO_SHORT' });
+    expect(mockSupabaseRpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('friendErrorTelemetryCode', () => {
+  it('nigdy nie zwraca surowego komunikatu błędu', () => {
+    expect(friendErrorTelemetryCode(new DomainError('FORBIDDEN', 'row-level security'))).toBe('FORBIDDEN');
+    expect(friendErrorTelemetryCode(new Error('duplicate key value violates unique constraint'))).toBe('unknown');
+    expect(friendErrorTelemetryCode('boom')).toBe('unknown');
   });
 
   it('zwraca already_requested gdy zaproszenie już wysłane', async () => {
@@ -233,6 +294,20 @@ describe('invite token flow', () => {
 
     const result = await redeemFriendInviteToken('token-1234567890');
     expect(result.result).toBe('invalid_or_expired');
+  });
+
+  it('brak funkcji RPC (stara baza) nie pokazuje instrukcji dla dewelopera', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockSupabaseRpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Could not find the function public.redeem_friend_invite(invite_token) in the schema cache' },
+    });
+
+    const error = await redeemFriendInviteToken('token-1234567890').catch((err: unknown) => err);
+    expect(error).toMatchObject({ code: 'UNKNOWN' });
+    expect((error as Error).message).not.toContain('supabase_setup.sql');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('zwraca profil zapraszającego po udanym redeem', async () => {

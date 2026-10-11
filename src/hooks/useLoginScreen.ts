@@ -7,9 +7,11 @@ import {
   APPLE_SIGN_IN_ERROR_CODES,
   isSocialAuthNotConfiguredError,
 } from '../services/socialAuthService';
-import { tap, notify } from '../lib/haptics';
+import { notify } from '../lib/haptics';
 import { runWithFinally } from '../lib/runWithFinally';
 import { getAuthFormErrorKey } from '../lib/authFormError';
+import { passkeyErrorKey } from '../lib/passkeys';
+import { canOfferPasskeySignIn, signInWithPasskey } from '../services/passkeyAuthService';
 
 function getAppleSignInErrorMessage(message: string, t: (key: string) => string) {
   if (message === APPLE_SIGN_IN_ERROR_CODES.NO_IDENTITY_TOKEN) {
@@ -18,10 +20,9 @@ function getAppleSignInErrorMessage(message: string, t: (key: string) => string)
   if (message === APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE) {
     return t('auth.appleSignInUnavailable');
   }
-  if (message.toLowerCase().includes('nonce')) {
-    return t('auth.appleSignInFailed');
-  }
-  return message || t('auth.appleSignInFailed');
+  // Never show the raw native/Auth message (e.g. „RequestUnknownException … .swift:61” when the
+  // system Apple ID prompt is dismissed): it is technical and not localized.
+  return t('auth.appleSignInFailed');
 }
 
 
@@ -46,18 +47,18 @@ export function useLoginScreen() {
 
   const [loading, setLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [appleSignInAvailable, setAppleSignInAvailable] = useState(
-    process.env.EXPO_OS === 'ios',
-  );
+  const [appleSignInAvailable, setAppleSignInAvailable] = useState(true);
 
   useEffect(() => {
-    if (process.env.EXPO_OS !== 'ios') return;
     void AppleAuthentication.isAvailableAsync().then(setAppleSignInAvailable);
   }, []);
 
-  const authBusy = loading || appleLoading;
-  const showAppleSignIn = process.env.EXPO_OS === 'ios' && appleSignInAvailable;
+  const authBusy = loading || appleLoading || passkeyLoading;
+  const showAppleSignIn = appleSignInAvailable;
+  // Needs the native module (new binary) and passkeys enabled on the backend.
+  const showPasskeySignIn = canOfferPasskeySignIn();
 
   const onEmailChange = (text: string) => {
     emailRef.current = text;
@@ -69,9 +70,9 @@ export function useLoginScreen() {
     setPasswordVal(text);
   };
 
+  // Runs on every keystroke, so it must stay silent (no haptics).
   const clearError = () => {
     setError(null);
-    tap('light');
   };
 
   const handleSignIn = async () => {
@@ -91,7 +92,6 @@ export function useLoginScreen() {
 
     setLoading(true);
     setError(null);
-    tap('medium');
     await runWithFinally(
       async () => {
         try {
@@ -117,7 +117,6 @@ export function useLoginScreen() {
 
     setError(null);
     setAppleLoading(true);
-    tap('medium');
 
     await runWithFinally(
       async () => {
@@ -144,6 +143,38 @@ export function useLoginScreen() {
     );
   };
 
+  const handlePasskeySignIn = async () => {
+    if (authBusy) return;
+
+    setError(null);
+    setPasskeyLoading(true);
+
+    await runWithFinally(
+      async () => {
+        try {
+          const { data, error: passkeyError } = await signInWithPasskey();
+          if (passkeyError) {
+            const key = passkeyErrorKey(passkeyError);
+            if (key) {
+              setError(t(key));
+              notify('error');
+            }
+          } else if (data?.session) {
+            notify('success');
+          }
+        } catch (cause) {
+          // Closing the system sheet is not an error (like a cancelled Apple sign-in).
+          const key = passkeyErrorKey(cause);
+          if (key) {
+            setError(t(key));
+            notify('error');
+          }
+        }
+      },
+      () => setPasskeyLoading(false)
+    );
+  };
+
   return {
     t,
     email,
@@ -152,11 +183,14 @@ export function useLoginScreen() {
     loading,
     authBusy,
     showAppleSignIn,
+    showPasskeySignIn,
+    passkeyLoading,
     onEmailChange,
     onPasswordChange,
     clearError,
     handleSignIn,
     handleAppleSignIn,
+    handlePasskeySignIn,
     goToForgotPassword,
     goToRegister,
   };

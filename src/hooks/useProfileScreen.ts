@@ -4,19 +4,17 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './useAuth';
+import { useSignedAvatarUrls } from './useSignedAvatarUrls';
 import {
+  ACCEPTED_FRIENDS_LIMIT,
   listAcceptedFriends,
   listIncomingFriendRequests,
   listOutgoingFriendRequests,
 } from '../services/friendService';
-import {
-  AVATAR_SIGNED_URL_STALE_TIME_MS,
-  createSignedAvatarUrls,
-} from '../services/avatarService';
 import { getCurrentUserProfile, updateCurrentUserProfile } from '../services/profileService';
 import { useAppTheme } from './useAppTheme';
-import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
-import { notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
+import { queryKeys } from '../lib/queryKeys';
+import { notifyError, notifyOffline, notifySuccess } from '../lib/appNotify';
 import { getPendingInviteCount } from '../lib/profileFriendsPresentation';
 import { userHasEmailPasswordIdentity } from '../lib/authProviders';
 import { usePushNotifications } from '../context/pushNotifications';
@@ -65,18 +63,14 @@ export function useProfileScreen() {
   });
   const { data: friends = [] } = useQuery({
     queryKey: queryKeys.acceptedFriends,
-    queryFn: () => listAcceptedFriends({ limit: 50 }),
+    queryFn: () => listAcceptedFriends({ limit: ACCEPTED_FRIENDS_LIMIT }),
     enabled: canUseNetworkSession,
     staleTime: 1000 * 60 * 2,
   });
 
   const profileUsername = profileRow?.username ?? null;
-  const avatarPaths = profileRow?.avatar_storage_path ? [profileRow.avatar_storage_path] : [];
-  const { data: avatarUrls = {} } = useQuery({
-    queryKey: avatarSignedUrlsQueryKey(avatarPaths),
-    queryFn: () => createSignedAvatarUrls(avatarPaths),
-    enabled: canUseNetworkSession && avatarPaths.length > 0,
-    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
+  const avatarUrls = useSignedAvatarUrls([profileRow?.avatar_storage_path], {
+    enabled: canUseNetworkSession,
   });
   const avatarSignedUrl = profileRow?.avatar_storage_path
     ? avatarUrls[profileRow.avatar_storage_path] ?? null
@@ -84,7 +78,7 @@ export function useProfileScreen() {
 
   const handleListRefresh = async () => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     try {
@@ -127,14 +121,14 @@ export function useProfileScreen() {
 
   const handleTogglePrivacy = async (isPrivate: boolean) => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     try {
       await updateCurrentUserProfile({ is_private: isPrivate });
       await queryClient.invalidateQueries({ queryKey: queryKeys.currentUserProfile(user?.id ?? null) });
     } catch {
-      notifyError(t('profile.privacyUpdateFailed', 'Nie udało się zmienić prywatności'));
+      notifyError(t('profile.privacyUpdateFailed'));
     }
   };
 
@@ -143,16 +137,16 @@ export function useProfileScreen() {
       if (await StoreReview.hasAction()) {
         await StoreReview.requestReview();
       } else {
-        notifyError(t('profile.rateAppUnavailable', 'Ocenianie niedostępne'));
+        notifyError(t('profile.rateAppUnavailable'));
       }
     } catch {
-      notifyError(t('profile.rateAppUnavailable', 'Ocenianie niedostępne'));
+      notifyError(t('profile.rateAppUnavailable'));
     }
   };
 
   const handleSupport = () => {
     Linking.openURL('mailto:kontakt@damianmotylinski.pl').catch(() => {
-      notifyError(t('profile.supportUnavailable', 'Nie można otworzyć klienta poczty'));
+      notifyError(t('profile.supportUnavailable'));
     });
   };
 
@@ -162,7 +156,7 @@ export function useProfileScreen() {
 
   const handlePushToggle = async (enabled: boolean) => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     if (enabled) await pushNotifications.enable();
@@ -171,7 +165,7 @@ export function useProfileScreen() {
 
   const handleAnalyticsToggle = async (enabled: boolean) => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     try {
@@ -195,6 +189,7 @@ export function useProfileScreen() {
     initialLetter,
     friendCount: friends.length,
     pendingInviteCount: getPendingInviteCount(requests.length, outgoingRequests.length),
+    incomingInviteCount: requests.length,
     handleListRefresh,
     handleSignOut,
     canChangePassword,

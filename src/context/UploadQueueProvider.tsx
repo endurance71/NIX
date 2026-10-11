@@ -1,4 +1,3 @@
-import NetInfo from '@react-native-community/netinfo';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import * as BackgroundTask from 'expo-background-task';
@@ -6,6 +5,7 @@ import * as Crypto from 'expo-crypto';
 import * as TaskManager from 'expo-task-manager';
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -14,7 +14,7 @@ import { AppState } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import i18n, { getCurrentLocale } from '../lib/i18n';
 import { assertPreparedMediaSize } from '../lib/uploadMediaLimits';
-import type { NetInfoState } from '@react-native-community/netinfo';
+import { fetchConnectivity, useConnectivity } from '../lib/connectivity';
 
 import {
   clearUploadQueueSnapshot,
@@ -26,25 +26,47 @@ import {
   listDurableUploadJobs,
   patchDurableUploadJob as persistDurableUploadJob,
   purgeExpiredDurableUploadJobs,
+  purgeFinishedDurableUploadJobs,
   purgeOwnerDurableUploadJobs,
 } from '../lib/durableUploadQueueDb';
 import { supabase } from '../lib/supabase';
 import { trackEvent } from '../lib/telemetry';
+import { notify as hapticNotify } from '../lib/haptics';
 import { queryKeys } from '../lib/queryKeys';
 import { runWithFinally } from '../lib/runWithFinally';
+import { sleep } from '../lib/sleep';
 import {
+  BACKGROUND_ADVANCEABLE_STATES,
+  BACKGROUND_ADVANCE_MIN_STEP_MS,
   UPLOAD_RETENTION_MS,
   buildUploadQueueSummary,
+  hasReusableUploadTarget,
   isAllowedUploadTransition,
+  isBackgroundSessionUsable,
   initialDurableUploadState,
   isMissingStagedUploadError,
   isPermanentUploadError,
   parseFinalizeUploadStatus,
   mapNativeUploadState,
   needsNativeTransferRecovery,
+  remainingBackgroundBudgetMs,
+  selectBackgroundAdvanceJobs,
+  selectNextUploadJob,
+  selectPreparedJobsToPark,
+  stateAfterLocalPreparation,
   uploadRetryDelay,
+  type UploadProcessingMode,
 } from '../lib/durableUploadPolicy';
-import { buildUploadLiveActivityProps } from '../lib/uploadLiveActivityPresentation';
+import {
+  buildUploadLiveActivityNativeState,
+  buildUploadLiveActivityProps,
+} from '../lib/uploadLiveActivityPresentation';
+import {
+  applyDisplayProgress,
+  createDisplayProgressTracker,
+  nativeSnapshotDisplayProgress,
+  toDisplayProgress,
+} from '../lib/uploadProgress';
 import {
   prepareImageForUpload,
   prepareVideoForUpload,
@@ -61,11 +83,14 @@ import {
   beginMediaUploadBatch,
   cancelMediaUploadBatch,
   finalizeMediaUploadBatch,
+  isModerationStillUnknown,
+  moderationPendingBackoffMs,
   waitForOwnMediaJob,
 } from '../services/mediaBatchUploadService';
 import { backgroundUploader } from '../services/backgroundUploader';
 import {
   endUploadLiveActivity,
+  reportUploadLiveActivityState,
   startUploadLiveActivity,
   updateUploadLiveActivity,
 } from '../services/uploadLiveActivity';
@@ -73,7 +98,12 @@ import type {
   DurableUploadJob,
   EnqueueMediaBatchInput,
 } from '../types/uploadQueue';
-import { UploadQueueContext, type UploadQueueContextValue } from './uploadQueue';
+import {
+  UploadQueueActionsContext,
+  UploadQueueStateContext,
+  type UploadQueueActions,
+  type UploadQueueState,
+} from './uploadQueue';
 import { useAuth } from '../hooks/useAuth';
 import { toDomainError } from '../services/errors';
 
@@ -84,6 +114,19 @@ function traceUpload(event: string, details: Record<string, unknown>) {
 
 const RECOVERY_TASK_NAME = 'nix-upload-queue-recovery';
 const MAX_JS_TIMER_DELAY_MS = 60_000;
+// URLSession reports every sent chunk. Persisting + re-reading the whole queue for each of them
+// re-rendered every queue consumer many times per second; progress-only events are coalesced.
+const PROGRESS_PERSIST_INTERVAL_MS = 250;
+const PROGRESS_PERSIST_MIN_DELTA = 0.02;
+// Compression progress lives only in memory (a restarted prepare starts from zero anyway);
+// published at most ~4×/s so the ring moves during a long transcode.
+const LIVE_PROGRESS_PUBLISH_INTERVAL_MS = 250;
+const FINISHED_PURGE_INTERVAL_MS = 60_000;
+const SUCCESS_HAPTIC_COALESCE_MS = 10_000;
+const PREPARE_START_PROGRESS = toDisplayProgress('processing', 0.04);
+const SENDING_START_PROGRESS = toDisplayProgress('sending', 0);
+const CONFIRMING_PROGRESS = toDisplayProgress('confirming');
+
 
 const STOPPED_UPLOAD_STATES: DurableUploadJob['state'][] = [
   'paused', 'cancelled', 'expired', 'completed', 'partially_completed',
@@ -118,6 +161,12 @@ function throwUploadError(message: string, code: string): never {
 }
 
 const uploadPhaseTimings = new Map<string, UploadPhaseTimings>();
+
+/**
+ * Jobs a pipeline step is working on right now, shared by the foreground processor and the
+ * background task (both run in the same JS runtime), so neither picks a job the other holds.
+ */
+const inFlightUploadJobIds = new Set<string>();
 
 function rememberPhaseTimings(jobId: string, patch: Partial<UploadPhaseTimings>) {
   const previous = uploadPhaseTimings.get(jobId) ?? {
@@ -165,10 +214,6 @@ function assertUploadReadyForNativeTransfer(
   ) {
     throw new Error(i18n.t('inbox.uploadErrorIncompleteJob'));
   }
-}
-
-function subscribeToNetworkChanges(listener: (state: NetInfoState) => void) {
-  return NetInfo.addEventListener(listener);
 }
 
 function useLatestCallback<TArgs extends unknown[], TResult>(
@@ -271,12 +316,165 @@ async function stageAndInsertUpload(
   }
 }
 
+function withDeadline<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(uploadError('Background upload budget exceeded.', 'BACKGROUND_BUDGET_EXCEEDED'));
+    }, Math.max(0, timeoutMs));
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+/**
+ * OFF-11: begin + native enqueue for one already-prepared job, from the background task. Every
+ * non-happy path (completed-on-begin, auth, network, budget) puts the job back in the state it was
+ * claimed from and leaves the decision to the foreground pipeline — no retries are counted here.
+ * Returns true when the job was handed to URLSession.
+ */
+async function advancePreparedJobInBackground(job: DurableUploadJob, startedAt: number) {
+  if (!job.preparedUri || !(await stagedUploadFileExists(job.preparedUri))) return false;
+  inFlightUploadJobIds.add(job.id);
+  try {
+    const claimed = await persistDurableUploadJob(job.id, {
+      state: 'requesting_target',
+      progress: Math.max(job.progress, SENDING_START_PROGRESS),
+    }, { onlyStates: BACKGROUND_ADVANCEABLE_STATES });
+    if (claimed.changes === 0) return false;
+    const releaseClaim = () => persistDurableUploadJob(job.id, { state: job.state }, {
+      onlyStates: ['requesting_target', 'uploading'],
+    }).catch(() => undefined);
+    try {
+      if (!hasReusableUploadTarget(job, Date.now())) {
+        const budgetMs = remainingBackgroundBudgetMs(startedAt, Date.now());
+        if (budgetMs < BACKGROUND_ADVANCE_MIN_STEP_MS) {
+          await releaseClaim();
+          return false;
+        }
+        const target = await withDeadline(beginMediaUploadBatch({
+          idempotencyKey: job.idempotencyKey,
+          mediaType: job.mediaType,
+          contentType: job.contentType ?? inferUploadContentType(job.preparedUri, job.mediaType).contentType,
+          sizeBytes: job.finalSizeBytes ?? job.originalSizeBytes ?? 0,
+          fileExtension: job.fileExtension ?? (job.mediaType === 'video' ? 'mp4' : 'jpg'),
+          playbackDurationMs: job.playbackDurationMs,
+          thumbnailB64: job.thumbnailB64,
+          recipients: job.recipients,
+          clientCreatedAt: job.createdAt,
+        }), budgetMs);
+        if (target.status === 'completed' || target.status === 'partially_completed') {
+          // Already delivered (idempotent begin): finalize + moderation wait belong to the
+          // foreground, which will get the same answer from begin.
+          await releaseClaim();
+          return false;
+        }
+        const latest = await getDurableUploadJob(job.id);
+        if (!latest || latest.state === 'cancelled' || latest.state === 'expired') {
+          await cancelMediaUploadBatch(target.batchId).catch(() => undefined);
+          return false;
+        }
+        const targetPatch = {
+          batchId: target.batchId,
+          assetId: target.assetId,
+          storagePath: target.storagePath,
+          uploadUrl: target.upload.url,
+          uploadHeaders: target.upload.headers,
+          uploadUrlExpiresAt: new Date(target.upload.expiresAt).getTime(),
+          finalizeUrl: target.finalize.url,
+          finalizeHeaders: target.finalize.headers,
+          finalizeToken: target.finalize.token,
+        };
+        if (latest.state === 'paused') {
+          await persistDurableUploadJob(job.id, { ...targetPatch, state: 'paused' }, {
+            unlessStates: ['cancelled', 'expired', 'completed', 'partially_completed'],
+          });
+          return false;
+        }
+        await patchDurableUploadJob(job.id, { ...targetPatch, state: 'uploading', nextAttemptAt: null });
+      } else {
+        await patchDurableUploadJob(job.id, { state: 'uploading', nextAttemptAt: null });
+      }
+      const ready = await getDurableUploadJob(job.id);
+      if (!ready || isLocallyStopped(ready)) return false;
+      assertUploadReadyForNativeTransfer(ready);
+      await backgroundUploader.enqueue({
+        jobId: ready.id,
+        batchId: ready.batchId,
+        fileUri: ready.preparedUri,
+        uploadUrl: ready.uploadUrl,
+        uploadHeaders: ready.uploadHeaders,
+        finalizeUrl: ready.finalizeUrl,
+        finalizeHeaders: ready.finalizeHeaders,
+        finalizeToken: ready.finalizeToken,
+        expiresAt: ready.expiresAt,
+        mediaType: ready.mediaType,
+        sizeBytes: ready.finalSizeBytes ?? ready.originalSizeBytes ?? 0,
+        locale: getCurrentLocale(),
+        nextRetryAt: 0,
+      });
+      const afterEnqueue = await getDurableUploadJob(job.id);
+      if (afterEnqueue?.state === 'paused') {
+        await backgroundUploader.pause(job.id);
+      } else if (!afterEnqueue || afterEnqueue.state === 'cancelled' || afterEnqueue.state === 'expired') {
+        await backgroundUploader.cancel(job.id);
+      }
+      return true;
+    } catch (error) {
+      traceUpload('background advance failed', { jobId: job.id, code: errorCode(error) });
+      await releaseClaim();
+      return false;
+    }
+  } finally {
+    inFlightUploadJobIds.delete(job.id);
+  }
+}
+
+/**
+ * Background task step after reconcile/purge: hand already-prepared jobs to URLSession, so a NiX
+ * prepared offline starts sending when iOS grants the task with connectivity, without opening
+ * the app. Does nothing without the native uploader (the JS fallback needs the app alive), without
+ * connectivity, or without a locally valid session (no token refresh is forced from here).
+ */
+async function advancePreparedUploadsInBackground(startedAt: number) {
+  if (!backgroundUploader.isNative) return 0;
+  const connectivity = await fetchConnectivity();
+  if (!connectivity.online) return 0;
+  const { data, error } = await supabase.auth.getSession();
+  const session = data.session;
+  if (error || !session || !isBackgroundSessionUsable({
+    userId: session.user?.id,
+    expiresAtSec: session.expires_at,
+  }, Date.now())) {
+    return 0;
+  }
+  const jobs = await listDurableUploadJobs(session.user.id);
+  const candidates = selectBackgroundAdvanceJobs(jobs, {
+    ownerId: session.user.id,
+    now: Date.now(),
+    busyJobIds: inFlightUploadJobIds,
+  });
+  let advanced = 0;
+  for (const job of candidates) {
+    if (remainingBackgroundBudgetMs(startedAt, Date.now()) < BACKGROUND_ADVANCE_MIN_STEP_MS) break;
+    if (inFlightUploadJobIds.has(job.id)) continue;
+    if (await advancePreparedJobInBackground(job, startedAt)) advanced += 1;
+  }
+  return advanced;
+}
+
 if (!TaskManager.isTaskDefined(RECOVERY_TASK_NAME)) {
   TaskManager.defineTask(RECOVERY_TASK_NAME, async () => {
+    const startedAt = Date.now();
     try {
       await backgroundUploader.reconcile();
       const expired = await purgeExpiredDurableUploadJobs();
       await Promise.all(expired.map((job) => deleteStagedUploadJob(job.id).catch(() => undefined)));
+      const finished = await purgeFinishedDurableUploadJobs();
+      await Promise.all(finished.map((id) => deleteStagedUploadJob(id).catch(() => undefined)));
+      const advanced = await advancePreparedUploadsInBackground(startedAt).catch(() => 0);
+      traceUpload('background task done', { advanced, ms: Date.now() - startedAt });
       return BackgroundTask.BackgroundTaskResult.Success;
     } catch {
       return BackgroundTask.BackgroundTaskResult.Failed;
@@ -284,7 +482,10 @@ if (!TaskManager.isTaskDefined(RECOVERY_TASK_NAME)) {
   });
 }
 
-function useUploadQueueController(): UploadQueueContextValue {
+function useUploadQueueController(): { actions: UploadQueueActions; state: UploadQueueState } {
+  // Imperative queue controller (try/finally, long async pipelines) the React Compiler cannot
+  // lower; its outputs are memoized by hand (actions/state contexts).
+  'use no memo';
   const queryClient = useQueryClient();
   useTranslation();
   const locale = getCurrentLocale();
@@ -293,24 +494,62 @@ function useUploadQueueController(): UploadQueueContextValue {
   const [ready, setReady] = useState(false);
   const [jobs, setJobs] = useState<DurableUploadJob[]>([]);
   const [stagingCount, setStagingCount] = useState(0);
-  const [online, setOnline] = useState(true);
+  const { online } = useConnectivity();
   const processingRef = useRef(false);
   const mediaModerationWaitRef = useRef(new Set<string>());
+  const moderationPendingRoundsRef = useRef(new Map<string, number>());
   const jobsRef = useRef<DurableUploadJob[]>([]);
   const ownerIdRef = useRef<string | null>(null);
   const liveActivityStartedRef = useRef(false);
   const liveActivityFailureKeyRef = useRef('');
   const nativeEventTimesRef = useRef(new Map<string, number>());
+  const lastProgressPersistRef = useRef(new Map<string, { at: number; progress: number }>());
+  // SEND-3: what the UI sees is monotonic per attempt. SQLite keeps the raw phase progress;
+  // compression progress is kept only here (`liveProgressRef`).
+  const [displayProgress] = useState(createDisplayProgressTracker);
+  const liveProgressRef = useRef(new Map<string, number>());
+  const persistedJobsRef = useRef<DurableUploadJob[]>([]);
+  const lastFinishedPurgeRef = useRef(0);
+  // Latest „can talk to the backend” value for code that runs across awaits (OFF-11).
+  const networkReady = online && canUseNetworkSession;
+  const networkReadyRef = useRef(networkReady);
+  useEffect(() => {
+    networkReadyRef.current = networkReady;
+  }, [networkReady]);
 
-  const refresh = useLatestCallback(async () => {
-    const currentOwnerId = ownerIdRef.current;
-    if (!currentOwnerId) {
-      setJobs([]);
-      return;
-    }
-    const nextJobs = await listDurableUploadJobs(currentOwnerId);
+  const publishJobs = useLatestCallback((persistedJobs: DurableUploadJob[]) => {
+    persistedJobsRef.current = persistedJobs;
+    const nextJobs = applyDisplayProgress(
+      persistedJobs,
+      displayProgress,
+      liveProgressRef.current,
+    );
     jobsRef.current = nextJobs;
     setJobs(nextJobs);
+  });
+
+  const purgeFinishedJobs = useLatestCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastFinishedPurgeRef.current < FINISHED_PURGE_INTERVAL_MS) return;
+    lastFinishedPurgeRef.current = now;
+    const ids = await purgeFinishedDurableUploadJobs(now).catch(() => []);
+    await Promise.all(ids.map((id) => deleteStagedUploadJob(id).catch(() => undefined)));
+  });
+
+  const refreshSequenceRef = useRef(0);
+  const refresh = useLatestCallback(async () => {
+    const sequence = ++refreshSequenceRef.current;
+    const currentOwnerId = ownerIdRef.current;
+    if (!currentOwnerId) {
+      publishJobs([]);
+      return;
+    }
+    void purgeFinishedJobs();
+    const nextJobs = await listDurableUploadJobs(currentOwnerId);
+    // Reads decrypt asynchronously and can resolve out of order; never let an older read
+    // overwrite a newer one (progress or state would jump backwards).
+    if (sequence !== refreshSequenceRef.current) return;
+    publishJobs(nextJobs);
   });
 
   const settleMediaModeration = useLatestCallback(async (
@@ -319,8 +558,15 @@ function useUploadQueueController(): UploadQueueContextValue {
   ) => {
     if (mediaModerationWaitRef.current.has(jobId)) return;
     mediaModerationWaitRef.current.add(jobId);
+    const pendingRounds = moderationPendingRoundsRef.current.get(jobId) ?? 0;
+    // oxlint-disable-next-line react-hooks-js/todo -- opted out of compilation ('use no memo') above
     try {
-      const settled = await waitForOwnMediaJob(moderationJobId);
+      // First round: the usual 30 s fast poll. Later rounds: one check per backed-off wait.
+      const settled = await waitForOwnMediaJob(
+        moderationJobId,
+        pendingRounds === 0 ? undefined : { timeoutMs: 0 },
+      );
+      moderationPendingRoundsRef.current.delete(jobId);
       const updated = await patchDurableUploadJob(jobId, {
         state: settled.status,
         progress: 1,
@@ -332,6 +578,14 @@ function useUploadQueueController(): UploadQueueContextValue {
       await deleteStagedUploadJob(jobId).catch(() => undefined);
       void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
     } catch (error) {
+      if (isModerationStillUnknown(error)) {
+        // Delivered bytes are not a failed send: stay in `finalizing` and check again later with
+        // a growing delay (the effect below re-runs only while online).
+        moderationPendingRoundsRef.current.set(jobId, pendingRounds + 1);
+        await sleep(moderationPendingBackoffMs(pendingRounds));
+        return;
+      }
+      moderationPendingRoundsRef.current.delete(jobId);
       const domain = toDomainError(error, i18n.t('inbox.uploadErrorModerationFailed'));
       await patchDurableUploadJob(jobId, {
         state: 'failed',
@@ -345,7 +599,7 @@ function useUploadQueueController(): UploadQueueContextValue {
     }
   });
 
-  const enqueueMediaBatch = async (input: EnqueueMediaBatchInput) => {
+  const enqueueMediaBatch = useLatestCallback(async (input: EnqueueMediaBatchInput) => {
     const currentOwnerId = ownerIdRef.current ?? ownerId;
     if (!currentOwnerId) throw new Error(i18n.t('inbox.uploadErrorSessionExpired'));
     if (input.recipients.length === 0) throw new Error(i18n.t('inbox.uploadErrorNoRecipients'));
@@ -357,7 +611,7 @@ function useUploadQueueController(): UploadQueueContextValue {
     }, () => {
       setStagingCount((count) => Math.max(0, count - 1));
     });
-  };
+  });
 
   const scheduleJsRetry = async (job: DurableUploadJob, error: unknown) => {
     const nextRetryCount = job.retryCount + 1;
@@ -382,11 +636,16 @@ function useUploadQueueController(): UploadQueueContextValue {
     });
   };
 
-  const processJob = useLatestCallback(async (initialJob: DurableUploadJob) => {
+  const processJob = useLatestCallback(async (
+    initialJob: DurableUploadJob,
+    mode: UploadProcessingMode = 'full',
+  ) => {
     let job = initialJob;
     let prepareMs: number | null = null;
     let beginMs: number | null = null;
     let nativeEnqueueMs: number | null = null;
+    inFlightUploadJobIds.add(job.id);
+    // oxlint-disable-next-line react-hooks-js/todo -- opted out of compilation ('use no memo') above
     try {
       if (job.preparedUri && !(await stagedUploadFileExists(job.preparedUri))) {
         if (await stagedUploadFileExists(job.stagedUri)) {
@@ -405,10 +664,13 @@ function useUploadQueueController(): UploadQueueContextValue {
         }
       }
 
+      // OFF-11: offline only the local phase runs; an already prepared job just waits.
+      if (mode === 'prepare_only' && job.preparedUri) return;
+
       if (!job.preparedUri) {
         await patchDurableUploadJob(job.id, {
           state: 'preparing',
-          progress: 0.02,
+          progress: PREPARE_START_PROGRESS,
           startedAt: job.startedAt ?? Date.now(),
           errorCode: job.errorCode === 'FORCE_AGGRESSIVE_COMPRESSION'
             ? job.errorCode
@@ -423,14 +685,20 @@ function useUploadQueueController(): UploadQueueContextValue {
           sourceWidth: job.sourceWidth,
           sourceHeight: job.sourceHeight,
         });
+        await refresh();
+        let lastLivePublishAt = 0;
         const onProgress = (progress: { progress: number }) => {
-          void patchDurableUploadJob(job.id, {
-            progress: Math.min(0.28, Math.max(0.02, progress.progress * 0.28)),
-          });
+          liveProgressRef.current.set(job.id, toDisplayProgress('processing', progress.progress));
+          const now = Date.now();
+          if (now - lastLivePublishAt < LIVE_PROGRESS_PUBLISH_INTERVAL_MS) return;
+          lastLivePublishAt = now;
+          publishJobs(persistedJobsRef.current);
         };
         const prepared = job.mediaType === 'video'
           ? await prepareVideoForUpload(job.stagedUri, {
               playbackDurationMs: job.playbackDurationMs ?? undefined,
+              sourceWidth: job.sourceWidth ?? undefined,
+              sourceHeight: job.sourceHeight ?? undefined,
               forceAggressiveCompression: job.errorCode === 'FORCE_AGGRESSIVE_COMPRESSION',
               onProgress,
             })
@@ -444,6 +712,8 @@ function useUploadQueueController(): UploadQueueContextValue {
           ms: Date.now() - prepareStartedAt,
           sizeBytes: prepared.sizeBytes,
         });
+        // Assigned inside the staging callback; the cast keeps TS from narrowing it to the initial value.
+        let stateAfterPrepare = 'requesting_target' as DurableUploadJob['state'];
         const preparedWasStaged = await runWithFinally(async () => {
           const latestBeforeStaging = await getDurableUploadJob(job.id);
           if (isLocallyStopped(latestBeforeStaging)) return false;
@@ -460,6 +730,9 @@ function useUploadQueueController(): UploadQueueContextValue {
           });
           assertPreparedMediaSize(job.mediaType, stagedPrepared.sizeBytes);
           const mediaInfo = inferUploadContentType(stagedPrepared.uri, job.mediaType);
+          // Prepared offline: persist everything begin needs and park on the network at the end
+          // of the processing band (~0.25), so reconnecting goes straight to begin.
+          stateAfterPrepare = stateAfterLocalPreparation(mode, networkReadyRef.current);
           await patchDurableUploadJob(job.id, {
             preparedUri: stagedPrepared.uri,
             contentType: mediaInfo.contentType,
@@ -467,8 +740,9 @@ function useUploadQueueController(): UploadQueueContextValue {
             finalSizeBytes: stagedPrepared.sizeBytes,
             bytesTotal: stagedPrepared.sizeBytes,
             thumbnailB64: prepared.thumbnailDataUrl ?? null,
-            state: 'requesting_target',
-            progress: 0.3,
+            state: stateAfterPrepare,
+            progress: SENDING_START_PROGRESS,
+            nextAttemptAt: null,
             errorCode: null,
             errorMessage: null,
           });
@@ -482,6 +756,10 @@ function useUploadQueueController(): UploadQueueContextValue {
         prepareMs = Date.now() - prepareStartedAt;
         rememberPhaseTimings(job.id, { prepareMs });
         if (!preparedWasStaged) return;
+        if (stateAfterPrepare === 'waiting_network') {
+          traceUpload('prepared offline; waiting for network', { jobId: job.id, prepareMs });
+          return;
+        }
         job = (await getDurableUploadJob(job.id)) ?? job;
       }
 
@@ -496,17 +774,10 @@ function useUploadQueueController(): UploadQueueContextValue {
       job = (await getDurableUploadJob(job.id)) ?? job;
       if (isLocallyStopped(job) || (job.nextAttemptAt ?? 0) > Date.now()) return;
 
-      if (
-        !job.batchId
-        || !job.uploadUrl
-        || !job.finalizeUrl
-        || !job.finalizeToken
-        || !job.uploadUrlExpiresAt
-        || job.uploadUrlExpiresAt <= Date.now()
-      ) {
+      if (!hasReusableUploadTarget(job, Date.now())) {
         await patchDurableUploadJob(job.id, {
           state: 'requesting_target',
-          progress: Math.max(job.progress, 0.3),
+          progress: Math.max(job.progress, SENDING_START_PROGRESS),
         });
         const beginStartedAt = Date.now();
         traceUpload('begin start', { jobId: job.id, mediaType: job.mediaType });
@@ -519,6 +790,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           playbackDurationMs: job.playbackDurationMs,
           thumbnailB64: job.thumbnailB64,
           recipients: job.recipients,
+          clientCreatedAt: job.createdAt,
         });
         beginMs = Date.now() - beginStartedAt;
         traceUpload('begin done', { jobId: job.id, ms: beginMs, status: target.status });
@@ -550,7 +822,7 @@ function useUploadQueueController(): UploadQueueContextValue {
               storagePath: target.storagePath,
               state: 'finalizing',
               moderationJobId: parsed.jobId,
-              progress: 0.97,
+              progress: CONFIRMING_PROGRESS,
               finishedAt: null,
               errorCode: null,
               errorMessage: null,
@@ -599,7 +871,7 @@ function useUploadQueueController(): UploadQueueContextValue {
         await patchDurableUploadJob(job.id, {
           ...targetPatch,
           state: 'uploading',
-          progress: 0.31,
+          progress: SENDING_START_PROGRESS,
         });
         job = (await getDurableUploadJob(job.id)) ?? job;
       }
@@ -613,7 +885,7 @@ function useUploadQueueController(): UploadQueueContextValue {
 
       await patchDurableUploadJob(job.id, {
         state: online ? 'uploading' : 'waiting_network',
-        progress: Math.max(job.progress, 0.31),
+        progress: Math.max(job.progress, SENDING_START_PROGRESS),
         nextAttemptAt: null,
       });
       const latestBeforeEnqueue = await getDurableUploadJob(job.id);
@@ -644,11 +916,9 @@ function useUploadQueueController(): UploadQueueContextValue {
         ms: nativeEnqueueMs,
         result,
       });
-      rememberPhaseTimings(job.id, {
-        prepareMs,
-        beginMs,
-        nativeEnqueueMs,
-      });
+      // prepareMs/beginMs were remembered when measured; a job prepared offline earlier keeps
+      // its own prepare time instead of being overwritten with null here.
+      rememberPhaseTimings(job.id, { nativeEnqueueMs });
       const latestAfterEnqueue = await getDurableUploadJob(job.id);
       if (latestAfterEnqueue?.state === 'paused') {
         await backgroundUploader.pause(job.id);
@@ -715,19 +985,22 @@ function useUploadQueueController(): UploadQueueContextValue {
         media_type: job.mediaType,
         error_message: error instanceof Error ? error.message : 'Unknown upload error',
       });
+    } finally {
+      liveProgressRef.current.delete(job.id);
+      inFlightUploadJobIds.delete(initialJob.id);
     }
   });
 
-  const pauseUpload = async (jobId: string) => {
+  const pauseUpload = useLatestCallback(async (jobId: string) => {
     const current = await getDurableUploadJob(jobId);
     if (!current || !isAllowedUploadTransition(current.state, 'paused')) return;
     const updated = await patchDurableUploadJob(jobId, { state: 'paused' }, true);
     if (updated.changes === 0) return;
     await backgroundUploader.pause(jobId);
     await refresh();
-  };
+  });
 
-  const resumeUpload = async (jobId: string) => {
+  const resumeUpload = useLatestCallback(async (jobId: string) => {
     const job = await getDurableUploadJob(jobId);
     if (!job) return;
     const retryPending = (job.nextAttemptAt ?? 0) > Date.now();
@@ -744,9 +1017,9 @@ function useUploadQueueController(): UploadQueueContextValue {
     await backgroundUploader.resume(jobId);
     await backgroundUploader.reconcile();
     await refresh();
-  };
+  });
 
-  const retryUpload = async (jobId: string) => {
+  const retryUpload = useLatestCallback(async (jobId: string) => {
     const job = await getDurableUploadJob(jobId);
     if (!job || job.state === 'paused' || job.errorCode === 'FILE_TOO_LARGE_PERMANENT') return;
     const retryAfterTooLarge = job.errorCode === 'FILE_TOO_LARGE';
@@ -771,6 +1044,8 @@ function useUploadQueueController(): UploadQueueContextValue {
       finalizeHeaders: retryAfterTooLarge ? null : job.finalizeHeaders,
       finalizeToken: retryAfterTooLarge ? null : job.finalizeToken,
       retryCount: retryAfterTooLarge ? job.retryCount + 1 : 0,
+      // A manual retry restarts from the phase it re-enters, not from the failed attempt's value.
+      progress: retryAfterTooLarge || !job.preparedUri ? 0 : SENDING_START_PROGRESS,
       authRefreshAttempted: false,
       nextAttemptAt: retryPending ? job.nextAttemptAt : null,
       errorCode: retryAfterTooLarge ? 'FORCE_AGGRESSIVE_COMPRESSION' : null,
@@ -778,14 +1053,16 @@ function useUploadQueueController(): UploadQueueContextValue {
       finishedAt: null,
     });
     if (updated.changes === 0) return;
+    // A manual retry is a new attempt: the ring may restart from the new phase.
+    displayProgress.reset(jobId);
     if (retryAfterTooLarge) {
       await backgroundUploader.cancel(jobId).catch(() => undefined);
       if (job.batchId) await cancelMediaUploadBatch(job.batchId).catch(() => undefined);
     }
     await refresh();
-  };
+  });
 
-  const cancelUpload = async (jobId: string) => {
+  const cancelUpload = useLatestCallback(async (jobId: string) => {
     const job = await getDurableUploadJob(jobId);
     if (!job) return;
     const updated = await patchDurableUploadJob(jobId, {
@@ -797,11 +1074,7 @@ function useUploadQueueController(): UploadQueueContextValue {
     if (job.batchId) await cancelMediaUploadBatch(job.batchId).catch(() => undefined);
     await deleteStagedUploadJob(jobId).catch(() => undefined);
     await refresh();
-  };
-
-  useEffect(() => {
-    jobsRef.current = jobs;
-  }, [jobs]);
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -815,13 +1088,13 @@ function useUploadQueueController(): UploadQueueContextValue {
           await backgroundUploader.cancel(id).catch(() => undefined);
           await deleteStagedUploadJob(id).catch(() => undefined);
         }));
-        if (!cancelled && ownerIdRef.current === null) setJobs([]);
+        if (!cancelled && ownerIdRef.current === null) publishJobs([]);
       })();
     }
     return () => {
       cancelled = true;
     };
-  }, [ownerId]);
+  }, [ownerId, publishJobs]);
 
   useEffect(() => {
     let cancelled = false;
@@ -829,7 +1102,8 @@ function useUploadQueueController(): UploadQueueContextValue {
       queueMicrotask(() => {
         if (cancelled) return;
         setReady(true);
-        setJobs([]);
+        displayProgress.clear();
+        publishJobs([]);
       });
       return () => {
         cancelled = true;
@@ -842,6 +1116,7 @@ function useUploadQueueController(): UploadQueueContextValue {
     const restoreOwnerJobs = async () => {
       const expired = await purgeExpiredDurableUploadJobs();
       await Promise.all(expired.map((job) => deleteStagedUploadJob(job.id).catch(() => undefined)));
+      await purgeFinishedJobs(true);
 
       const persistedJobs = await listDurableUploadJobs(ownerId);
       await Promise.all(persistedJobs.map(async (persistedJob) => {
@@ -946,7 +1221,7 @@ function useUploadQueueController(): UploadQueueContextValue {
         if (['preparing', 'requesting_target', 'uploading', 'finalizing'].includes(job.state)) {
           await patchDurableUploadJob(job.id, {
             state: (job.nextAttemptAt ?? 0) > Date.now() ? 'retry_scheduled' : 'queued',
-            progress: job.preparedUri ? Math.max(job.progress, 0.3) : 0,
+            progress: job.preparedUri ? Math.max(job.progress, SENDING_START_PROGRESS) : 0,
           });
         }
       }));
@@ -956,8 +1231,7 @@ function useUploadQueueController(): UploadQueueContextValue {
     void restoreOwnerJobs().then(
       (latestJobs) => {
         if (cancelled || ownerIdRef.current !== ownerId) return;
-        jobsRef.current = latestJobs;
-        setJobs(latestJobs);
+        publishJobs(latestJobs);
         setReady(true);
       },
       (error) => {
@@ -969,32 +1243,46 @@ function useUploadQueueController(): UploadQueueContextValue {
     return () => {
       cancelled = true;
     };
-  }, [ownerId]);
+  }, [displayProgress, ownerId, publishJobs, purgeFinishedJobs]);
 
+  // Back online (or the session became usable while online): wake jobs parked on the network.
+  // Connectivity comes from the shared store, which debounces short reachability blips.
   useEffect(() => {
-    const unsubscribe = subscribeToNetworkChanges((state) => {
-      const connected = state.isConnected !== false && state.isInternetReachable !== false;
-      setOnline(connected);
-      if (connected && canUseNetworkSession) {
-        void (async () => {
-          const currentJobs = jobsRef.current.filter((job) => job.state === 'waiting_network');
-          await Promise.all(currentJobs.map((job) =>
-            patchDurableUploadJob(job.id, {
-              state: (job.nextAttemptAt ?? 0) > Date.now() ? 'retry_scheduled' : 'queued',
-            })
-          ));
-          await backgroundUploader.reconcile();
-          await refresh();
-        })();
-      }
-    });
-    return () => unsubscribe();
-  }, [canUseNetworkSession, refresh]);
+    if (!online || !canUseNetworkSession) return;
+    void (async () => {
+      const currentJobs = jobsRef.current.filter((job) =>
+        job.state === 'waiting_network' && !inFlightUploadJobIds.has(job.id)
+      );
+      // Compare-and-set: the processor may already be sending a job parked offline (it picks
+      // `waiting_network` too); a late wake must not move it back to `queued`.
+      await Promise.all(currentJobs.map((job) =>
+        persistDurableUploadJob(job.id, {
+          state: (job.nextAttemptAt ?? 0) > Date.now() ? 'retry_scheduled' : 'queued',
+        }, { onlyStates: ['waiting_network'] })
+      ));
+      await backgroundUploader.reconcile();
+      await refresh();
+    })();
+  }, [canUseNetworkSession, online, refresh]);
 
   useEffect(() => {
     const handleSnapshot = (snapshot: Awaited<ReturnType<typeof backgroundUploader.listTasks>>[number]) => {
       if (needsNativeTransferRecovery(snapshot)) return;
       if (snapshot.updatedAt < (nativeEventTimesRef.current.get(snapshot.jobId) ?? 0)) return;
+      if (snapshot.state === 'uploading') {
+        const now = Date.now();
+        const last = lastProgressPersistRef.current.get(snapshot.jobId);
+        if (
+          last
+          && now - last.at < PROGRESS_PERSIST_INTERVAL_MS
+          && Math.abs(snapshot.progress - last.progress) < PROGRESS_PERSIST_MIN_DELTA
+        ) {
+          return;
+        }
+        lastProgressPersistRef.current.set(snapshot.jobId, { at: now, progress: snapshot.progress });
+      } else {
+        lastProgressPersistRef.current.delete(snapshot.jobId);
+      }
       nativeEventTimesRef.current.set(snapshot.jobId, snapshot.updatedAt);
       void (async () => {
         const current = await getDurableUploadJob(snapshot.jobId);
@@ -1020,7 +1308,7 @@ function useUploadQueueController(): UploadQueueContextValue {
           await patchDurableUploadJob(snapshot.jobId, {
             state: 'finalizing',
             moderationJobId: parsedFinalize.jobId,
-            progress: 0.97,
+            progress: CONFIRMING_PROGRESS,
             finishedAt: null,
             errorCode: null,
             errorMessage: null,
@@ -1051,7 +1339,7 @@ function useUploadQueueController(): UploadQueueContextValue {
         ) {
           await patchDurableUploadJob(snapshot.jobId, {
             state: 'uploading',
-            progress: Math.max(current.progress, 0.31),
+            progress: Math.max(current.progress, SENDING_START_PROGRESS),
             bytesSent: snapshot.bytesSent,
             bytesTotal: snapshot.bytesTotal > 0 ? snapshot.bytesTotal : current.bytesTotal,
             retryCount: Math.max(current.retryCount, snapshot.attempt),
@@ -1092,11 +1380,9 @@ function useUploadQueueController(): UploadQueueContextValue {
           : snapshot.errorCode ?? null;
         const updated = await patchDurableUploadJob(snapshot.jobId, {
           state: finalState,
-          progress: snapshot.state === 'uploading'
-            ? 0.31 + snapshot.progress * 0.64
-            : snapshot.state === 'finalizing'
-              ? 0.97
-              : snapshot.progress,
+          // Paused / waiting / retry snapshots carry the raw transfer fraction; they keep the
+          // current value instead of moving the ring backwards (SEND-3).
+          progress: nativeSnapshotDisplayProgress(snapshot.state, snapshot.progress, current.progress),
           bytesSent: snapshot.bytesSent,
           bytesTotal: snapshot.bytesTotal,
           retryCount: Math.max(current.retryCount, snapshot.attempt),
@@ -1146,7 +1432,7 @@ function useUploadQueueController(): UploadQueueContextValue {
   }, [queryClient, refresh, settleMediaModeration]);
 
   useEffect(() => {
-    if (!ready || !ownerId) return;
+    if (!ready || !ownerId || !canUseNetworkSession || !online) return;
     for (const job of jobs) {
       if (
         job.ownerId === ownerId
@@ -1156,28 +1442,47 @@ function useUploadQueueController(): UploadQueueContextValue {
         void settleMediaModeration(job.id, job.moderationJobId);
       }
     }
-  }, [jobs, ownerId, ready, settleMediaModeration]);
+  }, [canUseNetworkSession, jobs, online, ownerId, ready, settleMediaModeration]);
 
+  // Single-flight processor. With network the whole pipeline runs; offline (or without a usable
+  // session) only the local preparation does, so the network phase starts at once on reconnect
+  // (OFF-11).
   useEffect(() => {
-    if (!ready || processingRef.current || !ownerId || !canUseNetworkSession || !online) return;
-    const now = Date.now();
-    const next = jobs.find((job) =>
-      job.ownerId === ownerId
-      && (job.nextAttemptAt ?? 0) <= now
-      && (
-        job.state === 'queued'
-        || job.state === 'retry_scheduled'
-        || (job.state === 'waiting_network' && online)
-        || (job.state === 'waiting_for_auth' && !job.authRefreshAttempted)
-      )
-    );
+    if (!ready || processingRef.current || !ownerId) return;
+    const next = selectNextUploadJob(jobs, {
+      ownerId,
+      now: Date.now(),
+      networkReady,
+      busyJobIds: inFlightUploadJobIds,
+    });
     if (!next) return;
     processingRef.current = true;
-    void processJob(next).finally(async () => {
+    void processJob(next.job, next.mode).finally(async () => {
       processingRef.current = false;
       await refresh();
     });
-  }, [canUseNetworkSession, jobs, online, ownerId, processJob, ready, refresh]);
+  }, [jobs, networkReady, ownerId, processJob, ready, refresh]);
+
+  // Without network a prepared job left in „queued” (restored after a kill, or the network went
+  // away between steps) is parked as `waiting_network` — „Czeka na sieć” instead of a stale
+  // queued state — and woken by the reconnect effect above.
+  useEffect(() => {
+    if (!ready || !ownerId || networkReady) return;
+    const toPark = selectPreparedJobsToPark(jobs, {
+      ownerId,
+      now: Date.now(),
+      busyJobIds: inFlightUploadJobIds,
+    });
+    if (toPark.length === 0) return;
+    void (async () => {
+      const results = await Promise.all(toPark.map((job) =>
+        persistDurableUploadJob(job.id, { state: 'waiting_network' }, {
+          onlyStates: ['queued', 'retry_scheduled'],
+        }).catch(() => ({ changes: 0 }))
+      ));
+      if (results.some((result) => result.changes > 0)) await refresh();
+    })();
+  }, [jobs, networkReady, ownerId, ready, refresh]);
 
   useEffect(() => {
     if (!ready || !ownerId) return;
@@ -1212,7 +1517,7 @@ function useUploadQueueController(): UploadQueueContextValue {
     });
   }, []);
 
-  const summary = buildUploadQueueSummary(jobs);
+  const summary = useMemo(() => buildUploadQueueSummary(jobs), [jobs]);
   const liveActivityMode = (() => {
     const actionableKeys: string[] = [];
     let nonAttentionActiveCount = 0;
@@ -1274,39 +1579,75 @@ function useUploadQueueController(): UploadQueueContextValue {
     }
   }, [liveActivityMode, summary, locale]);
 
+  // SEND-2: the native background writer needs the whole queue (compression, moderation…),
+  // not just URLSession transfers, before it may show progress or „Sent” on its own.
+  useEffect(() => {
+    reportUploadLiveActivityState(buildUploadLiveActivityNativeState(jobs, Date.now(), locale));
+  }, [jobs, locale]);
+
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
+      const latestSummary = buildUploadQueueSummary(jobsRef.current);
       if (
         state === 'background'
-        && (summary.activeCount > 0 || summary.failedCount > 0)
+        && (latestSummary.activeCount > 0 || latestSummary.failedCount > 0)
       ) {
         // Force the latest state through before iOS suspends JS. A throttled
         // progress update may otherwise never reach the Dynamic Island.
-        startUploadLiveActivity(buildUploadLiveActivityProps(summary, Date.now(), locale));
+        startUploadLiveActivity(buildUploadLiveActivityProps(latestSummary, Date.now(), locale));
         liveActivityStartedRef.current = true;
       }
       if (state === 'active') void backgroundUploader.reconcile().then(refresh);
     });
     return () => subscription.remove();
-  }, [refresh, summary, locale]);
+  }, [refresh, locale]);
 
-  const value = {
-    ready,
-    stagingCount,
-    jobs,
-    summary,
+  // The real „sent” moment: one success haptic per batch when its delivery is confirmed while the
+  // app is in front (the send sheet only gives a light tap, because then nothing is sent yet).
+  // Each video segment is its own batch, so completions of one send are coalesced into one buzz.
+  const announcedBatchesRef = useRef(new Set<string>());
+  const lastSuccessHapticAtRef = useRef(0);
+  useEffect(() => {
+    const now = Date.now();
+    let completedNow = false;
+    for (const job of jobs) {
+      if (job.state !== 'completed' && job.state !== 'partially_completed') continue;
+      const key = job.batchId ?? job.id;
+      if (announcedBatchesRef.current.has(key)) continue;
+      announcedBatchesRef.current.add(key);
+      if (now - (job.finishedAt ?? 0) < 5_000) completedNow = true;
+    }
+    if (
+      completedNow
+      && AppState.currentState === 'active'
+      && now - lastSuccessHapticAtRef.current > SUCCESS_HAPTIC_COALESCE_MS
+    ) {
+      lastSuccessHapticAtRef.current = now;
+      hapticNotify('success');
+    }
+  }, [jobs]);
+
+  const actions = useMemo<UploadQueueActions>(() => ({
     enqueueMediaBatch,
     pauseUpload,
     resumeUpload,
     retryUpload,
     cancelUpload,
     refresh,
-  };
+  }), [cancelUpload, enqueueMediaBatch, pauseUpload, refresh, resumeUpload, retryUpload]);
+  const state = useMemo<UploadQueueState>(
+    () => ({ ready, stagingCount, jobs, summary }),
+    [jobs, ready, stagingCount, summary],
+  );
 
-  return value;
+  return { actions, state };
 }
 
 export function UploadQueueProvider({ children }: { children: ReactNode }) {
-  const value = useUploadQueueController();
-  return <UploadQueueContext.Provider value={value}>{children}</UploadQueueContext.Provider>;
+  const { actions, state } = useUploadQueueController();
+  return (
+    <UploadQueueActionsContext.Provider value={actions}>
+      <UploadQueueStateContext.Provider value={state}>{children}</UploadQueueStateContext.Provider>
+    </UploadQueueActionsContext.Provider>
+  );
 }

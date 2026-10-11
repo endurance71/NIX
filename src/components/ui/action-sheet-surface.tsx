@@ -3,8 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
 import { SHEET_TOP_PADDING } from '../../theme/safeArea';
-import { APP_FONT_FAMILY } from '../../theme/typography';
-export { ActionSheetPrimaryButton, ActionSheetSecondaryButton } from './action-sheet-buttons';
+import { spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 
 export const ACTION_SHEET_AVATAR_SIZE = 96;
 
@@ -37,7 +37,7 @@ export function ActionSheetSurface({
   const styles = createStyles(
     nativeBottomSheet ? 'transparent' : colors.systemBackground,
     nativeBottomSheet ? SHEET_TOP_PADDING : topContentInset,
-    nativeBottomSheet ? SHEET_TOP_PADDING : 16,
+    nativeBottomSheet ? SHEET_TOP_PADDING : spacing.lg,
     resolveBottomPadding(nativeBottomSheet, omitBottomInset, bottomContentInset)
   );
 
@@ -92,25 +92,20 @@ const createStyles = (
       paddingHorizontal: horizontalInset,
       paddingTop: topInset,
       paddingBottom: bottomInsetValue,
-      gap: 10,
+      gap: spacing.md,
     },
     title: {
-      fontSize: 22,
-      lineHeight: 28,
-      fontWeight: '700',
+      ...typography.title2,
       textAlign: 'center',
-      fontFamily: APP_FONT_FAMILY,
-      paddingHorizontal: 12,
+      paddingHorizontal: spacing.md,
     },
     message: {
-      fontSize: 15,
-      lineHeight: 21,
+      ...typography.subheadline,
       textAlign: 'center',
-      marginBottom: 2,
-      fontFamily: APP_FONT_FAMILY,
+      marginBottom: spacing.xxs,
     },
     content: {
-      gap: 10,
+      gap: spacing.md,
     },
     contentCenter: {
       alignItems: 'center',
@@ -119,7 +114,7 @@ const createStyles = (
       alignItems: 'stretch',
     },
     actions: {
-      gap: 10,
+      gap: spacing.sm,
       alignSelf: 'stretch',
       width: '100%',
     },

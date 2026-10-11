@@ -1,12 +1,13 @@
 import { StyleSheet } from 'react-native';
 import { typography } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/colors';
+import { FOCUS_INDICATOR_SIZE } from '../../lib/cameraFocusPoint';
 
 export function createCameraStyles(colors: ThemeColors) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: '#000000',
+      backgroundColor: colors.cinemaBackground,
     },
     permissionContainer: {
       flex: 1,
@@ -29,20 +30,43 @@ export function createCameraStyles(colors: ThemeColors) {
       textAlign: 'center',
       marginBottom: 20,
     },
-    permissionButton: {
-      backgroundColor: colors.buttonPrimaryBg,
-      paddingHorizontal: 24,
-      paddingVertical: 14,
-      borderRadius: 24,
-    },
-    permissionButtonText: {
-      color: colors.buttonPrimaryText,
-      ...typography.callout,
-      fontWeight: '600',
-    },
     camera: {
       flex: 1,
-      backgroundColor: '#000000',
+      backgroundColor: colors.cinemaBackground,
+    },
+    previewTouchArea: {
+      flex: 1,
+    },
+    previewCover: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: colors.cinemaBackground,
+    },
+    focusIndicator: {
+      position: 'absolute',
+      width: FOCUS_INDICATOR_SIZE,
+      height: FOCUS_INDICATOR_SIZE,
+      borderWidth: 1.5,
+      borderColor: colors.accent,
+      borderRadius: 4,
+      borderCurve: 'continuous',
+    },
+    focusLockBadgeSlot: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      alignItems: 'center',
+      zIndex: 20,
+    },
+    focusLockBadge: {
+      ...typography.footnote,
+      fontWeight: '600',
+      color: colors.onAccent,
+      backgroundColor: colors.accent,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 6,
+      borderCurve: 'continuous',
+      overflow: 'hidden',
     },
     cameraOverlay: {
       ...StyleSheet.absoluteFill,
@@ -50,6 +74,24 @@ export function createCameraStyles(colors: ThemeColors) {
     flashOverlay: {
       ...StyleSheet.absoluteFill,
       backgroundColor: colors.cameraControlTint,
+    },
+    frontScreenFlash: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: colors.screenFlash,
+      zIndex: 100,
+    },
+    // While recording, a ring light plus a white wash over the preview light the face; the
+    // preview stays faintly visible for framing.
+    frontRingLight: {
+      ...StyleSheet.absoluteFill,
+      borderWidth: 44,
+      borderColor: colors.screenFlash,
+      borderRadius: 56,
+    },
+    frontRecordingWash: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: colors.screenFlash,
+      opacity: 0.6,
     },
     controlsContainer: {
       flex: 1,
@@ -91,10 +133,28 @@ export function createCameraStyles(colors: ThemeColors) {
       alignItems: 'center',
       gap: 10,
     },
-    topTrailingCluster: {
+    recipientChip: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: 6,
+      minHeight: 44,
+      maxWidth: 200,
+      paddingLeft: 14,
+      paddingRight: 10,
+      borderRadius: 22,
+      backgroundColor: colors.cameraControlBackground,
+    },
+    recipientChipText: {
+      ...typography.footnote,
+      fontWeight: '600',
+      color: colors.cameraControlTint,
+      flexShrink: 1,
+    },
+    recipientChipClose: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     topControlTrailingSpacer: {
       width: 48,
@@ -121,12 +181,30 @@ export function createCameraStyles(colors: ThemeColors) {
       justifyContent: 'flex-end',
       overflow: 'visible',
     },
+    // Above the lens switcher (its own layer), so a message never hides the lenses.
     captureStatusSlot: {
       position: 'absolute',
-      bottom: 96,
+      bottom: 154,
       left: 0,
       right: 0,
       alignItems: 'center',
+      zIndex: 3,
+    },
+    holdHint: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      minHeight: 44,
+      paddingLeft: 14,
+      paddingRight: 10,
+      borderRadius: 22,
+      borderCurve: 'continuous',
+      backgroundColor: colors.cameraControlBackground,
+    },
+    holdHintText: {
+      ...typography.footnote,
+      fontWeight: '600',
+      color: colors.cameraControlTint,
     },
     lensSwitcherSlot: {
       position: 'absolute',
@@ -165,20 +243,23 @@ export function createCameraStyles(colors: ThemeColors) {
       alignItems: 'center',
       zIndex: 1,
     },
+    // While recording the white ring dims into a track for the red progress arc.
     shutterRecording: {
-      borderColor: colors.destructive,
+      borderColor: colors.cinemaTrack,
     },
     shutterInner: {
       width: 62,
       height: 62,
       borderRadius: 31,
+      borderCurve: 'continuous',
       backgroundColor: colors.cameraControlTint,
     },
-    shutterInnerRecording: {
-      borderRadius: 12,
-      width: 44,
-      height: 44,
-      backgroundColor: colors.destructive,
+    recordingRing: {
+      position: 'absolute',
+      top: -4,
+      left: -4,
+      width: 76,
+      height: 76,
     },
     shutterDisabled: {
       opacity: 0.55,

@@ -1,10 +1,13 @@
 import { Pressable, StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
+import { useAppTheme } from '../../hooks/useAppTheme';
 import {
   DEFAULT_MEDIA_TEXT_BAR_COLOR,
   DEFAULT_MEDIA_TEXT_COLOR,
 } from '../../types/mediaTextOverlay';
 import { PreviewTextFormatSheet } from './PreviewTextFormatSheet';
+import { PreviewTrashTarget } from './PreviewTrashTarget';
 import { PreviewTextStickerContent } from './PreviewTextStickerContent';
 import type { PreviewTextStickerProps } from './PreviewTextSticker.types';
 import { usePreviewTextStickerController } from './usePreviewTextStickerController';
@@ -41,6 +44,7 @@ export function PreviewTextSticker({
   style,
 }: PreviewTextStickerProps) {
   const { t } = useTranslation();
+  const { colors } = useAppTheme();
   const controller = usePreviewTextStickerController({
     mode,
     text,
@@ -61,6 +65,7 @@ export function PreviewTextSticker({
     onTopPxChange,
     onPressDisplay,
     onConfirm,
+    onDelete,
     exiting,
     onExitComplete,
     animateEnter,
@@ -78,6 +83,20 @@ export function PreviewTextSticker({
           onPress={controller.handleBackdropPress}
         />
       ) : null}
+
+      {/* Drag target that appears while a placed sticker is dragged; VoiceOver users delete via
+          the trash button in edit mode. */}
+      <Animated.View
+        pointerEvents="none"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={[styles.trashZone, { top: controller.trashZoneTopPx }]}>
+        <PreviewTrashTarget
+          visible={controller.trashVisible}
+          active={controller.trashActive}
+          colors={colors}
+        />
+      </Animated.View>
 
       <PreviewTextStickerContent
         text={text}
@@ -111,5 +130,12 @@ const styles = StyleSheet.create({
   editBackdrop: {
     ...StyleSheet.absoluteFill,
     zIndex: 15,
+  },
+  trashZone: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 21,
   },
 });

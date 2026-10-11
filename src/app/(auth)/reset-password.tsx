@@ -14,6 +14,8 @@ import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
 import { useAuthPasswordPair } from '../../hooks/useAuthCredentials';
 import { useAuth } from '../../hooks/useAuth';
 import { runWithFinally } from '../../lib/runWithFinally';
+import { notify } from '../../lib/haptics';
+import { notifySuccess } from '../../lib/appNotify';
 import { getPasswordUpdateErrorKey } from '../../lib/passwordUpdateError';
 
 export default function ResetPasswordScreen() {
@@ -63,9 +65,13 @@ export default function ResetPasswordScreen() {
         const { error: updateError } = await updatePassword(passwordValue);
         if (updateError) {
           setError(t(getPasswordUpdateErrorKey(updateError)));
+          notify('error');
           return;
         }
-        router.replace('/(auth)/login');
+        // The recovery session stays signed in, so go straight to the app instead of flashing the
+        // login screen before the bootstrap gate redirects.
+        notifySuccess(t('profile.passwordChanged'));
+        router.replace('/(tabs)');
       },
       () => setLoading(false)
     );
@@ -118,7 +124,7 @@ export default function ResetPasswordScreen() {
       {showLoginFallback ? (
         <AuthFooterPrompt
           linkLabel={t('auth.forgotPasswordBack')}
-          onPress={() => router.replace('/(auth)/login')}
+          onPress={() => router.dismissTo('/(auth)/login')}
         />
       ) : null}
     </AuthFormLayout>

@@ -8,10 +8,16 @@ import { appNotificationQueue } from '../lib/notificationQueue';
 import { APP_FONT_FAMILY } from '../theme/typography';
 
 const PREVIEW_ID = 'notification-preview-';
+let previewCount = 0;
 
+/** Alternates the rare island morph (`prominent`) with the default fast card. */
 function showPreview() {
   if (AppState.currentState !== 'active' || appNotificationQueue.getSnapshot().phase !== 'idle') return;
-  notifyShow({ id: `${PREVIEW_ID}${Date.now()}`, kind: 'success', title: 'Gotowe', message: 'Tak wygląda nowe powiadomienie NiX.' });
+  const prominent = previewCount++ % 2 === 0;
+  notifyShow({
+    id: `${PREVIEW_ID}${Date.now()}`, kind: 'success', title: 'Gotowe', prominent,
+    message: prominent ? 'Wariant z wyspy (rzadkie zdarzenia).' : 'Domyślna szybka karta.',
+  });
 }
 
 function dismissPreview() {
@@ -46,7 +52,7 @@ function DevelopmentPreview() {
     <View style={[styles.screen, { backgroundColor: colors.background, paddingTop: insets.top + 230 }]}>
       <Text style={[styles.title, { color: colors.textPrimary }]}>Powiadomienia NiX</Text>
       <Text style={[styles.description, { color: colors.textSecondary }]}>
-        Kapsuła → karta → kapsuła. Pokaz powtarza się co 8 sekund. Dotknij powiadomienia lub przesuń je w górę, aby je zamknąć.
+        Na przemian: kapsuła → karta → kapsuła oraz szybka karta. Pokaz powtarza się co 8 sekund. Dotknij powiadomienia lub przesuń je w górę, aby je zamknąć.
       </Text>
       <Button title="Pokaż ponownie" onPress={showPreview} />
       <Button title={automatic ? 'Zatrzymaj pokaz' : 'Włącz pokaz'} onPress={() => setAutomatic((value) => !value)} />

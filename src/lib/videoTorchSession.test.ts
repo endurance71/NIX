@@ -12,7 +12,7 @@ describe('videoTorchSession', () => {
     };
 
     await expect(
-      setNativeVideoTorchForRecording({ platform: 'ios', facing: 'front', flash: 'on' }, true, controller)
+      setNativeVideoTorchForRecording({ facing: 'front', flash: 'on' }, true, controller)
     ).resolves.toBeNull();
 
     expect(controller.setTorchEnabledAsync).not.toHaveBeenCalled();
@@ -25,7 +25,7 @@ describe('videoTorchSession', () => {
         .mockResolvedValueOnce({ available: true, enabled: true })
         .mockResolvedValueOnce({ available: true, enabled: false }),
     };
-    const state = { platform: 'ios', facing: 'back' as const, flash: 'on' as const };
+    const state = { facing: 'back' as const, flash: 'on' as const };
 
     await expect(setNativeVideoTorchForRecording(state, true, controller)).resolves.toEqual({
       available: true,
@@ -45,7 +45,7 @@ describe('videoTorchSession', () => {
       setTorchEnabledAsync: vi.fn().mockResolvedValue({ available: true, enabled: false }),
     };
 
-    await setNativeVideoTorchForRecording({ platform: 'ios', facing: 'back', flash: 'off' }, false, controller);
+    await setNativeVideoTorchForRecording({ facing: 'back', flash: 'off' }, false, controller);
 
     expect(controller.setTorchEnabledAsync).toHaveBeenCalledWith(false);
   });
@@ -56,7 +56,7 @@ describe('videoTorchSession', () => {
     };
 
     await expect(
-      setNativeVideoTorchForRecording({ platform: 'ios', facing: 'back', flash: 'on' }, true, controller)
+      setNativeVideoTorchForRecording({ facing: 'back', flash: 'on' }, true, controller)
     ).resolves.toEqual({ available: false, enabled: false });
   });
 });

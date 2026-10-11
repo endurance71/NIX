@@ -2,25 +2,56 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const bakeOverlaysOnImageAsync = vi.fn();
 const bakeOverlaysOnVideoAsync = vi.fn();
+const bakeOverlaysOnVideoForDeliveryAsync = vi.fn();
 const isNixMediaOverlayAvailable = vi.fn(() => true);
+const trackEvent = vi.fn();
+const trackDuration = vi.fn();
+const deleteAsync = vi.fn(async (_uri: string, _options?: unknown) => undefined);
 
 vi.mock('../../modules/nix-media-overlay', () => ({
   bakeOverlaysOnImageAsync: (...args: unknown[]) => bakeOverlaysOnImageAsync(...args),
   bakeOverlaysOnVideoAsync: (...args: unknown[]) => bakeOverlaysOnVideoAsync(...args),
+  bakeOverlaysOnVideoForDeliveryAsync: (...args: unknown[]) =>
+    bakeOverlaysOnVideoForDeliveryAsync(...args),
   isNixMediaOverlayAvailable: () => isNixMediaOverlayAvailable(),
+  isVideoBakeCancelledError: (error: unknown) =>
+    typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'ERR_BAKE_CANCELLED',
 }));
 
 vi.mock('./telemetry', () => ({
   nowMs: () => 1000,
-  trackDuration: vi.fn(),
-  trackEvent: vi.fn(),
+  trackDuration: (...args: unknown[]) => trackDuration(...args),
+  trackEvent: (...args: unknown[]) => trackEvent(...args),
 }));
 
 vi.mock('expo-file-system/legacy', () => ({
   cacheDirectory: 'file:///cache/',
   makeDirectoryAsync: vi.fn(async () => undefined),
-  deleteAsync: vi.fn(async () => undefined),
+  deleteAsync: (uri: string, options?: unknown) => deleteAsync(uri, options),
 }));
+
+/** Native delivery result for a 10 s clip at the given whole-file bitrate. */
+function deliveryOutput(overrides: Record<string, unknown> = {}, bitrate = 1_900_000) {
+  return {
+    uri: 'file:///cache/nix-text-overlay/out.mp4',
+    profile: 'delivery',
+    width: 720,
+    height: 1280,
+    durationMs: 10_000,
+    sizeBytes: (bitrate * 10) / 8,
+    hasAudio: true,
+    fallbackReason: null,
+    ...overrides,
+  };
+}
+
+const videoParams = {
+  uri: 'file:///clip.mp4',
+  mediaType: 'video' as const,
+  textOverlay: { text: 'hi', y: 0.7, fontSize: 36 },
+  viewportWidth: 390,
+  viewportHeight: 844,
+};
 
 describe('bakeMediaTextOverlay', () => {
   beforeEach(() => {
@@ -37,7 +68,17 @@ describe('bakeMediaTextOverlay', () => {
       viewportWidth: 390,
       viewportHeight: 844,
     });
-    expect(result).toEqual({ uri: 'file:///photo.jpg', didBake: false, temporaryUris: [] });
+    expect(result).toEqual({
+      uri: 'file:///photo.jpg',
+      didBake: false,
+      temporaryUris: [],
+      deliveryReady: false,
+      width: null,
+      height: null,
+      durationMs: null,
+      sizeBytes: null,
+      bitrate: null,
+    });
     expect(bakeOverlaysOnImageAsync).not.toHaveBeenCalled();
   });
 
@@ -192,5 +233,122 @@ describe('bakeMediaTextOverlay', () => {
     });
     expect(result.didBake).toBe(true);
     expect(bakeOverlaysOnVideoAsync).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the legacy master export for video by default', async () => {
+    bakeOverlaysOnVideoAsync.mockResolvedValue('file:///cache/nix-text-overlay/out.mp4');
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    const result = await bakeMediaOverlays(videoParams);
+    expect(bakeOverlaysOnVideoForDeliveryAsync).not.toHaveBeenCalled();
+    expect(result.deliveryReady).toBe(false);
+    expect(result.temporaryUris).toEqual(['file:///cache/nix-text-overlay/out.mp4']);
+  });
+
+  it('bakes video straight into the upload delivery profile', async () => {
+    bakeOverlaysOnVideoForDeliveryAsync.mockResolvedValue(deliveryOutput());
+    const onProgress = vi.fn();
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    const result = await bakeMediaOverlays({ ...videoParams, videoTarget: 'delivery', onProgress });
+
+    expect(bakeOverlaysOnVideoAsync).not.toHaveBeenCalled();
+    const call = bakeOverlaysOnVideoForDeliveryAsync.mock.calls[0][0] as {
+      bakeId: string;
+      targetUri: string;
+      profile: Record<string, number>;
+      onProgress: unknown;
+    };
+    expect(call.profile).toEqual({
+      maxDimension: 1280,
+      videoBitrate: 1_800_000,
+      audioBitrate: 96_000,
+      maxFrameRate: 30,
+    });
+    expect(call.bakeId).toBe(call.targetUri);
+    expect(call.onProgress).toBe(onProgress);
+    expect(result).toMatchObject({
+      uri: 'file:///cache/nix-text-overlay/out.mp4',
+      didBake: true,
+      deliveryReady: true,
+      width: 720,
+      height: 1280,
+      durationMs: 10_000,
+      bitrate: 1_900_000,
+    });
+  });
+
+  it('is not delivery ready when the encoder overshoots the passthrough tolerance', async () => {
+    bakeOverlaysOnVideoForDeliveryAsync.mockResolvedValue(deliveryOutput({}, 2_300_000));
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    const result = await bakeMediaOverlays({ ...videoParams, videoTarget: 'delivery' });
+    expect(result.didBake).toBe(true);
+    expect(result.deliveryReady).toBe(false);
+  });
+
+  it('is not delivery ready when native fell back to the master export', async () => {
+    bakeOverlaysOnVideoForDeliveryAsync.mockResolvedValue({
+      uri: 'file:///cache/nix-text-overlay/out.mp4',
+      profile: 'master',
+      width: null,
+      height: null,
+      durationMs: null,
+      sizeBytes: null,
+      hasAudio: null,
+      fallbackReason: 'native_unsupported',
+    });
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    const result = await bakeMediaOverlays({ ...videoParams, videoTarget: 'delivery' });
+    expect(result.didBake).toBe(true);
+    expect(result.deliveryReady).toBe(false);
+    expect(result.width).toBeNull();
+  });
+
+  it('does not start a delivery bake when already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    await expect(
+      bakeMediaOverlays({ ...videoParams, videoTarget: 'delivery', signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(bakeOverlaysOnVideoForDeliveryAsync).not.toHaveBeenCalled();
+  });
+
+  it('maps a native cancellation to AbortError and removes the partial file', async () => {
+    bakeOverlaysOnVideoForDeliveryAsync.mockRejectedValue(
+      Object.assign(new Error('cancelled'), { code: 'ERR_BAKE_CANCELLED' }),
+    );
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    await expect(
+      bakeMediaOverlays({ ...videoParams, videoTarget: 'delivery' }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(trackEvent).toHaveBeenCalledWith('text_overlay_bake_cancelled', { media_type: 'video' });
+    expect(trackEvent).not.toHaveBeenCalledWith('text_overlay_bake_failed', expect.anything());
+    expect(deleteAsync).toHaveBeenCalledWith(
+      expect.stringContaining('nix-text-overlay/bake-'),
+      { idempotent: true },
+    );
+  });
+
+  it('runs at most two delivery bakes at once', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const releases: (() => void)[] = [];
+    bakeOverlaysOnVideoForDeliveryAsync.mockImplementation(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise<void>((resolve) => releases.push(resolve));
+      inFlight -= 1;
+      return deliveryOutput();
+    });
+    const { bakeMediaOverlays } = await import('./bakeMediaTextOverlay');
+    const bakes = [1, 2, 3].map(() => bakeMediaOverlays({ ...videoParams, videoTarget: 'delivery' }));
+    await vi.waitFor(() => expect(releases).toHaveLength(2));
+    releases.shift()?.();
+    await vi.waitFor(() => expect(releases).toHaveLength(2));
+    releases.splice(0).forEach((release) => release());
+    await vi.waitFor(() => expect(releases).toHaveLength(0));
+    const results = await Promise.all(bakes);
+    expect(results.every((result) => result.deliveryReady)).toBe(true);
+    expect(bakeOverlaysOnVideoForDeliveryAsync).toHaveBeenCalledTimes(3);
+    expect(maxInFlight).toBe(2);
   });
 });

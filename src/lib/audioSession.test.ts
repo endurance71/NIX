@@ -3,7 +3,9 @@ import { setAudioModeAsync } from 'expo-audio';
 import {
   __resetAudioSessionForTests,
   configureForPlayback,
+  configureForMixedPlayback,
   configureForRecording,
+  configureForViewerVideo,
   getCurrentAudioSessionMode,
 } from './audioSession';
 import { trackEvent, setTelemetrySink } from './telemetry';
@@ -134,5 +136,28 @@ describe('audioSession', () => {
     expect(getCurrentAudioSessionMode()).toBe('playback');
 
     void trackEvent;
+  });
+
+  it('configureForMixedPlayback miksuje z innym audio (nie przerywa muzyki)', async () => {
+    await configureForMixedPlayback();
+    await configureForMixedPlayback();
+
+    expect(mockSetAudioModeAsync).toHaveBeenCalledTimes(1);
+    expect(mockSetAudioModeAsync).toHaveBeenCalledWith({
+      playsInSilentMode: true,
+      allowsRecording: false,
+      interruptionMode: 'mixWithOthers',
+      shouldPlayInBackground: false,
+    });
+    expect(getCurrentAudioSessionMode()).toBe('mixedPlayback');
+  });
+
+  it('configureForViewerVideo kończy w trybie ostatniego przełączenia nawet przy trwającej zmianie', async () => {
+    const muted = configureForViewerVideo(false);
+    const unmuted = configureForViewerVideo(true);
+    await Promise.all([muted, unmuted]);
+
+    expect(getCurrentAudioSessionMode()).toBe('playback');
+    expect(mockSetAudioModeAsync).toHaveBeenCalledTimes(2);
   });
 });

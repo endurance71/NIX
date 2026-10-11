@@ -3,12 +3,16 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useInboxBadgeCount } from '../../hooks/useInboxBadgeCount';
-import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../../services/avatarService';
+import { AVATAR_SIGNED_URL_STALE_TIME_MS } from '../../services/avatarService';
 import { createNativeTabAvatarIconSource } from '../../services/nativeTabAvatarIcon';
 import { getCurrentUserProfile } from '../../services/profileService';
-import { avatarSignedUrlsQueryKey, queryKeys } from '../../lib/queryKeys';
+import { queryKeys } from '../../lib/queryKeys';
 import { resolveAppIconName } from '../../theme/app-icons';
 import { useAuth } from '../../hooks/useAuth';
+import { useSignedAvatarUrls } from '../../hooks/useSignedAvatarUrls';
+import { LockedCaptureIntake } from './LockedCaptureIntake';
+import { QuickActionsSync } from './QuickActionsSync';
+import { SharedIntakeSync } from './SharedIntakeSync';
 
 export default function AppTabsLayout() {
   const { colors, isDark } = useAppTheme();
@@ -22,13 +26,7 @@ export default function AppTabsLayout() {
     staleTime: 1000 * 60 * 5,
   });
   const avatarPath = profileRow?.avatar_storage_path ?? null;
-  const avatarPaths = avatarPath ? [avatarPath] : [];
-  const { data: avatarUrls = {} } = useQuery({
-    queryKey: avatarSignedUrlsQueryKey(avatarPaths),
-    queryFn: () => createSignedAvatarUrls(avatarPaths),
-    enabled: canUseNetworkSession && avatarPaths.length > 0,
-    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
-  });
+  const avatarUrls = useSignedAvatarUrls([avatarPath], { enabled: canUseNetworkSession });
   const avatarUrl = avatarPath ? avatarUrls[avatarPath] ?? null : null;
   const { data: tabAvatarIconSource = null } = useQuery({
     queryKey: ['nativeTabAvatarIcon', avatarPath, avatarUrl] as const,
@@ -38,42 +36,48 @@ export default function AppTabsLayout() {
   });
 
   return (
-    <NativeTabs
-      tintColor={colors.accent}
-      backgroundColor={colors.background}
-      blurEffect={isDark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}
-      disableTransparentOnScrollEdge
-      iconColor={{ default: colors.label, selected: colors.accent }}>
-      <NativeTabs.Trigger
-        name="index"
-        accessibilityLabel={t('tabs.camera')}
-        contentStyle={{ backgroundColor: '#000000' }}>
-        <NativeTabs.Trigger.Icon sf={resolveAppIconName('camera')} />
-        <NativeTabs.Trigger.Label hidden />
-      </NativeTabs.Trigger>
+    <>
+      {/* Quick actions route through expo-router, so they live in this sub-layout. */}
+      <QuickActionsSync />
+      <LockedCaptureIntake />
+      <SharedIntakeSync />
+      <NativeTabs
+        tintColor={colors.accent}
+        backgroundColor={colors.background}
+        blurEffect={isDark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}
+        disableTransparentOnScrollEdge
+        iconColor={{ default: colors.label, selected: colors.accent }}>
+        <NativeTabs.Trigger
+          name="index"
+          accessibilityLabel={t('tabs.camera')}
+          contentStyle={{ backgroundColor: '#000000' }}>
+          <NativeTabs.Trigger.Icon sf={resolveAppIconName('camera')} />
+          <NativeTabs.Trigger.Label hidden />
+        </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger
-        name="inbox"
-        accessibilityLabel={t('tabs.inbox')}
-        contentStyle={{ backgroundColor: colors.systemBackground }}>
-        <NativeTabs.Trigger.Icon sf={resolveAppIconName('inbox')} />
-        <NativeTabs.Trigger.Label hidden />
-        {count > 0 ? (
-          <NativeTabs.Trigger.Badge>{count > 99 ? '99+' : String(count)}</NativeTabs.Trigger.Badge>
-        ) : null}
-      </NativeTabs.Trigger>
+        <NativeTabs.Trigger
+          name="inbox"
+          accessibilityLabel={t('tabs.inbox')}
+          contentStyle={{ backgroundColor: colors.systemBackground }}>
+          <NativeTabs.Trigger.Icon sf={resolveAppIconName('inbox')} />
+          <NativeTabs.Trigger.Label hidden />
+          {count > 0 ? (
+            <NativeTabs.Trigger.Badge>{count > 99 ? '99+' : String(count)}</NativeTabs.Trigger.Badge>
+          ) : null}
+        </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger
-        name="profile"
-        accessibilityLabel={t('tabs.profile')}
-        contentStyle={{ backgroundColor: colors.background }}>
-        {tabAvatarIconSource ? (
-          <NativeTabs.Trigger.Icon src={tabAvatarIconSource} renderingMode="original" />
-        ) : (
-          <NativeTabs.Trigger.Icon sf={resolveAppIconName('profile')} />
-        )}
-        <NativeTabs.Trigger.Label hidden />
-      </NativeTabs.Trigger>
-    </NativeTabs>
+        <NativeTabs.Trigger
+          name="profile"
+          accessibilityLabel={t('tabs.profile')}
+          contentStyle={{ backgroundColor: colors.background }}>
+          {tabAvatarIconSource ? (
+            <NativeTabs.Trigger.Icon src={tabAvatarIconSource} renderingMode="original" />
+          ) : (
+            <NativeTabs.Trigger.Icon sf={resolveAppIconName('profile')} />
+          )}
+          <NativeTabs.Trigger.Label hidden />
+        </NativeTabs.Trigger>
+      </NativeTabs>
+    </>
   );
 }

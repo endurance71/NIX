@@ -1,17 +1,32 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  createContext,
+  memo,
+  use,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+  type RefObject,
+} from 'react';
+import {
+  AccessibilityInfo,
   ActionSheetIOS,
   ActivityIndicator,
   Alert,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   useWindowDimensions,
   View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
+  type AccessibilityActionEvent,
+  type LayoutChangeEvent,
+  type ScrollView,
+  type ScrollViewProps,
+  type ViewProps,
 } from 'react-native';
 import {
   GlassView,
@@ -20,55 +35,139 @@ import {
 } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
-import { FlashList, type FlashListRef } from '@shopify/flash-list';
+import { FlashList, type FlashListProps, type FlashListRef } from '@shopify/flash-list';
+import { Button, Host } from '@expo/ui';
+import { ProgressView } from '@expo/ui/swift-ui';
+import {
+  accessibilityHidden,
+  frame,
+  progressViewStyle,
+  tint,
+} from '@expo/ui/swift-ui/modifiers';
 import Animated, {
   FadeIn,
   ZoomIn,
   ZoomOut,
   Easing,
+  KeyboardState,
+  scrollTo,
   useAnimatedKeyboard,
+  useAnimatedProps,
   useAnimatedReaction,
+  useAnimatedRef,
   useAnimatedStyle,
+  useDerivedValue,
+  useScrollOffset,
   useSharedValue,
   withSpring,
   withTiming,
+  type AnimatedKeyboardInfo,
+  type AnimatedRef,
   type SharedValue,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
+import { useTranslation } from 'react-i18next';
 import type { ChatScreenViewModel, OptimisticTextMessage } from '../../hooks/useChatScreen';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
+import { useStableHandler } from '../../hooks/useStableHandler';
 import { selection } from '../../lib/haptics';
 import { isNixFirstOpenAvailable, isNixReplayAvailable } from '../../lib/nixReplay';
-import { buildUnifiedChatTimeline, type ChatTimelineItem, type UnifiedChatTextMessage } from '../../lib/chatTimeline';
+import {
+  buildUnifiedChatTimeline,
+  formatChatTime,
+  type ChatBubbleGroupPosition,
+  type ChatSeparatorRelativeLabels,
+  type ChatTimelineItem,
+} from '../../lib/chatTimeline';
+import { chatMessageAccessibilityLabel, shouldShowComposerCounter } from '../../lib/chatMessageA11y';
+import {
+  countAppendedIncomingItems,
+  distanceFromListEnd,
+  nextScrolledUpState,
+} from '../../lib/chatScrollState';
+import { useCalendarDayClock } from '../../hooks/useCalendarDayClock';
+import type { ChatOutboxStatus } from '../../lib/chatOutboxMessages';
+import type { ChatPastePayload } from '../../lib/chatPaste';
+import type { UploadRowAction } from '../../lib/inboxPresentation';
 import {
   MESSAGE_REACTION_EMOJIS,
   MESSAGE_REACTION_GLYPHS,
 } from '../../services/messageReactionService';
 import type { ChatNixEvent } from '../../services/nixService';
+import { TEXT_MESSAGE_MAX_LENGTH } from '../../services/textMessageService';
+import {
+  incomingNixStatus,
+  messageKindForMedia,
+  messageStatusColor,
+  messageStatusPresentation,
+  outgoingNixStatus,
+  outgoingTextStatus,
+  type MessageStatus,
+} from '../../lib/messageStatus';
 import type { MessageReaction, MessageReactionEmoji } from '../../types/database.types';
+import { NixReactionBadge } from '../nix/NixReactionBadge';
 import type { DurableUploadJob } from '../../types/uploadQueue';
 import {
+  chatMediaBubblePresentation,
   chatUploadActions,
   sharedRecipientCount,
+  type ChatMediaBubbleIcon,
+  type ChatMediaBubblePresentation,
   type ChatUploadAction,
 } from '../../lib/chatUploadPresentation';
-import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
+import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 import { appleUiSpring, duration, useMotionEnabled } from '../../theme/motion';
 import { STACK_NAV_BAR_HEIGHT } from '../../theme/safeArea';
 import { typography } from '../../theme/typography';
+import { AppIcon } from '../ui/app-icon';
 import { PressableScale } from '../ui/pressable-scale';
 import { TextInputWrapper } from 'expo-paste-input';
 import i18n from '../../lib/i18n';
+import { notifyError } from '../../lib/appNotify';
+import { chatBubbleShape } from '../../lib/chatBubbleShape';
+import { chatSavedState, chatVoiceInfo, formatVoiceDuration } from '../../lib/chatMessageExtras';
+import {
+  ChatVoicePlaybackContext,
+  useChatVoicePlayback,
+  useVoicePhase,
+  type ChatVoicePlayback,
+} from '../../hooks/useChatVoicePlayback';
+import type { VoiceRecordingResult } from '../../hooks/useVoiceRecorder';
+import { BubbleTail } from './BubbleTail';
+import { VoiceMessageBody } from './VoiceMessageBody';
+import { ComposerVoiceHost, VoiceMicButton, VoiceRecordingStrip } from './ComposerVoice';
+import type { ComposerVoiceState } from '../../hooks/useComposerVoice';
+
+type ChatTimelineEntry = ChatTimelineItem<OptimisticTextMessage>;
 
 type ChatScreenSurfaceProps = {
   vm: ChatScreenViewModel;
 };
 
 export type ChatComposerProps = {
-  vm: ChatScreenViewModel;
+  t: ChatScreenViewModel['t'];
   keyboardHeight: SharedValue<number>;
   restingPad: number;
+  pasteInputEnabled: boolean;
+  pasteImporting: boolean;
+  onPaste: (payload: ChatPastePayload) => Promise<void>;
+  /** Resolves `false` when the text was not accepted and must go back into the input. */
+  onSend: (body: string) => Promise<boolean>;
+  /** Measured composer height (incl. the resting safe-area pad), read by the list on the UI thread. */
+  composerHeight: SharedValue<number>;
+  /** Every draft change, for the typing indicator. */
+  onDraftChange: (text: string) => void;
+  /** Blur: the user stopped typing. */
+  onDraftBlur: () => void;
+  onOpenCamera: () => void;
+  /** Backend supports voice messages (mounts the recorder). */
+  voiceEnabled: boolean;
+  /** Online: the mic is offered; offline it is hidden (the recorder stays mounted). */
+  voiceAvailable: boolean;
+  onSendVoice: (recording: VoiceRecordingResult) => void;
+  /** Recording starts: stop any voice message that is playing. */
+  onVoiceRecordingStart: () => void;
 };
 
 type BubbleWindowLayout = {
@@ -78,9 +177,14 @@ type BubbleWindowLayout = {
   height: number;
 };
 
+/** What the long-press bar offers for saving; `null` = not available here. */
+type PickerSaveAction = 'save' | 'unsave' | null;
+
 type ReactionPickerState = {
   messageId: string;
   isOwn: boolean;
+  /** Offline or a local-only message: the bar offers only Copy / Report. */
+  canReact: boolean;
   /** Pozycja względem root czatu (nie window). */
   x: number;
   y: number;
@@ -92,30 +196,61 @@ type ReactionPickerState = {
 const BUBBLE_CORNER_RADIUS = 18;
 const BUBBLE_MAX_WIDTH_RATIO = 0.72;
 const COMPOSER_CONTROL_SIZE = 44;
-const COMPOSER_CONTENT_HEIGHT = 78;
+/** Composer height without the safe-area pad at one line: top padding + one 44 pt control row. */
+const COMPOSER_BASE_CONTENT_HEIGHT = 8 + COMPOSER_CONTROL_SIZE;
+/** Multiline input grows up to this many lines, then scrolls inside. */
+const COMPOSER_MAX_LINES = 5;
+const COMPOSER_INPUT_VERTICAL_PAD = 11;
 /** Minimalny pad composera przy otwartej klawiaturze (nad klawiaturą). */
 const COMPOSER_KEYBOARD_PAD = 8;
 /** Soft scroll-edge fade nad composerem (zamiast Stack.Toolbar). */
 const COMPOSER_EDGE_FADE_EXTRA = 28;
+const SCROLL_BUTTON_SIZE = 40;
+/** Space between the composer's top edge and the „scroll to the newest” button. */
+const SCROLL_BUTTON_GAP = 8;
 
 /**
- * Wspólne, zaokrąglone metryki klawiatury — margin listy i pad composera
- * muszą pochodzić z tych samych liczb (inaczej ~1–2 px skoku na końcu).
- *
- * - marginBottom = kb → kurczy box z absolute composerem nad klawiaturą
- *   (paddingBottom rodzica NIE rusza absolute children w RN)
- * - composerPad = inset - kb → safe-area w spoczynku, 8 px nad klawiaturą
+ * How far the composer rises above its resting position (PERF-26). One rounded number drives
+ * the composer `translateY`, the list scroll and the list `contentInset`, so they never drift
+ * apart by a pixel. At rest the composer keeps the safe-area pad; over the keyboard it keeps
+ * `COMPOSER_KEYBOARD_PAD`.
  */
-function chatKeyboardMetrics(keyboardHeight: number, restingPad: number) {
+function chatKeyboardLift(keyboardHeight: number, restingPad: number) {
   'worklet';
   const kb = Math.round(Math.max(0, keyboardHeight));
   const rest = Math.round(restingPad);
-  const inset = Math.max(rest, kb + COMPOSER_KEYBOARD_PAD);
-  return {
-    marginBottom: kb,
-    composerPad: inset - kb,
-    lift: inset - rest,
-  };
+  return Math.max(rest, kb + COMPOSER_KEYBOARD_PAD) - rest;
+}
+
+/** How much taller than one line the composer is right now (multiline draft, counter row). */
+function composerOverflow(composerHeight: number, restingPad: number) {
+  'worklet';
+  return Math.max(0, Math.round(composerHeight - COMPOSER_BASE_CONTENT_HEIGHT - restingPad));
+}
+
+/** List position captured when a keyboard movement starts (UI thread). */
+type KeyboardScrollAnchor = { offset: number; lift: number };
+
+/**
+ * Scroll offset that keeps the conversation glued above the moving composer.
+ *
+ * - Rising: follow the lift 1:1, but never past the end of the content plus the lift, and never
+ *   pull the content back below where it already was (after an interactive drag the content may
+ *   sit above the composer; it waits for the composer instead of jumping).
+ * - Falling: interpolate from the start offset to the resting offset, so a list that was scrolled
+ *   past its resting end (inset in place) lands exactly at the end with no jump.
+ *
+ * `maxAtRest` is `Infinity` until FlashList reported its sizes; native clamping still applies then.
+ */
+function keyboardScrollTarget(anchor: KeyboardScrollAnchor, lift: number, maxAtRest: number) {
+  'worklet';
+  if (lift > anchor.lift) {
+    const glued = anchor.offset + (lift - anchor.lift);
+    return Math.max(0, Math.min(glued, Math.max(maxAtRest + lift, anchor.offset)));
+  }
+  if (anchor.lift <= 0) return anchor.offset;
+  const end = Math.min(Math.max(0, anchor.offset - anchor.lift), maxAtRest);
+  return end + (anchor.offset - end) * (lift / anchor.lift);
 }
 const REACTION_BADGE_SIZE = 28;
 /** Ile miejsca nad dymkiem rezerwujemy na badge (żeby nie nachodził na poprzednią wiadomość). */
@@ -126,35 +261,57 @@ const REACTION_BAR_HEIGHT = 56;
 const REACTION_EMOJI_HIT = 48;
 const REACTION_BAR_GAP = 8;
 const REACTION_BAR_SIDE_INSET = 16;
-/** Przesunięcie dymka w dół gdy otwarty pasek (jak fokus w iMessage). */
-const BUBBLE_FOCUS_SHIFT = 20;
+/**
+ * The long-pressed bubble lifts slightly in place (iMessage). It used to slide down to make room
+ * for the bar, which ran it into the next bubble of a tight group.
+ */
+const BUBBLE_FOCUS_SCALE = 1.04;
 
-function estimateReactionBarWidth(showReport: boolean, showTrash: boolean): number {
-  const extra = (showReport ? 1 : 0) + (showTrash ? 1 : 0);
-  const emojiCount = MESSAGE_REACTION_EMOJIS.length + extra;
-  return emojiCount * REACTION_EMOJI_HIT + 16;
+const REACTION_SLOT_MIN = 38;
+
+function reactionBarSlotCount(params: {
+  canReact: boolean;
+  showCopy: boolean;
+  showReport: boolean;
+  showSave?: boolean;
+}) {
+  return (
+    (params.canReact ? MESSAGE_REACTION_EMOJIS.length : 0)
+    + (params.showCopy ? 1 : 0)
+    + (params.showReport ? 1 : 0)
+    + (params.showSave ? 1 : 0)
+  );
 }
 
-/** Środek dymka, clamp do safe insetów — pasek nigdy nie wychodzi poza root. */
+/**
+ * Centred over the bubble and clamped to the safe side insets. Slots shrink (never below
+ * `REACTION_SLOT_MIN`) so emoji + Copy + Report fit on a 375 pt screen.
+ */
 function layoutReactionPickerBar(params: {
   bubbleX: number;
   bubbleWidth: number;
   rootWidth: number;
+  canReact: boolean;
+  showCopy: boolean;
   showReport: boolean;
-  showTrash: boolean;
-}): { left: number; barWidth: number } {
-  const { bubbleX, bubbleWidth, rootWidth, showReport, showTrash } = params;
+  showSave?: boolean;
+}): { left: number; barWidth: number; slotSize: number } {
+  const { bubbleX, bubbleWidth, rootWidth } = params;
   const inset = REACTION_BAR_SIDE_INSET;
-  const available = Math.max(REACTION_EMOJI_HIT * 3, rootWidth - inset * 2);
-  const barWidth = Math.min(estimateReactionBarWidth(showReport, showTrash), available);
+  const count = Math.max(1, reactionBarSlotCount(params));
+  const available = Math.max(REACTION_SLOT_MIN * 2, rootWidth - inset * 2);
+  const slotSize = Math.max(
+    REACTION_SLOT_MIN,
+    Math.min(REACTION_EMOJI_HIT, Math.floor((available - 16) / count))
+  );
+  const barWidth = Math.min(count * slotSize + 16, available);
   const bubbleCenterX = bubbleX + bubbleWidth / 2;
   const preferredLeft = bubbleCenterX - barWidth / 2;
   const left = Math.min(Math.max(inset, preferredLeft), rootWidth - inset - barWidth);
-  return { left, barWidth };
+  return { left, barWidth, slotSize };
 }
 
 function canUseLiquidGlass(): boolean {
-  if (Platform.OS !== 'ios') return false;
   try {
     return isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
   } catch {
@@ -208,10 +365,8 @@ function ReactionBadges({
             entering={badgeEntering}
             exiting={badgeExiting}>
             <Pressable
-              onPress={() => {
-                selection();
-                onPressBadge();
-              }}
+              // Opening the bar plays its own selection haptic.
+              onPress={onPressBadge}
               accessibilityRole="button"
               accessibilityLabel={MESSAGE_REACTION_GLYPHS[reaction.emoji]}
               style={[styles.reactionBadge, { backgroundColor: badgeBg }]}>
@@ -224,89 +379,173 @@ function ReactionBadges({
   );
 }
 
-/** Poziomy pasek emoji (jak Tapback) — GlassView + duże hit-targety. */
-function ReactionPickerBar({
-  isOwn,
+/** The Tapback emoji; tapping the one that is already mine takes it back. */
+function PickerEmojiButtons({
   selectedEmoji,
-  reportLabel,
-  removeLabel,
-  barWidth,
   onSelect,
-  onRemove,
-  onReport,
+  focusRef,
+  slotStyle,
 }: {
-  isOwn: boolean;
   selectedEmoji: MessageReactionEmoji | null;
-  reportLabel: string;
-  removeLabel: string;
-  barWidth: number;
   onSelect: (emoji: MessageReactionEmoji) => void;
-  onRemove: () => void;
-  onReport: () => void;
+  focusRef: RefObject<View | null>;
+  slotStyle: { width: number; height: number; borderRadius: number };
 }) {
   const { colors } = useAppTheme();
+  const { t } = useTranslation();
+  return MESSAGE_REACTION_EMOJIS.map((emoji, index) => {
+    const selected = selectedEmoji === emoji;
+    const glyph = MESSAGE_REACTION_GLYPHS[emoji];
+    return (
+      <Pressable
+        key={emoji}
+        ref={index === 0 ? focusRef : undefined}
+        // The reaction handler plays the selection haptic.
+        onPress={() => onSelect(emoji)}
+        accessibilityRole="button"
+        accessibilityLabel={
+          selected
+            ? t('chat.removeReactionWith', { emoji: glyph })
+            : t('chat.reactWith', { emoji: glyph })
+        }
+        accessibilityState={{ selected }}
+        hitSlop={4}
+        style={[
+          styles.reactionBarEmojiHit,
+          slotStyle,
+          selected ? { backgroundColor: colors.systemFill } : null,
+        ]}>
+        <Text style={styles.reactionBarEmoji}>{glyph}</Text>
+      </Pressable>
+    );
+  });
+}
+
+type PickerSymbolSlot = {
+  key: string;
+  label: string;
+  icon: AppIconName;
+  destructive: boolean;
+  onPress: () => void;
+};
+
+/** Copy, Save / Unsave and Report, in this order, as far as they apply. */
+function pickerSymbolSlots(
+  t: ChatScreenViewModel['t'],
+  params: {
+    canCopy: boolean;
+    saveAction: PickerSaveAction;
+    canReport: boolean;
+    onCopy: () => void;
+    onToggleSave: () => void;
+    onReport: () => void;
+  },
+): PickerSymbolSlot[] {
+  const slots: PickerSymbolSlot[] = [];
+  if (params.canCopy) {
+    slots.push({ key: 'copy', label: t('chat.copy'), icon: 'copy', destructive: false, onPress: params.onCopy });
+  }
+  if (params.saveAction === 'save') {
+    slots.push({ key: 'save', label: t('chat.saveMessage'), icon: 'saveMessage', destructive: false, onPress: params.onToggleSave });
+  } else if (params.saveAction === 'unsave') {
+    slots.push({ key: 'save', label: t('chat.unsaveMessage'), icon: 'unsaveMessage', destructive: false, onPress: params.onToggleSave });
+  }
+  if (params.canReport) {
+    slots.push({ key: 'report', label: t('chat.reportMessage'), icon: 'report', destructive: true, onPress: params.onReport });
+  }
+  return slots;
+}
+
+/** Copy / Save / Report in the long-press bar. */
+function PickerSymbolButton({
+  focusRef,
+  onPress,
+  label,
+  icon,
+  tint,
+  slotStyle,
+}: {
+  focusRef: RefObject<View | null> | undefined;
+  onPress: () => void;
+  label: string;
+  icon: AppIconName;
+  tint: string;
+  slotStyle: { width: number; height: number; borderRadius: number };
+}) {
+  return (
+    <Pressable
+      ref={focusRef}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={4}
+      style={[styles.reactionBarEmojiHit, slotStyle]}>
+      <SymbolView name={resolveAppIconName(icon)} size={APP_ICON_SIZE.xl} tintColor={tint} weight="medium" />
+    </Pressable>
+  );
+}
+
+/**
+ * Horizontal Tapback bar — GlassView + large hit targets. Tapping the reaction that is already
+ * mine takes it back (iMessage), so there is no separate „remove” button.
+ */
+function ReactionPickerBar({
+  isOwn,
+  canReact,
+  canCopy,
+  selectedEmoji,
+  slotSize,
+  barWidth,
+  onSelect,
+  onCopy,
+  onReport,
+  saveAction,
+  onToggleSave,
+  focusRef,
+}: {
+  isOwn: boolean;
+  canReact: boolean;
+  canCopy: boolean;
+  selectedEmoji: MessageReactionEmoji | null;
+  slotSize: number;
+  barWidth: number;
+  onSelect: (emoji: MessageReactionEmoji) => void;
+  onCopy: () => void;
+  onReport: () => void;
+  saveAction: PickerSaveAction;
+  onToggleSave: () => void;
+  /** Attached to the first button, so VoiceOver focus can move into the bar. */
+  focusRef: RefObject<View | null>;
+}) {
+  const { colors } = useAppTheme();
+  const { t } = useTranslation();
   const useGlass = canUseLiquidGlass();
-  const showTrash = selectedEmoji != null;
+  const slotStyle = { width: slotSize, height: slotSize, borderRadius: slotSize / 2 };
+
+  // VoiceOver focus lands on the first slot the bar shows.
+  const symbolSlots = pickerSymbolSlots(t, { canCopy, saveAction, canReport: !isOwn, onCopy, onToggleSave, onReport });
 
   const content = (
     <View style={styles.reactionBarContent}>
-      {MESSAGE_REACTION_EMOJIS.map((emoji) => {
-        const selected = selectedEmoji === emoji;
-        return (
-          <Pressable
-            key={emoji}
-            onPress={() => {
-              selection();
-              onSelect(emoji);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={MESSAGE_REACTION_GLYPHS[emoji]}
-            accessibilityState={{ selected }}
-            hitSlop={4}
-            style={[
-              styles.reactionBarEmojiHit,
-              selected ? { backgroundColor: colors.systemFill } : null,
-            ]}>
-            <Text style={styles.reactionBarEmoji}>{MESSAGE_REACTION_GLYPHS[emoji]}</Text>
-          </Pressable>
-        );
-      })}
-      {showTrash ? (
-        <Pressable
-          onPress={() => {
-            selection();
-            onRemove();
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={removeLabel}
-          hitSlop={4}
-          style={styles.reactionBarEmojiHit}>
-          <SymbolView
-            name={resolveAppIconName('trash')}
-            size={APP_ICON_SIZE.xl}
-            tintColor={colors.destructive}
-            weight="medium"
-          />
-        </Pressable>
+      {canReact ? (
+        <PickerEmojiButtons
+          selectedEmoji={selectedEmoji}
+          onSelect={onSelect}
+          focusRef={focusRef}
+          slotStyle={slotStyle}
+        />
       ) : null}
-      {!isOwn ? (
-        <Pressable
-          onPress={() => {
-            selection();
-            onReport();
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={reportLabel}
-          hitSlop={4}
-          style={styles.reactionBarEmojiHit}>
-          <SymbolView
-            name={resolveAppIconName('report')}
-            size={APP_ICON_SIZE.xl}
-            tintColor={colors.destructive}
-            weight="medium"
-          />
-        </Pressable>
-      ) : null}
+      {symbolSlots.map((slot, index) => (
+        <PickerSymbolButton
+          key={slot.key}
+          focusRef={!canReact && index === 0 ? focusRef : undefined}
+          onPress={slot.onPress}
+          label={slot.label}
+          icon={slot.icon}
+          tint={slot.destructive ? colors.destructive : colors.label}
+          slotStyle={slotStyle}
+        />
+      ))}
     </View>
   );
 
@@ -332,9 +571,31 @@ function ReactionPickerBar({
   );
 }
 
+function outboxStatusText(status: ChatOutboxStatus | null): string | null {
+  switch (status) {
+    case 'waiting_network':
+      return i18n.t('chat.sendWaitingNetwork');
+    case 'failed':
+      return i18n.t('chat.sendFailedTap');
+    case 'expired':
+      return i18n.t('chat.sendExpired');
+    default:
+      return null;
+  }
+}
+
+type BubbleVoiceProps = {
+  durationMs: number;
+  waveform: readonly number[];
+};
+
 function MessageBubbleContent({
-  message,
+  messageId,
+  body,
+  voice,
+  outboxStatus,
   isOwn,
+  group,
   bubbleBg,
   labelColor,
   reactions,
@@ -343,8 +604,12 @@ function MessageBubbleContent({
   peerReactionBg,
   onPressBadge,
 }: {
-  message: OptimisticTextMessage;
+  messageId: string;
+  body: string;
+  voice: BubbleVoiceProps | null;
+  outboxStatus: ChatOutboxStatus | null;
   isOwn: boolean;
+  group: ChatBubbleGroupPosition | undefined;
   bubbleBg: string;
   labelColor: string;
   reactions: readonly MessageReaction[];
@@ -353,23 +618,57 @@ function MessageBubbleContent({
   peerReactionBg: string;
   onPressBadge: () => void;
 }) {
+  const { colors } = useAppTheme();
   const hasReactions = reactions.length > 0;
+  const expired = outboxStatus === 'expired';
+  const statusText = outboxStatusText(outboxStatus);
+  const shape = chatBubbleShape(group, isOwn);
+  // A tombstone is a translucent fill: a tail behind it would show through.
+  const showTail = shape.showTail && !expired;
   return (
     <View
       style={[
         styles.bubbleWithReactions,
+        // Hug the bubble's side: a wider receipt row below must not stretch the bubble.
+        isOwn ? styles.bubbleOwn : styles.bubbleIncoming,
         hasReactions ? styles.bubbleWithReactionsActive : null,
       ]}>
-      <View style={[styles.bubble, { backgroundColor: bubbleBg }]}>
-        <Text style={[styles.bubbleText, { color: labelColor }]}>{message.body}</Text>
-        {message.isSending ? (
-          <ActivityIndicator size="small" color={labelColor} style={styles.sendingSpinner} />
-        ) : null}
-        {message.sendFailed ? (
-          <Text style={[styles.failedText, { color: labelColor }]}>
-            {i18n.t('chat.sendFailedTap')}
-          </Text>
-        ) : null}
+      <View>
+        {showTail ? <BubbleTail color={bubbleBg} side={isOwn ? 'right' : 'left'} /> : null}
+        <View
+          style={[
+            styles.bubble,
+            {
+              backgroundColor: bubbleBg,
+              borderTopLeftRadius: shape.borderTopLeftRadius,
+              borderTopRightRadius: shape.borderTopRightRadius,
+              borderBottomLeftRadius: shape.borderBottomLeftRadius,
+              borderBottomRightRadius: shape.borderBottomRightRadius,
+            },
+          ]}>
+          {/* A tombstone has no body left: only the status explains what happened (OFF-4). */}
+          {expired ? null : voice ? (
+            <VoiceMessageBody
+              messageId={messageId}
+              durationMs={voice.durationMs}
+              waveform={voice.waveform}
+              color={labelColor}
+              buttonFill={isOwn ? colors.onChatBubbleOwn : colors.accent}
+              buttonGlyph={isOwn ? colors.accent : colors.onAccent}
+            />
+          ) : (
+            <Text style={[styles.bubbleText, { color: labelColor }]}>{body}</Text>
+          )}
+          {outboxStatus === 'sending' ? (
+            <ActivityIndicator size="small" color={labelColor} style={styles.sendingSpinner} />
+          ) : null}
+          {statusText ? (
+            <Text
+              style={[expired ? styles.expiredText : styles.outboxStatusText, { color: labelColor }]}>
+              {statusText}
+            </Text>
+          ) : null}
+        </View>
       </View>
       <ReactionBadges
         reactions={reactions}
@@ -383,71 +682,372 @@ function MessageBubbleContent({
   );
 }
 
-function MessageBubble({
-  message,
-  isOwn,
-  maxWidth,
-  reactions,
-  currentUserId,
-  canReact,
-  isFocused,
-  onOpenPicker,
-  onReport,
-  onRetry,
-  onDeleteFailed,
-}: {
-  message: OptimisticTextMessage;
+/** „Zapisane przez …” under a saved bubble, on the bubble's side. */
+function SavedMarker({ savedBy, peerName, isOwn }: { savedBy: 'me' | 'peer'; peerName: string; isOwn: boolean }) {
+  const { colors } = useAppTheme();
+  const { t } = useTranslation();
+  return (
+    <View
+      style={[styles.savedRow, isOwn ? styles.savedRowOwn : styles.savedRowIncoming]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants">
+      <SymbolView
+        name={resolveAppIconName('savedMessage')}
+        size={APP_ICON_SIZE.xs - 2}
+        tintColor={colors.accent}
+        weight="semibold"
+      />
+      <Text style={[styles.savedText, { color: colors.secondaryLabel }]} numberOfLines={1}>
+        {savedBy === 'me' ? t('chat.savedByYou') : t('chat.savedByPeer', { name: peerName })}
+      </Text>
+    </View>
+  );
+}
+
+type MessageBubbleProps = {
+  messageId: string;
+  body: string;
+  createdAt: string;
+  locale: string;
   isOwn: boolean;
+  /** „Ty” or the peer's name, for VoiceOver. */
+  senderName: string;
+  peerName: string;
+  /** Still a local outbox copy: fades in once, never on later re-renders. */
+  isOptimistic: boolean;
+  outboxStatus: ChatOutboxStatus | null;
+  outboxId: string | null;
+  /** Delivered / Opened under the last message, when it is mine (Snapchat-style receipt). */
+  receipt: 'delivered' | 'opened' | null;
   maxWidth: number;
   reactions: readonly MessageReaction[];
   currentUserId: string;
   canReact: boolean;
+  canCopy: boolean;
   isFocused: boolean;
-  onOpenPicker: (layout: BubbleWindowLayout) => void;
-  onReport: () => void;
-  onRetry: () => void;
-  onDeleteFailed: () => void;
-}) {
+  /** iMessage grouping: corners, spacing and the tail. */
+  group: ChatBubbleGroupPosition | undefined;
+  /** Saved in the chat, and by whom (`null` = not saved). */
+  savedBy: 'me' | 'peer' | null;
+  /** Save / unsave offered (backend supports it, message on the server, online). */
+  canSave: boolean;
+  /** Voice message: length and loudness samples; `null` for text. */
+  voiceDurationMs: number | null;
+  voiceWaveform: readonly number[] | null;
+  onOpenPicker: (messageId: string, isOwn: boolean, canReact: boolean, layout: BubbleWindowLayout) => void;
+  onReact: (messageId: string, emoji: MessageReactionEmoji) => void;
+  onCopy: (messageId: string) => void;
+  onReport: (messageId: string) => void;
+  onRetry: (outboxId: string) => void;
+  onDeleteOutbox: (outboxId: string) => void;
+  onSetSaved: (messageId: string, saved: boolean) => void;
+  onToggleVoice: (messageId: string) => void;
+};
+
+type BubbleAccessibilityAction = { name: string; label: string };
+
+/** VoiceOver rotor actions of a bubble; `activate` (play / pause) only for a voice message. */
+function bubbleAccessibilityActions(
+  t: ChatScreenViewModel['t'],
+  flags: {
+    playable: boolean;
+    playing: boolean;
+    canReact: boolean;
+    myEmoji: MessageReactionEmoji | null;
+    canSave: boolean;
+    saved: boolean;
+    copyable: boolean;
+    reportable: boolean;
+    retryable: boolean;
+    deletable: boolean;
+  },
+): BubbleAccessibilityAction[] {
+  const actions: BubbleAccessibilityAction[] = [];
+  if (flags.playable) {
+    actions.push({ name: 'activate', label: flags.playing ? t('chat.voicePause') : t('chat.voicePlay') });
+  }
+  if (flags.canReact) {
+    for (const emoji of MESSAGE_REACTION_EMOJIS) {
+      const glyph = MESSAGE_REACTION_GLYPHS[emoji];
+      actions.push({
+        name: `react:${emoji}`,
+        label:
+          flags.myEmoji === emoji
+            ? t('chat.removeReactionWith', { emoji: glyph })
+            : t('chat.reactWith', { emoji: glyph }),
+      });
+    }
+  }
+  if (flags.canSave) {
+    actions.push({ name: 'toggleSave', label: flags.saved ? t('chat.unsaveMessage') : t('chat.saveMessage') });
+  }
+  if (flags.copyable) actions.push({ name: 'copy', label: t('chat.copy') });
+  if (flags.reportable) actions.push({ name: 'report', label: t('chat.reportMessage') });
+  if (flags.retryable) actions.push({ name: 'retry', label: t('chat.retrySend') });
+  if (flags.deletable) actions.push({ name: 'delete', label: t('chat.deleteFailed') });
+  return actions;
+}
+
+function bubbleColors(
+  colors: ReturnType<typeof useAppTheme>['colors'],
+  expired: boolean,
+  isOwn: boolean,
+): { bubbleBg: string; labelColor: string } {
+  if (expired) return { bubbleBg: colors.secondarySystemFill, labelColor: colors.secondaryLabel };
+  return isOwn
+    ? { bubbleBg: colors.accent, labelColor: colors.onChatBubbleOwn }
+    : { bubbleBg: colors.chatBubbleIncoming, labelColor: colors.label };
+}
+
+type BubbleActionHandlers = {
+  activate: () => void;
+  react: (emoji: MessageReactionEmoji) => void;
+  toggleSave: () => void;
+  copy: () => void;
+  report: () => void;
+  retry: () => void;
+  delete: () => void;
+};
+
+const SIMPLE_BUBBLE_ACTIONS = ['activate', 'toggleSave', 'copy', 'report', 'retry', 'delete'] as const;
+
+function runBubbleAccessibilityAction(name: string, handlers: BubbleActionHandlers) {
+  if (name.startsWith('react:')) {
+    handlers.react(name.slice('react:'.length) as MessageReactionEmoji);
+    return;
+  }
+  if ((SIMPLE_BUBBLE_ACTIONS as readonly string[]).includes(name)) {
+    handlers[name as (typeof SIMPLE_BUBBLE_ACTIONS)[number]]();
+  }
+}
+
+type BubbleInteractionMode = {
+  /** Tombstone: confirm removal; failed: retry; voice: play / pause; plain text: nothing. */
+  press: 'expired' | 'retry' | 'voice' | null;
+  longPress: 'expired' | 'failed' | 'report' | 'none' | 'picker';
+};
+
+function bubbleInteractionMode(params: {
+  expired: boolean;
+  failed: boolean;
+  outboxId: string | null;
+  isVoice: boolean;
+  canReact: boolean;
+  copyable: boolean;
+  canSave: boolean;
+  isOwn: boolean;
+}): BubbleInteractionMode {
+  if (params.expired) return { press: 'expired', longPress: 'expired' };
+  if (params.failed && params.outboxId) return { press: 'retry', longPress: 'failed' };
+  const press = params.isVoice ? 'voice' : null;
+  // Offline or still sending: no reactions, but Copy / Save (and Report) stay available.
+  if (!params.canReact && !params.copyable && !params.canSave) {
+    return { press, longPress: params.isOwn ? 'none' : 'report' };
+  }
+  return { press, longPress: 'picker' };
+}
+
+function confirmExpiredOutbox(t: ChatScreenViewModel['t'], remove: () => void) {
+  Alert.alert(t('chat.sendExpiredTitle'), t('chat.sendExpiredMessage'), [
+    { text: t('chat.deleteFailed'), style: 'destructive', onPress: remove },
+    { text: t('common.cancel'), style: 'cancel' },
+  ]);
+}
+
+function showFailedOutboxActions(
+  t: ChatScreenViewModel['t'],
+  actions: { retry: () => void; copy: (() => void) | null; remove: () => void },
+) {
+  Alert.alert(t('chat.sendFailedTitle'), undefined, [
+    { text: t('chat.retrySend'), onPress: actions.retry },
+    ...(actions.copy ? [{ text: t('chat.copy'), onPress: actions.copy }] : []),
+    { text: t('chat.deleteFailed'), style: 'destructive' as const, onPress: actions.remove },
+    { text: t('common.cancel'), style: 'cancel' as const },
+  ]);
+}
+
+/** What VoiceOver reads as the content: the text, „Wiadomość głosowa, 0:12”, or nothing. */
+function bubbleAccessibilityBody(
+  t: ChatScreenViewModel['t'],
+  params: { expired: boolean; voiceDurationMs: number | null; body: string },
+): string {
+  if (params.expired) return '';
+  if (params.voiceDurationMs !== null) {
+    return t('chat.voiceMessageA11y', { duration: formatVoiceDuration(params.voiceDurationMs) });
+  }
+  return params.body;
+}
+
+/** VoiceOver text of the save state, or `null`. */
+function savedAccessibilityText(
+  t: ChatScreenViewModel['t'],
+  savedBy: 'me' | 'peer' | null,
+  peerName: string,
+): string | null {
+  if (savedBy === 'me') return t('chat.a11ySavedByYou');
+  if (savedBy === 'peer') return t('chat.a11ySavedByPeer', { name: peerName });
+  return null;
+}
+
+const EMPTY_WAVEFORM: readonly number[] = [];
+
+/**
+ * Memoized with primitive props and id-keyed stable handlers (PERF-10): a re-render of the
+ * screen (new data, picker focus elsewhere) skips every bubble whose own data did not change.
+ */
+const MessageBubble = memo(function MessageBubble({
+  messageId,
+  body,
+  createdAt,
+  locale,
+  isOwn,
+  senderName,
+  peerName,
+  isOptimistic,
+  outboxStatus,
+  outboxId,
+  receipt,
+  maxWidth,
+  reactions,
+  currentUserId,
+  canReact,
+  canCopy,
+  isFocused,
+  group,
+  savedBy,
+  canSave,
+  voiceDurationMs,
+  voiceWaveform,
+  onOpenPicker,
+  onReact,
+  onCopy,
+  onReport,
+  onRetry,
+  onDeleteOutbox,
+  onSetSaved,
+  onToggleVoice,
+}: MessageBubbleProps) {
   const { colors } = useAppTheme();
+  const { t } = useTranslation();
   const bubbleRef = useRef<View>(null);
-  const bubbleBg = isOwn ? colors.accent : colors.chatBubbleIncoming;
-  const labelColor = isOwn ? colors.onChatBubbleOwn : colors.label;
+  const expired = outboxStatus === 'expired';
+  const failed = outboxStatus === 'failed';
+  const isVoice = voiceDurationMs !== null;
+  const voicePhase = useVoicePhase(messageId, isVoice);
+  const { bubbleBg, labelColor } = bubbleColors(colors, expired, isOwn);
   const ownReactionBg = colors.accent;
   const peerReactionBg = colors.chatBubbleIncoming;
   const hasReactions = reactions.length > 0;
-  const focusShift = useSharedValue(0);
+  const focusScale = useSharedValue(1);
   const motionEnabled = useMotionEnabled();
-  const isOptimistic = message.id.startsWith('temp-') || Boolean(message.isSending);
+  const copyable = canCopy && !isVoice && !expired && body.trim().length > 0;
+  const shape = chatBubbleShape(group, isOwn);
+  const voice = useMemo<BubbleVoiceProps | null>(
+    () =>
+      voiceDurationMs === null
+        ? null
+        : { durationMs: voiceDurationMs, waveform: voiceWaveform ?? EMPTY_WAVEFORM },
+    [voiceDurationMs, voiceWaveform],
+  );
 
   useEffect(() => {
-    focusShift.set(withSpring(isFocused ? BUBBLE_FOCUS_SHIFT : 0, appleUiSpring));
-  }, [isFocused, focusShift]);
+    const target = isFocused ? BUBBLE_FOCUS_SCALE : 1;
+    // Reduce Motion: no lift, the bar alone marks the focused bubble.
+    focusScale.set(motionEnabled ? withSpring(target, appleUiSpring) : 1);
+  }, [isFocused, focusScale, motionEnabled]);
 
   const focusStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: focusShift.get() }],
+    transform: [{ scale: focusScale.get() }],
   }));
 
+  const confirmExpired = () => {
+    if (outboxId) confirmExpiredOutbox(t, () => onDeleteOutbox(outboxId));
+  };
+
+  const mode = bubbleInteractionMode({ expired, failed, outboxId, isVoice, canReact, copyable, canSave, isOwn });
+
   const openPickerFromBubble = () => {
-    if (message.sendFailed) {
-      Alert.alert(i18n.t('chat.sendFailedTitle'), undefined, [
-        { text: i18n.t('chat.retrySend'), onPress: onRetry },
-        { text: i18n.t('chat.deleteFailed'), style: 'destructive', onPress: onDeleteFailed },
-        { text: i18n.t('common.cancel'), style: 'cancel' },
-      ]);
-      return;
+    switch (mode.longPress) {
+      case 'expired':
+        confirmExpired();
+        return;
+      case 'failed':
+        if (outboxId) {
+          showFailedOutboxActions(t, {
+            retry: () => onRetry(outboxId),
+            copy: copyable ? () => onCopy(messageId) : null,
+            remove: () => onDeleteOutbox(outboxId),
+          });
+        }
+        return;
+      case 'report':
+        onReport(messageId);
+        return;
+      case 'none':
+        return;
+      default:
+        bubbleRef.current?.measureInWindow((x, y, width, height) => {
+          selection();
+          onOpenPicker(messageId, isOwn, canReact, { x, y, width, height });
+        });
     }
-    if (!canReact) {
-      if (!isOwn) onReport();
-      return;
-    }
-    bubbleRef.current?.measureInWindow((x, y, width, height) => {
-      selection();
-      onOpenPicker({ x, y, width, height });
+  };
+
+  const pressHandlers = {
+    expired: confirmExpired,
+    retry: () => (outboxId ? onRetry(outboxId) : undefined),
+    voice: () => onToggleVoice(messageId),
+  };
+  const onPress = mode.press ? pressHandlers[mode.press] : undefined;
+
+  const myEmoji = reactions.find((reaction) => reaction.user_id === currentUserId)?.emoji ?? null;
+  const statusText = outboxStatusText(outboxStatus);
+  const accessibilityLabel = chatMessageAccessibilityLabel({
+    sender: senderName,
+    body: bubbleAccessibilityBody(t, { expired, voiceDurationMs, body }),
+    time: formatChatTime(createdAt, locale),
+    status: statusText,
+    saved: savedAccessibilityText(t, savedBy, peerName),
+    reactions: reactions.map((reaction) => ({
+      glyph: MESSAGE_REACTION_GLYPHS[reaction.emoji],
+      by: reaction.user_id === currentUserId ? t('chat.a11yYou') : peerName,
+    })),
+    formatReactions: (list) => t('chat.a11yReactions', { list }),
+  });
+  // Everything the long-press bar offers, reachable with the VoiceOver rotor.
+  const accessibilityActions = bubbleAccessibilityActions(t, {
+    playable: isVoice && !expired && !failed,
+    playing: voicePhase === 'playing',
+    canReact,
+    myEmoji,
+    canSave,
+    saved: savedBy !== null,
+    copyable,
+    reportable: !isOwn && outboxStatus === null,
+    retryable: failed && outboxId !== null,
+    deletable: (failed || expired) && outboxId !== null,
+  });
+  const onAccessibilityAction = (event: AccessibilityActionEvent) => {
+    runBubbleAccessibilityAction(event.nativeEvent.actionName, {
+      activate: () => onPress?.(),
+      react: (emoji) => onReact(messageId, emoji),
+      toggleSave: () => onSetSaved(messageId, !savedBy),
+      copy: () => onCopy(messageId),
+      report: () => onReport(messageId),
+      retry: () => (outboxId ? onRetry(outboxId) : undefined),
+      delete: () => (outboxId ? onDeleteOutbox(outboxId) : undefined),
     });
   };
 
   return (
-    <View style={[styles.row, hasReactions ? styles.rowWithReactions : null]}>
+    <View
+      style={[
+        styles.row,
+        { paddingTop: shape.paddingTop, paddingBottom: shape.paddingBottom },
+        hasReactions ? styles.rowWithReactions : null,
+        // Snapchat-style: a saved message sits on a soft band, for both participants.
+        savedBy ? { backgroundColor: colors.secondarySystemFill } : null,
+      ]}>
       <Animated.View
         entering={
           motionEnabled && isOptimistic ? FadeIn.duration(duration.fast) : undefined
@@ -460,14 +1060,23 @@ function MessageBubble({
         ]}>
         <View ref={bubbleRef} collapsable={false}>
           <Pressable
-            onPress={message.sendFailed ? onRetry : undefined}
+            onPress={onPress}
             onLongPress={openPickerFromBubble}
             delayLongPress={350}
-            accessibilityRole="button"
+            accessible
+            // A plain message is text; a voice note plays, a failed / expired bubble acts on a tap.
+            accessibilityRole={onPress ? 'button' : 'text'}
+            accessibilityLabel={accessibilityLabel}
+            accessibilityActions={accessibilityActions}
+            onAccessibilityAction={onAccessibilityAction}
             style={styles.bubblePressable}>
             <MessageBubbleContent
-              message={message}
+              messageId={messageId}
+              body={body}
+              voice={voice}
+              outboxStatus={outboxStatus}
               isOwn={isOwn}
+              group={group}
               bubbleBg={bubbleBg}
               labelColor={labelColor}
               reactions={reactions}
@@ -478,7 +1087,27 @@ function MessageBubble({
             />
           </Pressable>
         </View>
+        {savedBy ? <SavedMarker savedBy={savedBy} peerName={peerName} isOwn={isOwn} /> : null}
+        {receipt ? <MessageReceipt status={receipt} /> : null}
       </Animated.View>
+    </View>
+  );
+});
+
+function MessageReceipt({ status }: { status: 'delivered' | 'opened' }) {
+  const { colors } = useAppTheme();
+  const presentation = messageStatusPresentation(status, 'text');
+  return (
+    <View style={styles.receiptRow} accessibilityRole="text">
+      <SymbolView
+        name={resolveAppIconName(presentation.icon)}
+        size={APP_ICON_SIZE.xs - 3}
+        tintColor={messageStatusColor(presentation.tone, colors)}
+        weight="semibold"
+      />
+      <Text style={[styles.receiptText, { color: colors.secondaryLabel }]}>
+        {i18n.t(presentation.labelKey)}
+      </Text>
     </View>
   );
 }
@@ -487,64 +1116,76 @@ function ReactionPickerOverlay({
   picker,
   open,
   selectedEmoji,
-  reportLabel,
-  removeLabel,
+  canCopy,
+  minTop,
   onSelect,
-  onRemove,
+  onCopy,
   onReport,
+  saveAction,
+  onToggleSave,
   onDismiss,
   onExited,
 }: {
   picker: ReactionPickerState;
   open: boolean;
   selectedEmoji: MessageReactionEmoji | null;
-  reportLabel: string;
-  removeLabel: string;
+  canCopy: boolean;
+  saveAction: PickerSaveAction;
+  onToggleSave: () => void;
+  /** Below the transparent navigation bar: the bar must never slide under it. */
+  minTop: number;
   onSelect: (emoji: MessageReactionEmoji) => void;
-  onRemove: () => void;
+  onCopy: () => void;
   onReport: () => void;
   onDismiss: () => void;
   onExited: () => void;
 }) {
-  const showTrash = selectedEmoji != null;
+  const { t } = useTranslation();
+  const motionEnabled = useMotionEnabled();
   const liveLayout = layoutReactionPickerBar({
     bubbleX: picker.x,
     bubbleWidth: picker.width,
     rootWidth: picker.rootWidth,
+    canReact: picker.canReact,
+    showCopy: canCopy,
     showReport: !picker.isOwn,
-    showTrash,
+    showSave: saveAction !== null,
   });
-  /** Nad dymkiem po uwzględnieniu przesunięcia fokusa. */
-  const top = Math.max(
-    REACTION_BAR_SIDE_INSET,
-    picker.y + BUBBLE_FOCUS_SHIFT - REACTION_BAR_HEIGHT - REACTION_BAR_GAP
-  );
+  /** Above the bubble; below it when the header leaves no room. */
+  const above = picker.y - REACTION_BAR_HEIGHT - REACTION_BAR_GAP;
+  const top =
+    above >= Math.max(REACTION_BAR_SIDE_INSET, minTop)
+      ? above
+      : picker.y + picker.height + REACTION_BAR_GAP;
 
   /**
-   * Przy wyborze emoji React batchuje: open=false + nowy selectedEmoji (kosz).
+   * Przy wyborze emoji React batchuje: open=false + nowy selectedEmoji.
    * Bez snapshota pasek zmienia width/left w trakcie close → skok wyglądający jak scale.
    * Aktualizacja snapshota w trakcie renderu gdy open (dozwolony pattern „adjusting state”).
    */
   const [frozenLayout, setFrozenLayout] = useState({
     left: liveLayout.left,
     barWidth: liveLayout.barWidth,
+    slotSize: liveLayout.slotSize,
     selectedEmoji,
   });
   if (open) {
     if (
       frozenLayout.left !== liveLayout.left ||
       frozenLayout.barWidth !== liveLayout.barWidth ||
+      frozenLayout.slotSize !== liveLayout.slotSize ||
       frozenLayout.selectedEmoji !== selectedEmoji
     ) {
       setFrozenLayout({
         left: liveLayout.left,
         barWidth: liveLayout.barWidth,
+        slotSize: liveLayout.slotSize,
         selectedEmoji,
       });
     }
   }
-  const { left, barWidth, selectedEmoji: displayEmoji } = open
-    ? { left: liveLayout.left, barWidth: liveLayout.barWidth, selectedEmoji }
+  const { left, barWidth, slotSize, selectedEmoji: displayEmoji } = open
+    ? { ...liveLayout, selectedEmoji }
     : frozenLayout;
 
   const progress = useSharedValue(0);
@@ -552,6 +1193,13 @@ function ReactionPickerOverlay({
   const closing = useSharedValue(0);
 
   useEffect(() => {
+    if (!motionEnabled) {
+      // Reduce Motion: appear and disappear in place, no scale or slide.
+      closing.set(0);
+      progress.set(open ? 1 : 0);
+      if (!open) onExited();
+      return;
+    }
     if (open) {
       closing.set(0);
       progress.set(withSpring(1, appleUiSpring));
@@ -566,7 +1214,17 @@ function ReactionPickerOverlay({
         }
       })
     );
-  }, [open, onExited, progress, closing]);
+  }, [open, onExited, progress, closing, motionEnabled]);
+
+  // VoiceOver: move focus into the bar when it opens (the overlay is modal).
+  const barRef = useRef<View>(null);
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => {
+      if (barRef.current) AccessibilityInfo.sendAccessibilityEvent(barRef.current, 'focus');
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
 
   /**
    * Bez opacity na przodku GlassView (Known issue expo-glass-effect).
@@ -584,24 +1242,33 @@ function ReactionPickerOverlay({
   });
 
   return (
-    <View style={styles.pickerOverlay} pointerEvents="box-none">
+    <View
+      style={styles.pickerOverlay}
+      pointerEvents="box-none"
+      accessibilityViewIsModal
+      onAccessibilityEscape={onDismiss}>
       <Pressable
         style={styles.pickerBackdrop}
         onPress={onDismiss}
-        accessibilityLabel="Zamknij reakcje"
+        accessibilityRole="button"
+        accessibilityLabel={t('chat.closeReactions')}
       />
       <Animated.View
         pointerEvents="box-none"
         style={[styles.reactionBarOverlay, { top, left, width: barWidth }, barStyle]}>
         <ReactionPickerBar
           isOwn={picker.isOwn}
+          canReact={picker.canReact}
+          canCopy={canCopy}
           selectedEmoji={displayEmoji}
-          reportLabel={reportLabel}
-          removeLabel={removeLabel}
+          slotSize={slotSize}
           barWidth={barWidth}
           onSelect={onSelect}
-          onRemove={onRemove}
+          onCopy={onCopy}
           onReport={onReport}
+          saveAction={saveAction}
+          onToggleSave={onToggleSave}
+          focusRef={barRef}
         />
       </Animated.View>
     </View>
@@ -614,29 +1281,38 @@ function nixStatusLabel(
   now: Date = new Date()
 ): string {
   if (nix.direction === 'sent') {
-    if (nix.status === 'viewed' || nix.status === 'cleaned' || nix.is_viewed) {
-      return t('chat.nixOpened');
-    }
-    return t('chat.nixSent');
+    return t(messageStatusPresentation(outgoingNixStatus(nix), messageKindForMedia(nix.media_type)).labelKey);
   }
+  // Received chips name the action while one is available, like Snapchat's "Tap to view".
   if (isNixFirstOpenAvailable(nix)) return t('chat.nixNew');
   if (isNixReplayAvailable(nix, now)) return t('chat.nixReplay');
-  return t('chat.nixOpened');
+  return t(
+    messageStatusPresentation(nix.replayed_at ? 'replayed' : 'received', messageKindForMedia(nix.media_type))
+      .labelKey
+  );
+}
+
+function nixChipStatus(nix: ChatNixEvent): MessageStatus {
+  if (nix.direction === 'sent') return outgoingNixStatus(nix);
+  return incomingNixStatus(nix);
 }
 
 function nixTitle(nix: ChatNixEvent, t: ChatScreenViewModel['t']): string {
   return nix.direction === 'sent' ? t('chat.nixSentLabel') : t('chat.nixReceivedLabel');
 }
 
-function NixChip({
+const NixChip = memo(function NixChip({
   nix,
+  reaction,
   maxWidth,
   onOpen,
   t,
 }: {
   nix: ChatNixEvent;
+  /** The receiver's tapback on this NiX, drawn on the chip's outer corner like message reactions. */
+  reaction: MessageReactionEmoji | null;
   maxWidth: number;
-  onOpen: () => void;
+  onOpen: (nixId: string) => void;
   t: ChatScreenViewModel['t'];
 }) {
   const { colors } = useAppTheme();
@@ -660,15 +1336,33 @@ function NixChip({
   const titleColor = isHighlighted ? colors.onChatBubbleOwn : colors.label;
   const statusColor = isHighlighted ? colors.onChatBubbleOwn : colors.secondaryLabel;
 
-  const statusText =
-    nix.media_type === 'video'
-      ? `${nixStatusLabel(nix, t, now)} · ${t('chat.nixVideo')}`
-      : nixStatusLabel(nix, t, now);
+  // The leading symbol already says photo or video.
+  const statusText = nixStatusLabel(nix, t, now);
 
+  const statusPresentation = messageStatusPresentation(nixChipStatus(nix), messageKindForMedia(nix.media_type));
+  const statusIconColor = isHighlighted
+    ? colors.onChatBubbleOwn
+    : messageStatusColor(statusPresentation.tone, colors);
+  // The status symbol leads the chip, large, like Snapchat's chat rows; the text follows.
   const chip = (
-    <View style={[styles.bubble, { backgroundColor: bubbleBg }]}>
-      <Text style={[styles.chipTitle, { color: titleColor }]}>{nixTitle(nix, t)}</Text>
-      <Text style={[styles.chipStatus, { color: statusColor }]}>{statusText}</Text>
+    <View style={[styles.bubble, styles.chipLayout, { backgroundColor: bubbleBg }]}>
+      <SymbolView
+        name={resolveAppIconName(statusPresentation.icon)}
+        size={APP_ICON_SIZE.xxl}
+        tintColor={statusIconColor}
+        weight="medium"
+      />
+      <View style={styles.chipTextColumn}>
+        <Text style={[styles.chipTitle, { color: titleColor }]}>{nixTitle(nix, t)}</Text>
+        <Text style={[styles.chipStatus, { color: statusColor }]}>{statusText}</Text>
+      </View>
+      {reaction ? (
+        <NixReactionBadge
+          emoji={reaction}
+          accessibility="decorative"
+          style={[styles.nixReactionBadge, isOwn ? styles.reactionBadgesOwn : styles.reactionBadgesIncoming]}
+        />
+      ) : null}
     </View>
   );
 
@@ -677,15 +1371,21 @@ function NixChip({
     isOwn ? styles.bubbleOwn : styles.bubbleIncoming,
     { maxWidth },
   ];
+  const open = () => onOpen(nix.id);
+  const reactionA11y = reaction
+    ? `, ${t('viewer.nixReactionBadgeA11y', { emoji: MESSAGE_REACTION_GLYPHS[reaction] })}`
+    : '';
+  const title = `${nixTitle(nix, t)}${reactionA11y}`;
 
   if (canFirstOpen) {
     return (
       <View style={styles.row}>
         <Pressable
-          onPress={onOpen}
+          onPress={open}
           accessibilityRole="button"
-          accessibilityLabel={statusText}
-          accessibilityHint={t('chat.nixNew')}
+          // Status for the label, instruction for the hint: never the same sentence twice.
+          accessibilityLabel={`${title}, ${t('chat.nixNewA11y')}`}
+          accessibilityHint={t('chat.nixOpenHint')}
           style={anchorStyle}>
           {chip}
         </Pressable>
@@ -694,14 +1394,20 @@ function NixChip({
   }
 
   if (canReplay) {
+    // Replay stays a deliberate long press for sighted users; VoiceOver gets a named action
+    // („Odtwórz”) instead of „double-tap and hold”.
     return (
       <View style={styles.row}>
         <Pressable
-          onLongPress={onOpen}
+          onLongPress={open}
           delayLongPress={350}
+          accessible
           accessibilityRole="button"
-          accessibilityLabel={statusText}
-          accessibilityHint={t('chat.nixReplay')}
+          accessibilityLabel={`${title}, ${t('chat.nixReplayableA11y')}`}
+          accessibilityActions={[{ name: 'replay', label: t('chat.nixReplayAction') }]}
+          onAccessibilityAction={(event) => {
+            if (event.nativeEvent.actionName === 'replay') open();
+          }}
           style={anchorStyle}>
           {chip}
         </Pressable>
@@ -711,10 +1417,16 @@ function NixChip({
 
   return (
     <View style={styles.row}>
-      <View style={anchorStyle}>{chip}</View>
+      <View
+        style={anchorStyle}
+        accessible
+        accessibilityRole="text"
+        accessibilityLabel={`${title}, ${statusText}`}>
+        {chip}
+      </View>
     </View>
   );
-}
+});
 
 function uploadStatusLabel(job: DurableUploadJob, t: ChatScreenViewModel['t']): string {
   switch (job.state) {
@@ -724,11 +1436,13 @@ function uploadStatusLabel(job: DurableUploadJob, t: ChatScreenViewModel['t']): 
     case 'requesting_target':
       return t('chat.uploadPreparing');
     case 'uploading':
-    case 'finalizing':
       return t('chat.uploadActive');
+    case 'finalizing':
+      return t('chat.uploadConfirming');
     case 'waiting_network':
       return t('chat.uploadWaitingNetwork');
     case 'retry_scheduled':
+      return t('chat.uploadRetrying');
     case 'waiting_for_auth':
     case 'failed':
       return t('chat.uploadTryAgain');
@@ -745,126 +1459,156 @@ function uploadStatusLabel(job: DurableUploadJob, t: ChatScreenViewModel['t']): 
 }
 
 function isUploadFailureState(job: DurableUploadJob) {
+  return job.state === 'waiting_for_auth' || job.state === 'failed';
+}
+
+/** Native SwiftUI progress, like the inbox: a ring while bytes move, a spinner otherwise. */
+function MediaProgress({ progress, color }: { progress: number | null; color: string }) {
   return (
-    job.state === 'retry_scheduled'
-    || job.state === 'waiting_for_auth'
-    || job.state === 'failed'
+    <Host matchContents>
+      <ProgressView
+        value={progress ?? undefined}
+        modifiers={[
+          progressViewStyle('circular'),
+          frame({ width: 22, height: 22 }),
+          tint(color),
+          accessibilityHidden(),
+        ]}
+      />
+    </Host>
   );
 }
 
-function UploadBubbleAccessory({
-  busy,
-  iconName,
-  canRetry,
+const MEDIA_BUBBLE_ICONS: Record<ChatMediaBubbleIcon, AppIconName> = {
+  retry: 'retry',
+  completed: 'checkCircleFill',
+  offline: 'offline',
+  paused: 'pauseCircleFill',
+  failed: 'warningFill',
+};
+
+function MediaBubbleAccessory({
+  presentation,
   onRetry,
   statusColor,
   t,
 }: {
-  busy: boolean;
-  iconName:
-    | 'arrow.clockwise'
-    | 'checkmark.circle.fill'
-    | 'wifi.slash'
-    | 'exclamationmark.triangle.fill'
-    | null;
-  canRetry: boolean;
+  presentation: ChatMediaBubblePresentation;
   onRetry: () => void;
   statusColor: string;
   t: ChatScreenViewModel['t'];
 }) {
   const { colors } = useAppTheme();
-  return busy || !iconName ? (
+  const { busy, icon, progress } = presentation;
+  if (busy || !icon) {
+    return (
+      <View style={styles.uploadAccessory}>
+        <MediaProgress progress={progress} color={colors.accent} />
+      </View>
+    );
+  }
+  if (icon === 'retry') {
+    return (
+      <Pressable
+        onPress={onRetry}
+        accessibilityRole="button"
+        accessibilityLabel={t('chat.uploadRetry')}
+        hitSlop={4}
+        style={({ pressed }) => [styles.uploadAccessory, pressed ? styles.uploadRetryPressed : null]}>
+        <AppIcon name={MEDIA_BUBBLE_ICONS.retry} size={APP_ICON_SIZE.lg} color={colors.destructive} />
+      </Pressable>
+    );
+  }
+  return (
     <View style={styles.uploadAccessory}>
-      <ActivityIndicator size="small" color={colors.accent} />
-    </View>
-  ) : canRetry ? (
-    <Pressable
-      onPress={onRetry}
-      accessibilityRole="button"
-      accessibilityLabel={t('chat.uploadRetry')}
-      hitSlop={4}
-      style={({ pressed }) => [styles.uploadAccessory, pressed ? styles.uploadRetryPressed : null]}>
-      <SymbolView
-        name={iconName}
-        size={APP_ICON_SIZE.lg}
-        tintColor={colors.destructive}
-        weight="semibold"
-      />
-    </Pressable>
-  ) : (
-    <View style={styles.uploadAccessory}>
-      <SymbolView
-        name={iconName}
-        size={APP_ICON_SIZE.lg}
-        tintColor={statusColor}
-        weight="semibold"
-      />
+      <AppIcon name={MEDIA_BUBBLE_ICONS[icon]} size={APP_ICON_SIZE.lg} color={statusColor} />
     </View>
   );
 }
 
-function uploadBubbleIcon({
-  canRetry,
-  completed,
-  waitingNetwork,
-  failed,
-}: {
-  canRetry: boolean;
-  completed: boolean;
-  waitingNetwork: boolean;
-  failed: boolean;
-}) {
-  if (canRetry) return 'arrow.clockwise';
-  if (completed) return 'checkmark.circle.fill';
-  if (waitingNetwork) return 'wifi.slash';
-  if (failed) return 'exclamationmark.triangle.fill';
-  return null;
+function mediaBubbleStatus(
+  job: DurableUploadJob | null,
+  nix: ChatNixEvent | null,
+  busyAction: UploadRowAction | null,
+  t: ChatScreenViewModel['t']
+): string {
+  if (nix) return nixStatusLabel(nix, t);
+  if (busyAction === 'retry') return t('chat.uploadActive');
+  return job ? uploadStatusLabel(job, t) : '';
 }
 
-function UploadBubble({
-  job,
-  busy,
-  retrying,
-  maxWidth,
-  onLongPress,
-  onRetry,
-  t,
-}: {
-  job: DurableUploadJob;
-  busy: boolean;
-  retrying: boolean;
+type OutgoingMediaBubbleProps = {
+  jobId: string;
+  job: DurableUploadJob | null;
+  /** The delivered server NiX once it exists; it replaces the job's content in place. */
+  nix: ChatNixEvent | null;
+  busyAction: UploadRowAction | null;
   maxWidth: number;
-  onLongPress: () => void;
-  onRetry: () => void;
+  onOpenActions: (jobId: string) => void;
+  onRetry: (jobId: string) => void;
+  onAction: (jobId: string, action: ChatUploadAction) => void;
   t: ChatScreenViewModel['t'];
-}) {
+};
+
+/**
+ * One cell for an outgoing photo/video from the first upload tick to the delivered NiX (SEND-8).
+ * Every state keeps the same structure (two text lines + a fixed 36 pt accessory), so the height
+ * does not change when the upload turns into the server NiX and nothing below it jumps.
+ */
+const OutgoingMediaBubble = memo(function OutgoingMediaBubble({
+  jobId,
+  job,
+  nix,
+  busyAction,
+  maxWidth,
+  onOpenActions,
+  onRetry,
+  onAction,
+  t,
+}: OutgoingMediaBubbleProps) {
   const { colors } = useAppTheme();
-  const actions = chatUploadActions(job);
-  const canRetry = actions.includes('retry');
-  const failed = !retrying && isUploadFailureState(job);
-  const completed = job.state === 'completed' || job.state === 'partially_completed';
-  const waitingNetwork = job.state === 'waiting_network';
-  const statusColor = failed
-    ? colors.destructive
-    : completed
-      ? colors.success
-      : colors.secondaryLabel;
-  const mediaTitle =
-    job.mediaType === 'video' ? t('chat.uploadVideoTitle') : t('chat.uploadPhotoTitle');
-  const title = failed ? t('chat.uploadFailureTitle') : mediaTitle;
-  const status = retrying ? t('chat.uploadActive') : uploadStatusLabel(job, t);
-  const iconName = uploadBubbleIcon({ canRetry, completed, waitingNetwork, failed });
+  const presentation = chatMediaBubblePresentation(job, nix, busyAction);
+  const statusColor = {
+    neutral: colors.secondaryLabel,
+    success: colors.success,
+    destructive: colors.destructive,
+  }[presentation.tone];
+  const title = presentation.failed
+    ? t('chat.uploadFailureTitle')
+    : presentation.mediaType === 'video'
+      ? t('chat.uploadVideoTitle')
+      : t('chat.uploadPhotoTitle');
+  const status = mediaBubbleStatus(job, nix, busyAction, t);
+  const hasActions = presentation.actions.length > 0;
+  const { progress } = presentation;
 
   return (
     <View style={styles.row}>
       <View style={[styles.bubbleAnchor, styles.bubbleOwn, { maxWidth }]}>
         <Pressable
-          disabled={busy || actions.length === 0}
+          disabled={presentation.busy || !hasActions}
           delayLongPress={350}
-          onLongPress={onLongPress}
-          accessibilityRole={actions.length > 0 ? 'button' : undefined}
+          onLongPress={() => onOpenActions(jobId)}
+          accessibilityRole={hasActions ? 'button' : undefined}
+          // The label stays the same while bytes move; the percentage goes to the value so
+          // VoiceOver does not re-read the whole bubble on every progress tick (SEND-14).
           accessibilityLabel={`${title}. ${status}`}
-          accessibilityHint={actions.length > 0 ? t('chat.uploadActionsHint') : undefined}
+          accessibilityValue={
+            progress === null ? undefined : { min: 0, max: 100, now: Math.round(progress * 100) }
+          }
+          accessibilityHint={hasActions ? t('chat.uploadActionsHint') : undefined}
+          // The nested retry button is hidden behind this label; VoiceOver reaches Retry / Resume /
+          // Cancel through the actions rotor instead.
+          accessibilityActions={presentation.actions.map((action) => ({
+            name: action,
+            label: chatUploadActionLabel(t, action),
+          }))}
+          onAccessibilityAction={(event) => {
+            const action = presentation.actions.find(
+              (candidate) => candidate === event.nativeEvent.actionName
+            );
+            if (action) onAction(jobId, action);
+          }}
           style={({ pressed }) => [
             styles.bubble,
             styles.uploadBubble,
@@ -880,11 +1624,9 @@ function UploadBubble({
                 {status}
               </Text>
             </View>
-            <UploadBubbleAccessory
-              busy={busy}
-              iconName={iconName}
-              canRetry={canRetry}
-              onRetry={onRetry}
+            <MediaBubbleAccessory
+              presentation={presentation}
+              onRetry={() => onRetry(jobId)}
               statusColor={statusColor}
               t={t}
             />
@@ -893,6 +1635,12 @@ function UploadBubble({
       </View>
     </View>
   );
+});
+
+function chatUploadActionLabel(t: ChatScreenViewModel['t'], action: ChatUploadAction) {
+  if (action === 'retry') return t('chat.uploadRetry');
+  if (action === 'resume') return t('chat.uploadResume');
+  return t('chat.uploadCancel');
 }
 
 function requestChatUploadAction(
@@ -908,9 +1656,7 @@ function requestChatUploadAction(
     return;
   }
 
-  const actionLabel = action === 'retry'
-    ? vm.t('chat.uploadRetry')
-    : vm.t('chat.uploadCancel');
+  const actionLabel = chatUploadActionLabel(vm.t, action);
   Alert.alert(
     isShared ? vm.t('chat.uploadSharedActionTitle') : vm.t('chat.uploadCancelTitle'),
     isShared
@@ -931,9 +1677,7 @@ function openChatUploadActions(vm: ChatScreenViewModel, job: DurableUploadJob) {
   const actions = chatUploadActions(job);
   if (actions.length === 0) return;
   selection();
-  const labels = actions.map((action) =>
-    action === 'retry' ? vm.t('chat.uploadRetry') : vm.t('chat.uploadCancel')
-  );
+  const labels = actions.map((action) => chatUploadActionLabel(vm.t, action));
   const failure = isUploadFailureState(job);
   const title = failure
     ? job.mediaType === 'video'
@@ -944,44 +1688,29 @@ function openChatUploadActions(vm: ChatScreenViewModel, job: DurableUploadJob) {
       : vm.t('chat.uploadPhotoTitle');
   const message = failure ? vm.t('chat.uploadFailureActionMessage') : undefined;
 
-  if (Platform.OS === 'ios') {
-    const destructiveActionIndex = actions.indexOf('cancel');
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        title,
-        message,
-        options: [vm.t('common.cancel'), ...labels],
-        cancelButtonIndex: 0,
-        destructiveButtonIndex:
-          destructiveActionIndex >= 0 ? destructiveActionIndex + 1 : undefined,
-      },
-      (buttonIndex) => {
-        if (buttonIndex == null || buttonIndex === 0) return;
-        const action = actions[buttonIndex - 1];
-        if (action) requestChatUploadAction(vm, job, action);
-      }
-    );
-    return;
-  }
-
-  Alert.alert(
-    title,
-    message,
-    [
-      ...actions.map((action) => ({
-        text: action === 'retry' ? vm.t('chat.uploadRetry') : vm.t('chat.uploadCancel'),
-        style: action === 'cancel' ? 'destructive' as const : 'default' as const,
-        onPress: () => requestChatUploadAction(vm, job, action),
-      })),
-      { text: vm.t('common.cancel'), style: 'cancel' },
-    ]
+  const destructiveActionIndex = actions.indexOf('cancel');
+  ActionSheetIOS.showActionSheetWithOptions(
+    {
+      title,
+      message,
+      options: [vm.t('common.cancel'), ...labels],
+      cancelButtonIndex: 0,
+      destructiveButtonIndex:
+        destructiveActionIndex >= 0 ? destructiveActionIndex + 1 : undefined,
+    },
+    (buttonIndex) => {
+      if (buttonIndex == null || buttonIndex === 0) return;
+      const action = actions[buttonIndex - 1];
+      if (action) requestChatUploadAction(vm, job, action);
+    }
   );
 }
 
 function DateSeparator({ label }: { label: string }) {
   const { colors } = useAppTheme();
+  // A header, so the VoiceOver rotor can jump between days.
   return (
-    <View style={styles.separatorRow}>
+    <View style={styles.separatorRow} accessible accessibilityRole="header" accessibilityLabel={label}>
       <Text style={[styles.separatorText, { color: colors.secondaryLabel }]}>{label}</Text>
     </View>
   );
@@ -1004,27 +1733,90 @@ function SystemMessageItem({ message }: { message: OptimisticTextMessage }) {
 
 /**
  * Overlay nad FlashList — `GlassView` sampluje bąbelki pod spodem.
- * Rodzic: marginBottom = kb. Tu: paddingBottom = safe-area / min. pad nad KB.
+ * Layout stały (paddingBottom = safe-area); nad klawiaturę unosi go tylko `translateY` na wątku UI
+ * (PERF-26), więc ruch klawiatury nie przelicza layoutu. Its measured height (multiline draft,
+ * counter row) goes to `composerHeight`, which the list reads on the UI thread.
+ *
+ * Owns the draft text (PERF-10): a keystroke re-renders only this component, never the screen,
+ * the header or the list cells.
  */
-function ChatComposer({ vm, keyboardHeight, restingPad }: ChatComposerProps) {
+const ChatComposer = memo(function ChatComposer({
+  t,
+  keyboardHeight,
+  restingPad,
+  pasteInputEnabled,
+  pasteImporting,
+  onPaste,
+  onSend,
+  composerHeight,
+  onDraftChange,
+  onDraftBlur,
+  onOpenCamera,
+  voiceEnabled,
+  voiceAvailable,
+  onSendVoice,
+  onVoiceRecordingStart,
+}: ChatComposerProps) {
   const { colors } = useAppTheme();
-  const canSend = Boolean(vm.inputBody.trim()) && !vm.sending;
+  const { fontScale } = useWindowDimensions();
+  const [text, setText] = useState('');
+  // Bumped only to put text back after a failed enqueue (remount with `defaultValue`). A normal
+  // send clears the native input in place, so it keeps focus and the keyboard stays up.
+  const [inputKey, setInputKey] = useState(0);
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+  const inputRef = useRef<TextInput>(null);
+  const canSend = Boolean(text.trim()) && !sending;
   const useGlass = canUseLiquidGlass();
+  const showCounter = shouldShowComposerCounter(text.length, TEXT_MESSAGE_MAX_LENGTH);
+  const atLimit = text.length >= TEXT_MESSAGE_MAX_LENGTH;
+  const inputMaxHeight =
+    Math.ceil(typography.body.lineHeight * Math.max(1, fontScale) * COMPOSER_MAX_LINES)
+    + COMPOSER_INPUT_VERTICAL_PAD * 2;
 
-  const composerStyle = useAnimatedStyle(() => {
-    const { composerPad } = chatKeyboardMetrics(keyboardHeight.value, restingPad);
-    return {
-      bottom: 0,
-      paddingBottom: composerPad,
-    };
-  });
+  // iOS has no live regions: announce the paste progress and the hard limit explicitly.
+  useEffect(() => {
+    if (pasteImporting) AccessibilityInfo.announceForAccessibility(t('chat.pastePreparingImage'));
+  }, [pasteImporting, t]);
+  useEffect(() => {
+    if (atLimit) {
+      AccessibilityInfo.announceForAccessibility(
+        t('chat.characterLimit', { limit: TEXT_MESSAGE_MAX_LENGTH })
+      );
+    }
+  }, [atLimit, t]);
 
-  const edgeFadeStyle = useAnimatedStyle(() => {
-    const { composerPad } = chatKeyboardMetrics(keyboardHeight.value, restingPad);
-    return {
-      height: COMPOSER_CONTENT_HEIGHT + composerPad + COMPOSER_EDGE_FADE_EXTRA,
-    };
-  });
+  const changeText = (next: string) => {
+    setText(next);
+    onDraftChange(next);
+  };
+
+  const send = () => {
+    const body = text.trim();
+    if (!body || sendingRef.current) return;
+    sendingRef.current = true;
+    setSending(true);
+    inputRef.current?.clear();
+    setText('');
+    void onSend(body)
+      .then((accepted) => {
+        if (accepted) return;
+        setText(body);
+        setInputKey((key) => key + 1);
+      })
+      .finally(() => {
+        sendingRef.current = false;
+        setSending(false);
+      });
+  };
+
+  const onLayout = (event: LayoutChangeEvent) => {
+    composerHeight.set(event.nativeEvent.layout.height);
+  };
+
+  const composerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -chatKeyboardLift(keyboardHeight.get(), restingPad) }],
+  }));
 
   const fallbackFill = { backgroundColor: colors.secondarySystemFill };
   /**
@@ -1035,22 +1827,25 @@ function ChatComposer({ vm, keyboardHeight, restingPad }: ChatComposerProps) {
 
   const inputField = (
     <TextInput
-      key={vm.composerKey}
-      defaultValue={vm.inputBody}
-      placeholder={vm.pasteImporting ? vm.t('chat.pastePreparingImage') : vm.t('chat.typeMessage')}
+      key={inputKey}
+      ref={inputRef}
+      defaultValue={text}
+      placeholder={pasteImporting ? t('chat.pastePreparingImage') : t('chat.typeMessage')}
       placeholderTextColor={colors.secondaryLabel}
-      onChangeText={vm.setInputBody}
-      onSubmitEditing={() => void vm.handleSend()}
-      editable={!vm.sending}
-      returnKeyType="send"
-      accessibilityLabel={vm.t('chat.typeMessage')}
-      accessibilityState={{ busy: vm.pasteImporting, disabled: vm.sending }}
-      style={[styles.inputText, { color: colors.label }]}
+      onChangeText={changeText}
+      onBlur={onDraftBlur}
+      maxLength={TEXT_MESSAGE_MAX_LENGTH}
+      // Return inserts a new line (iMessage); the send button sends.
+      multiline
+      scrollEnabled
+      accessibilityLabel={t('chat.typeMessage')}
+      accessibilityState={{ busy: pasteImporting }}
+      style={[styles.inputText, { color: colors.label, maxHeight: inputMaxHeight }]}
     />
   );
 
-  const composerInput = vm.pasteInputEnabled ? (
-    <TextInputWrapper onPaste={vm.handlePaste} style={styles.pasteInputWrapper}>
+  const composerInput = pasteInputEnabled ? (
+    <TextInputWrapper onPaste={onPaste} style={styles.pasteInputWrapper}>
       {inputField}
     </TextInputWrapper>
   ) : (
@@ -1078,52 +1873,758 @@ function ChatComposer({ vm, keyboardHeight, restingPad }: ChatComposerProps) {
     </View>
   );
 
+  const renderControlShell = (glyph: ReactNode) =>
+    useGlass ? (
+      <GlassView style={styles.sendGlass} glassEffectStyle="regular" isInteractive>
+        {glyph}
+      </GlassView>
+    ) : (
+      <View style={[styles.sendGlass, fallbackFill]}>{glyph}</View>
+    );
+
+  const cameraSymbol = (
+    <SymbolView
+      name={resolveAppIconName('camera')}
+      size={APP_ICON_SIZE.md}
+      tintColor={colors.accent}
+      weight="semibold"
+    />
+  );
+
+  // The mic replaces Send while the draft is empty (iMessage); it stays while a take is running
+  // even if the connection drops, so the gesture can always finish.
+  const renderRow = (voice: ComposerVoiceState | null) => {
+    const recording = voice?.recording ?? false;
+    const showMic = voice !== null && (recording || (voiceAvailable && !text.trim()));
+    return (
+      <View style={styles.composerRow}>
+        <Pressable
+          onPress={onOpenCamera}
+          disabled={recording}
+          accessibilityRole="button"
+          accessibilityLabel={t('chat.openCamera')}
+          accessibilityHint={t('chat.openCameraHint')}>
+          {renderControlShell(cameraSymbol)}
+        </Pressable>
+
+        {useGlass ? (
+          <GlassView style={styles.inputGlass} glassEffectStyle="regular" isInteractive>
+            {recording && voice ? (
+              <VoiceRecordingStrip t={t} elapsedMs={voice.elapsedMs} level={voice.level} dragX={voice.dragX} />
+            ) : (
+              composerInput
+            )}
+          </GlassView>
+        ) : (
+          <View style={[styles.inputGlass, fallbackFill]}>
+            {recording && voice ? (
+              <VoiceRecordingStrip t={t} elapsedMs={voice.elapsedMs} level={voice.level} dragX={voice.dragX} />
+            ) : (
+              composerInput
+            )}
+          </View>
+        )}
+
+        {showMic && voice ? (
+          <VoiceMicButton t={t} voice={voice} size={COMPOSER_CONTROL_SIZE} renderShell={renderControlShell} />
+        ) : (
+          <PressableScale
+            onPress={send}
+            disabled={!canSend}
+            accessibilityRole="button"
+            accessibilityLabel={t('chat.send')}
+            accessibilityState={{ disabled: !canSend }}>
+            {sendControl}
+          </PressableScale>
+        )}
+      </View>
+    );
+  };
+
   return (
-    <Animated.View pointerEvents="box-none" style={[styles.composerShell, composerStyle]}>
-      <Animated.View pointerEvents="none" style={[styles.composerEdgeFade, edgeFadeStyle]}>
+    <Animated.View
+      pointerEvents="box-none"
+      onLayout={onLayout}
+      style={[styles.composerShell, { paddingBottom: restingPad }, composerStyle]}>
+      {/* Follows the composer's own height: a taller draft gets a taller fade. */}
+      <View pointerEvents="none" style={styles.composerEdgeFade}>
         <LinearGradient
           colors={[`${bg}00`, `${bg}D9`, `${bg}FF`]}
           locations={[0, 0.4, 1]}
           style={StyleSheet.absoluteFill}
         />
-      </Animated.View>
-
-      <View style={styles.composerRow}>
-        {useGlass ? (
-          <GlassView style={styles.inputGlass} glassEffectStyle="regular" isInteractive>
-            {composerInput}
-          </GlassView>
-        ) : (
-          <View style={[styles.inputGlass, fallbackFill]}>{composerInput}</View>
-        )}
-
-        <PressableScale
-          onPress={() => void vm.handleSend()}
-          disabled={!canSend}
-          accessibilityRole="button"
-          accessibilityLabel={vm.t('chat.send')}
-          accessibilityState={{ disabled: !canSend }}>
-          {sendControl}
-        </PressableScale>
       </View>
 
-      <View style={styles.footerRow}>
-        {vm.pasteImporting ? (
+      {voiceEnabled ? (
+        <ComposerVoiceHost t={t} onSend={onSendVoice} onRecordingStart={onVoiceRecordingStart}>
+          {renderRow}
+        </ComposerVoiceHost>
+      ) : (
+        renderRow(null)
+      )}
+
+      {showCounter ? (
+        <View style={styles.footerRow}>
           <Text
-            style={[styles.footerText, { color: colors.label }]}
-            accessibilityLiveRegion="polite">
-            {vm.t('chat.pastePreparingImage')}
+            style={[
+              styles.footerCounter,
+              { color: atLimit ? colors.destructive : colors.secondaryLabel },
+            ]}
+            accessibilityLabel={t('chat.characterCountA11y', {
+              count: text.length,
+              limit: TEXT_MESSAGE_MAX_LENGTH,
+            })}>
+            {`${text.length}/${TEXT_MESSAGE_MAX_LENGTH}`}
           </Text>
-        ) : (
-          <Text style={[styles.footerText, { color: colors.label }]} numberOfLines={2}>
-            {vm.t('chat.disappearsFooter')}
-          </Text>
-        )}
-        <Text style={[styles.footerCounter, { color: colors.label }]}>
-          {`${vm.inputBody.length}/2000`}
+        </View>
+      ) : null}
+    </Animated.View>
+  );
+});
+
+/**
+ * FlashList v2 opens the chat at the newest message itself (PERF-14: no top render + rAF jump)
+ * and follows new content only while the reader is near the bottom. Module-level: FlashList
+ * compares the object by reference.
+ */
+const MAINTAIN_VISIBLE_CONTENT_POSITION: FlashListProps<ChatTimelineEntry>['maintainVisibleContentPosition'] = {
+  startRenderingFromBottom: true,
+  autoscrollToBottomThreshold: 0.2,
+};
+
+type ChatListKeyboardBinding = {
+  /** `contentInset.bottom` of the chat list: room for the risen composer. */
+  contentInset: SharedValue<number>;
+  /** `scrollIndicatorInsets.bottom`, updated only once the keyboard settles. */
+  indicatorInset: SharedValue<number>;
+  /** Live scroll offset, written on the UI thread by the scroll view's own events. */
+  scrollOffset: SharedValue<number>;
+  /** The native scroll view, for UI-thread `scrollTo`. */
+  scrollRef: AnimatedRef<ScrollView>;
+  /** Extra bottom inset while the composer is taller than one line. */
+  composerExtra: SharedValue<number>;
+};
+
+const ChatListKeyboardContext = createContext<ChatListKeyboardBinding | null>(null);
+
+/** Timeline index of the long-pressed bubble, or -1. */
+const FocusedCellIndexContext = createContext(-1);
+
+/**
+ * FlashList cell. The long-pressed bubble shifts down to make room for the reaction bar; its cell
+ * is lifted above its neighbours so a grouped bubble right below never draws over it.
+ */
+function ChatListCell({ index, style, ...rest }: ViewProps & { index: number; ref?: Ref<View> }) {
+  const focusedIndex = use(FocusedCellIndexContext);
+  return <View {...rest} style={index === focusedIndex ? [style, styles.focusedCell] : style} />;
+}
+
+/**
+ * FlashList scroll component bound to the keyboard sync on the UI thread (PERF-26). Its bottom
+ * insets change only when a keyboard movement starts or settles, so the list never re-lays out per
+ * frame and React never re-renders for the keyboard. Module-level: FlashList memoizes it by identity.
+ */
+function ChatListScrollView({ ref, ...props }: ScrollViewProps & { ref?: Ref<ScrollView> }) {
+  const binding = use(ChatListKeyboardContext);
+  const fallbackRef = useAnimatedRef<ScrollView>();
+  const scrollRef = binding?.scrollRef ?? fallbackRef;
+  useScrollOffset(scrollRef, binding?.scrollOffset);
+  const setRefs = useCallback((node: ScrollView | null) => {
+    scrollRef(node);
+    if (typeof ref === 'function') ref(node);
+    else if (ref) ref.current = node;
+  }, [ref, scrollRef]);
+  const contentInset = binding?.contentInset;
+  const indicatorInset = binding?.indicatorInset;
+  const composerExtra = binding?.composerExtra;
+  const animatedProps = useAnimatedProps(() => {
+    const extra = composerExtra?.get() ?? 0;
+    const content = (contentInset?.get() ?? 0) + extra;
+    const indicator = (indicatorInset?.get() ?? 0) + extra;
+    return {
+      contentInset: { top: 0, left: 0, right: 0, bottom: content },
+      scrollIndicatorInsets: { top: 0, left: 0, right: 0, bottom: indicator },
+    };
+  });
+  return <Animated.ScrollView {...props} ref={setRefs} animatedProps={animatedProps} />;
+}
+
+/**
+ * Keeps the chat list glued above the composer while the keyboard moves (PERF-26).
+ *
+ * Everything runs on the UI thread: the composer rises with `translateY`, the list scrolls with
+ * Reanimated `scrollTo` (no `scheduleOnRN` per frame) and its `contentInset` grows only at the
+ * start of a movement and is trimmed to the exact lift once the keyboard settles. While the user
+ * drags the list (interactive dismissal, momentum) the list is left alone and the next keyboard
+ * movement re-anchors from wherever the user left it.
+ *
+ * `useAnimatedKeyboard` is deprecated in Reanimated 4 in favour of `react-native-keyboard-controller`,
+ * which is a new native module (Xcode build). Until then it stays, with minimal per-frame work.
+ */
+function useChatKeyboardSync(
+  keyboard: AnimatedKeyboardInfo,
+  restingPad: number,
+  hasList: boolean,
+  composerHeight: SharedValue<number>,
+  onScrolledUpChange: (scrolledUp: boolean) => void
+) {
+  const scrollRef = useAnimatedRef<ScrollView>();
+  const scrollOffset = useSharedValue(0);
+  const contentInset = useSharedValue(0);
+  const indicatorInset = useSharedValue(0);
+  const userScrolling = useSharedValue(false);
+  const contentHeight = useSharedValue(0);
+  const viewportHeight = useSharedValue(0);
+  const listMounted = useSharedValue(false);
+  const lastLift = useSharedValue(0);
+  const anchor = useSharedValue<KeyboardScrollAnchor | null>(null);
+  const scrolledUp = useSharedValue(false);
+  const composerExtra = useDerivedValue(() => composerOverflow(composerHeight.get(), restingPad));
+
+  useEffect(() => {
+    listMounted.set(hasList);
+  }, [hasList, listMounted]);
+
+  useAnimatedReaction(
+    () => ({
+      lift: chatKeyboardLift(keyboard.height.get(), restingPad),
+      state: keyboard.state.get(),
+    }),
+    ({ lift, state }) => {
+      const previousLift = lastLift.get();
+      lastLift.set(lift);
+      const settled = state === KeyboardState.OPEN || state === KeyboardState.CLOSED;
+
+      if (listMounted.get()) {
+        if (userScrolling.get()) {
+          anchor.set(null);
+        } else if (anchor.get() !== null || (!settled && lift !== previousLift)) {
+          let start = anchor.get();
+          if (start === null) {
+            start = { offset: scrollOffset.get(), lift: previousLift };
+            anchor.set(start);
+            // Room for the rising composer before the first scroll needs it.
+            contentInset.set(Math.max(viewportHeight.get(), 1000));
+          }
+          const content = contentHeight.get();
+          const viewport = viewportHeight.get();
+          const maxAtRest = content > 0 && viewport > 0
+            ? Math.max(0, content - viewport + composerExtra.get())
+            : Number.POSITIVE_INFINITY;
+          scrollTo(scrollRef, 0, keyboardScrollTarget(start, lift, maxAtRest), false);
+        }
+      }
+
+      if (settled) {
+        anchor.set(null);
+        if (contentInset.get() !== lift) contentInset.set(lift);
+        if (indicatorInset.get() !== lift) indicatorInset.set(lift);
+      }
+    }
+  );
+
+  // A taller draft (new line, counter row) pushes the conversation up with it, but only when the
+  // reader is at the newest message; someone reading history is left where they are.
+  useAnimatedReaction(
+    () => composerExtra.get(),
+    (extra, previousExtra) => {
+      if (previousExtra === null || extra === previousExtra || !listMounted.get()) return;
+      if (userScrolling.get() || anchor.get() !== null) return;
+      const distance = distanceFromListEnd(
+        scrollOffset.get(),
+        contentHeight.get(),
+        viewportHeight.get(),
+        lastLift.get() + previousExtra
+      );
+      if (distance > 24) return;
+      scrollTo(scrollRef, 0, Math.max(0, scrollOffset.get() + extra - previousExtra), false);
+    }
+  );
+
+  // „Scroll to the newest” visibility, reported to React only when it flips (not per frame).
+  // `lastLift` instead of the transient keyboard inset, so a moving keyboard never flashes it.
+  useAnimatedReaction(
+    () =>
+      distanceFromListEnd(
+        scrollOffset.get(),
+        contentHeight.get(),
+        viewportHeight.get(),
+        lastLift.get() + composerExtra.get()
+      ),
+    (distance) => {
+      const next = listMounted.get() && nextScrolledUpState(scrolledUp.get(), distance);
+      if (next === scrolledUp.get()) return;
+      scrolledUp.set(next);
+      scheduleOnRN(onScrolledUpChange, next);
+    }
+  );
+
+  const binding = useMemo<ChatListKeyboardBinding>(
+    () => ({ contentInset, indicatorInset, scrollOffset, scrollRef, composerExtra }),
+    [composerExtra, contentInset, indicatorInset, scrollOffset, scrollRef]
+  );
+
+  // Low-frequency list callbacks (gesture edges, size changes) feed the UI-thread math.
+  const onScrollBeginDrag = useCallback(() => {
+    userScrolling.set(true);
+  }, [userScrolling]);
+  const onScrollEndDrag = useCallback(() => {
+    userScrolling.set(false);
+  }, [userScrolling]);
+  const onMomentumScrollBegin = useCallback(() => {
+    userScrolling.set(true);
+  }, [userScrolling]);
+  const onMomentumScrollEnd = useCallback(() => {
+    userScrolling.set(false);
+  }, [userScrolling]);
+  const onContentSizeChange = useCallback((_width: number, height: number) => {
+    contentHeight.set(height);
+  }, [contentHeight]);
+  const onLayout = useCallback((event: LayoutChangeEvent) => {
+    viewportHeight.set(event.nativeEvent.layout.height);
+  }, [viewportHeight]);
+
+  return {
+    binding,
+    onScrollBeginDrag,
+    onScrollEndDrag,
+    onMomentumScrollBegin,
+    onMomentumScrollEnd,
+    onContentSizeChange,
+    onLayout,
+  };
+}
+
+const EMPTY_REACTIONS: readonly MessageReaction[] = [];
+
+const timelineKeyExtractor = (item: ChatTimelineEntry) => item.id;
+const timelineItemType = (item: ChatTimelineEntry) => item.type;
+
+/** A bubble the user has just created here: a fresh outbox text or a new outgoing upload. */
+function isOwnFreshTimelineItem(item: ChatTimelineEntry, currentUserId: string) {
+  if (item.type === 'media') return item.job !== null;
+  if (item.type !== 'text') return false;
+  const status = item.message.outboxStatus;
+  return (
+    item.message.sender_id === currentUserId
+    && (status === 'sending' || status === 'waiting_network')
+  );
+}
+
+/**
+ * Something the user just sent always scrolls into view, even when they were reading history.
+ * Incoming items and state changes of existing ones (stable keys) are left to
+ * `autoscrollToBottomThreshold`; prepending older history never scrolls.
+ */
+function useFollowOwnNewItems(
+  listRef: RefObject<FlashListRef<ChatTimelineEntry> | null>,
+  timeline: readonly ChatTimelineEntry[],
+  currentUserId: string
+) {
+  const timelineIdsRef = useRef<ReadonlySet<string> | null>(null);
+  useEffect(() => {
+    const previousIds = timelineIdsRef.current;
+    timelineIdsRef.current = new Set(timeline.map((item) => item.id));
+    const last = timeline.at(-1);
+    if (!previousIds || !last || previousIds.has(last.id)) return;
+    if (!isOwnFreshTimelineItem(last, currentUserId)) return;
+    const frameId = requestAnimationFrame(() => {
+      listRef.current?.scrollToEnd({ animated: true });
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [currentUserId, listRef, timeline]);
+}
+
+function openReportSheet(vm: ChatScreenViewModel, message: OptimisticTextMessage) {
+  const reasons = vm.reportReasons;
+  const labels = reasons.map((r) => r.label);
+  ActionSheetIOS.showActionSheetWithOptions(
+    {
+      options: [vm.t('common.cancel'), ...labels],
+      cancelButtonIndex: 0,
+    },
+    (buttonIndex) => {
+      if (buttonIndex == null || buttonIndex === 0) return;
+      const reason = reasons[buttonIndex - 1];
+      if (reason) void vm.handleReportMessage(message, reason.id);
+    }
+  );
+}
+
+/**
+ * Stable, id-keyed handlers for the memoized cells: they read the latest view model when called,
+ * so `renderItem` does not depend on `vm` (PERF-10).
+ */
+function useChatTimelineHandlers(
+  vm: ChatScreenViewModel,
+  rootRef: RefObject<View | null>,
+  onPickerOpen: (picker: ReactionPickerState) => void,
+  requestClosePicker: () => void
+) {
+  const onOpenPicker = useStableHandler(
+    (messageId: string, isOwn: boolean, canReact: boolean, layout: BubbleWindowLayout) => {
+      rootRef.current?.measureInWindow((rootX, rootY, rootW) => {
+        onPickerOpen({
+          messageId,
+          isOwn,
+          canReact,
+          x: layout.x - rootX,
+          y: layout.y - rootY,
+          width: layout.width,
+          height: layout.height,
+          rootWidth: rootW > 0 ? rootW : layout.width,
+        });
+      });
+    }
+  );
+  const onReportMessage = useStableHandler((messageId: string) => {
+    const message = vm.messages.find((candidate) => candidate.id === messageId);
+    if (message) openReportSheet(vm, message);
+  });
+  const onReactToMessage = useStableHandler((messageId: string, emoji: MessageReactionEmoji) => {
+    const message = vm.messages.find((candidate) => candidate.id === messageId);
+    if (message) void vm.handleSetReaction(message, emoji);
+  });
+  const onCopyMessage = useStableHandler((messageId: string) => {
+    const message = vm.messages.find((candidate) => candidate.id === messageId);
+    if (message) void vm.handleCopyMessage(message);
+  });
+  const onSetSaved = useStableHandler((messageId: string, saved: boolean) => {
+    const message = vm.messages.find((candidate) => candidate.id === messageId);
+    if (message) void vm.handleSetSaved(message, saved);
+  });
+  const onUploadAction = useStableHandler((jobId: string, action: ChatUploadAction) => {
+    const job = vm.chatUploadJobs.find((candidate) => candidate.id === jobId);
+    if (job) requestChatUploadAction(vm, job, action);
+  });
+  const onRetryText = useStableHandler((outboxId: string) => {
+    void vm.handleRetryTextMessage(outboxId);
+  });
+  const onDeleteOutbox = useStableHandler((outboxId: string) => {
+    void vm.handleDeleteOutboxMessage(outboxId);
+  });
+  const onOpenNix = useStableHandler((nixId: string) => {
+    const nix = vm.nixes.find((candidate) => candidate.id === nixId);
+    if (!nix) return;
+    requestClosePicker();
+    vm.handleOpenNix(nix);
+  });
+  const onOpenUploadActions = useStableHandler((jobId: string) => {
+    const job = vm.chatUploadJobs.find((candidate) => candidate.id === jobId);
+    if (job) openChatUploadActions(vm, job);
+  });
+  const onRetryUpload = useStableHandler((jobId: string) => {
+    const job = vm.chatUploadJobs.find((candidate) => candidate.id === jobId);
+    if (!job) return;
+    selection();
+    requestChatUploadAction(vm, job, 'retry');
+  });
+  return {
+    onOpenPicker,
+    onReportMessage,
+    onReactToMessage,
+    onCopyMessage,
+    onSetSaved,
+    onUploadAction,
+    onRetryText,
+    onDeleteOutbox,
+    onOpenNix,
+    onOpenUploadActions,
+    onRetryUpload,
+  };
+}
+
+/**
+ * The receipt sits under the conversation's last message only when that message is mine and
+ * already on the server; a later reply or NiX makes it redundant (Snapchat/iMessage).
+ */
+function lastOwnServerTextId(timeline: readonly ChatTimelineEntry[], currentUserId: string): string | null {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const entry = timeline[index];
+    if (entry.type === 'separator') continue;
+    if (entry.type !== 'text') return null;
+    const message = entry.message;
+    if (message.is_system) continue;
+    if (message.sender_id !== currentUserId || message.outboxStatus) return null;
+    return message.id;
+  }
+  return null;
+}
+
+/** ContentUnavailableView-style state: large symbol, headline, explanation, one VoiceOver element. */
+function ChatUnavailableState({
+  icon,
+  title,
+  description,
+}: {
+  icon: AppIconName;
+  title: string;
+  description: string;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <View
+      style={styles.unavailable}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={`${title}. ${description}`}>
+      <SymbolView
+        name={resolveAppIconName(icon)}
+        size={44}
+        tintColor={colors.secondaryLabel}
+        weight="regular"
+      />
+      <Text style={[styles.emptyTitle, { color: colors.label }]}>{title}</Text>
+      <Text style={[styles.emptyText, { color: colors.secondaryLabel }]}>{description}</Text>
+    </View>
+  );
+}
+
+/** Loading, offline-without-cache (OFF-10), load error and empty states shown instead of the list. */
+function ChatListPlaceholder({
+  vm,
+}: {
+  vm: Pick<
+    ChatScreenViewModel,
+    'messagesLoading' | 'offlineCacheMissing' | 'messagesError' | 'refetchMessages' | 't'
+  >;
+}) {
+  const { colors } = useAppTheme();
+  if (vm.messagesLoading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.label} />
+        <Text style={[styles.muted, { color: colors.secondaryLabel }]}>
+          {vm.t('common.loading')}
         </Text>
       </View>
+    );
+  }
+  if (vm.offlineCacheMissing) {
+    return (
+      <View style={styles.centered}>
+        <ChatUnavailableState
+          icon="offline"
+          title={vm.t('chat.offlineNoCacheTitle')}
+          description={vm.t('chat.offlineNoCacheMessage')}
+        />
+      </View>
+    );
+  }
+  // A failed load must not read as "no messages yet".
+  if (vm.messagesError) {
+    return (
+      <View style={styles.centered}>
+        <ChatUnavailableState
+          icon="warningFill"
+          title={vm.t('chat.loadErrorTitle')}
+          description={vm.t('chat.loadErrorDescription')}
+        />
+        <Host matchContents>
+          <Button
+            label={vm.t('common.retry')}
+            variant="outlined"
+            onPress={() => void vm.refetchMessages()}
+          />
+        </Host>
+      </View>
+    );
+  }
+  // The 24 h rule lives here and at the start of the history, not under the composer.
+  return (
+    <View style={styles.centered}>
+      <ChatUnavailableState
+        icon="statusTextOpened"
+        title={vm.t('chat.emptyChatTitle')}
+        description={vm.t('chat.emptyChatDescription')}
+      />
+    </View>
+  );
+}
+
+/**
+ * Glass „scroll to the newest” button above the composer, with a badge of incoming messages that
+ * arrived while the reader was in older history. Rides the keyboard like the composer.
+ */
+function ScrollToBottomButton({
+  visible,
+  newCount,
+  keyboardHeight,
+  restingPad,
+  composerHeight,
+  onPress,
+}: {
+  visible: boolean;
+  newCount: number;
+  keyboardHeight: SharedValue<number>;
+  restingPad: number;
+  composerHeight: SharedValue<number>;
+  onPress: () => void;
+}) {
+  const { colors } = useAppTheme();
+  const { t } = useTranslation();
+  const motionEnabled = useMotionEnabled();
+  const useGlass = canUseLiquidGlass();
+  const positionStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateY: -(
+          chatKeyboardLift(keyboardHeight.get(), restingPad)
+          + composerHeight.get()
+          + SCROLL_BUTTON_GAP
+        ),
+      },
+    ],
+  }));
+  const label =
+    newCount > 0
+      ? `${t('chat.scrollToBottom')}, ${t('chat.newMessagesCount', { count: newCount })}`
+      : t('chat.scrollToBottom');
+  const symbol = (
+    <SymbolView
+      name={resolveAppIconName('chevronDown')}
+      size={APP_ICON_SIZE.md}
+      tintColor={colors.label}
+      weight="semibold"
+    />
+  );
+
+  return (
+    <Animated.View pointerEvents="box-none" style={[styles.scrollButtonShell, positionStyle]}>
+      {/* Scale only, never opacity, on a GlassView ancestor; Reduce Motion: no animation. The
+          shell stays mounted so the exit animation can run. */}
+      {visible ? (
+        <Animated.View
+          entering={motionEnabled ? ZoomIn.duration(duration.medium) : undefined}
+          exiting={motionEnabled ? ZoomOut.duration(duration.fast) : undefined}>
+          <Pressable
+            onPress={onPress}
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            hitSlop={6}>
+            {useGlass ? (
+              <GlassView style={styles.scrollButton} glassEffectStyle="regular" isInteractive>
+                {symbol}
+              </GlassView>
+            ) : (
+              <View style={[styles.scrollButton, { backgroundColor: colors.secondarySystemFill }]}>
+                {symbol}
+              </View>
+            )}
+            {newCount > 0 ? (
+              <View style={[styles.scrollBadge, { backgroundColor: colors.accent }]}>
+                <Text
+                  style={[styles.scrollBadgeText, { color: colors.onChatBubbleOwn }]}
+                  maxFontSizeMultiplier={1.3}>
+                  {newCount > 99 ? '99+' : String(newCount)}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </Animated.View>
+      ) : null}
     </Animated.View>
+  );
+}
+
+function chatPeerName(vm: Pick<ChatScreenViewModel, 'peerProfile' | 't'>): string {
+  return (
+    vm.peerProfile?.display_name?.trim()
+    || (vm.peerProfile?.username ? `@${vm.peerProfile.username}` : null)
+    || vm.t('chat.title')
+  );
+}
+
+/** The unified timeline, with separators relative to a day clock that never goes stale. */
+function useChatTimeline(vm: ChatScreenViewModel) {
+  // Replaced only when the calendar day changes (midnight, focus, foreground): „Dziś” never lies.
+  const dayClock = useCalendarDayClock();
+  const { t, messages, nixes, locale, chatUploadJobs, mediaAnchors } = vm;
+  const separatorLabels = useMemo<ChatSeparatorRelativeLabels>(
+    () => ({
+      today: (time) => t('chat.separatorToday', { time }),
+      yesterday: (time) => t('chat.separatorYesterday', { time }),
+    }),
+    [t]
+  );
+  return useMemo(
+    () =>
+      buildUnifiedChatTimeline(
+        messages,
+        nixes,
+        locale,
+        dayClock,
+        chatUploadJobs,
+        mediaAnchors,
+        separatorLabels
+      ),
+    [chatUploadJobs, dayClock, locale, mediaAnchors, messages, nixes, separatorLabels]
+  );
+}
+
+/** The long-press bar for the message it was opened on (gone if the message disappeared). */
+function ChatReactionPickerLayer({
+  vm,
+  picker,
+  open,
+  minTop,
+  onClose,
+  onExited,
+}: {
+  vm: ChatScreenViewModel;
+  picker: ReactionPickerState;
+  open: boolean;
+  minTop: number;
+  onClose: () => void;
+  onExited: () => void;
+}) {
+  const message = vm.messages.find((candidate) => candidate.id === picker.messageId) ?? null;
+  if (!message) return null;
+  const selectedEmoji =
+    (vm.reactionsByMessageId.get(picker.messageId) ?? []).find(
+      (reaction) => reaction.user_id === vm.currentUserId
+    )?.emoji ?? null;
+  const isVoice = chatVoiceInfo(message) !== null;
+  const canCopy =
+    vm.canCopyMessages
+    && !isVoice
+    && message.outboxStatus !== 'expired'
+    && message.body.trim().length > 0;
+  const saved = chatSavedState(message, vm.currentUserId).saved;
+  const saveAction: PickerSaveAction =
+    vm.canSaveMessages && !message.outboxStatus && !message.id.startsWith('temp-')
+      ? saved
+        ? 'unsave'
+        : 'save'
+      : null;
+  return (
+    <ReactionPickerOverlay
+      picker={picker}
+      open={open}
+      selectedEmoji={selectedEmoji}
+      canCopy={canCopy}
+      saveAction={saveAction}
+      onToggleSave={() => {
+        onClose();
+        void vm.handleSetSaved(message, saveAction === 'save');
+      }}
+      minTop={minTop}
+      onDismiss={onClose}
+      onExited={onExited}
+      onSelect={(emoji) => {
+        // Same emoji again = take it back (handled in the view model).
+        void vm.handleSetReaction(message, emoji);
+        onClose();
+      }}
+      onCopy={() => {
+        onClose();
+        void vm.handleCopyMessage(message);
+      }}
+      onReport={() => {
+        onClose();
+        openReportSheet(vm, message);
+      }}
+    />
   );
 }
 
@@ -1132,146 +2633,117 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
   const { top, bottomContentInset } = useScreenInsets('stackHeader');
   const { width: windowWidth } = useWindowDimensions();
   const bubbleMaxWidth = Math.round(windowWidth * BUBBLE_MAX_WIDTH_RATIO);
-  const timeline = useMemo(() => buildUnifiedChatTimeline(
-    vm.messages,
-    vm.nixes,
-    vm.locale,
-    new Date(),
-    vm.chatUploadJobs
-  ), [vm.chatUploadJobs, vm.locale, vm.messages, vm.nixes]);
-  const isEmpty =
-    vm.messages.length === 0 && vm.nixes.length === 0 && vm.chatUploadJobs.length === 0;
-  const listRef = useRef<FlashListRef<ChatTimelineItem<UnifiedChatTextMessage>>>(null);
+  const timeline = useChatTimeline(vm);
+  const isEmpty = timeline.length === 0;
+  const receiptMessageId = useMemo(
+    () => lastOwnServerTextId(timeline, vm.currentUserId),
+    [timeline, vm.currentUserId]
+  );
+  const listRef = useRef<FlashListRef<ChatTimelineEntry>>(null);
   const rootRef = useRef<View>(null);
-  const scrollOffsetRef = useRef(0);
   const restingPad = Math.max(bottomContentInset, 10);
   const listTopInset = top + STACK_NAV_BAR_HEIGHT + 8;
-  const listBottomInset = COMPOSER_CONTENT_HEIGHT + restingPad + COMPOSER_EDGE_FADE_EXTRA;
+  // One-line composer; a taller draft adds its overflow as a UI-thread inset (ChatListScrollView).
+  const listBottomInset = COMPOSER_BASE_CONTENT_HEIGHT + restingPad + COMPOSER_EDGE_FADE_EXTRA;
   const keyboard = useAnimatedKeyboard();
+  const composerHeight = useSharedValue(COMPOSER_BASE_CONTENT_HEIGHT + restingPad);
   const [picker, setPicker] = useState<ReactionPickerState | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [scrolledUp, setScrolledUp] = useState(false);
+  const keyboardSync = useChatKeyboardSync(keyboard, restingPad, !isEmpty, composerHeight, setScrolledUp);
+  const newWhileScrolledUp = useNewIncomingWhileScrolledUp(timeline, vm.currentUserId, scrolledUp);
+  const motionEnabled = useMotionEnabled();
+  const scrollToNewest = useCallback(() => {
+    listRef.current?.scrollToEnd({ animated: motionEnabled });
+  }, [motionEnabled]);
 
-  const listAreaStyle = useAnimatedStyle(() => {
-    const { marginBottom } = chatKeyboardMetrics(keyboard.height.value, restingPad);
-    return { marginBottom };
-  });
+  // Loading / empty placeholders stay centred in the space above the keyboard.
+  const placeholderStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -Math.round(Math.max(0, keyboard.height.get())) / 2 }],
+  }));
 
-  /**
-   * Offset listy w momencie startu unoszenia composera.
-   * Scroll = base + lift z tych samych zaokrąglonych metryk co layout.
-   */
-  const scrollBaseRef = useRef<number | null>(null);
-
-  const applyKeyboardScroll = (keyboardHeight: number) => {
-    const { lift } = chatKeyboardMetrics(keyboardHeight, restingPad);
-
-    if (keyboardHeight < 0.5) {
-      scrollBaseRef.current = null;
-      return;
-    }
-
-    if (lift <= 0) return;
-
-    if (scrollBaseRef.current == null) {
-      scrollBaseRef.current = scrollOffsetRef.current;
-    }
-
-    const target = Math.max(0, scrollBaseRef.current + lift);
-    if (Math.abs(target - scrollOffsetRef.current) < 0.1) return;
-    scrollOffsetRef.current = target;
-    listRef.current?.scrollToOffset({ offset: target, animated: false });
-  };
-
-  useAnimatedReaction(
-    () => keyboard.height.value,
-    (current, previous) => {
-      if (previous == null && current < 0.5) return;
-      scheduleOnRN(applyKeyboardScroll, current);
-    }
-  );
-
-  // Follow the newest item only; prepending older history keeps the position.
-  const lastTimelineItemId = timeline.at(-1)?.id ?? null;
-  useEffect(() => {
-    if (!lastTimelineItemId) return;
-    const id = requestAnimationFrame(() => {
-      listRef.current?.scrollToEnd({ animated: false });
-    });
-    return () => cancelAnimationFrame(id);
-  }, [lastTimelineItemId]);
-
-  const onListScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
-  };
+  useFollowOwnNewItems(listRef, timeline, vm.currentUserId);
 
   const requestClosePicker = useCallback(() => {
     setPickerOpen(false);
   }, []);
+  const { onScrollBeginDrag: onKeyboardSyncDragBegin } = keyboardSync;
+  const onListScrollBeginDrag = useCallback(() => {
+    onKeyboardSyncDragBegin();
+    requestClosePicker();
+  }, [onKeyboardSyncDragBegin, requestClosePicker]);
 
-  const finishClosePicker = () => {
+  const finishClosePicker = useCallback(() => {
     setPicker(null);
     setPickerOpen(false);
-  };
-
-  const openPickerForMessage = useCallback((
-    message: OptimisticTextMessage,
-    isOwn: boolean,
-    layout: BubbleWindowLayout
-  ) => {
-    rootRef.current?.measureInWindow((rootX, rootY, rootW) => {
-      const rootWidth = rootW > 0 ? rootW : layout.width;
-      setPicker({
-        messageId: message.id,
-        isOwn,
-        x: layout.x - rootX,
-        y: layout.y - rootY,
-        width: layout.width,
-        height: layout.height,
-        rootWidth,
-      });
-      setPickerOpen(true);
-    });
   }, []);
 
-  const openReportSheet = useCallback((message: OptimisticTextMessage) => {
-    const reasons = vm.reportReasons;
-    const labels = reasons.map((r) => r.label);
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: [vm.t('common.cancel'), ...labels],
-          cancelButtonIndex: 0,
-        },
-        (buttonIndex) => {
-          if (buttonIndex == null || buttonIndex === 0) return;
-          const reason = reasons[buttonIndex - 1];
-          if (reason) void vm.handleReportMessage(message, reason.id);
-        }
-      );
-      return;
-    }
-    Alert.alert(vm.t('chat.reportMessage'), undefined, [
-      { text: vm.t('common.cancel'), style: 'cancel' },
-      ...reasons.map((reason) => ({
-        text: reason.label,
-        onPress: () => void vm.handleReportMessage(message, reason.id),
-      })),
-    ]);
-  }, [vm]);
+  const openPicker = useCallback((next: ReactionPickerState) => {
+    setPicker(next);
+    setPickerOpen(true);
+  }, []);
+  const {
+    onOpenPicker,
+    onReportMessage,
+    onReactToMessage,
+    onCopyMessage,
+    onSetSaved,
+    onUploadAction,
+    onRetryText,
+    onDeleteOutbox,
+    onOpenNix,
+    onOpenUploadActions,
+    onRetryUpload,
+  } = useChatTimelineHandlers(vm, rootRef, openPicker, requestClosePicker);
+  const onSend = useStableHandler((body: string) => vm.handleSend(body));
+  const onPaste = useStableHandler((payload: ChatPastePayload) => vm.handlePaste(payload));
+  const onDraftChange = useStableHandler((text: string) => vm.onComposerInput(text));
+  const onDraftBlur = useStableHandler(() => vm.onComposerStop());
+  const onOpenCamera = useStableHandler(() => vm.handleOpenCamera());
+  const onSendVoice = useStableHandler((recording: VoiceRecordingResult) => vm.handleSendVoice(recording));
 
-  const pickerMessage = picker
-    ? vm.messages.find((message) => message.id === picker.messageId) ?? null
-    : null;
-  const pickerSelectedEmoji =
-    picker && pickerMessage
-      ? (vm.reactionsByMessageId.get(picker.messageId) ?? []).find(
-          (reaction) => reaction.user_id === vm.currentUserId
-        )?.emoji ?? null
-      : null;
+  // One voice player for the chat; bubbles read their own state from its store.
+  const voicePlayer = useChatVoicePlayback({
+    onError: () => notifyError(vm.t('chat.voicePlayFailure')),
+  });
+  const onToggleVoice = useStableHandler((messageId: string) => {
+    const message = vm.messages.find((candidate) => candidate.id === messageId);
+    const info = message ? chatVoiceInfo(message) : null;
+    if (!message || !info) return;
+    void voicePlayer.toggle(messageId, {
+      path: info.path,
+      localUri: message.localVoiceUri ?? null,
+      durationMs: info.durationMs,
+    });
+  });
+  const { store: voiceStore, toggle: voiceToggle, pause: pauseVoice } = voicePlayer;
+  const voicePlaybackContext = useMemo<ChatVoicePlayback>(
+    () => ({
+      store: voiceStore,
+      toggle: (messageId, source) => void voiceToggle(messageId, source),
+    }),
+    [voiceStore, voiceToggle],
+  );
 
-  const renderTimelineItem = useCallback(({ item }: {
-    item: ChatTimelineItem<UnifiedChatTextMessage>;
-  }) => {
+  const focusedMessageId = pickerOpen ? (picker?.messageId ?? null) : null;
+  const focusedCellIndex = focusedMessageId
+    ? timeline.findIndex((item) => item.type === 'text' && item.message.id === focusedMessageId)
+    : -1;
+  const {
+    t,
+    locale,
+    currentUserId,
+    canPerformNetworkAction,
+    canCopyMessages,
+    canSaveMessages,
+    reactionsByMessageId,
+    nixReactionsById,
+    busyUploadActions,
+  } = vm;
+  const peerName = chatPeerName(vm);
+  const youLabel = t('chat.a11yYou');
+
+  const renderTimelineItem = useCallback(({ item }: { item: ChatTimelineEntry }) => {
     if (item.type === 'separator') {
       return <DateSeparator label={item.label} />;
     }
@@ -1279,144 +2751,302 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
       return (
         <NixChip
           nix={item.nix}
+          reaction={nixReactionsById[item.nix.id]?.emoji ?? null}
           maxWidth={bubbleMaxWidth}
-          t={vm.t}
-          onOpen={() => {
-            requestClosePicker();
-            vm.handleOpenNix(item.nix);
-          }}
+          t={t}
+          onOpen={onOpenNix}
         />
       );
     }
-    if (item.type === 'upload') {
+    if (item.type === 'media') {
       return (
-        <UploadBubble
+        <OutgoingMediaBubble
+          jobId={item.jobId}
           job={item.job}
-          busy={vm.busyUploadActions.has(item.job.id)}
-          retrying={vm.busyUploadActions.get(item.job.id) === 'retry'}
+          nix={item.nix}
+          busyAction={busyUploadActions.get(item.jobId) ?? null}
           maxWidth={bubbleMaxWidth}
-          t={vm.t}
-          onLongPress={() => openChatUploadActions(vm, item.job)}
-          onRetry={() => {
-            selection();
-            requestChatUploadAction(vm, item.job, 'retry');
-          }}
+          t={t}
+          onOpenActions={onOpenUploadActions}
+          onRetry={onRetryUpload}
+          onAction={onUploadAction}
         />
       );
     }
-    if (item.message.is_system) {
-      return <SystemMessageItem message={item.message} />;
+    const message = item.message;
+    if (message.is_system) {
+      return <SystemMessageItem message={message} />;
     }
-    const isOwn = item.message.sender_id === vm.currentUserId;
-    const canReact = vm.canPerformNetworkAction
-      && !item.message.id.startsWith('temp-')
-      && !item.message.isSending;
+    const isOwn = message.sender_id === currentUserId;
+    const outboxStatus = message.outboxStatus ?? null;
+    const canReact = canPerformNetworkAction && outboxStatus === null;
+    const receipt = message.id === receiptMessageId ? outgoingTextStatus(message) : null;
+    const voice = chatVoiceInfo(message);
     return (
       <MessageBubble
-        message={item.message}
+        messageId={message.id}
+        body={message.body}
+        createdAt={message.created_at}
+        locale={locale}
         isOwn={isOwn}
+        senderName={isOwn ? youLabel : peerName}
+        peerName={peerName}
+        isOptimistic={outboxStatus !== null}
+        outboxStatus={outboxStatus}
+        outboxId={message.outboxId ?? null}
+        receipt={receipt}
         maxWidth={bubbleMaxWidth}
-        reactions={vm.reactionsByMessageId.get(item.message.id) ?? []}
-        currentUserId={vm.currentUserId}
+        reactions={reactionsByMessageId.get(message.id) ?? EMPTY_REACTIONS}
+        currentUserId={currentUserId}
         canReact={canReact}
-        isFocused={pickerOpen && picker?.messageId === item.message.id}
-        onOpenPicker={(layout) => openPickerForMessage(item.message, isOwn, layout)}
-        onReport={() => openReportSheet(item.message)}
-        onRetry={() => void vm.handleRetryTextMessage(item.message)}
-        onDeleteFailed={() => void vm.handleDeleteFailedTextMessage(item.message)}
+        canCopy={canCopyMessages}
+        isFocused={focusedMessageId === message.id}
+        group={item.group}
+        savedBy={chatSavedState(message, currentUserId).savedBy}
+        canSave={canSaveMessages && outboxStatus === null}
+        voiceDurationMs={voice ? voice.durationMs : null}
+        voiceWaveform={message.voice_waveform ?? null}
+        onOpenPicker={onOpenPicker}
+        onReact={onReactToMessage}
+        onCopy={onCopyMessage}
+        onReport={onReportMessage}
+        onRetry={onRetryText}
+        onDeleteOutbox={onDeleteOutbox}
+        onSetSaved={onSetSaved}
+        onToggleVoice={onToggleVoice}
       />
     );
-  }, [bubbleMaxWidth, openPickerForMessage, openReportSheet, picker?.messageId, pickerOpen, requestClosePicker, vm]);
+  }, [
+    bubbleMaxWidth,
+    busyUploadActions,
+    canCopyMessages,
+    canPerformNetworkAction,
+    canSaveMessages,
+    currentUserId,
+    focusedMessageId,
+    locale,
+    onCopyMessage,
+    onDeleteOutbox,
+    onOpenNix,
+    onOpenPicker,
+    onOpenUploadActions,
+    onReactToMessage,
+    onReportMessage,
+    onRetryText,
+    onRetryUpload,
+    onSetSaved,
+    onToggleVoice,
+    onUploadAction,
+    peerName,
+    nixReactionsById,
+    reactionsByMessageId,
+    receiptMessageId,
+    t,
+    youLabel,
+  ]);
 
   return (
+    <ChatVoicePlaybackContext value={voicePlaybackContext}>
     <View
       ref={rootRef}
       collapsable={false}
       style={[styles.root, { backgroundColor: colors.systemBackground }]}>
-      <Animated.View style={[styles.listArea, listAreaStyle]}>
-        {vm.messagesLoading && timeline.length === 0 ? (
-          <View style={styles.centered}>
-            <ActivityIndicator color={colors.label} />
-            <Text style={[styles.muted, { color: colors.secondaryLabel }]}>
-              {vm.t('common.loading')}
-            </Text>
-          </View>
-        ) : isEmpty ? (
-          <View style={styles.centered}>
-            <Text style={[styles.emptyText, { color: colors.secondaryLabel }]}>
-              {vm.t('chat.emptyChat')}
-            </Text>
-          </View>
+      <View style={styles.listArea}>
+        {isEmpty ? (
+          <Animated.View style={[styles.listArea, placeholderStyle]}>
+            <ChatListPlaceholder vm={vm} />
+          </Animated.View>
         ) : (
-          <FlashList
-            ref={listRef}
-            data={timeline}
-            // @ts-expect-error - estimatedItemSize type issue
-            estimatedItemSize={56}
-            keyExtractor={(item) => item.id}
-            getItemType={(item) => item.type}
-            // Manual padding compensates for headerTransparent + absolute composer.
-            // contentInset is unreliable on FlashList (messages slide under the bar).
-            contentInsetAdjustmentBehavior="never"
-            contentContainerStyle={[
-              styles.listContent,
-              { paddingTop: listTopInset, paddingBottom: listBottomInset },
-            ]}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
-            onScroll={onListScroll}
-            scrollEventThrottle={16}
-            onScrollBeginDrag={requestClosePicker}
-            onStartReached={vm.onReachedOldestMessage}
-            onStartReachedThreshold={0.25}
-            ListHeaderComponent={<OlderMessagesLoader visible={vm.loadingOlderMessages} />}
-            renderItem={renderTimelineItem}
-          />
+          <ChatListKeyboardContext value={keyboardSync.binding}>
+            <FocusedCellIndexContext value={focusedCellIndex}>
+            <FlashList
+              ref={listRef}
+              CellRendererComponent={ChatListCell}
+              data={timeline}
+              keyExtractor={timelineKeyExtractor}
+              getItemType={timelineItemType}
+              maintainVisibleContentPosition={MAINTAIN_VISIBLE_CONTENT_POSITION}
+              renderScrollComponent={ChatListScrollView}
+              // Manual top/bottom padding compensates for headerTransparent + the resting composer;
+              // the keyboard lift is a UI-thread `contentInset.bottom` (ChatListScrollView).
+              contentInsetAdjustmentBehavior="never"
+              contentContainerStyle={[
+                styles.listContent,
+                { paddingTop: listTopInset, paddingBottom: listBottomInset },
+              ]}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              scrollEventThrottle={16}
+              onScrollBeginDrag={onListScrollBeginDrag}
+              onScrollEndDrag={keyboardSync.onScrollEndDrag}
+              onMomentumScrollBegin={keyboardSync.onMomentumScrollBegin}
+              onMomentumScrollEnd={keyboardSync.onMomentumScrollEnd}
+              onContentSizeChange={keyboardSync.onContentSizeChange}
+              onLayout={keyboardSync.onLayout}
+              onStartReached={vm.onReachedOldestMessage}
+              onStartReachedThreshold={0.25}
+              ListHeaderComponent={
+                <ChatHistoryHeader
+                  loading={vm.loadingOlderMessages}
+                  // Start of the stored history: say once that messages vanish after 24 h.
+                  showDisappearingHint={!vm.onReachedOldestMessage && !vm.loadingOlderMessages}
+                  hint={vm.t('chat.disappearsFooter')}
+                />
+              }
+              renderItem={renderTimelineItem}
+            />
+            </FocusedCellIndexContext>
+          </ChatListKeyboardContext>
         )}
-        <ChatComposer vm={vm} keyboardHeight={keyboard.height} restingPad={restingPad} />
-      </Animated.View>
+        <ChatComposer
+          t={vm.t}
+          keyboardHeight={keyboard.height}
+          restingPad={restingPad}
+          pasteInputEnabled={vm.pasteInputEnabled}
+          pasteImporting={vm.pasteImporting}
+          onPaste={onPaste}
+          onSend={onSend}
+          composerHeight={composerHeight}
+          onDraftChange={onDraftChange}
+          onDraftBlur={onDraftBlur}
+          onOpenCamera={onOpenCamera}
+          voiceEnabled={vm.voiceMessagesSupported}
+          voiceAvailable={vm.canRecordVoice}
+          onSendVoice={onSendVoice}
+          onVoiceRecordingStart={pauseVoice}
+        />
+        <ScrollToBottomButton
+          visible={scrolledUp && !isEmpty}
+          newCount={newWhileScrolledUp}
+          keyboardHeight={keyboard.height}
+          restingPad={restingPad}
+          composerHeight={composerHeight}
+          onPress={scrollToNewest}
+        />
+      </View>
 
-      {picker && pickerMessage ? (
-        <ReactionPickerOverlay
+      {picker ? (
+        <ChatReactionPickerLayer
+          vm={vm}
           picker={picker}
           open={pickerOpen}
-          selectedEmoji={pickerSelectedEmoji}
-          reportLabel={vm.t('chat.reportMessage')}
-          removeLabel={vm.t('chat.removeReaction')}
-          onDismiss={requestClosePicker}
+          minTop={listTopInset}
+          onClose={requestClosePicker}
           onExited={finishClosePicker}
-          onSelect={(emoji) => {
-            void vm.handleSetReaction(pickerMessage, emoji);
-            requestClosePicker();
-          }}
-          onRemove={() => {
-            void vm.handleRemoveReaction(pickerMessage);
-            requestClosePicker();
-          }}
-          onReport={() => {
-            requestClosePicker();
-            openReportSheet(pickerMessage);
-          }}
         />
       ) : null}
+    </View>
+    </ChatVoicePlaybackContext>
+  );
+}
+
+function ChatHistoryHeader({
+  loading,
+  showDisappearingHint,
+  hint,
+}: {
+  loading: boolean;
+  showDisappearingHint: boolean;
+  hint: string;
+}) {
+  const { colors } = useAppTheme();
+  if (loading) {
+    return (
+      <View style={styles.olderLoader}>
+        <ActivityIndicator color={colors.secondaryLabel} />
+      </View>
+    );
+  }
+  if (!showDisappearingHint) return null;
+  return (
+    <View style={styles.historyHint}>
+      <AppIcon name="timer" size={APP_ICON_SIZE.xs} color={colors.secondaryLabel} />
+      <Text style={[styles.historyHintText, { color: colors.secondaryLabel }]}>{hint}</Text>
     </View>
   );
 }
 
-function OlderMessagesLoader({ visible }: { visible: boolean }) {
-  const { colors } = useAppTheme();
-  if (!visible) return null;
-  return (
-    <View style={styles.olderLoader}>
-      <ActivityIndicator color={colors.secondaryLabel} />
-    </View>
-  );
+/**
+ * Counts incoming messages appended while the reader is in older history; resets as soon as they
+ * are back at the newest message (scrolled or tapped the button).
+ */
+function useNewIncomingWhileScrolledUp(
+  timeline: readonly ChatTimelineEntry[],
+  currentUserId: string,
+  scrolledUp: boolean
+) {
+  const [state, setState] = useState<{ previousIds: ReadonlySet<string>; count: number }>(() => ({
+    previousIds: new Set(timeline.map((item) => item.id)),
+    count: 0,
+  }));
+  const [trackedTimeline, setTrackedTimeline] = useState(timeline);
+  const [trackedScrolledUp, setTrackedScrolledUp] = useState(scrolledUp);
+  // Adjust state while rendering (no effect round trip): only when the inputs actually changed.
+  if (trackedTimeline !== timeline || trackedScrolledUp !== scrolledUp) {
+    const appended = scrolledUp
+      ? countAppendedIncomingItems(state.previousIds, timeline, currentUserId)
+      : 0;
+    setTrackedTimeline(timeline);
+    setTrackedScrolledUp(scrolledUp);
+    setState({
+      previousIds: new Set(timeline.map((item) => item.id)),
+      count: scrolledUp ? state.count + appended : 0,
+    });
+  }
+  return state.count;
 }
 
 const styles = StyleSheet.create({
   olderLoader: {
     alignItems: 'center',
     paddingVertical: 12,
+  },
+  historyHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 32,
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  historyHintText: {
+    ...typography.caption,
+    textAlign: 'center',
+    flexShrink: 1,
+  },
+  unavailable: {
+    alignItems: 'center',
+    gap: 8,
+    maxWidth: 320,
+  },
+  scrollButtonShell: {
+    position: 'absolute',
+    right: 16,
+    bottom: 0,
+  },
+  scrollButton: {
+    width: SCROLL_BUTTON_SIZE,
+    height: SCROLL_BUTTON_SIZE,
+    borderRadius: SCROLL_BUTTON_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollBadgeText: {
+    ...typography.caption,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   root: {
     flex: 1,
@@ -1438,6 +3068,42 @@ const styles = StyleSheet.create({
   },
   bubbleAnchor: {
     flexGrow: 0,
+    flexShrink: 1,
+  },
+  receiptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 4,
+    marginTop: 3,
+    paddingRight: 4,
+  },
+  receiptText: {
+    ...typography.caption,
+  },
+  savedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 3,
+    paddingHorizontal: 4,
+  },
+  savedRowOwn: {
+    alignSelf: 'flex-end',
+  },
+  savedRowIncoming: {
+    alignSelf: 'flex-start',
+  },
+  savedText: {
+    ...typography.caption,
+    flexShrink: 1,
+  },
+  chipLayout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  chipTextColumn: {
     flexShrink: 1,
   },
   bubbleOwn: {
@@ -1464,6 +3130,9 @@ const styles = StyleSheet.create({
   bubbleText: {
     ...typography.body,
     textAlign: 'left',
+  },
+  focusedCell: {
+    zIndex: 1,
   },
   pickerOverlay: {
     ...StyleSheet.absoluteFill,
@@ -1502,19 +3171,16 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 34,
   },
-  reactionBarReportHit: {
-    width: REACTION_EMOJI_HIT,
-    height: REACTION_EMOJI_HIT,
-    borderRadius: REACTION_EMOJI_HIT / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   reactionBadges: {
     position: 'absolute',
     top: 0,
     flexDirection: 'row',
     gap: 2,
     zIndex: 1,
+  },
+  nixReactionBadge: {
+    position: 'absolute',
+    top: -10,
   },
   reactionBadgesOwn: {
     left: -REACTION_BADGE_CORNER_OUTSET,
@@ -1573,10 +3239,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
     alignSelf: 'flex-start',
   },
-  failedText: {
+  outboxStatusText: {
     ...typography.caption,
     marginTop: 4,
     opacity: 0.82,
+  },
+  expiredText: {
+    ...typography.footnote,
+    fontStyle: 'italic',
   },
   separatorRow: {
     width: '100%',
@@ -1604,6 +3274,10 @@ const styles = StyleSheet.create({
   muted: {
     ...typography.footnote,
   },
+  emptyTitle: {
+    ...typography.headline,
+    textAlign: 'center',
+  },
   emptyText: {
     ...typography.body,
     textAlign: 'center',
@@ -1621,16 +3295,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
+    top: -COMPOSER_EDGE_FADE_EXTRA,
     bottom: 0,
   },
   composerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    // Buttons stay on the last line while the draft grows upwards (iMessage).
+    alignItems: 'flex-end',
+    gap: 8,
   },
   inputGlass: {
     flex: 1,
-    height: COMPOSER_CONTROL_SIZE,
+    minHeight: COMPOSER_CONTROL_SIZE,
     borderRadius: COMPOSER_CONTROL_SIZE / 2,
     justifyContent: 'center',
     paddingHorizontal: 14,
@@ -1643,8 +3319,10 @@ const styles = StyleSheet.create({
   },
   inputText: {
     ...typography.body,
-    padding: 0,
     margin: 0,
+    paddingHorizontal: 0,
+    paddingTop: COMPOSER_INPUT_VERTICAL_PAD,
+    paddingBottom: COMPOSER_INPUT_VERTICAL_PAD,
   },
   sendGlass: {
     width: COMPOSER_CONTROL_SIZE,
@@ -1655,19 +3333,13 @@ const styles = StyleSheet.create({
   },
   footerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 4,
-    paddingTop: 6,
-  },
-  footerText: {
-    ...typography.caption,
-    flex: 1,
-    opacity: 0.72,
+    justifyContent: 'flex-end',
+    paddingHorizontal: 4 + COMPOSER_CONTROL_SIZE + 8,
+    paddingTop: 4,
   },
   footerCounter: {
     ...typography.caption,
     fontWeight: '500',
-    opacity: 0.72,
+    fontVariant: ['tabular-nums'],
   },
 });

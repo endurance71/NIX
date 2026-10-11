@@ -44,6 +44,7 @@ const context = createContext({
     [
       'activityBackgroundTint',
       'aspectRatio',
+      'clipShape',
       'contentTransition',
       'font',
       'foregroundStyle',

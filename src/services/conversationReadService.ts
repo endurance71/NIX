@@ -1,9 +1,14 @@
 import { supabase } from '../lib/supabase';
 
+/** Badge value as returned by `get_unread_inbox_count` (also embedded in `get_inbox_bundle`). */
+export function normalizeUnreadInboxCount(value: unknown): number {
+  return Math.max(0, Math.min(999, Number(value) || 0));
+}
+
 export async function getUnreadInboxCount(): Promise<number> {
   const { data, error } = await supabase.rpc('get_unread_inbox_count');
   if (error) throw error;
-  return Math.max(0, Math.min(999, Number(data) || 0));
+  return normalizeUnreadInboxCount(data);
 }
 
 export async function markTextConversationRead(

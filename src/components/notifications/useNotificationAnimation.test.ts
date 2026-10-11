@@ -7,7 +7,7 @@ const native = vi.hoisted(() => {
   type Animation = {
     type: 'spring' | 'timing' | 'delay';
     target?: number;
-    config?: { duration?: number; reduceMotion?: string };
+    config?: { duration?: number; reduceMotion?: string; easing?: string };
     complete?: Completion;
     child?: Animation;
   };
@@ -84,6 +84,7 @@ vi.mock('react-native-reanimated', () => ({
   withTiming: native.timing,
   withDelay: native.delay,
   cancelAnimation: native.cancel,
+  Easing: { bezier: () => 'ease-out' },
   ReduceMotion: { Never: 'never' },
 }));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: native.schedule }));
@@ -135,25 +136,59 @@ describe('notification animation lifecycle', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('starts readable time and feedback only after a successful reveal, once', () => {
+  it('starts readable time only after a successful reveal, once, without late haptics', () => {
     queue.enqueue({ title: 'Saved', kind: 'success' });
     render();
     const reveal = native.shared[2].value;
     vi.advanceTimersByTime(10000);
     native.complete(reveal, false);
     expect(queue.getSnapshot().phase).toBe('entering');
-    expect(native.haptic).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
 
     native.complete(reveal);
     native.complete(reveal);
     expect(queue.getSnapshot().phase).toBe('visible');
-    expect(native.haptic).toHaveBeenCalledExactlyOnceWith('success');
+    // Haptics belong to enqueue (the cause), never to the end of the reveal.
+    expect(native.haptic).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(1);
     vi.advanceTimersByTime(3999);
     expect(queue.getSnapshot().phase).toBe('visible');
     vi.advanceTimersByTime(1);
     expect(queue.getSnapshot().phase).toBe('exiting');
+  });
+
+  it('reveals the fast card within the 300 ms budget and leaves within 220 ms, without springs', () => {
+    queue.enqueue({ title: 'Saved', kind: 'success' });
+    render({ morph: false });
+    expect(native.spring).not.toHaveBeenCalled();
+    expect(native.delay).not.toHaveBeenCalled();
+    expect(native.timing).toHaveBeenCalledExactlyOnceWith(1,
+      { duration: 300, reduceMotion: 'never', easing: 'ease-out' }, expect.any(Function));
+    native.complete(native.shared[2].value);
+    native.timing.mockClear();
+    queue.dismiss(token());
+    render({ morph: false });
+    expect(native.spring).not.toHaveBeenCalled();
+    expect(native.timing).toHaveBeenCalledExactlyOnceWith(0,
+      { duration: 220, reduceMotion: 'never', easing: 'ease-out' }, expect.any(Function));
+    native.complete(native.shared[2].value);
+    expect(queue.getSnapshot().phase).toBe('idle');
+  });
+
+  it('lets an error pre-empt the island morph with the fast exit, then shows the error', () => {
+    queue.enqueue({ title: 'Saved', kind: 'success' });
+    render();
+    native.complete(native.shared[2].value);
+    native.spring.mockClear();
+    native.delay.mockClear();
+    queue.enqueue({ title: 'Failed', kind: 'error' });
+    expect(queue.getSnapshot()).toMatchObject({ phase: 'exiting', interrupted: true });
+    render();
+    expect(native.spring).not.toHaveBeenCalled();
+    expect(native.delay).not.toHaveBeenCalled();
+    native.complete(native.shared[2].value);
+    expect(queue.getSnapshot().notification?.title).toBe('Failed');
+    expect(queue.getSnapshot().phase).toBe('entering');
   });
 
   it('keeps the exiting item until the return animation completes, then reveals the next item', () => {
@@ -213,31 +248,31 @@ describe('notification animation lifecycle', () => {
     expect(queue.getSnapshot().phase).toBe(phase);
   });
 
-  it('uses a short fade without springs for Reduce Motion, including dismissal', () => {
+  it('uses a 150 ms fade without springs for Reduce Motion, including dismissal', () => {
     queue.enqueue({ title: 'Saved' });
     render({ reducedMotion: true });
     expect(native.spring).not.toHaveBeenCalled();
     expect(native.delay).not.toHaveBeenCalled();
-    expect(native.timing).toHaveBeenCalledWith(1, { duration: 120, reduceMotion: 'never' }, expect.any(Function));
+    expect(native.timing).toHaveBeenCalledWith(1, { duration: 150, reduceMotion: 'never' }, expect.any(Function));
     native.complete(native.shared[2].value);
     queue.dismiss(token());
     render({ reducedMotion: true });
     expect(native.spring).not.toHaveBeenCalled();
-    native.complete(native.shared[1].value);
+    expect(native.timing).toHaveBeenLastCalledWith(0, { duration: 150, reduceMotion: 'never' }, expect.any(Function));
+    native.complete(native.shared[2].value);
     expect(queue.getSnapshot().phase).toBe('idle');
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('announces full VoiceOver content after reveal without automatic dismissal', () => {
+  it('announces full VoiceOver content after reveal and keeps it up longer', () => {
     queue.setScreenReader(true);
     queue.enqueue({ title: 'Saved', message: 'Changes are ready' });
     render({ screenReader: true });
     expect(native.announce).not.toHaveBeenCalled();
     native.complete(native.shared[2].value);
     expect(native.announce).toHaveBeenCalledExactlyOnceWith('Saved. Changes are ready', { queue: true });
-    vi.advanceTimersByTime(60000);
+    vi.advanceTimersByTime(9999);
     expect(queue.getSnapshot().phase).toBe('visible');
-    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('cancels all shared animations when the presentation unmounts', () => {

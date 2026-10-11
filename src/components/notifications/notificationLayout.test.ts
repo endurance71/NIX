@@ -13,6 +13,10 @@ describe('notification geometry', () => {
     expect(layout.cardLeft).toBe(22); expect(layout.cardTop).toBe(85);
     expect(layout.cardHeight).toBe(104); expect(layout.cardRadius).toBe(28);
   });
+  it('places the fast (non-prominent) card under the safe area even on an island iPhone', () => {
+    const layout = notificationLayout(440, 62, 104, false);
+    expect(layout.morph).toBe(false); expect(layout.cardTop).toBe(74);
+  });
   it('lets measured Dynamic Type text expand the final geometry', () => {
     const layout = notificationLayout(320, 20, 240);
     const geometry = buildNotificationGeometry({ drop: 1, expand: 1, layout });

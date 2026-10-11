@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { DomainError, isNetworkError } from './errors';
 import { getCurrentUser } from './profileService';
 
 export type FriendProfile = {
@@ -92,26 +93,48 @@ export function normalizeUsername(username: string) {
   return username.trim().toLowerCase().replace(/^@/, '').replace(/[^a-z0-9_]/g, '');
 }
 
-function mapFriendshipErrorMessage(error: unknown) {
-  const rawMessage =
-    typeof error === 'object' && error && 'message' in error && typeof error.message === 'string'
-      ? error.message
-      : null;
-
-  if (!rawMessage) return 'Wystąpił błąd. Spróbuj ponownie.';
-  if (rawMessage.includes('duplicate key value')) return 'Relacja znajomości już istnieje.';
-  if (rawMessage.includes('row-level security')) return 'Brak uprawnień do wykonania tej operacji.';
-  if (rawMessage.includes('Could not find the function public.create_friend_invite')) {
-    return 'Brakuje migracji DB dla zaproszeń QR. Uruchom SQL z docs/supabase_setup.sql.';
-  }
-  if (rawMessage.includes('Could not find the function public.redeem_friend_invite')) {
-    return 'Brakuje migracji DB dla realizacji zaproszeń. Uruchom SQL z docs/supabase_setup.sql.';
-  }
-  return rawMessage;
+function rawErrorMessage(error: unknown): string {
+  return typeof error === 'object' && error && 'message' in error && typeof error.message === 'string'
+    ? error.message
+    : '';
 }
 
-function toFriendlyError(error: unknown) {
-  return new Error(mapFriendshipErrorMessage(error));
+/**
+ * Turns a Supabase/PostgREST failure into a `DomainError` whose code maps to a localized
+ * `domainErrors.*` text. The raw DB message (SQL, RLS, constraint names) stays in `message` for
+ * logs only — `notifyDomainError` never shows it. Transport failures are rethrown untouched so
+ * `isNetworkError` still recognizes them.
+ */
+function toFriendshipError(error: unknown): Error {
+  if (error instanceof DomainError) return error;
+  const raw = rawErrorMessage(error);
+  if (isNetworkError(error)) return error instanceof Error ? error : new Error(raw);
+  if (raw.includes('duplicate key value')) {
+    return new DomainError('FRIENDSHIP_EXISTS', raw);
+  }
+  if (raw.includes('row-level security')) {
+    return new DomainError('FORBIDDEN', raw);
+  }
+  if (raw.includes('Could not find the function public.')) {
+    // Backend is behind the client (missing migration): a developer problem, not a user one.
+    console.warn('[friendService] Missing database function — apply pending Supabase migrations', raw);
+  }
+  return new DomainError('UNKNOWN', raw || 'Friendship operation failed.');
+}
+
+function missingSessionError() {
+  return new DomainError('UNAUTHORIZED', 'No session.');
+}
+
+/** Telemetry-safe error code: never the raw message (it may hold SQL or user data). */
+export function friendErrorTelemetryCode(error: unknown): string {
+  if (isNetworkError(error)) return 'network';
+  if (error instanceof DomainError) return error.code;
+  return 'unknown';
+}
+
+function isInviteUnavailableMessage(message: string) {
+  return message.includes('expired') || message.includes('invalid') || message.includes('already used');
 }
 
 function resolveFriendshipAction(
@@ -138,14 +161,14 @@ function resolveFriendshipAction(
 export async function findProfileByUsername(username: string): Promise<FriendProfile | null> {
   const normalized = normalizeUsername(username);
   if (normalized.length < 3) {
-    throw new Error('Nazwa użytkownika musi mieć co najmniej 3 znaki.');
+    throw new DomainError('USERNAME_TOO_SHORT', 'Username shorter than 3 characters.');
   }
 
   const { data, error } = await supabase.rpc('get_public_profile_by_username', {
     search_username: normalized,
   });
 
-  if (error) throw toFriendlyError(error);
+  if (error) throw toFriendshipError(error);
   const profile = Array.isArray(data) ? data[0] : data;
   if (!profile?.username) return null;
 
@@ -161,7 +184,7 @@ async function listRelationsBetweenUsers(currentUserId: string, friendId: string
       `and(user_id.eq.${currentUserId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${currentUserId})`
     );
 
-  if (error) throw toFriendlyError(error);
+  if (error) throw toFriendshipError(error);
   return (data ?? []) as FriendshipRow[];
 }
 
@@ -174,7 +197,7 @@ export type FriendInviteRelationStatus =
 
 export async function getFriendInviteRelationStatus(otherUserId: string): Promise<FriendInviteRelationStatus> {
   const user = await getCurrentUser();
-  if (!user) throw new Error('Brak sesji. Zaloguj się ponownie.');
+  if (!user) throw missingSessionError();
 
   const normalized = otherUserId.trim();
   if (!normalized || normalized === user.id) return 'none';
@@ -190,8 +213,8 @@ export async function getFriendInviteRelationStatus(otherUserId: string): Promis
 
 export async function sendFriendRequest(friendId: string): Promise<SendFriendRequestResult> {
   const user = await getCurrentUser();
-  if (!user) throw new Error('Brak sesji. Zaloguj się ponownie.');
-  if (user.id === friendId) throw new Error('Nie możesz dodać siebie do znajomych.');
+  if (!user) throw missingSessionError();
+  if (user.id === friendId) throw new DomainError('CANNOT_ADD_SELF', 'Cannot add yourself as a friend.');
 
   const existing = await listRelationsBetweenUsers(user.id, friendId);
   const action = resolveFriendshipAction(user.id, friendId, existing);
@@ -206,7 +229,7 @@ export async function sendFriendRequest(friendId: string): Promise<SendFriendReq
     );
 
     if (!pendingIncoming) {
-      throw new Error('Nie znaleziono zaproszenia do akceptacji.');
+      throw new DomainError('FRIEND_REQUEST_NOT_FOUND', 'Incoming friend request not found.');
     }
 
     const { error } = await supabase
@@ -215,7 +238,7 @@ export async function sendFriendRequest(friendId: string): Promise<SendFriendReq
       .eq('id', pendingIncoming.id)
       .eq('friend_id', user.id);
 
-    if (error) throw toFriendlyError(error);
+    if (error) throw toFriendshipError(error);
     return 'accepted_reverse_request';
   }
 
@@ -225,7 +248,7 @@ export async function sendFriendRequest(friendId: string): Promise<SendFriendReq
     status: 'pending',
   });
 
-  if (error) throw toFriendlyError(error);
+  if (error) throw toFriendshipError(error);
   return 'request_sent';
 }
 
@@ -240,7 +263,7 @@ export async function listIncomingFriendRequests(): Promise<IncomingFriendReques
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
 
-  if (error) throw toFriendlyError(error);
+  if (error) throw toFriendshipError(error);
 
   const requesterIds = (data ?? []).map((row) => row.user_id as string);
   if (requesterIds.length === 0) return [];
@@ -251,7 +274,7 @@ export async function listIncomingFriendRequests(): Promise<IncomingFriendReques
       profile_ids: requesterIds,
     }
   );
-  if (requesterProfilesError) throw toFriendlyError(requesterProfilesError);
+  if (requesterProfilesError) throw toFriendshipError(requesterProfilesError);
 
   const requesterMap = new Map<string, FriendProfile>();
   for (const row of (requesterProfiles ?? []) as PublicProfileRpcRow[]) {
@@ -277,7 +300,7 @@ export async function listOutgoingFriendRequests(): Promise<OutgoingFriendReques
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
 
-  if (error) throw toFriendlyError(error);
+  if (error) throw toFriendshipError(error);
 
   const recipientIds = (data ?? []).map((row) => row.friend_id as string);
   if (recipientIds.length === 0) return [];
@@ -288,7 +311,7 @@ export async function listOutgoingFriendRequests(): Promise<OutgoingFriendReques
       profile_ids: recipientIds,
     }
   );
-  if (recipientProfilesError) throw toFriendlyError(recipientProfilesError);
+  if (recipientProfilesError) throw toFriendshipError(recipientProfilesError);
 
   const recipientMap = new Map<string, FriendProfile>();
   for (const row of (recipientProfiles ?? []) as PublicProfileRpcRow[]) {
@@ -305,7 +328,7 @@ export async function listOutgoingFriendRequests(): Promise<OutgoingFriendReques
 
 export async function acceptFriendRequest(requestId: string) {
   const user = await getCurrentUser();
-  if (!user) throw new Error('Brak sesji. Zaloguj się ponownie.');
+  if (!user) throw missingSessionError();
 
   const { error } = await supabase
     .from('friendships')
@@ -313,12 +336,12 @@ export async function acceptFriendRequest(requestId: string) {
     .eq('id', requestId)
     .eq('friend_id', user.id);
 
-  if (error) throw toFriendlyError(error);
+  if (error) throw toFriendshipError(error);
 }
 
 export async function rejectFriendRequest(requestId: string) {
   const user = await getCurrentUser();
-  if (!user) throw new Error('Brak sesji. Zaloguj się ponownie.');
+  if (!user) throw missingSessionError();
 
   const { error } = await supabase
     .from('friendships')
@@ -326,12 +349,12 @@ export async function rejectFriendRequest(requestId: string) {
     .eq('id', requestId)
     .eq('friend_id', user.id);
 
-  if (error) throw toFriendlyError(error);
+  if (error) throw toFriendshipError(error);
 }
 
 export async function cancelOutgoingFriendRequest(requestId: string) {
   const user = await getCurrentUser();
-  if (!user) throw new Error('Brak sesji. Zaloguj się ponownie.');
+  if (!user) throw missingSessionError();
 
   const { error } = await supabase
     .from('friendships')
@@ -339,8 +362,11 @@ export async function cancelOutgoingFriendRequest(requestId: string) {
     .eq('id', requestId)
     .eq('user_id', user.id);
 
-  if (error) throw toFriendlyError(error);
+  if (error) throw toFriendshipError(error);
 }
+
+/** Every screen shares the `acceptedFriends` cache entry, so they must request the same page. */
+export const ACCEPTED_FRIENDS_LIMIT = 100;
 
 export async function listAcceptedFriends(options: FriendListOptions = {}): Promise<FriendProfile[]> {
   const user = await getCurrentUser();
@@ -355,7 +381,7 @@ export async function listAcceptedFriends(options: FriendListOptions = {}): Prom
     }
   );
 
-  if (profilesError) throw toFriendlyError(profilesError);
+  if (profilesError) throw toFriendshipError(profilesError);
 
   const friends = ((profiles ?? []) as AcceptedFriendRpcRow[]).flatMap((row) => {
     const mapped = mapPublicProfileRow(row);
@@ -366,8 +392,8 @@ export async function listAcceptedFriends(options: FriendListOptions = {}): Prom
 
 export async function removeFriend(friendId: string) {
   const user = await getCurrentUser();
-  if (!user) throw new Error('Brak sesji. Zaloguj się ponownie.');
-  if (!friendId.trim()) throw new Error('Brak identyfikatora znajomego.');
+  if (!user) throw missingSessionError();
+  if (!friendId.trim()) throw new DomainError('INVALID_INPUT', 'Missing friend id.');
 
   const { error } = await supabase
     .from('friendships')
@@ -377,7 +403,7 @@ export async function removeFriend(friendId: string) {
       `and(user_id.eq.${user.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${user.id})`
     );
 
-  if (error) throw toFriendlyError(error);
+  if (error) throw toFriendshipError(error);
 }
 
 async function getPublicProfileById(profileId: string): Promise<FriendProfile | null> {
@@ -388,14 +414,14 @@ async function getPublicProfileById(profileId: string): Promise<FriendProfile | 
     profile_ids: [normalized],
   });
 
-  if (error) throw toFriendlyError(error);
+  if (error) throw toFriendshipError(error);
   const profile = Array.isArray(data) ? (data[0] as PublicProfileRpcRow | undefined) : undefined;
   return mapPublicProfileRow(profile as PublicProfileRpcRow);
 }
 
 export async function previewProfileQr(profileId: string): Promise<PreviewProfileQrResult> {
   const user = await getCurrentUser();
-  if (!user) throw new Error('Brak sesji. Zaloguj się ponownie.');
+  if (!user) throw missingSessionError();
 
   const normalized = profileId.trim();
   if (!normalized) return { status: 'invalid_profile', profile: null };
@@ -432,14 +458,14 @@ export async function createFriendInviteToken(
     invite_channel: channel,
   });
 
-  if (error) throw toFriendlyError(error);
+  if (error) throw toFriendshipError(error);
 
   const payload = Array.isArray(data) ? data[0] : data;
   const token = typeof payload?.invite_token === 'string' ? payload.invite_token : null;
   const expiresAt = typeof payload?.expires_at === 'string' ? payload.expires_at : null;
 
   if (!token || !expiresAt) {
-    throw new Error('Nie udało się wygenerować zaproszenia.');
+    throw new DomainError('UNKNOWN', 'create_friend_invite returned no token.');
   }
 
   return { token, expiresAt };
@@ -464,18 +490,14 @@ export async function previewFriendInviteToken(token: string): Promise<PreviewFr
   });
 
   if (error) {
-    const message = mapFriendshipErrorMessage(error);
-    if (
-      message.includes('expired') ||
-      message.includes('invalid') ||
-      message.includes('already used')
-    ) {
+    const message = rawErrorMessage(error);
+    if (isInviteUnavailableMessage(message)) {
       return { status: 'invalid_or_expired', profile: null };
     }
     if (message.includes('own invite')) {
       return { status: 'own_invite', profile: null };
     }
-    throw new Error(message);
+    throw toFriendshipError(error);
   }
 
   const payload = Array.isArray(data) ? data[0] : data;
@@ -511,18 +533,14 @@ export async function redeemFriendInviteToken(token: string): Promise<{
   });
 
   if (error) {
-    const message = mapFriendshipErrorMessage(error);
-    if (
-      message.includes('expired') ||
-      message.includes('invalid') ||
-      message.includes('already used')
-    ) {
+    const message = rawErrorMessage(error);
+    if (isInviteUnavailableMessage(message)) {
       return { result: 'invalid_or_expired', inviterProfile: null };
     }
     if (message.includes('own invite')) {
       return { result: 'own_invite', inviterProfile: null };
     }
-    throw new Error(message);
+    throw toFriendshipError(error);
   }
 
   const payload = Array.isArray(data) ? data[0] : data;
@@ -541,7 +559,7 @@ export async function redeemFriendInviteToken(token: string): Promise<{
     profile_ids: [inviterId],
   });
 
-  if (profileError) throw toFriendlyError(profileError);
+  if (profileError) throw toFriendshipError(profileError);
   const inviter = (Array.isArray(inviterProfiles)
     ? (inviterProfiles[0] as PublicProfileRpcRow | undefined)
     : null) ?? null;

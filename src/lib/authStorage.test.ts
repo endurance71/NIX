@@ -34,7 +34,14 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 // eslint-disable-next-line import/first
-import { authStorage, isSessionAccessTokenExpired, readPersistedSessionCandidate } from './authStorage';
+import * as SecureStore from 'expo-secure-store';
+// eslint-disable-next-line import/first
+import {
+  authStorage,
+  isSessionAccessTokenExpired,
+  readPersistedSessionCandidate,
+  resetAuthStorageCacheForTests,
+} from './authStorage';
 
 const storageKey = 'sb-project-auth-token';
 
@@ -55,6 +62,8 @@ describe('chunked auth storage', () => {
     asyncValues.clear();
     secureMockState.failNextChunkWrite = false;
     secureMockState.failNextDelete = false;
+    resetAuthStorageCacheForTests();
+    vi.mocked(SecureStore.getItemAsync).mockClear();
   });
 
   it('round-trips a payload larger than a single keychain value', async () => {
@@ -96,5 +105,50 @@ describe('chunked auth storage', () => {
     secureMockState.failNextDelete = true;
     await expect(authStorage.removeItem(storageKey)).rejects.toThrow('delete failure');
     expect(secureValues.has(`${storageKey}.nix.manifest`)).toBe(false);
+  });
+
+  it('serves repeated reads from memory instead of the Keychain (PERF-3)', async () => {
+    await authStorage.setItem(storageKey, sessionJson(2_000_000_000));
+    vi.mocked(SecureStore.getItemAsync).mockClear();
+    await authStorage.getItem(storageKey);
+    await authStorage.getItem(storageKey);
+    expect(SecureStore.getItemAsync).not.toHaveBeenCalled();
+  });
+
+  it('shares one Keychain read between concurrent cold reads', async () => {
+    await authStorage.setItem(storageKey, 'session');
+    resetAuthStorageCacheForTests();
+    vi.mocked(SecureStore.getItemAsync).mockClear();
+    const values = await Promise.all([authStorage.getItem(storageKey), authStorage.getItem(storageKey)]);
+    expect(values).toEqual(['session', 'session']);
+    // Manifest + one chunk, once.
+    expect(SecureStore.getItemAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns the new value right after a write and nothing after removal', async () => {
+    await authStorage.setItem(storageKey, 'first');
+    expect(await authStorage.getItem(storageKey)).toBe('first');
+    await authStorage.setItem(storageKey, 'second');
+    expect(await authStorage.getItem(storageKey)).toBe('second');
+    await authStorage.removeItem(storageKey);
+    expect(await authStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it('does not cache a read that raced with a write', async () => {
+    await authStorage.setItem(storageKey, 'old');
+    resetAuthStorageCacheForTests();
+    const staleRead = authStorage.getItem(storageKey);
+    await authStorage.setItem(storageKey, 'new');
+    await staleRead;
+    expect(await authStorage.getItem(storageKey)).toBe('new');
+  });
+
+  it('falls back to the Keychain after a failed write', async () => {
+    await authStorage.setItem(storageKey, 'previous-session');
+    secureMockState.failNextChunkWrite = true;
+    await expect(authStorage.setItem(storageKey, 'replacement-session')).rejects.toThrow('simulated');
+    vi.mocked(SecureStore.getItemAsync).mockClear();
+    expect(await authStorage.getItem(storageKey)).toBe('previous-session');
+    expect(SecureStore.getItemAsync).toHaveBeenCalled();
   });
 });

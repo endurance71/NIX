@@ -6,6 +6,8 @@ import {
   deleteTextMessageConversation,
   fetchRecentTextMessagesForInbox,
   fetchRecentTextMessagesWithPeer,
+  mapRecentTextMessageRow,
+  mapRecentTextMessageRpcRow,
 } from './textMessageService';
 
 const {
@@ -354,5 +356,34 @@ describe('fetchRecentTextMessagesWithPeer', () => {
     expect(mockSupabaseRpc).toHaveBeenCalledTimes(2);
     expect(mockSupabaseRpc.mock.calls[0][1]).toMatchObject({ before_created_at: null, msg_limit: 2 });
     expect(mockSupabaseRpc.mock.calls[1][1]).toMatchObject({ before_created_at: row(3).created_at });
+  });
+});
+
+describe('inbox text row mapping', () => {
+  const row = {
+    id: 'text-1',
+    sender_id: 'peer-1',
+    receiver_id: 'me-1',
+    body: 'hej',
+    created_at: '2026-10-10T10:00:00.000000+00:00',
+    expires_at: '2026-10-11T10:00:00.000000+00:00',
+    client_message_id: null,
+    is_system: false,
+    metadata: ['not', 'an', 'object'],
+  };
+
+  it('maps the multi-query row and the get_inbox_bundle row identically', () => {
+    const fromQuery = mapRecentTextMessageRow(row, 'me-1');
+    const fromRpc = mapRecentTextMessageRpcRow({ ...row, peer_id: 'peer-1' });
+
+    expect(fromQuery).toEqual(fromRpc);
+    expect(fromQuery.peer_id).toBe('peer-1');
+    expect(fromQuery.metadata).toBeNull();
+  });
+
+  it('uses the receiver as peer for own messages', () => {
+    expect(
+      mapRecentTextMessageRow({ ...row, sender_id: 'me-1', receiver_id: 'peer-2' }, 'me-1').peer_id
+    ).toBe('peer-2');
   });
 });

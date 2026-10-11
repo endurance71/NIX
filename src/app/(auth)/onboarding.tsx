@@ -66,7 +66,7 @@ export default function OnboardingScreen() {
     }
     if (!currentProfile?.username) {
       if (cleanedDisplayName.length === 0) {
-        setError(t('auth.displayNameRequired', 'Wpisz nazwę wyświetlaną.'));
+        setError(t('auth.displayNameRequired'));
         return;
       }
       if (cleaned.length < 3) {
@@ -127,7 +127,10 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <AuthFormLayout description={t('auth.onboardingDescription')}>
+    <AuthFormLayout
+      description={
+        currentProfile?.username ? t('auth.ageGateDescription') : t('auth.onboardingDescription')
+      }>
       {!ageAttested ? (
         <AuthFieldGroup
           footer={<AuthTertiaryText>{t('auth.birthDatePrivacyHint')}</AuthTertiaryText>}>
@@ -154,13 +157,13 @@ export default function OnboardingScreen() {
             footer={
               <VStack alignment="leading" spacing={6}>
                 <AuthTertiaryText>
-                  {t('auth.displayNameHint', 'Widoczna dla Twoich znajomych. Możesz ją później zmienić w profilu.')}
+                  {t('auth.displayNameHint')}
                 </AuthTertiaryText>
               </VStack>
             }>
             <AuthTextField
               nativeValue={displayName}
-              placeholder={t('auth.displayNamePlaceholder', 'Nazwa wyświetlana')}
+              placeholder={t('auth.displayNamePlaceholder')}
               autoCapitalize="words"
               autoCorrect={false}
               returnKeyType="next"
@@ -177,13 +180,13 @@ export default function OnboardingScreen() {
             footer={
               <VStack alignment="leading" spacing={6}>
                 <AuthTertiaryText>
-                  {t('auth.onboardingHint', 'Unikalny login (@nazwa). Służy do szukania Cię przez znajomych i nie można go zmienić.')}
+                  {t('auth.onboardingHint')}
                 </AuthTertiaryText>
               </VStack>
             }>
             <AuthTextField
               nativeValue={username}
-              placeholder={t('auth.onboardingPlaceholder', 'Login (@nazwa)')}
+              placeholder={t('auth.onboardingPlaceholder')}
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="go"
@@ -223,6 +226,7 @@ export default function OnboardingScreen() {
       />
       <AuthSecondaryButton
         label={t('auth.onboardingUseOtherAccount')}
+        disabled={busy}
         onPress={() => void handleUseOtherAccount()}
       />
     </AuthFormLayout>

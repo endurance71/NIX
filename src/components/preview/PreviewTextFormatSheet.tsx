@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Animated, {
   Easing,
@@ -30,7 +30,7 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { duration, useMotionEnabled } from '../../theme/motion';
 import { SHEET_TOP_PADDING } from '../../theme/safeArea';
 import { typography } from '../../theme/typography';
-import { tap } from '../../lib/haptics';
+import { selection } from '../../lib/haptics';
 import {
   MEDIA_TEXT_BAR_SWATCHES,
   MEDIA_TEXT_COLOR_SWATCHES,
@@ -56,16 +56,11 @@ import {
   PreviewTextSizeSlider,
 } from './PreviewTextSizeSlider';
 
-/** Capsule fill — system gray pills. */
-const NOTES_CAPSULE_LIGHT = 'rgba(120,120,128,0.16)';
 const ALIGN_OPTIONS = [
   ['left', 'textAlignLeft', 'preview.alignLeft'] as const,
   ['center', 'textAlignCenter', 'preview.alignCenter'] as const,
   ['right', 'textAlignRight', 'preview.alignRight'] as const,
 ];
-const NOTES_CAPSULE_DARK = 'rgba(120,120,128,0.32)';
-const NOTES_DIVIDER_LIGHT = 'rgba(60,60,67,0.29)';
-const NOTES_DIVIDER_DARK = 'rgba(84,84,88,0.65)';
 const CONTROL_RADIUS = 18;
 const IOS_SELECTION_SLIDE_TIMING = {
   duration: duration.medium,
@@ -86,11 +81,11 @@ type PreviewTextFormatSheetProps = {
   onContentHeightChange?: (height: number) => void;
 };
 
-/** Opaque display color for menu tint (8-digit hex → RGB; clear → gray). */
-function menuSwatchTint(color: string): string {
+/** Opaque display color for menu tint (8-digit hex → RGB; clear → system gray). */
+function menuSwatchTint(color: string, clearTint: string): string {
   const upper = color.toUpperCase();
   if (upper === TRANSPARENT_MEDIA_TEXT_BAR_COLOR || upper === '#00000000') {
-    return '#8E8E93';
+    return clearTint;
   }
   if (upper.length === 9) return upper.slice(0, 7);
   return upper;
@@ -122,7 +117,7 @@ function CapsuleSegment({
       {showDivider ? <View style={[styles.divider, { backgroundColor: dividerColor }]} /> : null}
       <Pressable
         onPress={() => {
-          tap('light');
+          selection();
           onPress();
         }}
         accessibilityRole="button"
@@ -264,6 +259,7 @@ function ColorMenuChip({
   onSelect,
   t,
   labelColor,
+  clearTint,
 }: {
   accessibilityLabel: string;
   iconSystemName: SFSymbol;
@@ -272,20 +268,13 @@ function ColorMenuChip({
   onSelect: (color: string) => void;
   t: (key: string) => string;
   labelColor: string;
+  clearTint: string;
 }) {
   const selectedUpper = selectedColor.toUpperCase();
-  const chipTint = menuSwatchTint(selectedColor);
+  const chipTint = menuSwatchTint(selectedColor, clearTint);
   const chipIsClear =
     selectedColor.toUpperCase() === TRANSPARENT_MEDIA_TEXT_BAR_COLOR ||
     selectedColor.toUpperCase() === '#00000000';
-
-  if (Platform.OS !== 'ios') {
-    return (
-      <View style={styles.colorHit}>
-        <AppIcon name="paintpalette" size={APP_ICON_SIZE.md} color={labelColor} />
-      </View>
-    );
-  }
 
   return (
     <Host matchContents>
@@ -303,7 +292,7 @@ function ColorMenuChip({
         }>
         {swatches.map((swatch) => {
           const isSelected = selectedUpper === swatch.color.toUpperCase();
-          const swatchTint = menuSwatchTint(swatch.color);
+          const swatchTint = menuSwatchTint(swatch.color, clearTint);
           const isClear =
             swatch.color.toUpperCase() === TRANSPARENT_MEDIA_TEXT_BAR_COLOR ||
             swatch.color.toUpperCase() === '#00000000';
@@ -311,7 +300,7 @@ function ColorMenuChip({
             <Button
               key={swatch.id}
               onPress={() => {
-                tap('light');
+                selection();
                 onSelect(swatch.color);
               }}
               modifiers={[tint(swatchTint)]}>
@@ -343,12 +332,13 @@ export function PreviewTextFormatSheet({
   onContentHeightChange,
 }: PreviewTextFormatSheetProps) {
   const { t } = useTranslation();
-  const { colors, isDark } = useAppTheme();
-  const capsule = isDark ? NOTES_CAPSULE_DARK : NOTES_CAPSULE_LIGHT;
+  const { colors } = useAppTheme();
+  // System fills/separators (Notes-style pills), accent for the selection.
+  const capsule = colors.secondarySystemFill;
   const selectedCapsule = colors.accent;
-  const divider = isDark ? NOTES_DIVIDER_DARK : NOTES_DIVIDER_LIGHT;
+  const divider = colors.separator;
   const ink = colors.label;
-  const selectedInk = '#FFFFFF';
+  const selectedInk = colors.onAccent;
   const [presetLayouts, setPresetLayouts] = useState<PresetChipLayoutMap>({});
   const [alignCapsuleWidth, setAlignCapsuleWidth] = useState(0);
   const [fontCapsuleWidth, setFontCapsuleWidth] = useState(0);
@@ -411,7 +401,7 @@ export function PreviewTextFormatSheet({
                     });
                   }}
                   onPress={() => {
-                    tap('light');
+                    selection();
                     onChangeStyle(applyMediaTextPreset(preset.id as MediaTextPreset));
                   }}
                   accessibilityRole="button"
@@ -440,30 +430,16 @@ export function PreviewTextFormatSheet({
           <View style={[styles.capsule, styles.formatCapsule, { backgroundColor: capsule }]}>
             {(
               [
-                ['B', 'bold', style.bold, () => onChangeStyle({ bold: !style.bold }), styles.glyphB],
+                ['bold', style.bold, () => onChangeStyle({ bold: !style.bold })],
+                ['italic', style.italic, () => onChangeStyle({ italic: !style.italic })],
+                ['underline', style.underline, () => onChangeStyle({ underline: !style.underline })],
                 [
-                  'I',
-                  'italic',
-                  style.italic,
-                  () => onChangeStyle({ italic: !style.italic }),
-                  styles.glyphI,
-                ],
-                [
-                  'U',
-                  'underline',
-                  style.underline,
-                  () => onChangeStyle({ underline: !style.underline }),
-                  styles.glyphU,
-                ],
-                [
-                  'S',
                   'strikethrough',
                   style.strikethrough,
                   () => onChangeStyle({ strikethrough: !style.strikethrough }),
-                  styles.glyphS,
                 ],
               ] as const
-            ).map(([glyph, key, selected, onPress, glyphStyle], index, items) => (
+            ).map(([key, selected, onPress], index, items) => (
               <CapsuleSegment
                 key={key}
                 selected={selected}
@@ -473,7 +449,7 @@ export function PreviewTextFormatSheet({
                 dividerColor={divider}
                 accentColor={selectedCapsule}
                 position={segmentPosition(index, items.length)}>
-                <Text style={[glyphStyle, { color: selected ? selectedInk : ink }]}>{glyph}</Text>
+                <AppIcon name={key} size={APP_ICON_SIZE.lg} color={selected ? selectedInk : ink} />
               </CapsuleSegment>
             ))}
           </View>
@@ -488,6 +464,7 @@ export function PreviewTextFormatSheet({
                 onSelect={(textColor) => onChangeStyle({ textColor })}
                 t={t}
                 labelColor={ink}
+                clearTint={colors.systemGray}
               />
             </View>
             <View style={[styles.divider, { backgroundColor: divider }]} />
@@ -503,6 +480,7 @@ export function PreviewTextFormatSheet({
                 }}
                 t={t}
                 labelColor={ink}
+                clearTint={colors.systemGray}
               />
             </View>
           </View>
@@ -587,7 +565,6 @@ export function PreviewTextFormatSheet({
             accentColor={selectedCapsule}
             capsuleColor={capsule}
             labelColor={ink}
-            isDark={isDark}
           />
         </View>
       </View>
@@ -617,14 +594,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     lineHeight: 30,
     fontWeight: '600',
-  },
-  closeFallback: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: NOTES_CAPSULE_LIGHT,
   },
   edgeToEdgeScroll: {
     flexGrow: 0,
@@ -721,29 +690,6 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     marginVertical: 13,
     zIndex: 2,
-  },
-  glyphB: {
-    fontSize: 20,
-    fontWeight: '800',
-    fontFamily: Platform.select({ ios: 'System', default: undefined }),
-  },
-  glyphI: {
-    fontSize: 20,
-    fontWeight: '600',
-    fontStyle: 'italic',
-    fontFamily: Platform.select({ ios: 'System', default: undefined }),
-  },
-  glyphU: {
-    fontSize: 20,
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-    fontFamily: Platform.select({ ios: 'System', default: undefined }),
-  },
-  glyphS: {
-    fontSize: 20,
-    fontWeight: '600',
-    textDecorationLine: 'line-through',
-    fontFamily: Platform.select({ ios: 'System', default: undefined }),
   },
   colorHit: {
     flex: 1,

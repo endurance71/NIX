@@ -1,7 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import type { VideoThumbnail } from 'expo-video';
-import { Video as VideoCompressor } from 'react-native-compressor';
 import { generateVideoThumbnailAtTime } from '../lib/videoThumbnails';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { withTimeout, getCompressionTimeout } from '../lib/compressionTimeout';
@@ -79,6 +78,43 @@ export type PreparedMedia = {
 
 function emitProgress(options: MediaUploadOptions | undefined, progress: MediaUploadProgress) {
   options?.onProgress?.(progress);
+}
+
+/**
+ * Video preparation runs several steps (transcode, optional aggressive second pass, thumbnail).
+ * Each owns a slice of 0…1 and the emitted value never decreases, so the upload ring cannot jump
+ * back when the next step starts (SEND-3).
+ */
+const VIDEO_PREPARE_BANDS = {
+  compressing: [0, 0.8],
+  aggressivePass: [0.8, 0.9],
+  thumbnail: [0.9, 1],
+} as const;
+
+function createMonotonicProgressEmitter(options: MediaUploadOptions | undefined) {
+  let last = 0;
+  return (phase: MediaUploadPhase, band: readonly [number, number], fraction: number) => {
+    const clamped = Math.max(0, Math.min(1, Number.isFinite(fraction) ? fraction : 0));
+    const value = band[0] + (band[1] - band[0]) * clamped;
+    if (value < last) return;
+    last = value;
+    emitProgress(options, { phase, progress: value });
+  };
+}
+
+type VideoCompressorModule = typeof import('react-native-compressor');
+let videoCompressorModule: Promise<VideoCompressorModule> | null = null;
+
+/**
+ * react-native-compressor is only needed when a video is actually transcoded; loading it on first
+ * use keeps its native module out of app start (PERF-4).
+ */
+function loadVideoCompressor() {
+  videoCompressorModule ??= import('react-native-compressor').catch((error: unknown) => {
+    videoCompressorModule = null;
+    throw error;
+  });
+  return videoCompressorModule.then((module) => module.Video);
 }
 
 async function getFileSizeBytes(uri: string): Promise<number | null> {
@@ -306,7 +342,8 @@ async function buildThumbnailDataUrl(
 export function isFastPathEligible(
   fileUri: string,
   originalSizeBytes: number | null | undefined,
-  playbackDurationMs: number | null | undefined
+  playbackDurationMs: number | null | undefined,
+  sourceDimensions: { width?: number | null; height?: number | null } = {}
 ): boolean {
   const estimatedBitrate =
     typeof originalSizeBytes === 'number' &&
@@ -317,6 +354,8 @@ export function isFastPathEligible(
   const profile = selectVideoCompressionProfile({
     sourceBitrate: estimatedBitrate,
     sourceSizeBytes: null,
+    sourceWidth: sourceDimensions.width,
+    sourceHeight: sourceDimensions.height,
     hevcEnabled: false,
     hevcSupported: false,
   });
@@ -330,7 +369,8 @@ export function isFastPathEligible(
 export async function prepareVideoForUpload(fileUri: string, options?: MediaUploadOptions): Promise<PreparedMedia> {
   const startedAt = nowMs();
   const originalSizeBytes = await getFileSizeBytes(fileUri);
-  emitProgress(options, { phase: 'compressing', progress: 0.02 });
+  const emitVideoProgress = createMonotonicProgressEmitter(options);
+  emitVideoProgress('compressing', VIDEO_PREPARE_BANDS.compressing, 0.02);
 
   if (isTestRuntime()) {
     return {
@@ -359,6 +399,8 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
   const balancedProfile = selectVideoCompressionProfile({
     sourceBitrate,
     sourceSizeBytes: null,
+    sourceWidth: options?.sourceWidth,
+    sourceHeight: options?.sourceHeight,
     hevcEnabled: false,
     hevcSupported: false,
   });
@@ -372,7 +414,10 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
     : balancedProfile;
 
   const fastPathEligible = !options?.forceAggressiveCompression
-    && isFastPathEligible(fileUri, originalSizeBytes, options?.playbackDurationMs);
+    && isFastPathEligible(fileUri, originalSizeBytes, options?.playbackDurationMs, {
+      width: options?.sourceWidth,
+      height: options?.sourceHeight,
+    });
 
   if (fastPathEligible) {
     const estimatedBitrate = typeof originalSizeBytes === 'number' && typeof options?.playbackDurationMs === 'number' && options.playbackDurationMs > 0
@@ -385,13 +430,14 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
       target_bitrate: balancedProfile.bitrate,
       estimated_bitrate: estimatedBitrate,
     });
-    emitProgress(options, { phase: 'compressing', progress: 0.95 });
+    emitVideoProgress('compressing', VIDEO_PREPARE_BANDS.compressing, 1);
   } else {
     try {
       console.warn('[upload] video compress start', {
         bytes: originalSizeBytes,
         bitrate: selectedProfile.bitrate,
       });
+      const VideoCompressor = await loadVideoCompressor();
       compressedUri = await withTimeout(
         VideoCompressor.compress(
           fileUri,
@@ -404,7 +450,7 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
             progressDivider: 5,
           },
           (progress) => {
-            emitProgress(options, { phase: 'compressing', progress: Math.max(0.02, Math.min(0.95, progress)) });
+            emitVideoProgress('compressing', VIDEO_PREPARE_BANDS.compressing, progress);
           }
         ),
         getCompressionTimeout(originalSizeBytes)
@@ -436,7 +482,7 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
               progressDivider: 5,
             },
             (progress) => {
-              emitProgress(options, { phase: 'compressing', progress: Math.max(0.4, Math.min(0.95, progress)) });
+              emitVideoProgress('compressing', VIDEO_PREPARE_BANDS.aggressivePass, progress);
             }
           ),
           getCompressionTimeout(firstPassSize)
@@ -465,7 +511,7 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
   let thumbnailUri: string | null = null;
   let thumbnailDataUrl: string | null = null;
   try {
-    emitProgress(options, { phase: 'thumbnail', progress: 0.2 });
+    emitVideoProgress('thumbnail', VIDEO_PREPARE_BANDS.thumbnail, 0);
     const thumbRef = await thumbnailPromise;
     if (thumbRef) {
       const previewContext = ImageManipulator.manipulate(thumbRef);
@@ -503,7 +549,7 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
         error_message: 'generateVideoThumbnailAtTime returned null',
       });
     }
-    emitProgress(options, { phase: 'thumbnail', progress: 1 });
+    emitVideoProgress('thumbnail', VIDEO_PREPARE_BANDS.thumbnail, 1);
   } catch (error) {
     trackEvent('thumbnail_generation_failed', {
       media_type: 'video',

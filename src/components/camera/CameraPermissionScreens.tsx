@@ -1,14 +1,13 @@
 import { type ReactNode } from 'react';
-import { Pressable, Text, View, type TextStyle, type ViewStyle } from 'react-native';
+import { Text, View, type TextStyle, type ViewStyle } from 'react-native';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
 import { useTranslation } from 'react-i18next';
+import { Button } from '../ui/button';
 
 export type CameraPermissionStyles = {
   permissionContainer: ViewStyle;
   permissionText: TextStyle;
   permissionHint?: TextStyle;
-  permissionButton: ViewStyle;
-  permissionButtonText: TextStyle;
 };
 
 function PermissionShell({
@@ -49,9 +48,7 @@ export function CameraInitializingPlaceholder({
           <Text style={styles.permissionHint}>
             {t('camera.initializationTimeout')}
           </Text>
-          <Pressable style={styles.permissionButton} onPress={onNavigateInbox} accessibilityRole="button">
-            <Text style={styles.permissionButtonText}>{t('camera.goToInbox')}</Text>
-          </Pressable>
+          <Button title={t('camera.goToInbox')} onPress={onNavigateInbox} size="large" />
         </>
       ) : null}
     </PermissionShell>
@@ -71,9 +68,11 @@ export function CameraPermissionDeniedPlaceholder({
   return (
     <PermissionShell styles={styles}>
       <Text style={styles.permissionText}>{t(canAskAgain ? 'camera.permissionRequired' : 'camera.permissionBlocked')}</Text>
-      <Pressable style={styles.permissionButton} onPress={onRequestPermission} accessibilityRole="button">
-        <Text style={styles.permissionButtonText}>{t(canAskAgain ? 'camera.grantPermission' : 'camera.openSettings')}</Text>
-      </Pressable>
+      <Button
+        title={t(canAskAgain ? 'camera.grantPermission' : 'camera.openSettings')}
+        onPress={onRequestPermission}
+        size="large"
+      />
     </PermissionShell>
   );
 }

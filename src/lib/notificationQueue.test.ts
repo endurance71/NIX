@@ -40,14 +40,14 @@ describe('notification lifetime', () => {
     queue.enqueue({ title: 'Saved', duration: NaN }); queue.markPresented(token());
     vi.advanceTimersByTime(4000); expect(queue.getSnapshot().phase).toBe('exiting');
   });
-  it('keeps VoiceOver content until explicitly dismissed', () => {
+  it('gives VoiceOver users a longer but finite lifetime', () => {
     queue.setScreenReader(true); queue.enqueue({ title: 'Saved' }); queue.markPresented(token());
-    vi.advanceTimersByTime(60000); expect(queue.getSnapshot().phase).toBe('visible');
-    close(); expect(queue.getSnapshot().notification).toBeNull();
+    vi.advanceTimersByTime(9999); expect(queue.getSnapshot().phase).toBe('visible');
+    vi.advanceTimersByTime(1); expect(queue.getSnapshot().phase).toBe('exiting');
   });
-  it('cancels an existing timer when VoiceOver is enabled', () => {
+  it('restarts the timer with the matching lifetime when VoiceOver toggles', () => {
     queue.enqueue({ title: 'Saved' }); queue.markPresented(token()); vi.advanceTimersByTime(3500);
-    queue.setScreenReader(true); vi.advanceTimersByTime(60000);
+    queue.setScreenReader(true); vi.advanceTimersByTime(9999);
     expect(queue.getSnapshot().phase).toBe('visible');
     queue.setScreenReader(false); vi.advanceTimersByTime(3999);
     expect(queue.getSnapshot().phase).toBe('visible');
@@ -70,16 +70,25 @@ describe('bounded queue and deduplication', () => {
     vi.advanceTimersByTime(2200); expect(queue.getSnapshot().phase).toBe('exiting');
     close(); expect(queue.getSnapshot().notification).toBeNull();
   });
+  it('never drops a pending error for later, less important items', () => {
+    queue.enqueue({ title: 'Visible' });
+    queue.enqueue({ title: 'Failure', kind: 'error' });
+    queue.enqueue({ title: 'Done 1', kind: 'success' });
+    queue.enqueue({ title: 'Done 2', kind: 'success' });
+    close(); expect(queue.getSnapshot().notification?.title).toBe('Failure');
+    close(); expect(queue.getSnapshot().notification?.title).toBe('Done 2');
+  });
   it('merges pending items too', () => {
     queue.enqueue({ title: 'A' }); const id = queue.enqueue({ title: 'B' });
     expect(queue.enqueue({ title: 'B' })).toBe(id);
     close(); close(); expect(queue.getSnapshot().notification).toBeNull();
   });
   it('allows the same text again after two seconds and distinguishes kinds', () => {
-    queue.enqueue({ title: 'Same' }); vi.advanceTimersByTime(2001);
+    queue.enqueue({ title: 'Same' }); queue.markPresented(token()); vi.advanceTimersByTime(2001);
     queue.enqueue({ title: 'Same' }); queue.enqueue({ title: 'Same', kind: 'error' });
-    close(); expect(queue.getSnapshot().notification?.kind).toBe('info');
+    // The error pre-empts the visible info and jumps ahead of the pending repeat.
     close(); expect(queue.getSnapshot().notification?.kind).toBe('error');
+    close(); expect(queue.getSnapshot().notification?.kind).toBe('info');
   });
   it('starts the next lifetime after its reveal, even when queued for a long time', () => {
     queue.enqueue({ title: 'A', duration: null }); queue.markPresented(token());
@@ -138,5 +147,76 @@ describe('session and stale callbacks', () => {
     queue.enqueue({ title: 'A' }); queue.markPresented(token()); expect(vi.getTimerCount()).toBe(1);
     unsubscribe(); listener.mockClear(); queue.setActive(false);
     expect(vi.getTimerCount()).toBe(0); expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe('keyed updates, pre-emption and feedback timing', () => {
+  it('updates a visible keyed card in place and restarts its lifetime', () => {
+    queue.enqueue({ id: 'upload', title: 'Uploading', kind: 'info' }); const shown = token();
+    queue.markPresented(shown); vi.advanceTimersByTime(3500);
+    expect(queue.enqueue({ id: 'upload', title: 'Uploaded', message: '3 photos', kind: 'success' })).toBe('upload');
+    expect(queue.getSnapshot()).toMatchObject({
+      phase: 'visible', generation: shown.generation, notification: { title: 'Uploaded', message: '3 photos', kind: 'success' },
+    });
+    vi.advanceTimersByTime(3999); expect(queue.getSnapshot().phase).toBe('visible');
+    vi.advanceTimersByTime(1); expect(queue.getSnapshot().phase).toBe('exiting');
+  });
+  it('updates a pending keyed card without queueing it twice', () => {
+    queue.enqueue({ title: 'Visible' });
+    queue.enqueue({ id: 'key', title: 'Old' }); queue.enqueue({ id: 'key', title: 'New' });
+    close(); expect(queue.getSnapshot().notification?.title).toBe('New');
+    close(); expect(queue.getSnapshot().phase).toBe('idle');
+  });
+  it('queues a keyed update behind its own exiting card', () => {
+    queue.enqueue({ id: 'key', title: 'Old' }); queue.markPresented(token()); queue.dismiss(token());
+    queue.enqueue({ id: 'key', title: 'New' }); queue.finishDismiss({ id: 'key', generation: queue.getSnapshot().generation });
+    expect(queue.getSnapshot()).toMatchObject({ phase: 'entering', notification: { title: 'New' } });
+  });
+  it('pre-empts a visible success with an error and does not show the success again', () => {
+    queue.enqueue({ title: 'Saved', kind: 'success' }); queue.markPresented(token());
+    queue.enqueue({ title: 'Later', kind: 'info' });
+    queue.enqueue({ title: 'Failed', kind: 'error' });
+    expect(queue.getSnapshot()).toMatchObject({ phase: 'exiting', interrupted: true, notification: { title: 'Saved' } });
+    expect(vi.getTimerCount()).toBe(0);
+    queue.finishDismiss(token());
+    expect(queue.getSnapshot()).toMatchObject({ phase: 'entering', interrupted: false, notification: { title: 'Failed' } });
+    close(); expect(queue.getSnapshot().notification?.title).toBe('Later');
+    close(); expect(queue.getSnapshot().phase).toBe('idle');
+  });
+  it('re-queues a card that was still entering right after the pre-empting error', () => {
+    queue.enqueue({ title: 'Saved', kind: 'success' }); queue.enqueue({ title: 'Failed', kind: 'error' });
+    expect(queue.getSnapshot().phase).toBe('exiting'); queue.finishDismiss(token());
+    expect(queue.getSnapshot().notification?.title).toBe('Failed');
+    close(); expect(queue.getSnapshot().notification?.title).toBe('Saved');
+  });
+  it('never pre-empts an error with another error', () => {
+    queue.enqueue({ title: 'First', kind: 'error' }); queue.markPresented(token());
+    queue.enqueue({ title: 'Second', kind: 'error' });
+    expect(queue.getSnapshot()).toMatchObject({ phase: 'visible', notification: { title: 'First' } });
+  });
+  it('emits haptic feedback once, at enqueue, and not for info, duplicates or rejected items', () => {
+    const feedback = vi.fn(); queue.setFeedbackHandler(feedback);
+    queue.enqueue({ title: 'Saved', kind: 'success' });
+    expect(feedback).toHaveBeenCalledExactlyOnceWith({ haptic: 'success' });
+    queue.enqueue({ title: 'Saved', kind: 'success' }); queue.enqueue({ title: 'Info' });
+    queue.markPresented(token()); expect(feedback).toHaveBeenCalledOnce();
+    queue.setActive(false); queue.enqueue({ title: 'Background', kind: 'error' });
+    expect(feedback).toHaveBeenCalledOnce();
+  });
+  it('re-announces a keyed update for VoiceOver and buzzes only when the kind changes', () => {
+    const feedback = vi.fn(); queue.setFeedbackHandler(feedback); queue.setScreenReader(true);
+    queue.enqueue({ id: 'k', title: 'Uploading' }); queue.markPresented(token());
+    queue.enqueue({ id: 'k', title: 'Uploading', message: '50%' });
+    expect(feedback).toHaveBeenLastCalledWith({ haptic: undefined, announcement: 'Uploading. 50%' });
+    queue.enqueue({ id: 'k', title: 'Failed', kind: 'error' });
+    expect(feedback).toHaveBeenLastCalledWith({ haptic: 'error', announcement: 'Failed' });
+  });
+  it('resolves whenSettled once the card stops animating, or after the timeout', async () => {
+    await expect(queue.whenSettled()).resolves.toBeUndefined();
+    queue.enqueue({ title: 'A' }); const settled = vi.fn(); void queue.whenSettled().then(settled);
+    await Promise.resolve(); expect(settled).not.toHaveBeenCalled();
+    queue.markPresented(token()); await Promise.resolve(); expect(settled).toHaveBeenCalledOnce();
+    queue.dismiss(token()); const timedOut = vi.fn(); void queue.whenSettled(500).then(timedOut);
+    vi.advanceTimersByTime(500); await Promise.resolve(); expect(timedOut).toHaveBeenCalledOnce();
   });
 });

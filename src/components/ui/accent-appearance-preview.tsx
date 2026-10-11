@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import { HStack, Image as SwiftImage, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel as swiftAccessibilityLabel,
@@ -73,9 +72,7 @@ export function AccentAppearancePreview() {
           modifiers={[
             padding({ leading: 28, trailing: 28, top: 16, bottom: 16 }),
             background(colors.cameraControlBackground, shapes.capsule()),
-            ...(Platform.OS === 'ios'
-              ? [glassEffect({ glass: { variant: 'regular', interactive: false }, shape: 'capsule' as const })]
-              : []),
+            glassEffect({ glass: { variant: 'regular', interactive: false }, shape: 'capsule' as const }),
           ]}>
           {PREVIEW_ICONS.map((name) => (
             <SwiftImage

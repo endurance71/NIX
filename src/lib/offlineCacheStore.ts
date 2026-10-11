@@ -38,9 +38,13 @@ type StoredRow = {
 
 type StoredEnvelope = { version: 1; data: unknown };
 
+type ChatScopeRow = { scope_id: string; cached_at: number };
+
 export type OfflineCacheBackend = {
   upsert(row: StoredRow): Promise<void>;
   list(ownerId: string): Promise<StoredRow[]>;
+  /** Newest `cached_at` per cached chat peer, without loading any encrypted payload. */
+  listChatScopes(ownerId: string): Promise<ChatScopeRow[]>;
   deleteOwner(ownerId: string): Promise<void>;
   deleteEntry(ownerId: string, queryKey: string): Promise<void>;
   deleteScope(ownerId: string, category: OfflineCacheCategory, scopeId: string): Promise<void>;
@@ -91,16 +95,11 @@ export function createOfflineCacheStore(
     });
 
     if (descriptor.category === 'chat') {
-      const rows = await backend.list(ownerId);
-      const latestByScope = new Map<string, number>();
-      for (const row of rows) {
-        if (row.category !== 'chat' || !row.scope_id) continue;
-        latestByScope.set(row.scope_id, Math.max(latestByScope.get(row.scope_id) ?? 0, row.cached_at));
-      }
-      const staleScopes = [...latestByScope.entries()]
-        .sort((left, right) => right[1] - left[1])
+      const scopes = await backend.listChatScopes(ownerId);
+      const staleScopes = [...scopes]
+        .sort((left, right) => right.cached_at - left.cached_at)
         .slice(MAX_CHAT_PEERS)
-        .map(([scopeId]) => scopeId);
+        .map((scope) => scope.scope_id);
       await Promise.all(staleScopes.map((scopeId) => backend.deleteScope(ownerId, 'chat', scopeId)));
     }
     return true;
@@ -116,40 +115,43 @@ export function createOfflineCacheStore(
     return operations.run(ownerId, async (assertActive) => {
       const rows = await backend.list(ownerId);
       assertActive();
-      const entries: OfflineCacheEntry[] = [];
-      for (const row of rows) {
+      // Rows decrypt independently; awaiting them one by one held the splash for the sum of all
+      // AES round-trips. `null` marks a corrupt row that was dropped.
+      const decoded = await Promise.all(rows.map(async (row): Promise<OfflineCacheEntry | null> => {
         try {
-        const queryKey = parseQueryKey(row.query_key);
-        const envelope = JSON.parse(
-          await codec.decrypt(ownerId, row.encrypted_payload)
-        ) as Partial<StoredEnvelope>;
-        assertActive();
-        if (envelope.version !== PAYLOAD_VERSION || !('data' in envelope)) {
-          throw new Error('Unsupported offline cache payload');
-        }
-        const sanitized = sanitizeOfflineQueryData(queryKey, envelope.data, now());
-        if (JSON.stringify(sanitized) !== JSON.stringify(envelope.data)) {
-          const encryptedPayload = await codec.encrypt(ownerId, JSON.stringify({
-            version: PAYLOAD_VERSION,
-            data: sanitized,
-          } satisfies StoredEnvelope));
+          const queryKey = parseQueryKey(row.query_key);
+          const envelope = JSON.parse(
+            await codec.decrypt(ownerId, row.encrypted_payload)
+          ) as Partial<StoredEnvelope>;
           assertActive();
-          await backend.upsert({ ...row, encrypted_payload: encryptedPayload });
-        }
-        entries.push({
-          queryKey,
-          data: sanitized,
-          category: row.category,
-          scopeId: row.scope_id,
-          dataUpdatedAt: row.data_updated_at,
-          cachedAt: row.cached_at,
-        });
+          if (envelope.version !== PAYLOAD_VERSION || !('data' in envelope)) {
+            throw new Error('Unsupported offline cache payload');
+          }
+          const sanitized = sanitizeOfflineQueryData(queryKey, envelope.data, now());
+          if (JSON.stringify(sanitized) !== JSON.stringify(envelope.data)) {
+            const encryptedPayload = await codec.encrypt(ownerId, JSON.stringify({
+              version: PAYLOAD_VERSION,
+              data: sanitized,
+            } satisfies StoredEnvelope));
+            assertActive();
+            await backend.upsert({ ...row, encrypted_payload: encryptedPayload });
+          }
+          return {
+            queryKey,
+            data: sanitized,
+            category: row.category,
+            scopeId: row.scope_id,
+            dataUpdatedAt: row.data_updated_at,
+            cachedAt: row.cached_at,
+          };
         } catch (error) {
           if (error instanceof AccountStorageCancelledError) throw error;
           assertActive();
           await backend.deleteEntry(ownerId, row.query_key);
+          return null;
         }
-      }
+      }));
+      const entries = decoded.filter((entry): entry is OfflineCacheEntry => entry !== null);
       assertActive();
       return entries;
     });
@@ -211,6 +213,15 @@ const sqliteBackend: OfflineCacheBackend = {
     const db = await database();
     return db.getAllAsync<StoredRow>(
       'SELECT * FROM offline_query_cache WHERE owner_id = ? ORDER BY cached_at DESC',
+      ownerId
+    );
+  },
+  async listChatScopes(ownerId) {
+    const db = await database();
+    return db.getAllAsync<ChatScopeRow>(
+      `SELECT scope_id, MAX(cached_at) AS cached_at FROM offline_query_cache
+        WHERE owner_id = ? AND category = 'chat' AND scope_id IS NOT NULL
+        GROUP BY scope_id`,
       ownerId
     );
   },

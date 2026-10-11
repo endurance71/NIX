@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import QRCode from 'react-native-qrcode-svg';
 import { ThemeColors, lightColors } from '../../theme/colors';
-import { APP_FONT_FAMILY } from '../../theme/typography';
+import { spacing } from '../../theme/spacing';
+import { APP_FONT_FAMILY, typography } from '../../theme/typography';
 
 type MyProfileQrCardProps = {
   payload: string | null;
@@ -91,6 +93,7 @@ export function MyProfileQrCard({
   avatarEmoji,
   fallbackInitial,
 }: MyProfileQrCardProps) {
+  const { t } = useTranslation();
   const safeOverlayRatio = Math.min(0.32, Math.max(0.2, centerOverlayRatio));
   const logoSize = Math.round(size * safeOverlayRatio);
   const innerContentSize = logoSize * 0.72;
@@ -113,8 +116,12 @@ export function MyProfileQrCard({
           },
         ]}>
         {payload ? (
-          <View style={styles.qrWrapper}>
-            <QRCode value={payload} size={size} />
+          <View
+            style={styles.qrWrapper}
+            accessible
+            accessibilityRole="image"
+            accessibilityLabel={t('profile.qrCodeA11y')}>
+            <QRCode value={payload} size={size} ecl="Q" />
             <View
               style={[
                 styles.logoBackdrop,
@@ -138,7 +145,7 @@ export function MyProfileQrCard({
           </View>
         ) : (
           <Text style={[styles.errorText, { color: lightColors.error }]}>
-            {error ?? 'Brak danych profilu do QR.'}
+            {error ?? t('profile.qrUnavailable')}
           </Text>
         )}
       </View>
@@ -175,9 +182,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   errorText: {
-    fontSize: 13,
-    fontFamily: APP_FONT_FAMILY,
+    ...typography.footnote,
     textAlign: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
   },
 });

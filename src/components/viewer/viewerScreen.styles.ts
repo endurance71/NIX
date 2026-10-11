@@ -2,69 +2,133 @@ import { StyleSheet } from 'react-native';
 import { typography } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/colors';
 
-const TIMER_TRACK_HEIGHT = 8;
+/** Stories-style progress segments. */
+const SEGMENT_HEIGHT = 3;
+export const VIEWER_AVATAR_SIZE = 32;
+export const VIEWER_CHROME_BUTTON_SIZE = 44;
+const REPLY_PILL_HEIGHT = 44;
 
 /** Cinema surfaces stay black in both light and dark (same as camera / preview). */
-const VIEWER_CINEMA_BACKGROUND = '#000000';
-
 export function createViewerStyles(colors: ThemeColors) {
-  const progressBlue = colors.systemBlue;
-  const trackSoftWhite = colors.viewerChromeFill;
   const chromeTint = colors.cameraControlTint;
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: VIEWER_CINEMA_BACKGROUND,
+      backgroundColor: 'transparent',
+    },
+    bootContainer: {
+      flex: 1,
+      backgroundColor: colors.cinemaBackground,
       justifyContent: 'center',
       alignItems: 'center',
     },
-    timerHudShell: {
-      position: 'absolute',
-      left: 16,
-      right: 16,
-      borderRadius: 12,
+    /** Dims away while swiping down, revealing the screen under the modal. */
+    backdrop: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: colors.cinemaBackground,
+    },
+    stage: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: colors.cinemaBackground,
       overflow: 'hidden',
+      borderCurve: 'continuous',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    topScrim: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: 0,
+      experimental_backgroundImage: `linear-gradient(180deg, ${colors.cinemaScrim} 0%, transparent 100%)`,
+    },
+    bottomScrim: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      experimental_backgroundImage: `linear-gradient(0deg, ${colors.cinemaScrim} 0%, transparent 100%)`,
+    },
+    chromeLayer: {
+      ...StyleSheet.absoluteFill,
       zIndex: 10,
     },
-    timerBlur: {
-      ...StyleSheet.absoluteFill,
-    },
-    timerHudInner: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-    },
-    segmentsRow: {
+    hud: {
+      position: 'absolute',
+      left: 8,
+      right: 8,
       flexDirection: 'row',
-      alignItems: 'center',
-      gap: 5,
+      gap: 3,
     },
-    segmentCell: {
+    segmentTrack: {
       flex: 1,
       minWidth: 0,
-    },
-    timerTrack: {
-      height: TIMER_TRACK_HEIGHT,
-      borderRadius: TIMER_TRACK_HEIGHT / 2,
+      height: SEGMENT_HEIGHT,
+      borderRadius: SEGMENT_HEIGHT / 2,
       overflow: 'hidden',
-      backgroundColor: trackSoftWhite,
-    },
-    segmentFill: {
-      ...StyleSheet.absoluteFill,
-      backgroundColor: trackSoftWhite,
+      backgroundColor: colors.cinemaTrack,
     },
     segmentFillDone: {
       ...StyleSheet.absoluteFill,
-      backgroundColor: progressBlue,
+      backgroundColor: chromeTint,
     },
-    segmentProgressMask: {
+    /** Absolute and childless, so animating `width` keeps the rounded end crisp. */
+    segmentFillActive: {
       position: 'absolute',
       left: 0,
       top: 0,
       bottom: 0,
-      width: '100%',
-      borderRadius: TIMER_TRACK_HEIGHT / 2,
-      backgroundColor: progressBlue,
-      transformOrigin: 'left center',
+      borderRadius: SEGMENT_HEIGHT / 2,
+      backgroundColor: chromeTint,
+    },
+    header: {
+      position: 'absolute',
+      left: 12,
+      right: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    senderInfo: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    senderText: {
+      flexShrink: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 6,
+    },
+    senderName: {
+      ...typography.headline,
+      color: chromeTint,
+      flexShrink: 1,
+    },
+    senderTime: {
+      ...typography.footnote,
+      color: colors.cinemaSecondaryLabel,
+      fontVariant: ['tabular-nums'],
+    },
+    replayChip: {
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 10,
+      borderCurve: 'continuous',
+      backgroundColor: colors.viewerChromeFill,
+    },
+    replayChipText: {
+      ...typography.caption,
+      color: chromeTint,
+      fontWeight: '600',
+    },
+    headerButtons: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
     },
     image: {
       width: '100%',
@@ -73,69 +137,136 @@ export function createViewerStyles(colors: ThemeColors) {
     imageContainer: {
       width: '100%',
       height: '100%',
-      backgroundColor: VIEWER_CINEMA_BACKGROUND,
+      backgroundColor: colors.cinemaBackground,
     },
-    dismissArea: {
+    /** Previous photo kept under the next one until it is ready (no black flash). */
+    heldFrame: {
+      ...StyleSheet.absoluteFill,
+    },
+    /** Poster above the VideoView until its first frame (PERF-20). */
+    videoPosterLayer: {
+      ...StyleSheet.absoluteFill,
+    },
+    touchLayer: {
       ...StyleSheet.absoluteFill,
       zIndex: 5,
     },
-    safetyButton: {
+    bottomBar: {
       position: 'absolute',
-      right: 16,
-      zIndex: 15,
-      minWidth: 44,
-      minHeight: 44,
-      borderRadius: 22,
+      left: 12,
+      right: 12,
+      gap: 10,
+    },
+    bottomRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    replyPill: {
+      flex: 1,
+      minHeight: REPLY_PILL_HEIGHT,
+      borderRadius: REPLY_PILL_HEIGHT / 2,
+      borderCurve: 'continuous',
+      borderWidth: StyleSheet.hairlineWidth * 2,
+      borderColor: colors.cinemaTrack,
+      backgroundColor: colors.cameraControlBackground,
+      paddingHorizontal: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    replyInput: {
+      ...typography.body,
+      flex: 1,
+      color: chromeTint,
+      paddingVertical: 10,
+      maxHeight: 120,
+    },
+    reactionRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: 4,
+    },
+    reactionButton: {
+      width: 48,
+      height: 48,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    reactionGlyph: {
+      fontSize: 30,
+      lineHeight: 36,
+    },
+    /** The viewer's current NiX reaction in the emoji row (tap again to remove). */
+    reactionButtonSelected: {
+      borderRadius: 24,
+      borderCurve: 'continuous',
+      borderWidth: 2,
+      borderColor: colors.accent,
       backgroundColor: colors.viewerChromeFill,
     },
-    safetyButtonText: {
-      ...typography.callout,
-      color: chromeTint,
-      fontWeight: '800',
-      letterSpacing: 1,
+    /** Own reaction at the end of the reply pill; opens the emoji row. */
+    ownReaction: {
+      marginLeft: 8,
+      minWidth: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
-    saveButtonWrap: {
-      position: 'absolute',
-      left: 24,
-      zIndex: 15,
+    ownReactionGlyph: {
+      fontSize: 20,
+      lineHeight: 24,
     },
-    loadingOverlaySolid: {
+    /** Reaction confirmation: one large glyph over the centre of the media. */
+    reactionPopLayer: {
       ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: 'transparent',
+      zIndex: 7,
+    },
+    reactionPopGlyph: {
+      fontSize: 96,
+      lineHeight: 112,
+    },
+    loadingOverlay: {
+      ...StyleSheet.absoluteFill,
+      alignItems: 'center',
+      justifyContent: 'center',
       zIndex: 6,
     },
     errorOverlay: {
       ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: VIEWER_CINEMA_BACKGROUND,
+      backgroundColor: colors.cinemaBackground,
       paddingHorizontal: 24,
+      gap: 10,
+      zIndex: 25,
     },
-    captureBlurMask: {
+    captureMask: {
       ...StyleSheet.absoluteFill,
-      backgroundColor: VIEWER_CINEMA_BACKGROUND,
-      zIndex: 20,
+      backgroundColor: colors.cinemaBackground,
+      zIndex: 30,
     },
     errorText: {
       ...typography.callout,
       color: chromeTint,
       textAlign: 'center',
-      marginBottom: 14,
+      marginBottom: 4,
     },
-    backButton: {
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderRadius: 10,
+    errorButton: {
+      minHeight: 44,
+      minWidth: 120,
+      paddingHorizontal: 18,
+      borderRadius: 22,
+      borderCurve: 'continuous',
+      alignItems: 'center',
+      justifyContent: 'center',
       backgroundColor: colors.viewerChromeFill,
     },
-    backButtonText: {
-      ...typography.footnote,
+    errorButtonText: {
+      ...typography.callout,
       color: chromeTint,
-      fontWeight: '700',
+      fontWeight: '600',
     },
   });
 }

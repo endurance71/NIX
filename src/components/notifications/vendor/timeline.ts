@@ -13,3 +13,11 @@ export const ENTER_REVEAL_DELAY = 560;
 export const EXIT_COLLAPSE_DELAY = 100;
 export const EXIT_DROP_DELAY = 280;
 export const CONTENT_MIN_SCALE = 0.88;
+
+// NiX fast card (NOTIF-4): readable in ≤ 300 ms, gone in ≤ 220 ms. The upstream morph above
+// (~1.3 s to readable text) is reserved for rare `prominent` results.
+export const CARD_ENTER_MS = 300;
+export const CARD_EXIT_MS = 220;
+export const CARD_REDUCED_MOTION_MS = 150;
+export const CARD_ENTER_OFFSET = -16;
+export const CARD_MIN_SCALE = 0.96;

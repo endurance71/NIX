@@ -4,6 +4,7 @@ import { Gesture } from 'react-native-gesture-handler';
 import {
   Easing,
   cancelAnimation,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -20,6 +21,18 @@ import {
   previewTextTopAboveObstacle,
 } from '../../lib/mediaTextOverlayGeometry';
 import type { PreviewTextStickerProps } from './PreviewTextSticker.types';
+import { tap } from '../../lib/haptics';
+
+/** How far past its lowest resting spot the sticker can be dragged toward the trash zone. */
+const TRASH_OVERDRAG_PX = 72;
+/** Past this much overdrag the sticker is over the trash zone; releasing deletes it. */
+const TRASH_ACTIVATE_PX = 28;
+export const TRASH_ZONE_SIZE = 56;
+const DROP_SPRING = { duration: 400, dampingRatio: 0.8 } as const;
+
+function trashTick() {
+  tap('light');
+}
 
 const FORMAT_SHEET_FALLBACK_HEIGHT = 380;
 const FORMAT_PARK_REFINE_EPSILON = 10;
@@ -98,6 +111,7 @@ type ControllerArgs = Required<
     | 'onTopPxChange'
     | 'onPressDisplay'
     | 'onConfirm'
+    | 'onDelete'
     | 'exiting'
     | 'animateEnter'
   >
@@ -143,6 +157,7 @@ export function usePreviewTextStickerController({
   onTopPxChange,
   onPressDisplay,
   onConfirm,
+  onDelete,
   exiting,
   onExitComplete,
   animateEnter,
@@ -167,6 +182,8 @@ export function usePreviewTextStickerController({
   const translateY = useSharedValue(topPx);
   const restTop = useSharedValue(topPx);
   const dragStartY = useSharedValue(topPx);
+  const trashVisible = useSharedValue(0);
+  const overTrash = useSharedValue(false);
   const editProgress = useSharedValue(mode === 'editing' ? 1 : 0);
   const presence = useSharedValue(animateEnter && motionEnabled ? 0 : 1);
   const isEditing = mode === 'editing';
@@ -211,8 +228,11 @@ export function usePreviewTextStickerController({
 
   useEffect(() => {
     if (formatOpenRef.current) return;
+    // A drop already placed the sticker (and may still be springing back from the trash
+    // overdrag); only outside changes jump it.
+    const fromDrop = Math.abs(restTop.get() - topPx) < 0.5;
     restTop.set(topPx);
-    if (keyboardHeightRef.current >= 1) return;
+    if (keyboardHeightRef.current >= 1 || fromDrop) return;
     translateY.set(topPx);
   }, [restTop, topPx, translateY]);
 
@@ -403,24 +423,55 @@ export function usePreviewTextStickerController({
     );
   }, [exiting, motionEnabled, presence, translateY]);
 
+  // Only a placed (display-mode) sticker can be dropped on the trash; while typing the trash
+  // button in the action row deletes it.
+  const canTrash = !isEditing && !exiting;
   const pan = Gesture.Pan()
     .enabled(!formatOpen)
     .minDistance(4)
     .onBegin(() => {
       'worklet';
+      cancelAnimation(translateY);
       dragStartY.set(translateY.get());
+    })
+    .onStart(() => {
+      'worklet';
+      if (canTrash) trashVisible.set(motionEnabled ? withTiming(1, { duration: duration.fast }) : 1);
     })
     .onUpdate((event) => {
       'worklet';
       const rawNext = dragStartY.get() + event.translationY;
-      translateY.set(Math.max(minTopPx, Math.min(maxTopPx, rawNext)));
+      const lowest = canTrash ? maxTopPx + TRASH_OVERDRAG_PX : maxTopPx;
+      const next = Math.max(minTopPx, Math.min(lowest, rawNext));
+      translateY.set(next);
+      overTrash.set(canTrash && next - maxTopPx >= TRASH_ACTIVATE_PX);
     })
     .onEnd(() => {
       'worklet';
-      const nextTopPx = translateY.get();
+      if (overTrash.get()) {
+        scheduleOnRN(onDelete);
+        return;
+      }
+      const nextTopPx = Math.min(maxTopPx, translateY.get());
+      if (nextTopPx !== translateY.get()) {
+        translateY.set(motionEnabled ? withSpring(nextTopPx, DROP_SPRING) : nextTopPx);
+      }
       restTop.set(nextTopPx);
       scheduleOnRN(onTopPxChange, nextTopPx);
+    })
+    .onFinalize(() => {
+      'worklet';
+      overTrash.set(false);
+      trashVisible.set(motionEnabled ? withTiming(0, { duration: duration.fast }) : 0);
     });
+
+  // Light tick at the moment the sticker crosses into the trash zone (the visual grows with it).
+  useAnimatedReaction(
+    () => overTrash.get(),
+    (current, previous) => {
+      if (current && previous === false) scheduleOnRN(trashTick);
+    },
+  );
 
   const tapDisplay = Gesture.Tap()
     .enabled(!isEditing)
@@ -436,7 +487,11 @@ export function usePreviewTextStickerController({
     else onConfirm();
   };
 
-  const shellStyle = useAnimatedStyle(() => ({ top: translateY.get() }));
+  // A transform, not `top`: dragging must not re-run layout (and the bar's blur) every frame.
+  const shellStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.get() }],
+    opacity: overTrash.get() ? 0.55 : 1,
+  }));
   const actionsStyle = useAnimatedStyle(() => ({
     opacity: editProgress.get() * presence.get() * actionsReady.get(),
   }));
@@ -464,6 +519,9 @@ export function usePreviewTextStickerController({
 
   return {
     actionsStyle,
+    trashVisible,
+    trashActive: overTrash,
+    trashZoneTopPx: maxTopPx + TRASH_ACTIVATE_PX,
     composed,
     contentPresenceStyle,
     displayTextStyle,

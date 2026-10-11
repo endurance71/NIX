@@ -130,7 +130,8 @@ export default function ChangePasswordScreen() {
 
     dispatchForm({ type: 'loading', loading: false });
     notifySuccess(t('profile.passwordChanged'));
-    router.replace('/(tabs)/profile');
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/profile');
   };
 
   return (

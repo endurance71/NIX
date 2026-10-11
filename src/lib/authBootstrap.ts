@@ -64,3 +64,32 @@ export function authStatusForResult(result: AuthBootstrapResult): AuthStatus {
     case 'unknown_error': return 'recoverableError';
   }
 }
+
+const OFFLINE_SESSION_LOOKUP_TIMEOUT_MS = 1_500;
+
+type SessionLookupResponse = { data: { session: Session | null }; error: unknown };
+
+/**
+ * Offline with an expired token, auth-js keeps retrying the refresh for ~25 s before it gives up,
+ * holding the splash the whole time. With a local session and no network we continue with that
+ * session (classified as offline) right away; the reconnect bootstrap verifies it later.
+ */
+export async function lookupSessionWithOfflineFallback<TResponse extends SessionLookupResponse>(
+  getSession: () => Promise<TResponse>,
+  localSession: Session | null,
+  online: boolean,
+  timeoutMs = OFFLINE_SESSION_LOOKUP_TIMEOUT_MS
+): Promise<TResponse | { data: { session: Session }; error: null }> {
+  const sessionLookup = getSession();
+  if (!localSession || online) return sessionLookup;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const offline = new Promise<{ data: { session: Session }; error: null }>((resolve) => {
+    timer = setTimeout(() => resolve({ data: { session: localSession }, error: null }), timeoutMs);
+  });
+  void sessionLookup.catch(() => undefined);
+  try {
+    return await Promise.race([sessionLookup, offline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}

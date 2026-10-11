@@ -74,3 +74,35 @@ describe('durable PUT fallback control', () => {
     expect(fixture.finalize).not.toHaveBeenCalled();
   });
 });
+
+describe('native event bridge', () => {
+  it('maps a throttled native progress event to an uploading snapshot of its attempt', async () => {
+    const handlers = new Map<string, (event: unknown) => void>();
+    vi.doMock('../../modules/nix-background-uploader/src', () => ({
+      default: {
+        addListener: (name: string, handler: (event: unknown) => void) => {
+          handlers.set(name, handler);
+          return { remove: () => undefined };
+        },
+      },
+    }));
+    vi.doMock('../config/uploadFeatures', () => ({ uploadFeatures: { nativeBackgroundUpload: true } }));
+    try {
+      const { backgroundUploader: uploader } = await import('./backgroundUploader');
+      expect(uploader.isNative).toBe(true);
+      const seen: unknown[] = [];
+      uploader.subscribe((snapshot) => seen.push(snapshot));
+      // Native emits the final 100 % even inside the 250 ms window (PERF-8).
+      handlers.get('onUploadProgress')?.({
+        jobId: 'job', batchId: 'batch', attemptId: 'attempt-2', updatedAt: 5,
+        progress: 1, bytesSent: 100, bytesTotal: 100,
+      });
+      expect(seen).toEqual([expect.objectContaining({
+        jobId: 'job', state: 'uploading', progress: 1, attemptId: 'attempt-2', updatedAt: 5,
+      })]);
+    } finally {
+      vi.doUnmock('../../modules/nix-background-uploader/src');
+      vi.doUnmock('../config/uploadFeatures');
+    }
+  });
+});

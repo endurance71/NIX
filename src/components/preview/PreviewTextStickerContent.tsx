@@ -3,7 +3,6 @@ import { GestureDetector } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { tap } from '../../lib/haptics';
 import { DEFAULT_MEDIA_TEXT_COLOR } from '../../types/mediaTextOverlay';
 import { NativeChromeIconButton } from '../ui/native-chrome-icon-button';
 import { PreviewTextBar } from './PreviewTextBar';
@@ -69,6 +68,9 @@ function StickerTextInput({
       value={text}
       onChangeText={onChangeText}
       placeholder=""
+      // The sticker is media content: its size comes from the size slider and is baked into the
+      // file in points, so Dynamic Type must not scale it on screen.
+      allowFontScaling={false}
       style={[
         styles.input,
         styles.inputLayer,
@@ -149,10 +151,7 @@ export function PreviewTextStickerContent({
               <NativeChromeIconButton
                 name="textFormat"
                 accessibilityLabel={t('preview.textFormat')}
-                onPress={() => {
-                  tap('light');
-                  openFormatSheet();
-                }}
+                onPress={openFormatSheet}
                 backgroundColor={colors.cameraControlBackground}
                 tintColor={colors.cameraControlTint}
                 chromeVariant="glass"
@@ -163,10 +162,7 @@ export function PreviewTextStickerContent({
               <NativeChromeIconButton
                 name="trash"
                 accessibilityLabel={t('preview.deleteText')}
-                onPress={() => {
-                  tap('light');
-                  onDelete();
-                }}
+                onPress={onDelete}
                 backgroundColor={colors.cameraControlBackground}
                 tintColor={colors.destructive}
                 chromeVariant="glass"
@@ -184,6 +180,7 @@ export function PreviewTextStickerContent({
                 {emptyEditing ? (
                   <Text
                     pointerEvents="none"
+                    allowFontScaling={false}
                     style={[
                       styles.fakePlaceholder,
                       {
@@ -201,6 +198,7 @@ export function PreviewTextStickerContent({
                 {emptyEditing ? (
                   <Text
                     pointerEvents="none"
+                    allowFontScaling={false}
                     onLayout={(event) => setPlaceholderWidth(event.nativeEvent.layout.width)}
                     style={[
                       styles.placeholderMeasure,
@@ -215,6 +213,7 @@ export function PreviewTextStickerContent({
                   </Text>
                 ) : null}
                 <Animated.Text
+                  allowFontScaling={false}
                   style={[
                     styles.displayText,
                     {
@@ -251,6 +250,7 @@ export function PreviewTextStickerContent({
 const styles = StyleSheet.create({
   shell: {
     position: 'absolute',
+    top: 0,
     left: 0,
     right: 0,
     alignItems: 'center',

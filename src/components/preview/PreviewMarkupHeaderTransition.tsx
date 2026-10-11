@@ -45,15 +45,17 @@ export function PreviewMarkupHeaderTransition({
 
   return (
     <View style={styles.container} pointerEvents="box-none">
+      {/* In flow (not absolute) so the vertical tool column sets the header height; box-none so
+          the empty area between the clusters still reaches the media and stickers below. */}
       <Animated.View
-        style={[styles.layer, normalStyle]}
-        pointerEvents={normalHidden ? 'none' : 'auto'}
+        style={[styles.normalLayer, normalStyle]}
+        pointerEvents={normalHidden ? 'none' : 'box-none'}
         accessibilityElementsHidden={normalHidden}
         importantForAccessibility={normalHidden ? 'no-hide-descendants' : 'auto'}>
         {normalHeader}
       </Animated.View>
       <Animated.View
-        style={[styles.layer, drawingStyle]}
+        style={[styles.drawingLayer, drawingStyle]}
         pointerEvents={drawingHidden ? 'none' : 'auto'}
         accessibilityElementsHidden={drawingHidden}
         importantForAccessibility={drawingHidden ? 'no-hide-descendants' : 'auto'}>
@@ -64,14 +66,23 @@ export function PreviewMarkupHeaderTransition({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    alignSelf: 'stretch',
+  drawingLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     height: 48,
-  },
-  layer: {
-    ...StyleSheet.absoluteFill,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  container: {
+    alignSelf: 'stretch',
+    minHeight: 48,
+  },
+  normalLayer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
 });

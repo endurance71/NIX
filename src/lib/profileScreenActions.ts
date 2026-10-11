@@ -9,7 +9,12 @@ import {
   removeFriend,
   sendFriendRequest,
 } from '../services/friendService';
-import { uploadProfileAvatarFromUri } from '../services/avatarService';
+import {
+  AVATAR_UPLOAD_JPEG_QUALITY,
+  AVATAR_UPLOAD_SIZE_PX,
+  uploadProfileAvatarFromUri,
+} from '../services/avatarService';
+import { showPermissionDeniedAlert } from './permissionAlert';
 import { notifyDomainError, notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
 import i18n from '../lib/i18n';
 import { upsertCapturePolicyForFriend, type CapturePolicy } from '../services/capturePolicyService';
@@ -48,24 +53,19 @@ export async function pickProfileAvatarPhoto(
     ? await ImagePicker.requestCameraPermissionsAsync()
     : await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) {
-    notifyError(
-      i18n.t(source === 'camera' ? 'profile.cameraPermissionTitle' : 'profile.photoPermissionTitle'),
-      {
-        message: i18n.t(
-          source === 'camera' ? 'profile.cameraPermissionMessage' : 'profile.photoPermissionMessage'
-        ),
-      }
-    );
+    showPermissionDeniedAlert(source === 'camera' ? 'avatarCamera' : 'avatarLibrary');
     return;
   }
 
+  // PERF-18: the cropper already emits the upload size; `uploadProfileAvatarFromUri` still
+  // normalizes every source (including the ImagePicker fallback) to a 384 px JPEG.
   const cropOptions = {
     mediaType: 'photo' as const,
     cropping: true as const,
     cropperCircleOverlay: true as const,
-    width: 512,
-    height: 512,
-    compressImageQuality: 0.85,
+    width: AVATAR_UPLOAD_SIZE_PX,
+    height: AVATAR_UPLOAD_SIZE_PX,
+    compressImageQuality: AVATAR_UPLOAD_JPEG_QUALITY,
     cropperChooseText: i18n.t('profile.choosePhoto'),
     cropperCancelText: i18n.t('common.cancel'),
   };
@@ -96,13 +96,13 @@ export async function pickProfileAvatarPhoto(
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
           allowsEditing: true,
           aspect: [1, 1],
-          quality: 0.85,
+          quality: AVATAR_UPLOAD_JPEG_QUALITY,
         })
       : await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
           allowsEditing: true,
           aspect: [1, 1],
-          quality: 0.85,
+          quality: AVATAR_UPLOAD_JPEG_QUALITY,
         });
     if (fallbackResult.canceled || !fallbackResult.assets[0]?.uri) return;
     pickedUri = fallbackResult.assets[0].uri;
@@ -203,7 +203,7 @@ export async function toggleProfileFriendCapture(
     await queryClient.invalidateQueries({ queryKey: friendCapturePoliciesQueryKey });
   } catch (err: unknown) {
     queryClient.setQueryData(friendCapturePoliciesQueryKey, previousPolicies);
-    notifyError((err as { message?: string })?.message ?? i18n.t('notify.capturePreferencesFailed'));
+    notifyDomainError(err, i18n.t('notify.capturePreferencesFailed'));
     throw err;
   }
 }

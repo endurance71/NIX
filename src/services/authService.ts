@@ -51,6 +51,14 @@ export async function recordCurrentLegalAcceptance() {
   });
 }
 
+export async function resendSignupConfirmation(email: string) {
+  return supabase.auth.resend({
+    type: 'signup',
+    email,
+    options: { emailRedirectTo: AUTH_REDIRECT_URL },
+  });
+}
+
 export async function requestPasswordReset(email: string) {
   // Recovery templates use {{ .Data.locale }} from existing user metadata (set at signUp).
   // resetPasswordForEmail does not accept custom data payload.

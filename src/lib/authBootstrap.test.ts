@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AuthApiError, AuthRetryableFetchError, type Session } from '@supabase/supabase-js';
-import { authStatusForResult, classifyAuthBootstrap } from './authBootstrap';
+import { authStatusForResult, classifyAuthBootstrap, lookupSessionWithOfflineFallback } from './authBootstrap';
 
 const session = {
   access_token: 'access', refresh_token: 'refresh', expires_at: 1,
@@ -37,5 +37,30 @@ describe('auth bootstrap classification', () => {
 
   it('uses anonymous only for a clean empty storage result', () => {
     expect(classifyAuthBootstrap({ localSession: null, resolvedSession: null, error: null, online: false }).category).toBe('anonymous');
+  });
+});
+
+describe('offline session lookup', () => {
+  it('continues offline with the local session instead of waiting for auth-js refresh retries', async () => {
+    vi.useFakeTimers();
+    try {
+      const neverSettles = () => new Promise<{ data: { session: Session | null }; error: unknown }>(() => {});
+      const lookup = lookupSessionWithOfflineFallback(neverSettles, session, false, 1_500);
+      await vi.advanceTimersByTimeAsync(1_500);
+      const response = await lookup;
+      expect(response).toEqual({ data: { session }, error: null });
+      expect(classifyAuthBootstrap({
+        localSession: session, resolvedSession: response.data.session, error: response.error, online: false,
+      }).category).toBe('offline_retryable');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('waits for the real lookup when online or without a local session', async () => {
+    const resolved = { data: { session }, error: null };
+    await expect(lookupSessionWithOfflineFallback(async () => resolved, session, true)).resolves.toBe(resolved);
+    const anonymous = { data: { session: null }, error: null };
+    await expect(lookupSessionWithOfflineFallback(async () => anonymous, null, false)).resolves.toBe(anonymous);
   });
 });

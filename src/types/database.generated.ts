@@ -144,12 +144,12 @@ export type Database = {
                 };
                 Relationships: [
                     {
-                        foreignKeyName: "content_reports_reporter_id_fkey";
+                        foreignKeyName: "content_reports_nix_id_fkey";
                         columns: [
-                            "reporter_id"
+                            "nix_id"
                         ];
                         isOneToOne: false;
-                        referencedRelation: "profiles";
+                        referencedRelation: "nixes";
                         referencedColumns: [
                             "id"
                         ];
@@ -166,12 +166,12 @@ export type Database = {
                         ];
                     },
                     {
-                        foreignKeyName: "content_reports_nix_id_fkey";
+                        foreignKeyName: "content_reports_reporter_id_fkey";
                         columns: [
-                            "nix_id"
+                            "reporter_id"
                         ];
                         isOneToOne: false;
-                        referencedRelation: "nixes";
+                        referencedRelation: "profiles";
                         referencedColumns: [
                             "id"
                         ];
@@ -236,6 +236,47 @@ export type Database = {
                     }
                 ];
             };
+            "conversation_pins": {
+                Row: {
+                    "user_id": string;
+                    "peer_id": string;
+                    "pinned_at": string;
+                };
+                Insert: {
+                    "user_id": string;
+                    "peer_id": string;
+                    "pinned_at"?: string;
+                };
+                Update: {
+                    "user_id"?: string;
+                    "peer_id"?: string;
+                    "pinned_at"?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "conversation_pins_peer_id_fkey";
+                        columns: [
+                            "peer_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "profiles";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "conversation_pins_user_id_fkey";
+                        columns: [
+                            "user_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "profiles";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    }
+                ];
+            };
             "conversation_read_states": {
                 Row: {
                     "user_id": string;
@@ -257,9 +298,9 @@ export type Database = {
                 };
                 Relationships: [
                     {
-                        foreignKeyName: "conversation_read_states_user_id_fkey";
+                        foreignKeyName: "conversation_read_states_peer_id_fkey";
                         columns: [
-                            "user_id"
+                            "peer_id"
                         ];
                         isOneToOne: false;
                         referencedRelation: "profiles";
@@ -268,9 +309,9 @@ export type Database = {
                         ];
                     },
                     {
-                        foreignKeyName: "conversation_read_states_peer_id_fkey";
+                        foreignKeyName: "conversation_read_states_user_id_fkey";
                         columns: [
-                            "peer_id"
+                            "user_id"
                         ];
                         isOneToOne: false;
                         referencedRelation: "profiles";
@@ -565,6 +606,7 @@ export type Database = {
                     "updated_at": string;
                     "finalized_at": string | null;
                     "expires_at": string;
+                    "client_created_at": string | null;
                 };
                 Insert: {
                     "id"?: string;
@@ -577,6 +619,7 @@ export type Database = {
                     "updated_at"?: string;
                     "finalized_at"?: string | null;
                     "expires_at"?: string;
+                    "client_created_at"?: string | null;
                 };
                 Update: {
                     "id"?: string;
@@ -589,19 +632,9 @@ export type Database = {
                     "updated_at"?: string;
                     "finalized_at"?: string | null;
                     "expires_at"?: string;
+                    "client_created_at"?: string | null;
                 };
                 Relationships: [
-                    {
-                        foreignKeyName: "media_upload_batches_sender_id_fkey";
-                        columns: [
-                            "sender_id"
-                        ];
-                        isOneToOne: false;
-                        referencedRelation: "profiles";
-                        referencedColumns: [
-                            "id"
-                        ];
-                    },
                     {
                         foreignKeyName: "media_upload_batches_asset_id_fkey";
                         columns: [
@@ -609,6 +642,17 @@ export type Database = {
                         ];
                         isOneToOne: true;
                         referencedRelation: "media_assets";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "media_upload_batches_sender_id_fkey";
+                        columns: [
+                            "sender_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "profiles";
                         referencedColumns: [
                             "id"
                         ];
@@ -662,23 +706,23 @@ export type Database = {
                         ];
                     },
                     {
-                        foreignKeyName: "media_upload_recipients_receiver_id_fkey";
-                        columns: [
-                            "receiver_id"
-                        ];
-                        isOneToOne: false;
-                        referencedRelation: "profiles";
-                        referencedColumns: [
-                            "id"
-                        ];
-                    },
-                    {
                         foreignKeyName: "media_upload_recipients_nix_id_fkey";
                         columns: [
                             "nix_id"
                         ];
                         isOneToOne: false;
                         referencedRelation: "nixes";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "media_upload_recipients_receiver_id_fkey";
+                        columns: [
+                            "receiver_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "profiles";
                         referencedColumns: [
                             "id"
                         ];
@@ -813,23 +857,23 @@ export type Database = {
                 };
                 Relationships: [
                     {
-                        foreignKeyName: "moderation_jobs_batch_id_fkey";
-                        columns: [
-                            "batch_id"
-                        ];
-                        isOneToOne: false;
-                        referencedRelation: "media_upload_batches";
-                        referencedColumns: [
-                            "id"
-                        ];
-                    },
-                    {
                         foreignKeyName: "moderation_jobs_asset_id_fkey";
                         columns: [
                             "asset_id"
                         ];
                         isOneToOne: true;
                         referencedRelation: "media_assets";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "moderation_jobs_batch_id_fkey";
+                        columns: [
+                            "batch_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "media_upload_batches";
                         referencedColumns: [
                             "id"
                         ];
@@ -1000,6 +1044,109 @@ export type Database = {
                     }
                 ];
             };
+            "nix_daily_exchanges": {
+                Row: {
+                    "user_low": string;
+                    "user_high": string;
+                    "day": string;
+                    "low_nix_count": number;
+                    "high_nix_count": number;
+                    "message_count": number;
+                    "low_sent": boolean | null;
+                    "high_sent": boolean | null;
+                };
+                Insert: {
+                    "user_low": string;
+                    "user_high": string;
+                    "day": string;
+                    "low_nix_count"?: number;
+                    "high_nix_count"?: number;
+                    "message_count"?: number;
+                    "low_sent"?: never;
+                    "high_sent"?: never;
+                };
+                Update: {
+                    "user_low"?: string;
+                    "user_high"?: string;
+                    "day"?: string;
+                    "low_nix_count"?: number;
+                    "high_nix_count"?: number;
+                    "message_count"?: number;
+                    "low_sent"?: never;
+                    "high_sent"?: never;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "nix_daily_exchanges_user_high_fkey";
+                        columns: [
+                            "user_high"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "profiles";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "nix_daily_exchanges_user_low_fkey";
+                        columns: [
+                            "user_low"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "profiles";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    }
+                ];
+            };
+            "nix_reactions": {
+                Row: {
+                    "nix_id": string;
+                    "user_id": string;
+                    "emoji": string;
+                    "created_at": string;
+                    "updated_at": string;
+                };
+                Insert: {
+                    "nix_id": string;
+                    "user_id": string;
+                    "emoji": string;
+                    "created_at"?: string;
+                    "updated_at"?: string;
+                };
+                Update: {
+                    "nix_id"?: string;
+                    "user_id"?: string;
+                    "emoji"?: string;
+                    "created_at"?: string;
+                    "updated_at"?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "nix_reactions_nix_id_fkey";
+                        columns: [
+                            "nix_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "nixes";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "nix_reactions_user_id_fkey";
+                        columns: [
+                            "user_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "profiles";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    }
+                ];
+            };
             "nixes": {
                 Row: {
                     "id": string;
@@ -1019,6 +1166,8 @@ export type Database = {
                     "is_replayed": boolean;
                     "replay_expires_at": string | null;
                     "asset_id": string | null;
+                    "replayed_at": string | null;
+                    "unplayable_at": string | null;
                 };
                 Insert: {
                     "id"?: string;
@@ -1038,6 +1187,8 @@ export type Database = {
                     "is_replayed"?: boolean;
                     "replay_expires_at"?: string | null;
                     "asset_id"?: string | null;
+                    "replayed_at"?: string | null;
+                    "unplayable_at"?: string | null;
                 };
                 Update: {
                     "id"?: string;
@@ -1057,8 +1208,21 @@ export type Database = {
                     "is_replayed"?: boolean;
                     "replay_expires_at"?: string | null;
                     "asset_id"?: string | null;
+                    "replayed_at"?: string | null;
+                    "unplayable_at"?: string | null;
                 };
                 Relationships: [
+                    {
+                        foreignKeyName: "nixes_asset_id_fkey";
+                        columns: [
+                            "asset_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "media_assets";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
                     {
                         foreignKeyName: "snaps_receiver_id_fkey";
                         columns: [
@@ -1077,17 +1241,6 @@ export type Database = {
                         ];
                         isOneToOne: false;
                         referencedRelation: "profiles";
-                        referencedColumns: [
-                            "id"
-                        ];
-                    },
-                    {
-                        foreignKeyName: "nixes_asset_id_fkey";
-                        columns: [
-                            "asset_id"
-                        ];
-                        isOneToOne: false;
-                        referencedRelation: "media_assets";
                         referencedColumns: [
                             "id"
                         ];
@@ -1355,23 +1508,23 @@ export type Database = {
                 };
                 Relationships: [
                     {
-                        foreignKeyName: "push_notification_deliveries_job_id_fkey";
-                        columns: [
-                            "job_id"
-                        ];
-                        isOneToOne: false;
-                        referencedRelation: "push_notification_jobs";
-                        referencedColumns: [
-                            "id"
-                        ];
-                    },
-                    {
                         foreignKeyName: "push_notification_deliveries_device_id_fkey";
                         columns: [
                             "device_id"
                         ];
                         isOneToOne: false;
                         referencedRelation: "push_devices";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "push_notification_deliveries_job_id_fkey";
+                        columns: [
+                            "job_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "push_notification_jobs";
                         referencedColumns: [
                             "id"
                         ];
@@ -1426,9 +1579,9 @@ export type Database = {
                 };
                 Relationships: [
                     {
-                        foreignKeyName: "push_notification_jobs_recipient_id_fkey";
+                        foreignKeyName: "push_notification_jobs_actor_id_fkey";
                         columns: [
-                            "recipient_id"
+                            "actor_id"
                         ];
                         isOneToOne: false;
                         referencedRelation: "profiles";
@@ -1437,9 +1590,9 @@ export type Database = {
                         ];
                     },
                     {
-                        foreignKeyName: "push_notification_jobs_actor_id_fkey";
+                        foreignKeyName: "push_notification_jobs_recipient_id_fkey";
                         columns: [
-                            "actor_id"
+                            "recipient_id"
                         ];
                         isOneToOne: false;
                         referencedRelation: "profiles";
@@ -1460,6 +1613,13 @@ export type Database = {
                     "client_message_id": string | null;
                     "metadata": Json | null;
                     "is_system": boolean;
+                    "read_at": string | null;
+                    "saved_at": string | null;
+                    "saved_by": string | null;
+                    "kind": string;
+                    "voice_path": string | null;
+                    "voice_duration_ms": number | null;
+                    "voice_waveform": (number)[] | null;
                 };
                 Insert: {
                     "id"?: string;
@@ -1471,6 +1631,13 @@ export type Database = {
                     "client_message_id"?: string | null;
                     "metadata"?: Json | null;
                     "is_system"?: boolean;
+                    "read_at"?: string | null;
+                    "saved_at"?: string | null;
+                    "saved_by"?: string | null;
+                    "kind"?: string;
+                    "voice_path"?: string | null;
+                    "voice_duration_ms"?: number | null;
+                    "voice_waveform"?: (number)[] | null;
                 };
                 Update: {
                     "id"?: string;
@@ -1482,12 +1649,19 @@ export type Database = {
                     "client_message_id"?: string | null;
                     "metadata"?: Json | null;
                     "is_system"?: boolean;
+                    "read_at"?: string | null;
+                    "saved_at"?: string | null;
+                    "saved_by"?: string | null;
+                    "kind"?: string;
+                    "voice_path"?: string | null;
+                    "voice_duration_ms"?: number | null;
+                    "voice_waveform"?: (number)[] | null;
                 };
                 Relationships: [
                     {
-                        foreignKeyName: "text_messages_sender_id_fkey";
+                        foreignKeyName: "text_messages_receiver_id_fkey";
                         columns: [
-                            "sender_id"
+                            "receiver_id"
                         ];
                         isOneToOne: false;
                         referencedRelation: "profiles";
@@ -1496,9 +1670,20 @@ export type Database = {
                         ];
                     },
                     {
-                        foreignKeyName: "text_messages_receiver_id_fkey";
+                        foreignKeyName: "text_messages_saved_by_fkey";
                         columns: [
-                            "receiver_id"
+                            "saved_by"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "profiles";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "text_messages_sender_id_fkey";
+                        columns: [
+                            "sender_id"
                         ];
                         isOneToOne: false;
                         referencedRelation: "profiles";
@@ -1651,9 +1836,9 @@ export type Database = {
                 };
                 Relationships: [
                     {
-                        foreignKeyName: "user_blocks_blocker_id_fkey";
+                        foreignKeyName: "user_blocks_blocked_id_fkey";
                         columns: [
-                            "blocker_id"
+                            "blocked_id"
                         ];
                         isOneToOne: false;
                         referencedRelation: "profiles";
@@ -1662,9 +1847,9 @@ export type Database = {
                         ];
                     },
                     {
-                        foreignKeyName: "user_blocks_blocked_id_fkey";
+                        foreignKeyName: "user_blocks_blocker_id_fkey";
                         columns: [
-                            "blocked_id"
+                            "blocker_id"
                         ];
                         isOneToOne: false;
                         referencedRelation: "profiles";
@@ -1710,6 +1895,7 @@ export type Database = {
                     "p_playback_duration_ms": number | null;
                     "p_thumbnail_b64": string | null;
                     "p_recipients": Json | null;
+                    "p_client_created_at"?: string | null;
                 };
                 Returns: ({
                     "batch_id": string;
@@ -1770,6 +1956,12 @@ export type Database = {
                 };
                 Returns: (Database['public']['Tables']["push_notification_jobs"]['Row'])[];
             };
+            "claim_voice_message_object_deletions": {
+                Args: {
+                    "p_limit"?: number | null;
+                };
+                Returns: (string)[];
+            };
             "cleanup_expired_data_exports": {
                 Args: Record<PropertyKey, never>;
                 Returns: undefined;
@@ -1793,6 +1985,12 @@ export type Database = {
                     "p_next_attempt_at_month_rollover"?: boolean | null;
                 };
                 Returns: Database['public']['Tables']["moderation_jobs"]['Row'];
+            };
+            "complete_voice_message_object_deletions": {
+                Args: {
+                    "p_paths": (string)[] | null;
+                };
+                Returns: number;
             };
             "confirm_moderation_budget": {
                 Args: {
@@ -1908,6 +2106,13 @@ export type Database = {
                     "client_message_id": string;
                     "metadata": Json;
                     "is_system": boolean;
+                    "read_at": string;
+                    "saved_at": string;
+                    "saved_by": string;
+                    "kind": string;
+                    "voice_path": string;
+                    "voice_duration_ms": number;
+                    "voice_waveform": (number)[];
                 })[];
             };
             "finalize_media_upload_batch": {
@@ -1937,6 +2142,67 @@ export type Database = {
                     "sender_id": string | null;
                 };
                 Returns: string;
+            };
+            "get_chat_capabilities": {
+                Args: Record<PropertyKey, never>;
+                Returns: Json;
+            };
+            "get_chat_nixes_with_peer": {
+                Args: {
+                    "p_peer_id": string | null;
+                    "p_limit"?: number | null;
+                };
+                Returns: ({
+                    "id": string;
+                    "sender_id": string;
+                    "receiver_id": string;
+                    "created_at": string;
+                    "media_path": string;
+                    "media_type": string;
+                    "is_viewed": boolean;
+                    "is_replayed": boolean;
+                    "replay_expires_at": string;
+                    "status": string;
+                    "view_duration_sec": number;
+                    "playback_duration_ms": number;
+                    "client_upload_id": string;
+                    "viewed_at": string;
+                    "replayed_at": string;
+                    "unplayable_at": string;
+                })[];
+            };
+            "get_friend_streaks": {
+                Args: Record<PropertyKey, never>;
+                Returns: ({
+                    "peer_id": string;
+                    "streak_days": number;
+                    "at_risk": boolean;
+                    "last_exchange_day": string;
+                    "today_complete": boolean;
+                    "me_sent_today": boolean;
+                    "peer_sent_today": boolean;
+                    "day_ends_at": string;
+                    "exchange_count_30d": number;
+                    "exchange_count_7d": number;
+                    "exchange_count_prev_7d": number;
+                })[];
+            };
+            "get_inbox_bundle": {
+                Args: {
+                    "p_limit"?: number | null;
+                };
+                Returns: Json;
+            };
+            "get_nix_reactions": {
+                Args: {
+                    "p_nix_ids": (string)[] | null;
+                };
+                Returns: ({
+                    "nix_id": string;
+                    "user_id": string;
+                    "emoji": string;
+                    "updated_at": string;
+                })[];
             };
             "get_own_media_moderation_job": {
                 Args: {
@@ -2219,6 +2485,12 @@ export type Database = {
                 };
                 Returns: boolean;
             };
+            "remove_nix_reaction": {
+                Args: {
+                    "p_nix_id": string | null;
+                };
+                Returns: boolean;
+            };
             "report_capture_attempt": {
                 Args: {
                     "p_nix_id": string | null;
@@ -2259,6 +2531,16 @@ export type Database = {
                 Args: Record<PropertyKey, never>;
                 Returns: undefined;
             };
+            "send_voice_message": {
+                Args: {
+                    "p_receiver_id": string | null;
+                    "p_voice_path": string | null;
+                    "p_duration_ms": number | null;
+                    "p_waveform"?: (number)[] | null;
+                    "p_client_message_id"?: string | null;
+                };
+                Returns: Database['public']['Tables']["text_messages"]['Row'];
+            };
             "set_conversation_mute": {
                 Args: {
                     "p_peer_id": string | null;
@@ -2266,6 +2548,13 @@ export type Database = {
                     "p_indefinite"?: boolean | null;
                 };
                 Returns: undefined;
+            };
+            "set_nix_reaction": {
+                Args: {
+                    "p_nix_id": string | null;
+                    "p_emoji": string | null;
+                };
+                Returns: Database['public']['Tables']["nix_reactions"]['Row'];
             };
             "set_notification_preferences": {
                 Args: {
@@ -2280,6 +2569,18 @@ export type Database = {
                     "p_enabled": boolean | null;
                 };
                 Returns: undefined;
+            };
+            "set_text_message_saved": {
+                Args: {
+                    "p_message_id": string | null;
+                    "p_saved": boolean | null;
+                };
+                Returns: ({
+                    "id": string;
+                    "saved_at": string;
+                    "saved_by": string;
+                    "expires_at": string;
+                })[];
             };
             "touch_push_device": {
                 Args: {

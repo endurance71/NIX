@@ -16,8 +16,16 @@ export default function AuthLayout() {
       <Stack.Screen name="terms" options={{ title: t('profile.terms') }} />
       <Stack.Screen name="check-email" options={{ title: t('auth.checkEmailTitle') }} />
       <Stack.Screen name="forgot-password" options={{ title: t('auth.forgotPasswordHeader') }} />
-      <Stack.Screen name="reset-password" options={{ title: t('auth.resetPasswordHeader') }} />
-      <Stack.Screen name="onboarding" options={{ title: t('auth.onboardingTitle') }} />
+      {/* Both run with a live session: going back would land on login, which the bootstrap gate
+          immediately bounces. */}
+      <Stack.Screen
+        name="reset-password"
+        options={{ title: t('auth.resetPasswordHeader'), headerBackVisible: false, gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="onboarding"
+        options={{ title: t('auth.onboardingTitle'), headerBackVisible: false, gestureEnabled: false }}
+      />
     </Stack>
   );
 }

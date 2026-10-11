@@ -1,13 +1,9 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { View } from 'react-native';
 import { RNHostView, VStack } from '@expo/ui/swift-ui';
 import { frame } from '@expo/ui/swift-ui/modifiers';
-import { useAppTheme } from '../../hooks/useAppTheme';
-import {
-  AUTH_PRIMARY_BUTTON_HEIGHT,
-  AUTH_PRIMARY_BUTTON_RADIUS,
-  getAuthPrimaryButtonWidth,
-} from '../../theme/authLayout';
+import { getAuthPrimaryButtonWidth } from '../../theme/authLayout';
 import { useAuthContentWidth } from './auth-content-width';
+import { Button } from './button';
 
 type AuthPrimaryButtonProps = {
   label: string;
@@ -16,72 +12,34 @@ type AuthPrimaryButtonProps = {
   loading?: boolean;
 };
 
-/** Full-width primary CTA hosted in RN for reliable width and corner radius on iOS. */
+/**
+ * The shared `Button` (primary, large) embedded in the SwiftUI auth stack: `RNHostView` needs an
+ * explicit width, so the column width comes from the auth layout context.
+ */
 export function AuthPrimaryButton({
   label,
   onPress,
-  disabled,
+  disabled = false,
   loading = false,
 }: AuthPrimaryButtonProps) {
-  const { colors } = useAppTheme();
   const contentWidth = useAuthContentWidth();
   const buttonWidth = getAuthPrimaryButtonWidth(contentWidth, loading);
-  const isDisabled = disabled || loading;
 
   return (
     <VStack alignment="center" spacing={0} modifiers={[frame({ width: contentWidth, alignment: 'leading' })]}>
       <RNHostView matchContents>
-        <View style={[styles.wrap, { width: buttonWidth }, isDisabled && styles.disabled]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={label}
-            accessibilityState={{ disabled: isDisabled, busy: loading }}
-            disabled={isDisabled}
+        <View style={{ width: buttonWidth }}>
+          <Button
+            title={label}
             onPress={onPress}
-            style={({ pressed }) => [
-              styles.button,
-              { backgroundColor: colors.systemBlue },
-              pressed && !isDisabled ? styles.pressed : null,
-            ]}>
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={[styles.label, styles.labelOnBlue]}>{label}</Text>
-            )}
-          </Pressable>
+            variant="primary"
+            size="large"
+            disabled={disabled}
+            loading={loading}
+            fullWidth
+          />
         </View>
       </RNHostView>
     </VStack>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: {
-    minHeight: AUTH_PRIMARY_BUTTON_HEIGHT,
-    borderRadius: AUTH_PRIMARY_BUTTON_RADIUS,
-    overflow: 'hidden',
-  },
-  button: {
-    width: '100%',
-    minHeight: AUTH_PRIMARY_BUTTON_HEIGHT,
-    paddingVertical: 15,
-    paddingHorizontal: 16,
-    borderRadius: AUTH_PRIMARY_BUTTON_RADIUS,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: {
-    fontSize: 17,
-    fontWeight: '600',
-    lineHeight: 22,
-  },
-  labelOnBlue: {
-    color: '#FFFFFF',
-  },
-  pressed: {
-    opacity: 0.88,
-  },
-  disabled: {
-    opacity: 0.45,
-  },
-});

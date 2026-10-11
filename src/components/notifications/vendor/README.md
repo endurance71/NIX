@@ -6,3 +6,7 @@ the presentation, themes, queue, lifecycle, gestures and accessibility.
 
 timeline.ts preserves the upstream spring settings, phase delays and content scale.
 The NiX hook adds readiness, Reduce Motion, presentation timing and generation guards.
+
+Since 2026-10-10 (NOTIF-4) the upstream sequence is used only for rare `prominent` notifications;
+the default NiX card enters in 300 ms and exits in 220 ms (CARD_* constants in timeline.ts), and
+NotificationGoo (Skia) is loaded lazily on the first prominent card (PERF-4).

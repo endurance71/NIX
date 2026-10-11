@@ -5,6 +5,7 @@ import {
   subscribeToAppForeground,
   syncAppIconBadge,
 } from '../services/pushNotificationService';
+import { syncInboxWidget } from '../services/inboxWidget';
 import { useAuth } from './useAuth';
 
 export function useInboxBadgeCount() {
@@ -17,6 +18,7 @@ export function useInboxBadgeCount() {
 
   useEffect(() => {
     void syncAppIconBadge(Math.min(99, count));
+    syncInboxWidget(count);
   }, [count]);
 
   useEffect(() => {

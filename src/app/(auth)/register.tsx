@@ -110,7 +110,9 @@ export default function RegisterScreen() {
             nativeValue={email}
             placeholder={t('auth.emailPlaceholder')}
             keyboardType="email-address"
-            autoComplete="email"
+            // The account identifier for iCloud Keychain: the suggested strong password is
+            // saved under this e-mail (webcredentials associated domain).
+            autoComplete="username"
             returnKeyType="next"
             onSubmitEditing={() => passwordRef.current?.focus()}
             onChangeText={(text) => {
@@ -201,7 +203,7 @@ export default function RegisterScreen() {
       <AuthFooterPrompt
         prompt={t('auth.hasAccountPrompt')}
         linkLabel={t('auth.hasAccountLink')}
-        onPress={() => router.replace('/(auth)/login')}
+        onPress={() => router.dismissTo('/(auth)/login')}
       />
     </AuthFormLayout>
   );

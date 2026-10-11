@@ -7,6 +7,8 @@ import {
   AUTH_LEGAL_CHECKBOX_VISUAL_SIZE,
   AUTH_LEGAL_CONTROL_MIN_HEIGHT,
 } from '../../theme/authLayout';
+import { radius } from '../../theme/radius';
+import { typography } from '../../theme/typography';
 import { useAuthContentWidth } from './auth-content-width';
 
 type AuthLegalAcceptanceProps = {
@@ -56,7 +58,7 @@ export function AuthLegalAcceptance({
                 { borderColor: colors.systemBlue },
                 accepted ? { backgroundColor: colors.systemBlue } : null,
               ]}>
-              {accepted ? <Text style={styles.checkboxMark}>✓</Text> : null}
+              {accepted ? <Text style={[styles.checkboxMark, { color: colors.onAccent }]}>✓</Text> : null}
             </View>
           </View>
           <Text style={[styles.label, { color: colors.secondaryLabel }]}>{label}</Text>
@@ -82,12 +84,12 @@ const styles = StyleSheet.create({
     width: AUTH_LEGAL_CHECKBOX_VISUAL_SIZE,
     height: AUTH_LEGAL_CHECKBOX_VISUAL_SIZE,
     borderWidth: 1,
-    borderRadius: 6,
+    borderRadius: radius.xs,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxMark: {
-    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
     lineHeight: 18,
@@ -98,8 +100,7 @@ const styles = StyleSheet.create({
     paddingTop: 3,
     paddingBottom: 4,
     paddingLeft: 6,
-    fontSize: 13,
-    lineHeight: 18,
+    ...typography.footnote,
   },
   pressed: {
     opacity: 0.7,

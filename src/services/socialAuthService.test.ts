@@ -153,15 +153,6 @@ describe('socialAuthService', () => {
     });
   });
 
-  it('zwraca błąd niedostępności poza iOS', async () => {
-    vi.stubEnv('EXPO_OS', 'android');
-
-    const { error } = await signInWithApple();
-
-    expect(error?.message).toBe(APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE);
-    expect(mockAppleAuth.isAvailableAsync).not.toHaveBeenCalled();
-  });
-
   it('przy usuwaniu konta wymaga authorizationCode i nie zmienia sesji Supabase', async () => {
     mockAppleAuth.signInAsync.mockResolvedValue({
       identityToken: 'identity-token',

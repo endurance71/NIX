@@ -1,5 +1,8 @@
+import { radius } from './radius';
+import { spacing } from './spacing';
+
 /** Shared spacing for auth screens using `AuthFormLayout` / `LoginAuthLayout`. */
-export const AUTH_FORM_HORIZONTAL_PADDING = 24;
+export const AUTH_FORM_HORIZONTAL_PADDING = spacing.xxl;
 
 export const AUTH_CONTENT_MAX_WIDTH = 400;
 
@@ -51,25 +54,21 @@ export const AUTH_LOGIN_PROMPT_TO_SOCIAL_GAP = 20;
 
 export const AUTH_BRAND_TAGLINE_GAP = 6;
 
-export const AUTH_FIELD_GROUP_CORNER_RADIUS = 14;
+export const AUTH_FIELD_GROUP_CORNER_RADIUS = radius.button;
 
 export const AUTH_FIELD_ROW_MIN_HEIGHT = 54;
 
-export const AUTH_FIELD_INNER_PADDING = 16;
+export const AUTH_FIELD_INNER_PADDING = spacing.lg;
 
 export const AUTH_FIELD_SEPARATOR_INSET = 16;
 
-export const AUTH_SECTION_GAP = 20;
+export const AUTH_SECTION_GAP = spacing.xl;
 
-export const AUTH_ACTIONS_GAP = 12;
+export const AUTH_ACTIONS_GAP = spacing.md;
 
 export const AUTH_SOCIAL_BUTTON_HEIGHT = 50;
 
-export const AUTH_SOCIAL_BUTTON_RADIUS = 14;
-
-export const AUTH_PRIMARY_BUTTON_HEIGHT = 52;
-
-export const AUTH_PRIMARY_BUTTON_RADIUS = 14;
+export const AUTH_SOCIAL_BUTTON_RADIUS = radius.button;
 
 /** Minimum iOS touch target and visual metrics for the legal acceptance control. */
 export const AUTH_LEGAL_CONTROL_MIN_HEIGHT = 44;

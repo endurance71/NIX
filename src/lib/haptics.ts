@@ -1,6 +1,6 @@
 /**
  * Haptics facade aligned with Apple HIG (Impact / Selection / Notification).
- * Enabled on iOS and Android via expo-haptics.
+ * Backed by expo-haptics (iOS Taptic Engine).
  */
 import * as Haptics from 'expo-haptics';
 

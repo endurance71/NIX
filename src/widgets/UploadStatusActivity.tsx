@@ -2,6 +2,7 @@ import { HStack, Image, ProgressView, Spacer, Text, VStack } from '@expo/ui/swif
 import {
   activityBackgroundTint,
   aspectRatio,
+  clipShape,
   contentTransition,
   font,
   foregroundStyle,
@@ -179,13 +180,15 @@ const UploadStatusActivity = (
             resizable(),
             aspectRatio({ contentMode: 'fit' }),
             frame({ width: 34, height: 34 }),
+            // The app icon tile, rounded like a Home Screen icon.
+            clipShape('roundedRectangle', 8),
           ]}
         />
         <VStack alignment="leading" spacing={3}>
-          <Text modifiers={[font({ weight: 'semibold', size: 16 }), foregroundStyle('#FFFFFF')]}>
+          <Text modifiers={[font({ design: 'rounded', weight: 'semibold', size: 16 }), foregroundStyle('#FFFFFF')]}>
             {title}
           </Text>
-          <Text modifiers={[font({ size: 12 }), foregroundStyle(muted)]}>{subtitle}</Text>
+          <Text modifiers={[font({ design: 'rounded', size: 12 }), foregroundStyle(muted)]}>{subtitle}</Text>
         </VStack>
         <Spacer />
         {phase.showPercent ? (
@@ -214,9 +217,10 @@ const UploadStatusActivity = (
             resizable(),
             aspectRatio({ contentMode: 'fit' }),
             frame({ width: 19, height: 19 }),
+            clipShape('roundedRectangle', 5),
           ]}
         />
-        <Text modifiers={[font({ weight: 'semibold', size: 14 }), foregroundStyle('#FFFFFF')]}>
+        <Text modifiers={[font({ design: 'rounded', weight: 'semibold', size: 14 }), foregroundStyle('#FFFFFF')]}>
           NiX
         </Text>
       </HStack>
@@ -224,7 +228,7 @@ const UploadStatusActivity = (
     expandedTrailing: trailingText(true),
     expandedBottom: (
       <VStack alignment="leading" spacing={7} modifiers={[padding({ horizontal: 6, bottom: 5 })]}>
-        <Text modifiers={[font({ weight: 'semibold', size: 15 }), foregroundStyle('#FFFFFF')]}>
+        <Text modifiers={[font({ design: 'rounded', weight: 'semibold', size: 15 }), foregroundStyle('#FFFFFF')]}>
           {title}
         </Text>
         {phase.showProgress ? (
@@ -237,7 +241,7 @@ const UploadStatusActivity = (
             ]}
           />
         ) : null}
-        <Text modifiers={[font({ size: 12 }), foregroundStyle(muted)]}>{subtitle}</Text>
+        <Text modifiers={[font({ design: 'rounded', size: 12 }), foregroundStyle(muted)]}>{subtitle}</Text>
       </VStack>
     ),
   };

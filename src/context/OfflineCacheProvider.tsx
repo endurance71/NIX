@@ -31,6 +31,8 @@ type OfflineCacheContextValue = {
 const OfflineCacheContext = createContext<OfflineCacheContextValue | null>(null);
 const EMPTY_CATEGORIES: ReadonlySet<OfflineCacheCategory> = new Set();
 
+type PendingWrite = { timer: ReturnType<typeof setTimeout>; run: () => void };
+
 type OwnerCacheState = {
   ownerId: string | null;
   isHydrated: boolean;
@@ -47,18 +49,21 @@ function subscribeToOfflineCacheWrites({
 }: {
   queryClient: QueryClient;
   ownerId: string;
-  pendingWrites: Map<string, ReturnType<typeof setTimeout>>;
+  pendingWrites: Map<string, PendingWrite>;
   isOwnerActive: () => boolean;
   onWritten: (category: OfflineCacheCategory) => void;
 }) {
   const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+    // Only new data matters. Observer events (`observerOptionsUpdated` fires on every render of a
+    // screen with an inline queryFn) used to re-encrypt and rewrite the same bundle constantly.
+    if (event.type !== 'updated' || event.action.type !== 'success') return;
     const query = event.query;
     const descriptor = describeOfflineCacheQuery(query.queryKey);
     if (!descriptor || query.state.status !== 'success' || query.state.data === undefined) return;
     const writeKey = JSON.stringify(query.queryKey);
-    const previousTimer = pendingWrites.get(writeKey);
-    if (previousTimer) clearTimeout(previousTimer);
-    const timer = setTimeout(() => {
+    const previous = pendingWrites.get(writeKey);
+    if (previous) clearTimeout(previous.timer);
+    const run = () => {
       pendingWrites.delete(writeKey);
       if (!isOwnerActive()) return;
       try { captureSessionScope(ownerId).assertActive(); } catch { return; }
@@ -72,17 +77,25 @@ function subscribeToOfflineCacheWrites({
       }).catch(() => {
         trackEvent('offline_cache_write', { result: 'failed', category: descriptor.category });
       });
-    }, 300);
-    pendingWrites.set(writeKey, timer);
+    };
+    pendingWrites.set(writeKey, { timer: setTimeout(run, 300), run });
   });
   return () => {
     unsubscribe();
-    for (const timer of pendingWrites.values()) clearTimeout(timer);
+    // Going offline must not drop the newest data (e.g. a message received just before):
+    // flush instead of cancelling. Each write re-checks the owner, so logout still skips them.
+    const pending = [...pendingWrites.values()];
     pendingWrites.clear();
+    for (const write of pending) {
+      clearTimeout(write.timer);
+      write.run();
+    }
   };
 }
 
 export function OfflineCacheProvider({ children }: { children: ReactNode }) {
+  // Async hydration the React Compiler cannot lower; the context value is memoized by hand.
+  'use no memo';
   const queryClient = useQueryClient();
   const { user, canUseNetworkSession } = useAuth();
   const userId = user?.id ?? null;
@@ -92,7 +105,7 @@ export function OfflineCacheProvider({ children }: { children: ReactNode }) {
     lastSyncedAt: null,
     availableCategories: EMPTY_CATEGORIES,
   }));
-  const pendingWritesRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const pendingWritesRef = useRef(new Map<string, PendingWrite>());
   const activeOwnerIdRef = useRef<string | null>(userId);
   const hydrationGenerationRef = useRef(0);
 
@@ -107,7 +120,7 @@ export function OfflineCacheProvider({ children }: { children: ReactNode }) {
 
   const hydrateOwner = useEffectEvent(async (
     ownerId: string,
-    force = false,
+    // oxlint-disable-next-line react-hooks-js/todo -- opted out of compilation ('use no memo') above
     generation = hydrationGenerationRef.current
   ) => {
     try {
@@ -149,7 +162,9 @@ export function OfflineCacheProvider({ children }: { children: ReactNode }) {
       let newestCachedAt: number | null = null;
       for (const entry of entries) {
         const current = queryClient.getQueryState(entry.queryKey);
-        if (force || !current || current.dataUpdatedAt <= entry.dataUpdatedAt) {
+        // Never let disk data replace something newer already in memory (e.g. a realtime update
+        // received right before the app went offline and to the background).
+        if (!current || current.dataUpdatedAt <= entry.dataUpdatedAt) {
           queryClient.setQueryData(entry.queryKey, entry.data, { updatedAt: entry.dataUpdatedAt });
         }
         categories.add(entry.category);
@@ -184,7 +199,7 @@ export function OfflineCacheProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const generation = hydrationGenerationRef.current;
     if (!userId) return;
-    void hydrateOwner(userId, false, generation);
+    void hydrateOwner(userId, generation);
   }, [userId]);
 
   useEffect(() => {
@@ -211,7 +226,7 @@ export function OfflineCacheProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userId || canUseNetworkSession) return;
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void hydrateOwner(userId, true);
+      if (state === 'active') void hydrateOwner(userId);
     });
     return () => subscription.remove();
   }, [canUseNetworkSession, userId]);

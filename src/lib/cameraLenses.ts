@@ -208,3 +208,44 @@ export function findLensOptionById(options: LensOption[], id: string | null): Le
 export function shouldShowLensSwitcher(facing: 'back' | 'front', options: LensOption[]): boolean {
   return facing === 'back' && options.length >= 2;
 }
+
+/** Assumed max zoom factor when no 2× preset reveals the wide lens's real one. */
+const FALLBACK_MAX_ZOOM_FACTOR = 16;
+
+/**
+ * Max zoom factor of the wide lens, read back from the 2× crop preset
+ * (native zoom = log(2) / log(maxZoom)); falls back to ~16×.
+ */
+export function estimateMaxZoomFactor(options: LensOption[]): number {
+  const crop = options.find((option) => option.kind === 'wideCrop2x');
+  if (crop && crop.zoom > 0 && crop.zoom < 1) {
+    const max = Math.pow(2, 1 / crop.zoom);
+    if (Number.isFinite(max) && max > 1) return max;
+  }
+  return FALLBACK_MAX_ZOOM_FACTOR;
+}
+
+/**
+ * Zoom the user sees for the active chip: the lens's own factor (0.5 / 1 / tele) times the
+ * expo-camera zoom (factor = maxZoom ^ normalizedZoom). The 2× crop is the wide lens zoomed in.
+ */
+export function effectiveZoomFactor(option: LensOption, zoom: number, options: LensOption[]): number {
+  const base = option.kind === 'wideCrop2x' ? 1 : option.displayFactor;
+  const normalized = Number.isFinite(zoom) ? Math.min(1, Math.max(0, zoom)) : 0;
+  return base * Math.pow(estimateMaxZoomFactor(options), normalized);
+}
+
+/** Pinched away from the chip's own factor, so the chip should show the live value. */
+export function isZoomedAwayFromPreset(option: LensOption, zoom: number, options: LensOption[]): boolean {
+  return Math.abs(effectiveZoomFactor(option, zoom, options) - option.displayFactor) >= 0.05;
+}
+
+/** "1,6×" / "12×" (locale decimal separator, one decimal below 10×). */
+export function formatZoomFactorLabel(factor: number, locale?: string): string {
+  const rounded = factor >= 10 ? Math.round(factor) : Math.round(factor * 10) / 10;
+  const text =
+    Math.abs(rounded - Math.round(rounded)) < 0.05
+      ? String(Math.round(rounded))
+      : rounded.toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return `${text}×`;
+}

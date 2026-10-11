@@ -1,9 +1,9 @@
-import { Platform, Pressable } from 'react-native';
 import type { ColorValue } from 'react-native';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { Button, Host, Image as SwiftImage } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel as swiftAccessibilityLabel,
+  accessibilityValue as swiftAccessibilityValue,
   background,
   buttonStyle,
   disabled as swiftDisabled,
@@ -12,7 +12,6 @@ import {
   opacity,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
-import { AppIcon } from './app-icon';
 import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 
 export type ChromeVariant = 'glass' | 'solid';
@@ -20,6 +19,8 @@ export type ChromeVariant = 'glass' | 'solid';
 type NativeChromeIconButtonProps = {
   name: AppIconName;
   accessibilityLabel: string;
+  /** State read after the label, e.g. "On" / "Off" for a toggle-like control. */
+  accessibilityValue?: string;
   onPress: () => void;
   disabled?: boolean;
   size?: number;
@@ -33,6 +34,7 @@ type NativeChromeIconButtonProps = {
 export function NativeChromeIconButton({
   name,
   accessibilityLabel,
+  accessibilityValue,
   onPress,
   disabled,
   size = 48,
@@ -41,29 +43,6 @@ export function NativeChromeIconButton({
   tintColor,
   chromeVariant = 'glass',
 }: NativeChromeIconButtonProps) {
-  if (Platform.OS !== 'ios') {
-    return (
-      <Pressable
-        onPress={disabled ? undefined : onPress}
-        disabled={disabled}
-        accessibilityLabel={accessibilityLabel}
-        accessibilityRole="button"
-        accessibilityState={{ disabled }}
-        hitSlop={15}
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor,
-          justifyContent: 'center',
-          alignItems: 'center',
-          opacity: disabled ? 0.45 : 1,
-        }}>
-        <AppIcon name={name} size={iconSize} color={tintColor} />
-      </Pressable>
-    );
-  }
-
   return (
     <Host matchContents style={{ width: size, height: size }}>
       <Button
@@ -76,6 +55,7 @@ export function NativeChromeIconButton({
             ? [glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'circle' as const })]
             : []),
           swiftAccessibilityLabel(accessibilityLabel),
+          ...(accessibilityValue ? [swiftAccessibilityValue(accessibilityValue)] : []),
           swiftDisabled(Boolean(disabled)),
           opacity(disabled ? 0.45 : 1),
         ]}>

@@ -3,8 +3,9 @@ import { encryptedPhotoCache } from '../lib/encryptedPhotoCache';
 import { retainPrivatePhotoForReplay } from './photoCacheService';
 import { getCurrentUser } from './profileService';
 import { DomainError } from './errors';
-import { nowMs, trackDuration } from '../lib/telemetry';
+import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { filterUnreadInboxNixesFromSender } from '../lib/nixUnreadQueue';
+import { createRpcFallbackGate } from '../lib/rpcFallbackGate';
 
 export type InboxNix = {
   id: string;
@@ -41,6 +42,14 @@ export type SentNix = {
   status: 'sent' | 'viewed' | 'cleaned' | 'cleanup_failed';
   viewed_at: string | null;
   cleaned_at: string | null;
+  /** Upload batch that produced this row; lets the inbox match its optimistic upload row. */
+  client_upload_id?: string | null;
+  // Status fields; backends before 20261011160000_message_status_receipts omit them.
+  media_type?: string | null;
+  is_replayed?: boolean | null;
+  replay_expires_at?: string | null;
+  replayed_at?: string | null;
+  unplayable_at?: string | null;
   receiver: {
     username: string;
     display_name?: string | null;
@@ -77,6 +86,123 @@ export async function fetchNixPublicProfiles(profileIds: readonly string[]) {
 }
 
 const DEFAULT_NIX_PAGE_LIMIT = 100;
+/** DB-7: one viewer open plays at most this many unread nixes from a sender (oldest first). */
+export const UNREAD_SENDER_QUEUE_LIMIT = 20;
+
+/** Profile fields embedded in inbox rows (`sender` / `receiver` / `peerProfile`). */
+export type NixPeerProfile = {
+  username: string;
+  display_name?: string | null;
+  avatar_storage_path?: string | null;
+  avatar_emoji?: string | null;
+};
+
+export function toNixPeerProfile(profile: NixPublicProfile | undefined | null): NixPeerProfile | null {
+  if (!profile) return null;
+  return {
+    username: profile.username,
+    display_name: profile.display_name ?? null,
+    avatar_storage_path: profile.avatar_storage_path ?? null,
+    avatar_emoji: profile.avatar_emoji ?? null,
+  };
+}
+
+/** Columns selected for the inbox list (no `thumbnail_b64`); mirrored by `get_inbox_bundle`. */
+export type InboxNixRow = {
+  id: string;
+  sender_id: string;
+  media_path: string;
+  media_type?: string | null;
+  playback_duration_ms?: number | null;
+  created_at: string;
+  is_viewed: boolean;
+  status: InboxNix['status'];
+  view_duration_sec?: number | null;
+};
+
+/** Columns selected for the sent list; mirrored by `get_inbox_bundle`. */
+export type SentNixRow = Omit<SentNix, 'receiver'>;
+
+export function mapInboxNixRow(nix: InboxNixRow, profile?: NixPublicProfile | null): InboxNix {
+  return {
+    ...nix,
+    media_type: typeof nix.media_type === 'string' ? nix.media_type : 'image',
+    playback_duration_ms:
+      typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
+    thumbnail_b64: null,
+    view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
+    sender: toNixPeerProfile(profile),
+  } as InboxNix;
+}
+
+export function mapSentNixRow(nix: SentNixRow, profile?: NixPublicProfile | null): SentNix {
+  return {
+    ...nix,
+    receiver: toNixPeerProfile(profile),
+  };
+}
+
+/** Raw JSON returned by the `get_inbox_bundle` RPC (one round trip for the whole inbox). */
+export type InboxBundleRpcPayload = {
+  inbox: InboxNixRow[];
+  sent: SentNixRow[];
+  texts: unknown[];
+  read_states: { peer_id: string; last_read_at: string }[];
+  profiles: NixPublicProfile[];
+  unread_count: number;
+};
+
+/** PostgREST `PGRST202` / Postgres `42883`: the RPC is not deployed (yet) on this backend. */
+export function isMissingRpcError(error: unknown, functionName: string) {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error && typeof error.code === 'string' ? error.code : '';
+  if (code === 'PGRST202' || code === '42883') return true;
+  const message = dbErrorMessage(error).toLowerCase();
+  return (
+    message.includes(functionName) &&
+    (message.includes('could not find the function') || message.includes('schema cache'))
+  );
+}
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+/**
+ * Inbox bundle from `get_inbox_bundle` (DB-6). Returns `null` when the backend does not have the
+ * RPC yet, so the caller can fall back to the multi-query path. Other errors are thrown.
+ */
+export async function fetchInboxBundleRpc(
+  limit = DEFAULT_NIX_PAGE_LIMIT
+): Promise<InboxBundleRpcPayload | null> {
+  const startedAt = nowMs();
+  const { data, error } = await supabase.rpc('get_inbox_bundle', {
+    p_limit: normalizePageLimit(limit),
+  });
+  if (error) {
+    if (isMissingRpcError(error, 'get_inbox_bundle')) return null;
+    throw mapDatabaseError(error);
+  }
+  const payload = data && typeof data === 'object' && !Array.isArray(data)
+    ? (data as Record<string, unknown>)
+    : {};
+  const result: InboxBundleRpcPayload = {
+    inbox: asArray<InboxNixRow>(payload.inbox),
+    sent: asArray<SentNixRow>(payload.sent),
+    texts: asArray<unknown>(payload.texts),
+    read_states: asArray<{ peer_id: string; last_read_at: string }>(payload.read_states),
+    profiles: asArray<NixPublicProfile>(payload.profiles),
+    unread_count: Number(payload.unread_count) || 0,
+  };
+  trackDuration('inbox_bundle_rpc_ms', startedAt, {
+    status: 'success',
+    inbox_count: result.inbox.length,
+    sent_count: result.sent.length,
+    text_count: result.texts.length,
+  });
+  return result;
+}
+
 
 function normalizePageLimit(limit: number | undefined) {
   return Math.max(1, Math.min(limit ?? DEFAULT_NIX_PAGE_LIMIT, 100));
@@ -157,22 +283,9 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
       ? new Map<string, NixPublicProfile>()
       : await fetchNixPublicProfiles(senderIds);
 
-  const result = ((inboxRows ?? []).map((nix: any) => ({
-    ...nix,
-    media_type: typeof nix.media_type === 'string' ? nix.media_type : 'image',
-    playback_duration_ms:
-      typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
-    thumbnail_b64: null,
-    view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
-    sender: senderMap.get(nix.sender_id)
-      ? {
-          username: senderMap.get(nix.sender_id)!.username,
-          display_name: senderMap.get(nix.sender_id)!.display_name ?? null,
-          avatar_storage_path: senderMap.get(nix.sender_id)!.avatar_storage_path ?? null,
-          avatar_emoji: senderMap.get(nix.sender_id)!.avatar_emoji ?? null,
-        }
-      : null,
-  })) ?? []) as InboxNix[];
+  const result = (inboxRows ?? []).map((nix) =>
+    mapInboxNixRow(nix as InboxNixRow, senderMap.get(nix.sender_id as string))
+  );
 
   trackDuration('inbox_fetch_ms', startedAt, {
     status: 'success',
@@ -201,7 +314,10 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
     .eq('sender_id', senderId)
     .eq('is_viewed', false)
     .not('status', 'in', '("cleaned","cleanup_failed")')
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    // DB-7: the poster (`thumbnail_b64`, up to ~60 KB) stays because the viewer shows it as
+    // the first frame, but one open never needs more than a bounded FIFO slice.
+    .limit(UNREAD_SENDER_QUEUE_LIMIT);
 
   if (error) throw mapDatabaseError(error);
 
@@ -236,7 +352,11 @@ export async function fetchSentNixes(options: NixPageOptions = {}) {
       created_at,
       status,
       viewed_at,
-      cleaned_at
+      cleaned_at,
+      client_upload_id,
+      media_type,
+      is_replayed,
+      replay_expires_at
     `
     )
     .eq('sender_id', user.id);
@@ -254,17 +374,9 @@ export async function fetchSentNixes(options: NixPageOptions = {}) {
       ? new Map<string, NixPublicProfile>()
       : await fetchNixPublicProfiles(receiverIds);
 
-  const result = ((sentRows ?? []).map((nix: any) => ({
-    ...nix,
-    receiver: receiverMap.get(nix.receiver_id)
-      ? {
-          username: receiverMap.get(nix.receiver_id)!.username,
-          display_name: receiverMap.get(nix.receiver_id)!.display_name ?? null,
-          avatar_storage_path: receiverMap.get(nix.receiver_id)!.avatar_storage_path ?? null,
-          avatar_emoji: receiverMap.get(nix.receiver_id)!.avatar_emoji ?? null,
-        }
-      : null,
-  })) ?? []) as SentNix[];
+  const result = (sentRows ?? []).map((nix) =>
+    mapSentNixRow(nix as SentNixRow, receiverMap.get(nix.receiver_id as string))
+  );
 
   trackDuration('sent_fetch_ms', startedAt, {
     status: 'success',
@@ -288,18 +400,63 @@ export type ChatNixEvent = {
   view_duration_sec: number;
   playback_duration_ms?: number | null;
   client_upload_id: string | null;
+  // Status timestamps; `undefined` when the backend predates them (see messageStatus).
+  viewed_at?: string | null;
+  replayed_at?: string | null;
+  unplayable_at?: string | null;
 };
 
-/** NiXy w obu kierunkach z danym peerm — do unified czatu. */
-export async function fetchChatNixesWithPeer(
-  peerId: string,
-  limit = 50,
-  currentUserId?: string
-): Promise<ChatNixEvent[]> {
-  const userId = currentUserId || (await getCurrentUser())?.id;
-  if (!userId || !peerId) return [];
-  const pageLimit = normalizePageLimit(limit);
+/** Row shape shared by `get_chat_nixes_with_peer` and the legacy `.or(...)` select (no thumbnail). */
+type ChatNixRow = {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  created_at: string;
+  media_path: string | null;
+  media_type: string | null;
+  is_viewed: boolean | null;
+  is_replayed: boolean | null;
+  replay_expires_at: string | null;
+  status: ChatNixEvent['status'] | null;
+  view_duration_sec: number | null;
+  playback_duration_ms: number | null;
+  client_upload_id: string | null;
+  viewed_at?: string | null;
+  replayed_at?: string | null;
+  unplayable_at?: string | null;
+};
 
+const CHAT_NIXES_RPC = 'get_chat_nixes_with_peer';
+
+const chatNixesRpcGate = createRpcFallbackGate();
+
+/** Test hook: forget the remembered fallback. */
+export function resetChatNixesRpcFallback() {
+  chatNixesRpcGate.reset();
+}
+
+/**
+ * DB-10: two index-ordered branches (me→peer, peer→me) over `idx_nixes_pair_created_at`.
+ * Returns `null` when the RPC is not deployed yet so the caller can use the legacy query.
+ */
+async function fetchChatNixRowsRpc(peerId: string, pageLimit: number): Promise<ChatNixRow[] | null> {
+  const { data, error } = await supabase.rpc(CHAT_NIXES_RPC, {
+    p_peer_id: peerId,
+    p_limit: pageLimit,
+  });
+  if (error) {
+    if (isMissingRpcError(error, CHAT_NIXES_RPC)) return null;
+    throw mapDatabaseError(error);
+  }
+  return asArray<ChatNixRow>(data);
+}
+
+/** Legacy single-filter select; kept as the fallback for backends without the RPC. */
+async function fetchChatNixRowsLegacy(
+  userId: string,
+  peerId: string,
+  pageLimit: number
+): Promise<ChatNixRow[]> {
   const { data, error } = await supabase
     .from('nixes')
     .select(
@@ -310,7 +467,6 @@ export async function fetchChatNixesWithPeer(
       created_at,
       media_path,
       media_type,
-      thumbnail_b64,
       is_viewed,
       is_replayed,
       replay_expires_at,
@@ -327,41 +483,57 @@ export async function fetchChatNixesWithPeer(
     .limit(pageLimit);
 
   if (error) throw mapDatabaseError(error);
+  return (data ?? []) as ChatNixRow[];
+}
 
-  return ((data ?? []) as {
-    id: string;
-    sender_id: string;
-    receiver_id: string;
-    created_at: string;
-    media_path: string | null;
-    media_type: string | null;
-    thumbnail_b64: string | null;
-    is_viewed: boolean | null;
-    is_replayed: boolean | null;
-    replay_expires_at: string | null;
-    status: ChatNixEvent['status'] | null;
-    view_duration_sec: number | null;
-    playback_duration_ms: number | null;
-    client_upload_id: string | null;
-  }[]).map((nix) => {
-    const direction: 'sent' | 'received' = nix.sender_id === userId ? 'sent' : 'received';
-    const isViewed = nix.is_viewed === true || nix.status === 'viewed' || nix.status === 'cleaned';
-    return {
-      id: nix.id,
-      direction,
-      created_at: nix.created_at,
-      media_type: nix.media_type === 'video' ? 'video' : 'image',
-      media_path: nix.media_path,
-      thumbnail_b64: nix.thumbnail_b64 ?? null,
-      is_viewed: isViewed,
-      is_replayed: nix.is_replayed ?? false,
-      replay_expires_at: nix.replay_expires_at ?? null,
-      status: nix.status ?? (isViewed ? 'viewed' : 'sent'),
-      view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
-      playback_duration_ms: typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
-      client_upload_id: nix.client_upload_id ?? null,
-    };
-  });
+function mapChatNixRow(nix: ChatNixRow, userId: string): ChatNixEvent {
+  const direction: 'sent' | 'received' = nix.sender_id === userId ? 'sent' : 'received';
+  const isViewed = nix.is_viewed === true || nix.status === 'viewed' || nix.status === 'cleaned';
+  return {
+    id: nix.id,
+    direction,
+    created_at: nix.created_at,
+    media_type: nix.media_type === 'video' ? 'video' : 'image',
+    media_path: nix.media_path,
+    // Not selected for the chat list (up to ~60 KB each × 50 rows on every refresh); the viewer
+    // loads the poster with the nix itself.
+    thumbnail_b64: null,
+    is_viewed: isViewed,
+    is_replayed: nix.is_replayed ?? false,
+    replay_expires_at: nix.replay_expires_at ?? null,
+    status: nix.status ?? (isViewed ? 'viewed' : 'sent'),
+    view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
+    playback_duration_ms: typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
+    client_upload_id: nix.client_upload_id ?? null,
+    // Kept `undefined` when the backend does not send them, so status code can tell
+    // "not replayed" from "unknown".
+    viewed_at: nix.viewed_at,
+    replayed_at: nix.replayed_at,
+    unplayable_at: nix.unplayable_at,
+  };
+}
+
+/** NiXy w obu kierunkach z danym peerm — do unified czatu. */
+export async function fetchChatNixesWithPeer(
+  peerId: string,
+  limit = 50,
+  currentUserId?: string
+): Promise<ChatNixEvent[]> {
+  const userId = currentUserId || (await getCurrentUser())?.id;
+  if (!userId || !peerId) return [];
+  const pageLimit = normalizePageLimit(limit);
+
+  let rows: ChatNixRow[] | null = null;
+  if (chatNixesRpcGate.shouldTryRpc()) {
+    rows = await fetchChatNixRowsRpc(peerId, pageLimit);
+    if (rows === null) {
+      chatNixesRpcGate.markUnavailable();
+      trackEvent('chat_nixes_rpc_fallback', { reason: 'missing_rpc' });
+    }
+  }
+  if (rows === null) rows = await fetchChatNixRowsLegacy(userId, peerId, pageLimit);
+
+  return rows.map((nix) => mapChatNixRow(nix, userId));
 }
 
 export async function deleteConversationWithPeer(peerProfileId: string) {

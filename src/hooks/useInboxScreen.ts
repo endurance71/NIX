@@ -1,10 +1,12 @@
 import { buildInboxLocalMessages } from '../lib/inboxLocalMessages';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { useNixReactions } from './useNixReactions';
 import {
+  ACCEPTED_FRIENDS_LIMIT,
   acceptFriendRequest,
   listAcceptedFriends,
   listIncomingFriendRequests,
@@ -14,11 +16,7 @@ import {
   deleteConversationWithPeer,
   fetchChatNixesWithPeer,
 } from '../services/nixService';
-import {
-  AVATAR_SIGNED_URL_STALE_TIME_MS,
-  createSignedAvatarUrls,
-} from '../services/avatarService';
-import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
+import { queryKeys } from '../lib/queryKeys';
 import { buildInboxThreads } from '../lib/inboxThreads';
 import {
   buildInboxRowModel,
@@ -27,36 +25,56 @@ import {
 } from '../lib/inboxPresentation';
 import {
   buildRecipientUploadPresentations,
+  createInboxRowIdentityCache,
   mergeInboxRowsWithUploads,
 } from '../lib/inboxUploadPresentation';
 import { getCurrentLocale } from '../lib/i18n';
 import { registerTabScrollToTop } from '../lib/tabBarScrollActions';
-import { notifyDomainError, notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
+import { notifyDomainError, notifyError, notifyInfo, notifyOffline, notifySuccess } from '../lib/appNotify';
 import { inboxNixesBundleQueryOptions } from '../lib/inboxQuery';
 import { runWithFinally } from '../lib/runWithFinally';
 import { blockUser } from '../services/safetyService';
 import { fetchTextMessagesWithPeer } from '../services/textMessageService';
 import { fetchMessageReactionsWithPeer } from '../services/messageReactionService';
 import { useAuth } from './useAuth';
-import { filterInboxRows } from '../lib/inboxSearch';
+import { useSignedAvatarUrls } from './useSignedAvatarUrls';
+import { filterInboxRows, filterInviteRequests } from '../lib/inboxSearch';
+import { orderRowsWithPins } from '../lib/conversationPins';
+import type { ConversationMuteDuration } from '../lib/inboxRowMenu';
+import { notify as hapticNotify } from '../lib/haptics';
+import { markTextConversationRead } from '../services/conversationReadService';
+import { reportContent, type ReportReason } from '../services/safetyService';
+import { useInboxPreferences } from './useInboxPreferences';
 import { recordProductEvent } from '../services/productAnalyticsService';
 import { serializeViewerOpenParams } from '../lib/viewerRoute';
 import {
   useUploadJobs,
-  useUploadQueue,
+  useUploadQueueActions,
   useUploadQueueSummary,
 } from '../context/uploadQueue';
 import { useOfflineCache } from '../context/OfflineCacheProvider';
 import { listTextOutbox } from '../services/textOutboxService';
+import { useTextMessageExpiryClock } from './useTextMessageExpiryClock';
+import { useUploadVisibilityClock } from './useUploadVisibilityClock';
+import { isTextMessageExpired } from '../lib/chatTimeline';
+import { useFriendshipOverview } from './useFriendshipBadges';
+
+/** A streak refresh closer than this to the bundle refresh already reflects it. */
+const STREAK_REFRESH_SLACK_MS = 5_000;
 
 /** Keep in sync with useChatScreen CHAT_STALE_TIME_MS. */
 const CHAT_STALE_TIME_MS = 60_000;
 const COMPLETED_UPLOAD_VISIBILITY_MS = 30_000;
+const EMPTY_LIST: never[] = [];
 async function refreshInboxQueries(queryClient: QueryClient, failureMessage: string) {
   try {
     await Promise.all([
       queryClient.refetchQueries({ queryKey: queryKeys.inboxNixesBundle, type: 'active' }),
       queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
+      // Streak badges are decoration: their failure never fails the inbox refresh.
+      queryClient
+        .refetchQueries({ queryKey: queryKeys.friendStreaks, type: 'active' })
+        .catch(() => undefined),
     ]);
   } catch (error) {
     console.error('Failed to refresh inbox', error);
@@ -100,7 +118,7 @@ function useInboxQueries(
   );
   const acceptedFriendsQuery = useQuery({
     queryKey: queryKeys.acceptedFriends,
-    queryFn: () => listAcceptedFriends({ limit: 100 }),
+    queryFn: () => listAcceptedFriends({ limit: ACCEPTED_FRIENDS_LIMIT }),
     enabled:
       canUseNetworkSession && (uploadPresentations.size > 0 || (outboxQuery.data?.length ?? 0) > 0),
     staleTime: 1000 * 60 * 2,
@@ -117,6 +135,7 @@ function resolveInboxScreenState({
   hasCachedInbox,
   rows,
   requests,
+  visibleRequests,
   allRows,
   searchQuery,
 }: {
@@ -129,9 +148,10 @@ function resolveInboxScreenState({
   canUseNetworkSession: boolean;
   isOfflineAuthenticated: boolean;
   hasCachedInbox: boolean;
-  rows: InboxRowModel[];
+  rows: readonly InboxRowModel[];
   allRows: InboxRowModel[];
   requests: NonNullable<ReturnType<typeof useInboxQueries>['requestsQuery']['data']>;
+  visibleRequests: readonly unknown[];
   searchQuery: string;
 }) {
   const hasVisibleLocalUploads = uploadSummary.activeCount > 0 || uploadSummary.failedCount > 0;
@@ -151,7 +171,11 @@ function resolveInboxScreenState({
     !canUseNetworkSession || !(requestsQuery.isPending && requestsQuery.data === undefined);
   const showEmpty = requestsReady && requests.length === 0 && allRows.length === 0;
   const showOfflineCacheMissing = isOfflineAuthenticated && !hasCachedInbox && allRows.length === 0;
-  const showSearchEmpty = searchQuery.trim().length > 0 && allRows.length > 0 && rows.length === 0;
+  const showSearchEmpty =
+    searchQuery.trim().length > 0 &&
+    (allRows.length > 0 || requests.length > 0) &&
+    rows.length === 0 &&
+    visibleRequests.length === 0;
 
   return { loading, initialError, showEmpty, showOfflineCacheMissing, showSearchEmpty };
 }
@@ -162,7 +186,7 @@ export function useInboxScreen() {
   const queryClient = useQueryClient();
   const { session, canUseNetworkSession, isOfflineAuthenticated } = useAuth();
   const { hasCachedData } = useOfflineCache();
-  const { pauseUpload, resumeUpload, retryUpload, cancelUpload } = useUploadQueue();
+  const { pauseUpload, resumeUpload, retryUpload, cancelUpload } = useUploadQueueActions();
   const uploadJobs = useUploadJobs();
   const uploadSummary = useUploadQueueSummary();
   const currentUserId = session?.user?.id ?? '';
@@ -170,87 +194,128 @@ export function useInboxScreen() {
   const busyPeerIdsRef = useRef(new Set<string>());
   const [inviteActionIds, setInviteActionIds] = useState<ReadonlySet<string>>(() => new Set());
   const [busyPeerIds, setBusyPeerIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [uploadClock, setUploadClock] = useState(() => Date.now());
+  const uploadClock = useUploadVisibilityClock(uploadJobs, COMPLETED_UPLOAD_VISIBILITY_MS);
   const [searchQuery, setSearchQuery] = useState('');
+  const [rowIdentityCache] = useState(createInboxRowIdentityCache);
 
   const { nixesQuery, requestsQuery, outboxQuery, uploadPresentations, acceptedFriendsQuery } =
     useInboxQueries(currentUserId, canUseNetworkSession, uploadJobs, uploadClock);
-  const inboxNixes = nixesQuery.data?.inboxData ?? [];
-  const sentNixes = nixesQuery.data?.sentData ?? [];
-  const serverTextMessages = nixesQuery.data?.textMessagesData ?? [];
-  const localTextMessages = buildInboxLocalMessages(
-    serverTextMessages,
-    outboxQuery.data ?? [],
-    acceptedFriendsQuery.data ?? [],
+  const inboxNixes = nixesQuery.data?.inboxData ?? EMPTY_LIST;
+  const sentNixes = nixesQuery.data?.sentData ?? EMPTY_LIST;
+  const fetchedTextMessages = nixesQuery.data?.textMessagesData ?? EMPTY_LIST;
+  // Expired messages leave the previews on time, not on the next refetch (DB-2).
+  const expiryClock = useTextMessageExpiryClock(fetchedTextMessages);
+  const serverTextMessages = useMemo(
+    () => fetchedTextMessages.filter((message) => !isTextMessageExpired(message, expiryClock)),
+    [expiryClock, fetchedTextMessages],
+  );
+  const unknownUsername = t('common.unknown');
+  const yesterdayLabel = t('inbox.yesterday');
+  // Upload progress re-renders this screen often; rebuild threads only when their inputs change.
+  const baseRows = useMemo(() => {
+    const localTextMessages = buildInboxLocalMessages(
+      serverTextMessages,
+      outboxQuery.data ?? [],
+      acceptedFriendsQuery.data ?? [],
+      currentUserId,
+    );
+    return buildInboxThreads(inboxNixes, sentNixes, [
+      ...serverTextMessages,
+      ...localTextMessages,
+    ]).map((item) => buildInboxRowModel(item, { unknownUsername, locale, yesterdayLabel }));
+  }, [
+    acceptedFriendsQuery.data,
     currentUserId,
-  );
-  const baseRows = buildInboxThreads(inboxNixes, sentNixes, [
-    ...serverTextMessages,
-    ...localTextMessages,
-  ]).map((item) =>
-    buildInboxRowModel(item, {
-      unknownUsername: t('common.unknown'),
-      locale,
-      yesterdayLabel: t('inbox.yesterday'),
-    }),
-  );
-  const requests = requestsQuery.data ?? [];
-  const allRows = mergeInboxRowsWithUploads(
-    baseRows,
-    uploadPresentations,
-    acceptedFriendsQuery.data ?? [],
-    {
-      unknownUsername: t('common.unknown'),
-      locale,
-      yesterdayLabel: t('inbox.yesterday'),
-    },
-  );
-  const rows = useMemo(() => filterInboxRows(allRows, searchQuery), [allRows, searchQuery]);
-
-  useEffect(() => {
-    const completionTimes = uploadJobs.flatMap((job) =>
-      job.state === 'completed' || job.state === 'partially_completed'
-        ? [(job.finishedAt ?? job.updatedAt) + COMPLETED_UPLOAD_VISIBILITY_MS]
-        : [],
-    );
-    if (completionTimes.length === 0) return;
-    const nextExpiry = Math.min(...completionTimes.filter((time) => time > Date.now()));
-    if (!Number.isFinite(nextExpiry)) return;
-    const timer = setTimeout(
-      () => setUploadClock(Date.now()),
-      Math.max(0, nextExpiry - Date.now()),
-    );
-    return () => clearTimeout(timer);
-  }, [uploadJobs]);
-
-  const avatarPaths = Array.from(
-    new Set([
-      ...rows.flatMap((row) => (row.avatarStoragePath ? [row.avatarStoragePath] : [])),
-      ...requests.flatMap((request) =>
-        request.requester.avatar_storage_path ? [request.requester.avatar_storage_path] : [],
+    inboxNixes,
+    locale,
+    outboxQuery.data,
+    sentNixes,
+    serverTextMessages,
+    unknownUsername,
+    yesterdayLabel,
+  ]);
+  const requests = requestsQuery.data ?? EMPTY_LIST;
+  // Unchanged conversations keep their row object, so `memo(MessageRow)` skips them on every
+  // upload progress tick or new message elsewhere (PERF-16 follow-up).
+  const allRows = useMemo(
+    () =>
+      rowIdentityCache.reconcile(
+        mergeInboxRowsWithUploads(baseRows, uploadPresentations, acceptedFriendsQuery.data ?? [], {
+          unknownUsername,
+          locale,
+          yesterdayLabel,
+        }),
       ),
-    ]),
-  ).sort();
+    [
+      acceptedFriendsQuery.data,
+      baseRows,
+      locale,
+      rowIdentityCache,
+      unknownUsername,
+      uploadPresentations,
+      yesterdayLabel,
+    ],
+  );
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const preferences = useInboxPreferences({ currentUserId, canUseNetworkSession, t });
+  const friendship = useFriendshipOverview();
+  // A new NiX in or out (realtime refetch of the bundle) can extend or complete a streak.
+  const bundleUpdatedAt = nixesQuery.dataUpdatedAt;
+  useEffect(() => {
+    if (!canUseNetworkSession || !bundleUpdatedAt) return;
+    const streaks = queryClient.getQueryState(queryKeys.friendStreaks);
+    if (!streaks || streaks.dataUpdatedAt >= bundleUpdatedAt - STREAK_REFRESH_SLACK_MS) return;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.friendStreaks });
+  }, [bundleUpdatedAt, canUseNetworkSession, queryClient]);
+  // Pinned conversations first, in pin order; search filters the ordered list.
+  const orderedRows = useMemo(
+    () => orderRowsWithPins(allRows, preferences.pins),
+    [allRows, preferences.pins],
+  );
+  const rows = useMemo(
+    () => filterInboxRows(orderedRows, deferredSearchQuery),
+    [orderedRows, deferredSearchQuery],
+  );
+  // Reactions the peer left on my sent NiXes, shown next to their status ("Otwarto · ❤️").
+  const sentNixIds = useMemo(
+    () =>
+      rows
+        .filter((row) => row.kind === 'nix' && row.direction === 'sent' && row.id.startsWith('sent-nix-'))
+        .map((row) => row.id.slice('sent-nix-'.length)),
+    [rows],
+  );
+  const nixReactions = useNixReactions(sentNixIds);
+  const visibleRequests = useMemo(
+    () => filterInviteRequests(requests, deferredSearchQuery),
+    [requests, deferredSearchQuery],
+  );
 
-  const avatarQuery = useQuery({
-    queryKey: avatarSignedUrlsQueryKey(avatarPaths),
-    queryFn: () => createSignedAvatarUrls(avatarPaths),
-    enabled: canUseNetworkSession && avatarPaths.length > 0,
-    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
-  });
+  // PERF-17 / SEND-6: per-path cache shared with every screen. A new conversation signs only its
+  // own avatar; the others keep their URL (and the map keeps its identity when nothing changed).
+  // Based on all rows (not the search result) so typing in search never changes the set.
+  const avatarUrls = useSignedAvatarUrls(
+    [
+      ...allRows.map((row) => row.avatarStoragePath),
+      ...requests.map((request) => request.requester.avatar_storage_path),
+    ],
+    { enabled: canUseNetworkSession },
+  );
 
   const refreshFailureMessage = t('inbox.refreshFailure');
   const handleRefresh = async () => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
-    await refreshInboxQueries(queryClient, refreshFailureMessage);
+    await Promise.all([
+      refreshInboxQueries(queryClient, refreshFailureMessage),
+      preferences.refresh(),
+    ]);
   };
 
   const handleRetry = async () => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     await Promise.all([nixesQuery.refetch(), requestsQuery.refetch()]);
@@ -265,7 +330,9 @@ export function useInboxScreen() {
           const key = query.queryKey[0];
           if (
             key !== queryKeys.inboxNixesBundle[0] &&
-            key !== queryKeys.incomingFriendRequests[0]
+            key !== queryKeys.incomingFriendRequests[0] &&
+            key !== queryKeys.conversationMutes[0] &&
+            key !== queryKeys.friendStreaks[0]
           ) {
             return false;
           }
@@ -299,7 +366,7 @@ export function useInboxScreen() {
 
   const handleAccept = async (requestId: string) => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     if (!beginInviteAction(requestId)) return;
@@ -311,6 +378,7 @@ export function useInboxScreen() {
             queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
             queryClient.invalidateQueries({ queryKey: queryKeys.incomingFriendRequests }),
           ]);
+          hapticNotify('success');
           notifySuccess(t('friends.acceptSuccess'));
         } catch (error) {
           notifyDomainError(error, t('friends.acceptFailure'));
@@ -322,7 +390,7 @@ export function useInboxScreen() {
 
   const handleReject = async (requestId: string) => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     if (!beginInviteAction(requestId)) return;
@@ -356,7 +424,7 @@ export function useInboxScreen() {
 
   const handleDelete = async (row: InboxRowModel) => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     if (!beginPeerAction(row.peerId)) return;
@@ -365,8 +433,9 @@ export function useInboxScreen() {
       async () => {
         try {
           await deleteConversationWithPeer(row.peerId);
+          void preferences.forgetPin(row.peerId);
           await queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
-          notifySuccess(t('inbox.deleteConversationSuccess'));
+          notifySuccess(t('inbox.deleteConversationSuccess', { username: row.username }));
         } catch (error) {
           notifyDomainError(error, t('inbox.deleteConversationFailure'));
         }
@@ -377,7 +446,7 @@ export function useInboxScreen() {
 
   const handleBlock = async (row: InboxRowModel) => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     if (!beginPeerAction(row.peerId)) return;
@@ -386,6 +455,7 @@ export function useInboxScreen() {
       async () => {
         try {
           await blockUser(row.peerId);
+          void preferences.forgetPin(row.peerId);
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: queryKeys.blockedUsers }),
             queryClient.invalidateQueries({ queryKey: queryKeys.acceptedFriends }),
@@ -394,6 +464,54 @@ export function useInboxScreen() {
           notifySuccess(t('viewer.blockSuccess'));
         } catch (error) {
           notifyDomainError(error, t('viewer.blockFailure'));
+        }
+      },
+      () => finishPeerAction(row.peerId),
+    );
+  };
+
+  const handleTogglePin = (row: InboxRowModel) =>
+    preferences.setPinned(row.peerId, !preferences.pinnedPeerIds.has(row.peerId));
+
+  const handleSetMute = (row: InboxRowModel, duration: ConversationMuteDuration | 'off') =>
+    preferences.setMute(row.peerId, duration);
+
+  const handleMarkRead = async (row: InboxRowModel) => {
+    if (!canUseNetworkSession) {
+      notifyOffline();
+      return;
+    }
+    if (!beginPeerAction(row.peerId)) return;
+    await runWithFinally(
+      async () => {
+        try {
+          await markTextConversationRead(row.peerId, row.createdAt);
+          await queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
+        } catch (error) {
+          notifyDomainError(error, t('inbox.markReadFailure'));
+        }
+      },
+      () => finishPeerAction(row.peerId),
+    );
+  };
+
+  const handleReport = async (row: InboxRowModel, reason: ReportReason) => {
+    if (!canUseNetworkSession) {
+      notifyOffline();
+      return;
+    }
+    if (!beginPeerAction(row.peerId)) return;
+    await runWithFinally(
+      async () => {
+        try {
+          await reportContent({
+            reportedUserId: row.peerId,
+            reason,
+            details: 'User reported peer from inbox row menu.',
+          });
+          notifySuccess(t('chat.reportPeerSuccess'));
+        } catch (error) {
+          notifyDomainError(error, t('chat.reportPeerFailure'));
         }
       },
       () => finishPeerAction(row.peerId),
@@ -437,7 +555,7 @@ export function useInboxScreen() {
     if (busyPeerIdsRef.current.has(row.peerId)) return;
 
     if (isOfflineAuthenticated && row.kind === 'nix' && !row.upload) {
-      notifyInfo(t('root.offlineMediaUnavailable'));
+      notifyOffline('media');
       return;
     }
 
@@ -484,6 +602,7 @@ export function useInboxScreen() {
       hasCachedInbox: hasCachedData('inbox'),
       rows,
       requests,
+      visibleRequests,
       allRows,
       searchQuery,
     });
@@ -500,8 +619,16 @@ export function useInboxScreen() {
   return {
     t,
     rows,
-    requests,
-    avatarUrls: avatarQuery.data ?? {},
+    requests: visibleRequests,
+    avatarUrls,
+    pinnedPeerIds: preferences.pinnedPeerIds,
+    friendshipBadges: friendship.badges,
+    nixReactionFor: (row: InboxRowModel) =>
+      row.kind === 'nix' && row.direction === 'sent' && nixReactions.available
+        ? nixReactions.reactionFor(row.id.slice('sent-nix-'.length))
+        : null,
+    mutedPeerIds: preferences.mutedPeerIds,
+    muteAvailable: preferences.muteAvailable,
     inviteActionIds,
     busyPeerIds,
     loading,
@@ -518,6 +645,10 @@ export function useInboxScreen() {
     handleReject,
     handleDelete,
     handleBlock,
+    handleTogglePin,
+    handleSetMute,
+    handleMarkRead,
+    handleReport,
     handleUploadAction,
     handleOpen,
     canPerformNetworkAction: canUseNetworkSession,

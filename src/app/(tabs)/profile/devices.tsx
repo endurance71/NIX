@@ -4,12 +4,13 @@ import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
   NativeSettingsActionRow,
-  NativeSettingsEmptyRow,
+  NativeSettingsListStatus,
   NativeSettingsRow,
   NativeSettingsSection,
 } from '../../../components/ui/native-settings';
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
 import { useAppTheme } from '../../../hooks/useAppTheme';
+import { resolveSettingsListState } from '../../../lib/settingsListState';
 import { queryKeys } from '../../../lib/queryKeys';
 import {
   listAppInstallations,
@@ -60,7 +61,16 @@ export default function DevicesScreen() {
       >
         <NativeSettingsSection title={t('devices.active')}>
           {rows.length === 0 ? (
-            <NativeSettingsEmptyRow text={t('devices.empty')} />
+            <NativeSettingsListStatus
+              state={resolveSettingsListState({
+                itemCount: rows.length,
+                hasData: query.data !== undefined,
+                isError: query.isError,
+                canUseNetworkSession,
+              })}
+              emptyText={t('devices.empty')}
+              onRetry={() => void query.refetch()}
+            />
           ) : (
             rows.map((row) => (
               <NativeSettingsRow

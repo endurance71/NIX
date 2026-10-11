@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  beginBusyKey,
+  endBusyKey,
+  friendActionKey,
   getPendingInviteCount,
   isFriendRowBusy,
+  isIncomingRequestBusy,
   isOutgoingRequestBusy,
 } from './profileFriendsPresentation';
 
@@ -11,15 +15,24 @@ describe('profile friends presentation helpers', () => {
     expect(getPendingInviteCount(-1, 2)).toBe(2);
   });
 
-  it('recognizes the active outgoing request only', () => {
-    expect(isOutgoingRequestBusy('outgoing-request-1', 'request-1')).toBe(true);
-    expect(isOutgoingRequestBusy('outgoing-request-2', 'request-1')).toBe(false);
-    expect(isOutgoingRequestBusy(null, 'request-1')).toBe(false);
+  it('tracks busy rows independently, so parallel actions keep their own spinners', () => {
+    let busy: ReadonlySet<string> = new Set();
+    busy = beginBusyKey(busy, friendActionKey.outgoing('request-1'))!;
+    busy = beginBusyKey(busy, friendActionKey.friend('friend-1'))!;
+    busy = beginBusyKey(busy, friendActionKey.incoming('request-2'))!;
+
+    expect(isOutgoingRequestBusy(busy, 'request-1')).toBe(true);
+    expect(isOutgoingRequestBusy(busy, 'request-2')).toBe(false);
+    expect(isFriendRowBusy(busy, 'friend-1')).toBe(true);
+    expect(isIncomingRequestBusy(busy, 'request-2')).toBe(true);
+
+    busy = endBusyKey(busy, friendActionKey.friend('friend-1'));
+    expect(isFriendRowBusy(busy, 'friend-1')).toBe(false);
+    expect(isOutgoingRequestBusy(busy, 'request-1')).toBe(true);
   });
 
-  it('treats capture updates and removal as a busy friend row', () => {
-    expect(isFriendRowBusy('capture-friend-1', 'friend-1')).toBe(true);
-    expect(isFriendRowBusy('friend-friend-1', 'friend-1')).toBe(true);
-    expect(isFriendRowBusy('capture-friend-2', 'friend-1')).toBe(false);
+  it('refuses a second start of the same action', () => {
+    const busy = new Set([friendActionKey.invite]);
+    expect(beginBusyKey(busy, friendActionKey.invite)).toBeNull();
   });
 });

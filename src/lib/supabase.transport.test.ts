@@ -6,7 +6,7 @@ const { getSession, clients } = vi.hoisted(() => ({ getSession: vi.fn(), clients
 vi.mock('react-native', () => ({ AppState: {}, Platform: { OS: 'ios' } }));
 vi.mock('./authStorage', () => ({ authStorage: {} }));
 vi.mock('./installUrlPolyfill', () => ({}));
-vi.mock('@supabase/supabase-js', () => ({ processLock: {}, createClient: (_url: string, _key: string, options: { accessToken?: () => Promise<string>; global?: { fetch: typeof fetch } }) => {
+vi.mock('@supabase/supabase-js', () => ({ createClient: (_url: string, _key: string, options: { accessToken?: () => Promise<string>; global?: { fetch: typeof fetch } }) => {
   clients.push(options); return { auth: { getSession } };
 } }));
 

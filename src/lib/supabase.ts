@@ -1,6 +1,6 @@
 import './installUrlPolyfill';
 import { AppState, Platform } from 'react-native';
-import { createClient, processLock } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import { authStorage } from './authStorage';
 import type { Database } from '../types/database.generated';
 import { captureSessionScope, sessionGeneration, SessionScopeCancelledError } from './sessionScope';
@@ -35,7 +35,8 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: false,
     storageKey: SUPABASE_AUTH_STORAGE_KEY,
-    lock: processLock,
+    // No `lock`: auth-js 2.117+ coordinates session refreshes without one (the option is
+    // deprecated and only logged a warning).
   },
 });
 

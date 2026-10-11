@@ -29,15 +29,25 @@ export default function NotificationPreferencesScreen() {
     queryFn: getNotificationPreferences,
     enabled: canUseNetworkSession,
   });
-  const value = query.data ?? DEFAULT_NOTIFICATION_PREFERENCES;
+  // NOTIF-14: never present DEFAULT_NOTIFICATION_PREFERENCES as the user's real choice. Until the
+  // server (or the persisted query cache) has answered, the category rows have no switch.
+  const preferences = query.data;
+  const categoriesFooter = preferences
+    ? t('notifications.securityAlwaysOn')
+    : !canUseNetworkSession
+      ? t('root.offlineCacheMissing')
+      : query.isError
+        ? t('notifications.loadFailed')
+        : t('common.loading');
+  const categoriesEditable = canUseNetworkSession && Boolean(preferences);
 
   const update = async (
     key: keyof typeof DEFAULT_NOTIFICATION_PREFERENCES,
     enabled: boolean
   ) => {
-    if (!canUseNetworkSession) return;
-    const previous = value;
-    const next = { ...value, [key]: enabled };
+    if (!canUseNetworkSession || !preferences) return;
+    const previous = preferences;
+    const next = { ...preferences, [key]: enabled };
     queryClient.setQueryData(queryKeys.notificationPreferences, next);
     try {
       await saveNotificationPreferences(next);
@@ -70,28 +80,34 @@ export default function NotificationPreferencesScreen() {
         </NativeSettingsSection>
         <NativeSettingsSection
           title={t('notifications.categories')}
-          footer={t('notifications.securityAlwaysOn')}>
+          footer={categoriesFooter}>
           <NativeSettingsRow
             title={t('notifications.messages')}
-            supportingText={t('notifications.messagesDescription')}
+            supportingText={
+              preferences
+                ? t('notifications.messagesDescription')
+                : `${t('notifications.messagesDescription')} · ${t('notifications.stateUnknown')}`
+            }
             icon="message"
-            switchValue={value.messages_enabled}
+            switchValue={preferences?.messages_enabled}
             onSwitchValueChange={(enabled) => void update('messages_enabled', enabled)}
-            disabled={!canUseNetworkSession}
+            disabled={!categoriesEditable}
           />
           <NativeSettingsRow
             title={t('notifications.reactions')}
+            supportingText={preferences ? undefined : t('notifications.stateUnknown')}
             icon="reaction"
-            switchValue={value.reactions_enabled}
+            switchValue={preferences?.reactions_enabled}
             onSwitchValueChange={(enabled) => void update('reactions_enabled', enabled)}
-            disabled={!canUseNetworkSession}
+            disabled={!categoriesEditable}
           />
           <NativeSettingsRow
             title={t('notifications.friends')}
+            supportingText={preferences ? undefined : t('notifications.stateUnknown')}
             icon="friends"
-            switchValue={value.friends_enabled}
+            switchValue={preferences?.friends_enabled}
             onSwitchValueChange={(enabled) => void update('friends_enabled', enabled)}
-            disabled={!canUseNetworkSession}
+            disabled={!categoriesEditable}
           />
         </NativeSettingsSection>
       </SettingsListScreen>

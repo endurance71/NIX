@@ -1,16 +1,40 @@
-import { mergeChatOutboxMessages } from '../lib/chatOutboxMessages';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo } from 'react-native';
+import { mergeChatOutboxMessages, type ChatOutboxStatus } from '../lib/chatOutboxMessages';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './useAuth';
-import { queryKeys, avatarSignedUrlsQueryKey } from '../lib/queryKeys';
-import { sortMessagesAscending } from '../lib/chatTimeline';
+import { useSignedAvatarUrls } from './useSignedAvatarUrls';
+import { queryKeys } from '../lib/queryKeys';
+import {
+  chatPeerProfileFromInboxBundle,
+  sortMessagesAscending,
+} from '../lib/chatTimeline';
+import type { InboxBundle } from '../lib/inboxQuery';
 import { runWithFinally } from '../lib/runWithFinally';
 import {
   fetchRecentTextMessagesWithPeer,
+  setTextMessageSaved,
 } from '../services/textMessageService';
+import {
+  deleteLocalRecording,
+  discardVoiceUpload,
+  sendVoiceMessage,
+  uploadVoiceRecording,
+} from '../services/voiceMessageService';
+import { fetchChatCapabilities } from '../services/chatCapabilitiesService';
+import {
+  isMissingChatFeatureError,
+  NO_CHAT_CAPABILITIES,
+  type ChatCapabilities,
+} from '../lib/chatCapabilities';
+import { withSavedState, type ChatMessageExtras } from '../lib/chatMessageExtras';
+import {
+  mergePendingVoiceMessages,
+  voiceClientIdFromOutboxId,
+  type PendingVoiceMessage,
+} from '../lib/chatVoiceOutbox';
+import type { VoiceRecordingResult } from './useVoiceRecorder';
 import {
   fetchMessageReactionsWithPeer,
   groupReactionsByMessageId,
@@ -23,14 +47,19 @@ import {
   fetchNixPublicProfiles,
   type ChatNixEvent,
 } from '../services/nixService';
-import { createSignedAvatarUrls } from '../services/avatarService';
 import { blockUser, reportContent, type ReportReason } from '../services/safetyService';
-import { notifyDomainError, notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
+import {
+  notifyDomainError,
+  notifyError,
+  notifyInfo,
+  notifyOffline,
+  notifySuccess,
+} from '../lib/appNotify';
 import { selection } from '../lib/haptics';
 import { isNixFirstOpenAvailable, isNixReplayAvailable } from '../lib/nixReplay';
 import type { MessageReaction, MessageReactionEmoji, TextMessage } from '../types/database.types';
-import { useUploadJobs, useUploadQueue } from '../context/uploadQueue';
-import { selectChatUploadJobs } from '../lib/chatUploadPresentation';
+import { useUploadJobs, useUploadQueueActions } from '../context/uploadQueue';
+import { rememberChatMediaAnchors, selectChatUploadJobs } from '../lib/chatUploadPresentation';
 import type { UploadRowAction } from '../lib/inboxPresentation';
 import { markTextConversationRead } from '../services/conversationReadService';
 import {
@@ -44,13 +73,19 @@ import {
   listTextOutbox,
   retryTextOutboxJob,
 } from '../services/textOutboxService';
-import { activeChatPeerRef } from '../lib/activeChatPeer';
+import { claimActiveChatPeer } from '../lib/activeChatPeer';
+import { useConnectivity } from '../lib/connectivity';
 import { serializeViewerOpenParams } from '../lib/viewerRoute';
 import { usePhotoDraft } from '../context/photoDraft';
 import { chatPasteFeatures } from '../config/chatPasteFeatures';
 import { handleChatPastePayload } from '../lib/chatPasteHandler';
 import type { ChatPasteIo, ChatPastePayload } from '../lib/chatPaste';
 import { createDefaultChatPasteIo } from '../lib/chatPasteIo';
+import { useTextMessageExpiryClock } from './useTextMessageExpiryClock';
+import { useUploadVisibilityClock } from './useUploadVisibilityClock';
+import { useChatTyping } from './useChatTyping';
+import { useNixReactions } from './useNixReactions';
+import { copyTextToClipboard, isClipboardAvailable } from '../lib/clipboard';
 
 function generateClientMessageId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -59,10 +94,14 @@ function generateClientMessageId(): string {
   return `client-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-export type OptimisticTextMessage = TextMessage & {
+export type OptimisticTextMessage = TextMessage & ChatMessageExtras & {
   isSending?: boolean;
   sendFailed?: boolean;
+  /** Set only for rows that still live in the local outbox. */
+  outboxStatus?: ChatOutboxStatus;
   outboxId?: string;
+  /** A voice message still being sent plays from the local recording. */
+  localVoiceUri?: string;
 };
 
 const CHAT_REPORT_REASON_IDS = ['harassment', 'spam', 'other'] as const satisfies readonly ReportReason[];
@@ -72,6 +111,9 @@ const CHAT_STALE_TIME_MS = 60_000;
 const COMPLETED_UPLOAD_VISIBILITY_MS = 30_000;
 const RETRY_FEEDBACK_MIN_MS = 900;
 const EMPTY_CHAT_NIXES: ChatNixEvent[] = [];
+const EMPTY_TEXT_MESSAGES: TextMessage[] = [];
+const EMPTY_OUTBOX: Awaited<ReturnType<typeof listTextOutbox>> = [];
+const EMPTY_REACTIONS: MessageReaction[] = [];
 
 async function withMinimumDuration<T>(promise: Promise<T>, minimumMs: number): Promise<T> {
   const startedAt = Date.now();
@@ -86,6 +128,7 @@ async function withMinimumDuration<T>(promise: Promise<T>, minimumMs: number): P
 }
 
 function useChatPeerQueries(peerId: string, canUseNetworkSession: boolean) {
+  const queryClient = useQueryClient();
   const peerProfileQuery = useQuery({
     queryKey: ['peerProfile', peerId],
     queryFn: async () => {
@@ -94,20 +137,27 @@ function useChatPeerQueries(peerId: string, canUseNetworkSession: boolean) {
     },
     staleTime: 60_000,
     enabled: canUseNetworkSession && Boolean(peerId),
+    // DB-7: the inbox bundle already holds this profile, so the header and the avatar request
+    // start at once. Dated like the bundle, so a stale bundle still triggers the profile refetch.
+    initialData: () =>
+      chatPeerProfileFromInboxBundle(
+        queryClient.getQueryData<InboxBundle>(queryKeys.inboxNixesBundle),
+        peerId,
+      ),
+    initialDataUpdatedAt: () => queryClient.getQueryState(queryKeys.inboxNixesBundle)?.dataUpdatedAt,
   });
 
   const peerAvatarPath = peerProfileQuery.data?.avatar_storage_path ?? null;
-  const peerAvatarQuery = useQuery({
-    queryKey: avatarSignedUrlsQueryKey(peerAvatarPath ? [peerAvatarPath] : []),
-    queryFn: () => createSignedAvatarUrls(peerAvatarPath ? [peerAvatarPath] : []),
-    staleTime: 5 * 60_000,
-    enabled: canUseNetworkSession && Boolean(peerAvatarPath),
-  });
+  // PERF-17: same per-path cache as the inbox row, so opening a chat reuses the inbox's URL.
+  const peerAvatarUrls = useSignedAvatarUrls([peerAvatarPath], { enabled: canUseNetworkSession });
 
-  return { peerProfileQuery, peerAvatarPath, peerAvatarQuery };
+  return { peerProfileQuery, peerAvatarPath, peerAvatarUrls };
 }
 
 const CHAT_MESSAGE_PAGE_SIZE = 50;
+// Module-level so TanStack keeps the selected array between renders (an inline `select` re-runs
+// on every render and would hand every memoized consumer a new array).
+const selectMessagesAscending = (rows: TextMessage[]) => sortMessagesAscending(rows);
 
 function useChatTimelineQueries(
   peerId: string,
@@ -123,11 +173,12 @@ function useChatTimelineQueries(
     staleTime: CHAT_STALE_TIME_MS,
     enabled: canUseNetworkSession && Boolean(peerId),
     refetchOnWindowFocus: true,
-    select: (rows) => sortMessagesAscending(rows),
+    select: selectMessagesAscending,
   });
   const outboxQuery = useQuery({
     queryKey: ['textOutbox', currentUserId, peerId] as const,
-    queryFn: () => listTextOutbox(currentUserId, peerId),
+    // Tombstones of expired messages are shown in the chat (OFF-4), not in the inbox preview.
+    queryFn: () => listTextOutbox(currentUserId, peerId, { includeExpired: true }),
     enabled: Boolean(currentUserId && peerId),
     networkMode: 'always',
     staleTime: 0,
@@ -156,7 +207,17 @@ function useChatTimelineQueries(
     staleTime: 30_000,
   });
 
-  return { messagesQuery, outboxQuery, reactionsQuery, nixesQuery, muteQuery };
+  return {
+    messagesQuery,
+    outboxQuery,
+    reactionsQuery,
+    nixesQuery,
+    muteQuery,
+    serverMessages: messagesQuery.data ?? EMPTY_TEXT_MESSAGES,
+    outboxJobs: outboxQuery.data ?? EMPTY_OUTBOX,
+    nixes: (nixesQuery.data ?? EMPTY_CHAT_NIXES) as ChatNixEvent[],
+    reactions: reactionsQuery.data ?? EMPTY_REACTIONS,
+  };
 }
 
 /** Number of message pages requested for this peer; resets when the peer changes. */
@@ -219,77 +280,26 @@ function useOlderChatMessages({
   };
 }
 
-export function useChatScreen(peerId: string) {
-  const { t, i18n } = useTranslation();
-  const { session, canUseNetworkSession, isOfflineAuthenticated } = useAuth();
-  const currentUserId = session?.user?.id ?? '';
+/** Marks the newest received message read (debounced) once the chat shows it. */
+function useMarkConversationRead({
+  canUseNetworkSession,
+  currentUserId,
+  messagesPending,
+  peerId,
+  messages,
+}: {
+  canUseNetworkSession: boolean;
+  currentUserId: string;
+  messagesPending: boolean;
+  peerId: string;
+  messages: readonly { id: string; sender_id: string; created_at: string }[];
+}) {
   const queryClient = useQueryClient();
-  const { pauseUpload, resumeUpload, retryUpload, cancelUpload } = useUploadQueue();
-  const uploadJobs = useUploadJobs();
-
-  const { setDraft: setPhotoDraft } = usePhotoDraft();
-  const [inputBody, setInputBody] = useState('');
-  const [composerKey, setComposerKey] = useState(0);
-  const [sending, setSending] = useState(false);
-  const [pasteImporting, setPasteImporting] = useState(false);
-  const pasteImportingRef = useRef(false);
-  const pasteIoRef = useRef<ChatPasteIo | null>(null);
-  const [uploadClock, setUploadClock] = useState(() => Date.now());
-  const [busyUploadActions, setBusyUploadActions] = useState<ReadonlyMap<string, UploadRowAction>>(
-    () => new Map(),
-  );
-  const peerActionBusyRef = useRef(false);
-  const busyUploadActionsRef = useRef(new Map<string, UploadRowAction>());
   const lastReadThroughRef = useRef<string | null>(null);
-
-  // Track the active chat so the foreground notification handler can
-  // suppress banners for messages from the peer being viewed.
   useEffect(() => {
-    if (!peerId) return;
-    activeChatPeerRef.current = peerId;
-    return () => {
-      if (activeChatPeerRef.current === peerId) {
-        activeChatPeerRef.current = null;
-      }
-    };
-  }, [peerId]);
-
-  const { peerProfileQuery, peerAvatarPath, peerAvatarQuery } = useChatPeerQueries(
-    peerId,
-    canUseNetworkSession,
-  );
-  const [messagePages, setMessagePages] = useChatMessagePages(peerId);
-  const { messagesQuery, outboxQuery, reactionsQuery, nixesQuery, muteQuery } =
-    useChatTimelineQueries(peerId, currentUserId, canUseNetworkSession, messagePages);
-  const { loadingOlderMessages, onReachedOldestMessage } = useOlderChatMessages({
-    peerId,
-    messagePages,
-    messagesQuery,
-    canUseNetworkSession,
-    onPagesChange: setMessagePages,
-    failureMessage: t('chat.loadOlderFailed'),
-  });
-  const messages = mergeChatOutboxMessages(
-    messagesQuery.data ?? [],
-    outboxQuery.data ?? [],
-    currentUserId,
-  );
-  const nixes: ChatNixEvent[] = nixesQuery.data ?? EMPTY_CHAT_NIXES;
-  const chatUploadJobs = selectChatUploadJobs(uploadJobs, peerId, nixes, {
-    now: uploadClock,
-    completedVisibilityMs: COMPLETED_UPLOAD_VISIBILITY_MS,
-  });
-  const reactionsByMessageId = groupReactionsByMessageId(reactionsQuery.data ?? []);
-
-  useEffect(() => {
-    if (
-      !canUseNetworkSession ||
-      !currentUserId ||
-      !peerId ||
-      messagesQuery.isPending ||
-      messages.length === 0
-    )
+    if (!canUseNetworkSession || !currentUserId || messagesPending || !peerId || messages.length === 0) {
       return;
+    }
     const lastReceived = [...messages]
       .reverse()
       .find((message) => message.sender_id === peerId && !message.id.startsWith('temp-'));
@@ -305,23 +315,168 @@ export function useChatScreen(peerId: string) {
         });
     }, 350);
     return () => clearTimeout(timer);
-  }, [canUseNetworkSession, currentUserId, messages, messagesQuery.isPending, peerId, queryClient]);
+  }, [canUseNetworkSession, currentUserId, messages, messagesPending, peerId, queryClient]);
+}
 
+
+
+const CHAT_CAPABILITIES_KEY = ['chatCapabilities'] as const;
+const CHAT_CAPABILITIES_STALE_MS = 10 * 60_000;
+
+/**
+ * Saved messages and voice messages exist only on backends with 20261012100000/20261012101000.
+ * Production without them answers „none”: the actions stay hidden and nothing errors. A call
+ * that still fails with a missing RPC/column/bucket hides that feature for the session.
+ */
+function useChatCapabilities(canUseNetworkSession: boolean) {
+  const query = useQuery({
+    queryKey: CHAT_CAPABILITIES_KEY,
+    queryFn: fetchChatCapabilities,
+    staleTime: CHAT_CAPABILITIES_STALE_MS,
+    enabled: canUseNetworkSession,
+    retry: 1,
+  });
+  const [missing, setMissing] = useState<Partial<Record<keyof ChatCapabilities, true>>>({});
+  const data = query.data ?? NO_CHAT_CAPABILITIES;
+  const capabilities: ChatCapabilities = {
+    savedMessages: data.savedMessages && !missing.savedMessages,
+    voiceMessages: data.voiceMessages && !missing.voiceMessages,
+  };
+  const markMissing = useCallback((feature: keyof ChatCapabilities) => {
+    setMissing((current) => (current[feature] ? current : { ...current, [feature]: true }));
+  }, []);
+  return { capabilities, markMissing };
+}
+
+function generateVoiceClientId(): string {
+  return generateClientMessageId();
+}
+
+export function useChatScreen(peerId: string) {
+  const { t, i18n } = useTranslation();
+  const { session, canUseNetworkSession, isOfflineAuthenticated } = useAuth();
+  const { online } = useConnectivity();
+  // NetInfo reports offline before the auth layer drops the network session; either one means a
+  // queued message cannot leave the device right now.
+  const networkAvailable = canUseNetworkSession && online;
+  const currentUserId = session?.user?.id ?? '';
+  const queryClient = useQueryClient();
+  const { pauseUpload, resumeUpload, retryUpload, cancelUpload } = useUploadQueueActions();
+  const uploadJobs = useUploadJobs();
+
+  const { setDraft: setPhotoDraft } = usePhotoDraft();
+  // The composer text lives in ChatComposer (PERF-10): typing must not re-render this hook, the
+  // header or the list. `handleSend(body)` receives the text.
+  const sendingRef = useRef(false);
+  const [pasteImporting, setPasteImporting] = useState(false);
+  const pasteImportingRef = useRef(false);
+  const pasteIoRef = useRef<ChatPasteIo | null>(null);
+  const [busyUploadActions, setBusyUploadActions] = useState<ReadonlyMap<string, UploadRowAction>>(
+    () => new Map(),
+  );
+  const peerActionBusyRef = useRef(false);
+  const busyUploadActionsRef = useRef(new Map<string, UploadRowAction>());
+
+  // Track the visible chat so the foreground notification handler can suppress banners for
+  // messages from this peer. Focus-based (NOTIF-11): a chat under the viewer or under another chat
+  // is not „visible”, and blurring never clears another chat's claim.
+  useFocusEffect(
+    useCallback(() => (peerId ? claimActiveChatPeer(peerId) : undefined), [peerId]),
+  );
+
+  const { peerProfileQuery, peerAvatarPath, peerAvatarUrls } = useChatPeerQueries(
+    peerId,
+    canUseNetworkSession,
+  );
+  const [messagePages, setMessagePages] = useChatMessagePages(peerId);
+  const {
+    messagesQuery,
+    outboxQuery,
+    reactionsQuery,
+    nixesQuery,
+    muteQuery,
+    serverMessages,
+    outboxJobs,
+    nixes,
+    reactions,
+  } =
+    useChatTimelineQueries(peerId, currentUserId, canUseNetworkSession, messagePages);
+  const { loadingOlderMessages, onReachedOldestMessage } = useOlderChatMessages({
+    peerId,
+    messagePages,
+    messagesQuery,
+    canUseNetworkSession,
+    onPagesChange: setMessagePages,
+    failureMessage: t('chat.loadOlderFailed'),
+  });
+  const expiryClock = useTextMessageExpiryClock(serverMessages);
+  const { capabilities, markMissing } = useChatCapabilities(canUseNetworkSession);
+  // Voice messages being uploaded / sent from this screen (in memory; see chatVoiceOutbox).
+  const [pendingVoice, setPendingVoice] = useState<PendingVoiceMessage[]>([]);
+  const pendingVoiceRef = useRef<PendingVoiceMessage[]>(pendingVoice);
   useEffect(() => {
-    const completionTimes = uploadJobs.flatMap((job) => {
-      const belongsToPeer = job.recipients.some((recipient) => recipient.receiverId === peerId);
-      return belongsToPeer && (job.state === 'completed' || job.state === 'partially_completed')
-        ? [(job.finishedAt ?? job.updatedAt) + COMPLETED_UPLOAD_VISIBILITY_MS]
-        : [];
-    });
-    const nextExpiry = Math.min(...completionTimes.filter((time) => time > Date.now()));
-    if (!Number.isFinite(nextExpiry)) return;
-    const timer = setTimeout(
-      () => setUploadClock(Date.now()),
-      Math.max(0, nextExpiry - Date.now()),
-    );
-    return () => clearTimeout(timer);
-  }, [peerId, uploadJobs]);
+    pendingVoiceRef.current = pendingVoice;
+  }, [pendingVoice]);
+  // Memoized so that a re-render without new data keeps every list cell's props identical.
+  const messages = useMemo(
+    () =>
+      mergePendingVoiceMessages(
+        mergeChatOutboxMessages(serverMessages, outboxJobs, currentUserId, {
+          online: networkAvailable,
+          now: expiryClock,
+        }),
+        pendingVoice,
+        currentUserId,
+        peerId,
+      ) as OptimisticTextMessage[],
+    [currentUserId, expiryClock, networkAvailable, outboxJobs, peerId, pendingVoice, serverMessages],
+  );
+  // Leaving the chat drops failed takes (their files would otherwise linger in the cache).
+  useEffect(
+    () => () => {
+      for (const entry of pendingVoiceRef.current) {
+        if (entry.status === 'failed') {
+          deleteLocalRecording(entry.localUri);
+          if (entry.uploadedPath) void discardVoiceUpload(entry.uploadedPath);
+        }
+      }
+    },
+    [],
+  );
+  const uploadClock = useUploadVisibilityClock(uploadJobs, COMPLETED_UPLOAD_VISIBILITY_MS, peerId);
+  const chatUploadJobs = useMemo(
+    () =>
+      selectChatUploadJobs(uploadJobs, peerId, nixes, {
+        now: uploadClock,
+        completedVisibilityMs: COMPLETED_UPLOAD_VISIBILITY_MS,
+      }),
+    [nixes, peerId, uploadClock, uploadJobs],
+  );
+  // Remembers which upload became which server NiX, so the delivered NiX keeps the upload's
+  // cell and position (SEND-8).
+  const mediaAnchors = useMemo(
+    () => rememberChatMediaAnchors(peerId, chatUploadJobs),
+    [chatUploadJobs, peerId],
+  );
+  const reactionsByMessageId = useMemo(() => groupReactionsByMessageId(reactions), [reactions]);
+
+  const typing = useChatTyping({
+    peerId,
+    currentUserId,
+    enabled: networkAvailable,
+    onMessageSaveChanged: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.textMessagesWithPeer(peerId) });
+    },
+  });
+
+  useMarkConversationRead({
+    canUseNetworkSession,
+    currentUserId,
+    messagesPending: messagesQuery.isPending,
+    peerId,
+    messages,
+  });
+
 
   const reportReasons = CHAT_REPORT_REASON_IDS.map((id) => ({
     id,
@@ -333,32 +488,46 @@ export function useChatScreen(peerId: string) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.inboxNixesBundle });
   };
 
-  const handleSend = async () => {
-    const trimmed = inputBody.trim();
-    if (!trimmed || sending || !peerId) return;
+  const flushOutboxInBackground = () => {
+    void flushTextOutbox(currentUserId)
+      .then(async (sentIds) => {
+        await queryClient.invalidateQueries({ queryKey: ['textOutbox'] });
+        if (sentIds.length === 0) return;
+        await messagesQuery.refetch();
+        refreshInboxInBackground();
+      })
+      // Per-message failures are stored on the outbox row and shown on its bubble.
+      .catch(() => undefined);
+  };
+
+  // Only the local enqueue blocks the composer. Delivery (including server-side moderation, which
+  // can take seconds) continues in the background while the user keeps typing.
+  // Resolves `false` when the text was not accepted, so the composer puts it back.
+  const handleSend = async (body: string): Promise<boolean> => {
+    const trimmed = body.trim();
+    if (!trimmed || sendingRef.current || !peerId) return false;
 
     const clientMessageId = generateClientMessageId();
-    setInputBody('');
-    setComposerKey((key) => key + 1);
-    setSending(true);
+    sendingRef.current = true;
+    typing.onComposerStop();
 
+    let enqueued = false;
     await runWithFinally(
       async () => {
         try {
           await enqueueTextOutbox(currentUserId, peerId, trimmed, clientMessageId);
+          enqueued = true;
           await outboxQuery.refetch();
-          await queryClient.invalidateQueries({ queryKey: ['textOutbox'] });
-          if (canUseNetworkSession) {
-            await flushTextOutbox(currentUserId);
-            await Promise.all([outboxQuery.refetch(), messagesQuery.refetch()]);
-            refreshInboxInBackground();
-          }
         } catch (error) {
           notifyDomainError(error, t('chat.sendFailure'));
         }
       },
-      () => setSending(false),
+      () => {
+        sendingRef.current = false;
+      },
     );
+    if (enqueued && canUseNetworkSession) flushOutboxInBackground();
+    return enqueued;
   };
 
   const handlePaste = useCallback(
@@ -382,9 +551,6 @@ export function useChatScreen(peerId: string) {
         notifySuccess: (title) => {
           notifySuccess(title);
         },
-        announce: (message) => {
-          void AccessibilityInfo.announceForAccessibility(message);
-        },
         openPreview: (recipientId) => {
           router.push({ pathname: '/preview', params: { recipientId } });
         },
@@ -394,27 +560,147 @@ export function useChatScreen(peerId: string) {
     [peerId, setPhotoDraft, t],
   );
 
-  const handleRetryTextMessage = async (message: OptimisticTextMessage) => {
-    if (!message.outboxId) return;
-    await retryTextOutboxJob(message.outboxId);
-    await outboxQuery.refetch();
-    if (canUseNetworkSession) {
-      await flushTextOutbox(currentUserId);
-      await Promise.all([outboxQuery.refetch(), messagesQuery.refetch()]);
+  const updatePendingVoice = (clientId: string, patch: Partial<PendingVoiceMessage>) => {
+    setPendingVoice((current) =>
+      current.map((entry) => (entry.clientId === clientId ? { ...entry, ...patch } : entry)),
+    );
+  };
+
+  const removePendingVoice = (entry: PendingVoiceMessage) => {
+    setPendingVoice((current) => current.filter((candidate) => candidate.clientId !== entry.clientId));
+    deleteLocalRecording(entry.localUri);
+    if (entry.uploadedPath) void discardVoiceUpload(entry.uploadedPath);
+  };
+
+  /** Upload (once) and create the message; failures stay on the bubble for Retry / Delete. */
+  const deliverVoice = async (entry: PendingVoiceMessage) => {
+    let uploadedPath = entry.uploadedPath;
+    try {
+      if (!uploadedPath) {
+        uploadedPath = await uploadVoiceRecording({
+          senderId: currentUserId,
+          receiverId: entry.receiverId,
+          fileUri: entry.localUri,
+        });
+        updatePendingVoice(entry.clientId, { uploadedPath });
+      }
+      const row = await sendVoiceMessage({
+        receiverId: entry.receiverId,
+        path: uploadedPath,
+        durationMs: entry.durationMs,
+        waveform: entry.waveform,
+        clientMessageId: entry.clientId,
+      });
+      queryClient.setQueryData<TextMessage[]>(queryKeys.textMessagesWithPeer(entry.receiverId), (rows) =>
+        rows && !rows.some((candidate) => candidate.id === row.id) ? [row, ...rows] : rows,
+      );
+      // The server row (same client id, same list key) replaces the local bubble.
+      setPendingVoice((current) => current.filter((candidate) => candidate.clientId !== entry.clientId));
+      deleteLocalRecording(entry.localUri);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.textMessagesWithPeer(entry.receiverId) });
+      refreshInboxInBackground();
+    } catch (error) {
+      if (isMissingChatFeatureError(error)) {
+        // This backend has no voice messages after all: hide the mic, drop the take quietly.
+        markMissing('voiceMessages');
+        removePendingVoice({ ...entry, uploadedPath });
+        notifyError(t('chat.voiceSendFailure'));
+        return;
+      }
+      updatePendingVoice(entry.clientId, { status: 'failed' });
+      notifyDomainError(error, t('chat.voiceSendFailure'));
     }
   };
 
-  const handleDeleteFailedTextMessage = async (message: OptimisticTextMessage) => {
-    if (!message.outboxId) return;
-    await deleteTextOutboxJob(message.outboxId);
+  const handleSendVoice = (recording: VoiceRecordingResult) => {
+    if (!peerId || !currentUserId) {
+      deleteLocalRecording(recording.uri);
+      return;
+    }
+    if (!canUseNetworkSession) {
+      deleteLocalRecording(recording.uri);
+      notifyOffline();
+      return;
+    }
+    const entry: PendingVoiceMessage = {
+      clientId: generateVoiceClientId(),
+      receiverId: peerId,
+      localUri: recording.uri,
+      durationMs: recording.durationMs,
+      waveform: recording.waveform,
+      createdAt: Date.now(),
+      status: 'sending',
+      uploadedPath: null,
+    };
+    setPendingVoice((current) => [...current, entry]);
+    void deliverVoice(entry);
+  };
+
+  /** „Zapisz” / „Nie zapisuj”: optimistic, reverted when the server refuses. */
+  const handleSetSaved = async (message: OptimisticTextMessage, saved: boolean) => {
+    if (!canUseNetworkSession) {
+      notifyOffline();
+      return;
+    }
+    if (!capabilities.savedMessages || message.id.startsWith('temp-') || message.is_system) return;
+    selection();
+    const key = queryKeys.textMessagesWithPeer(peerId);
+    const previous = queryClient.getQueryData<TextMessage[]>(key);
+    const nowIso = new Date().toISOString();
+    queryClient.setQueryData<TextMessage[]>(key, (rows) =>
+      rows?.map((row) =>
+        row.id === message.id ? withSavedState<TextMessage & ChatMessageExtras>(row, saved, currentUserId, nowIso) : row,
+      ),
+    );
+    try {
+      const state = await setTextMessageSaved(message.id, saved);
+      queryClient.setQueryData<TextMessage[]>(key, (rows) =>
+        rows?.map((row) => (row.id === message.id ? { ...row, ...state } : row)),
+      );
+      if (!saved) notifyInfo(t('chat.unsavedNotice'));
+    } catch (error) {
+      queryClient.setQueryData(key, previous);
+      if (isMissingChatFeatureError(error)) {
+        markMissing('savedMessages');
+        return;
+      }
+      notifyDomainError(error, saved ? t('chat.saveFailure') : t('chat.unsaveFailure'));
+    }
+  };
+
+  const handleRetryTextMessage = async (outboxId: string) => {
+    const voiceClientId = voiceClientIdFromOutboxId(outboxId);
+    if (voiceClientId) {
+      const entry = pendingVoiceRef.current.find((candidate) => candidate.clientId === voiceClientId);
+      if (!entry || !canUseNetworkSession) return;
+      updatePendingVoice(voiceClientId, { status: 'sending' });
+      void deliverVoice({ ...entry, status: 'sending' });
+      return;
+    }
+    if (!currentUserId) return;
+    await retryTextOutboxJob(currentUserId, outboxId);
+    await outboxQuery.refetch();
+    if (canUseNetworkSession) flushOutboxInBackground();
+  };
+
+  /** Removes a failed message or the tombstone of an expired one. */
+  const handleDeleteOutboxMessage = async (outboxId: string) => {
+    const voiceClientId = voiceClientIdFromOutboxId(outboxId);
+    if (voiceClientId) {
+      const entry = pendingVoiceRef.current.find((candidate) => candidate.clientId === voiceClientId);
+      if (entry) removePendingVoice(entry);
+      return;
+    }
+    if (!currentUserId) return;
+    await deleteTextOutboxJob(currentUserId, outboxId);
     await outboxQuery.refetch();
   };
 
-  const peerUsername = peerProfileQuery.data?.username ?? 'user';
+  const peerUsername = peerProfileQuery.data?.username ?? null;
 
   const handleReportMessage = async (message: TextMessage, reason: ReportReason) => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     try {
@@ -431,7 +717,7 @@ export function useChatScreen(peerId: string) {
 
   const handleReportPeer = async (reason: ReportReason) => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     if (!peerId || peerActionBusyRef.current) return;
@@ -457,7 +743,7 @@ export function useChatScreen(peerId: string) {
 
   const handleBlockPeer = async () => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     if (!peerId || peerActionBusyRef.current) return;
@@ -486,7 +772,7 @@ export function useChatScreen(peerId: string) {
 
   const handleDeleteConversation = async () => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     if (!peerId || peerActionBusyRef.current) return;
@@ -501,7 +787,11 @@ export function useChatScreen(peerId: string) {
             queryClient.invalidateQueries({ queryKey: queryKeys.textMessagesWithPeer(peerId) }),
             queryClient.invalidateQueries({ queryKey: ['chatNixesWithPeer', peerId] }),
           ]);
-          notifySuccess(t('inbox.deleteConversationSuccess', { username: peerUsername }));
+          notifySuccess(
+            peerUsername
+              ? t('inbox.deleteConversationSuccess', { username: peerUsername })
+              : t('inbox.deleteConversationSuccessGeneric')
+          );
           router.back();
         } catch (error) {
           notifyDomainError(error, t('inbox.deleteConversationFailure'));
@@ -515,7 +805,7 @@ export function useChatScreen(peerId: string) {
 
   const handleSetReaction = async (message: TextMessage, emoji: MessageReactionEmoji) => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     if (!currentUserId || message.id.startsWith('temp-')) return;
@@ -523,8 +813,9 @@ export function useChatScreen(peerId: string) {
     const existing = (reactionsQuery.data ?? []).find(
       (reaction) => reaction.message_id === message.id && reaction.user_id === currentUserId,
     );
+    // Tapback: choosing the reaction that is already mine takes it back.
     if (existing?.emoji === emoji) {
-      selection();
+      await handleRemoveReaction(message);
       return;
     }
 
@@ -566,7 +857,7 @@ export function useChatScreen(peerId: string) {
 
   const handleRemoveReaction = async (message: TextMessage) => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     if (!currentUserId || message.id.startsWith('temp-')) return;
@@ -599,9 +890,25 @@ export function useChatScreen(peerId: string) {
     }
   };
 
+  const handleCopyMessage = async (message: TextMessage) => {
+    const copied = await copyTextToClipboard(message.body);
+    if (copied) notifySuccess(t('chat.copied'));
+    else notifyError(t('chat.copyFailure'));
+  };
+
+  /**
+   * The camera is a tab under this chat in the root stack: `dismissTo` pops back to that tab
+   * (in expo-router 57 `navigate` from a root-stack screen pushes a second tab navigator on top).
+   * The camera forwards `recipientId` to the preview so the NiX goes straight to this peer.
+   */
+  const handleOpenCamera = () => {
+    if (!peerId) return;
+    router.dismissTo({ pathname: '/(tabs)', params: { recipientId: peerId } });
+  };
+
   const handleOpenNix = (nix: ChatNixEvent) => {
     if (isOfflineAuthenticated) {
-      notifyInfo(t('root.offlineMediaUnavailable'));
+      notifyOffline('media');
       return;
     }
     const canFirstOpen = isNixFirstOpenAvailable(nix);
@@ -660,7 +967,7 @@ export function useChatScreen(peerId: string) {
 
   const handleSetMute = async (duration: '1h' | '24h' | 'forever' | 'off') => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     try {
@@ -672,10 +979,14 @@ export function useChatScreen(peerId: string) {
     }
   };
 
-  const peerAvatarUrl = peerAvatarPath ? (peerAvatarQuery.data?.[peerAvatarPath] ?? null) : null;
+  const peerAvatarUrl = peerAvatarPath ? (peerAvatarUrls[peerAvatarPath] ?? null) : null;
+  const nixReactions = useNixReactions(nixes.map((nix) => nix.id));
+
   // Full-screen loader only on cold messages — nixes stream into the timeline.
   const messagesLoading =
     canUseNetworkSession && messagesQuery.isPending && messagesQuery.data === undefined;
+  // Offline with nothing cached on this device (OFF-10): „no messages yet” would be a lie.
+  const offlineCacheMissing = !canUseNetworkSession && messagesQuery.data === undefined;
 
   return {
     t,
@@ -689,29 +1000,39 @@ export function useChatScreen(peerId: string) {
     messages,
     nixes,
     chatUploadJobs,
+    mediaAnchors,
     busyUploadActions,
     reactionsByMessageId,
+    nixReactionsById: nixReactions.byNixId,
     messagesLoading,
+    offlineCacheMissing,
     loadingOlderMessages,
     onReachedOldestMessage,
     messagesError: canUseNetworkSession && (messagesQuery.isError || nixesQuery.isError),
-    inputBody,
-    setInputBody,
-    composerKey,
-    sending,
     pasteInputEnabled: chatPasteFeatures.pasteInput,
     pasteImporting,
     handlePaste,
     reportReasons,
     handleSend,
     handleRetryTextMessage,
-    handleDeleteFailedTextMessage,
+    handleDeleteOutboxMessage,
     handleReportMessage,
     handleReportPeer,
     handleBlockPeer,
     handleDeleteConversation,
     handleSetReaction,
     handleRemoveReaction,
+    handleCopyMessage,
+    handleSetSaved,
+    handleSendVoice,
+    canSaveMessages: capabilities.savedMessages && canUseNetworkSession,
+    canRecordVoice: capabilities.voiceMessages && networkAvailable,
+    voiceMessagesSupported: capabilities.voiceMessages,
+    handleOpenCamera,
+    canCopyMessages: isClipboardAvailable(),
+    peerTyping: typing.peerTyping,
+    onComposerInput: typing.onComposerInput,
+    onComposerStop: typing.onComposerStop,
     handleOpenNix,
     handleUploadAction,
     isMuted: Boolean(muteQuery.data),
@@ -720,7 +1041,7 @@ export function useChatScreen(peerId: string) {
     isOfflineAuthenticated,
     refetchMessages: async () => {
       if (!canUseNetworkSession) {
-        notifyInfo(t('root.offlineActionUnavailable'));
+        notifyOffline();
         return;
       }
       await Promise.all([messagesQuery.refetch(), reactionsQuery.refetch(), nixesQuery.refetch()]);

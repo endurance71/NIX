@@ -165,6 +165,63 @@ describe('mediaService', () => {
 
 });
 
+describe('prepareVideoForUpload progress', () => {
+  async function runOutsideTestRuntime<T>(run: () => Promise<T>) {
+    const prevEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    vi.stubGlobal('navigator', { product: 'ReactNative' });
+    try {
+      return await run();
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      vi.unstubAllGlobals();
+    }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('never reports lower progress across the aggressive pass and thumbnail step', async () => {
+    const overLimit = MAX_VIDEO_FILE_SIZE_BYTES + 1024;
+    mockGetInfoAsync
+      .mockResolvedValueOnce({ exists: true, size: overLimit })
+      .mockResolvedValueOnce({ exists: true, size: overLimit })
+      .mockResolvedValue({ exists: true, size: 4 * 1024 * 1024 });
+    mockVideoCompress.mockImplementation(async (uri: string, _options: unknown, onProgress: (p: number) => void) => {
+      onProgress(0.5);
+      onProgress(1);
+      return uri.includes('pass1') ? 'file:///tmp/compressed-pass2.mp4' : 'file:///tmp/compressed-pass1.mp4';
+    });
+    const reported: number[] = [];
+
+    await runOutsideTestRuntime(() => prepareVideoForUpload('file:///tmp/large.mp4', {
+      playbackDurationMs: 12_000,
+      onProgress: ({ progress }) => reported.push(progress),
+    }));
+
+    expect(mockVideoCompress).toHaveBeenCalledTimes(2);
+    expect(reported.length).toBeGreaterThan(4);
+    for (let index = 1; index < reported.length; index += 1) {
+      expect(reported[index]).toBeGreaterThanOrEqual(reported[index - 1]);
+    }
+    expect(reported.at(-1)).toBe(1);
+  });
+
+  it('skips transcoding a camera clip whose whole-file bitrate includes audio and container', async () => {
+    // 12 s at ≈1.97 Mb/s (1.8 Mb/s video + audio + MP4 atoms).
+    mockGetInfoAsync.mockResolvedValue({ exists: true, size: Math.round((1_970_000 * 12) / 8) });
+
+    await runOutsideTestRuntime(() => prepareVideoForUpload('file:///tmp/camera.mp4', {
+      playbackDurationMs: 12_000,
+      sourceWidth: 720,
+      sourceHeight: 1280,
+    }));
+
+    expect(mockVideoCompress).not.toHaveBeenCalled();
+  });
+});
+
 describe('isFastPathEligible', () => {
   it('zwraca false dla małego, ale bardzo wysokobitratowego klipu', () => {
     expect(isFastPathEligible('file:///test.mp4', 5 * 1024 * 1024, 1000)).toBe(false);
@@ -191,6 +248,13 @@ describe('isFastPathEligible', () => {
         20 * 60_000
       )
     ).toBe(false);
+  });
+
+  it('toleruje audio i kontener dla klipu z kamery o znanych wymiarach', () => {
+    const size = Math.round((1_970_000 * 10) / 8);
+    expect(isFastPathEligible('file:///test.mp4', size, 10_000)).toBe(false);
+    expect(isFastPathEligible('file:///test.mp4', size, 10_000, { width: 720, height: 1280 })).toBe(true);
+    expect(isFastPathEligible('file:///test.mp4', size, 10_000, { width: 1080, height: 1920 })).toBe(false);
   });
 
   it('zwraca false, gdy uri nie jest lokalne', () => {

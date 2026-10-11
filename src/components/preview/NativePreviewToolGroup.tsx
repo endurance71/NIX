@@ -1,4 +1,4 @@
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import type { ColorValue } from 'react-native';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { Button, Host, HStack, Image as SwiftImage } from '@expo/ui/swift-ui';
@@ -14,7 +14,6 @@ import {
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { AppIcon } from '../ui/app-icon';
 import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 
 const BUTTON_SIZE = 44;
@@ -34,7 +33,6 @@ type NativePreviewToolGroupProps = {
 };
 
 function canUseLiquidGlass() {
-  if (Platform.OS !== 'ios') return false;
   try {
     return isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
   } catch {
@@ -47,25 +45,6 @@ export function NativePreviewToolGroup({
   backgroundColor,
   tintColor,
 }: NativePreviewToolGroupProps) {
-  if (Platform.OS !== 'ios') {
-    return (
-      <View style={[styles.fallback, { backgroundColor }]}>
-        {tools.map((tool) => (
-          <Pressable
-            key={tool.name}
-            accessibilityRole="button"
-            accessibilityLabel={tool.accessibilityLabel}
-            accessibilityState={{ disabled: tool.disabled }}
-            disabled={tool.disabled}
-            onPress={tool.onPress}
-            style={[styles.fallbackButton, tool.disabled && styles.disabled]}>
-            <AppIcon name={tool.name} size={APP_ICON_SIZE.xl} color={tintColor} />
-          </Pressable>
-        ))}
-      </View>
-    );
-  }
-
   const useGlass = canUseLiquidGlass();
   return (
     <Host matchContents style={styles.host}>
@@ -108,16 +87,4 @@ export function NativePreviewToolGroup({
 
 const styles = StyleSheet.create({
   host: { alignSelf: 'center' },
-  fallback: {
-    flexDirection: 'row',
-    borderRadius: (BUTTON_SIZE + OUTER_PADDING * 2) / 2,
-    padding: OUTER_PADDING,
-  },
-  fallbackButton: {
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  disabled: { opacity: 0.35 },
 });

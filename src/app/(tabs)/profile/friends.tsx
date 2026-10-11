@@ -1,38 +1,26 @@
-import { ListItem, RNHostView, Text, TextInput } from '@expo/ui';
-import { Button, HStack, ProgressView } from '@expo/ui/swift-ui';
-import {
-  accessibilityLabel,
-  buttonBorderShape,
-  buttonStyle,
-  controlSize,
-  disabled as disabledModifier,
-  fixedSize,
-  padding,
-  tint,
-} from '@expo/ui/swift-ui/modifiers';
+import { TextInput } from '@expo/ui';
 import { Stack, router } from 'expo-router';
-import { Alert, View } from 'react-native';
+import { Alert } from 'react-native';
 import { useFriendsScreen } from '../../../hooks/useFriendsScreen';
 import {
   NativeSettingsActionRow,
-  NativeSettingsEmptyRow,
+  NativeSettingsListStatus,
   NativeSettingsRow,
   NativeSettingsSection,
   NativeSettingsSwipeActions,
 } from '../../../components/ui/native-settings';
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
-import { AvatarCircle } from '../../../components/ui/avatar-circle';
+import { FriendshipBadgeLabel } from '../../../components/friend/FriendshipBadgeLabel';
+import { IncomingInviteRow } from '../../../components/inbox/IncomingInviteRow';
 import {
   isFriendRowBusy,
+  isIncomingRequestBusy,
   isOutgoingRequestBusy,
 } from '../../../lib/profileFriendsPresentation';
 
-const INVITE_AVATAR_SIZE = 44;
-
 export default function FriendsScreen() {
   const vm = useFriendsScreen();
-  const inviteBusy = vm.actionLoadingId === 'invite';
-  const { colors } = vm;
+  const inviteBusy = vm.inviteBusy;
 
   const confirmCancelInvite = (requestId: string, username: string) => {
     Alert.alert(
@@ -67,6 +55,28 @@ export default function FriendsScreen() {
   return (
     <>
       <SettingsListScreen loading={vm.loading} onRefresh={vm.handleListRefresh}>
+        {/* Things waiting for the user come first. */}
+        {vm.requests.length > 0 ? (
+          <NativeSettingsSection title={vm.t('profile.incomingInvites', { count: vm.requests.length })}>
+            {vm.requests.map((request) => {
+              const avatarPath = request.requester.avatar_storage_path ?? null;
+              return (
+                <IncomingInviteRow
+                  key={request.id}
+                  request={request}
+                  avatarUrl={avatarPath ? vm.avatarUrls[avatarPath] ?? null : null}
+                  busy={isIncomingRequestBusy(vm.busyKeys, request.id)}
+                  enabled={vm.canPerformNetworkAction}
+                  description={vm.t('inbox.inviteDescription')}
+                  onAccept={() => void vm.handleAccept(request.id)}
+                  onReject={() => void vm.handleReject(request.id)}
+                  t={vm.t}
+                />
+              );
+            })}
+          </NativeSettingsSection>
+        ) : null}
+
         <NativeSettingsSection title={vm.t('profile.addFriend')}>
           <NativeSettingsRow
             title={vm.t('profile.scanQr')}
@@ -96,84 +106,11 @@ export default function FriendsScreen() {
           />
         </NativeSettingsSection>
 
-        {vm.requests.length > 0 ? (
-          <NativeSettingsSection title={vm.t('profile.incomingInvites', { count: vm.requests.length })}>
-            {vm.requests.map((request) => {
-              const avatarPath = request.requester.avatar_storage_path ?? null;
-              const loading = vm.actionLoadingId === request.id;
-              const title =
-                request.requester.display_name || `@${request.requester.username}`;
-              return (
-                <ListItem
-                  key={request.id}
-                  testID={`incoming-request-${request.id}`}
-                  leading={
-                    <RNHostView matchContents>
-                      <View
-                        collapsable={false}
-                        style={{ width: INVITE_AVATAR_SIZE, height: INVITE_AVATAR_SIZE }}>
-                        <AvatarCircle
-                          size={INVITE_AVATAR_SIZE}
-                          url={avatarPath ? vm.incomingAvatarUrls[avatarPath] ?? null : null}
-                          storagePath={avatarPath}
-                          emoji={request.requester.avatar_emoji ?? null}
-                          fallbackInitial={request.requester.username}
-                        />
-                      </View>
-                    </RNHostView>
-                  }
-                  supportingText={
-                    loading ? (
-                      <ProgressView
-                        modifiers={[
-                          padding({ top: 8 }),
-                          accessibilityLabel(vm.t('common.loading')),
-                        ]}
-                      />
-                    ) : (
-                      <HStack
-                        alignment="center"
-                        spacing={8}
-                        modifiers={[padding({ top: 8 })]}>
-                        <Button
-                          label={vm.t('profile.rejectInvite')}
-                          onPress={() => void vm.handleReject(request.id)}
-                          modifiers={[
-                            disabledModifier(!vm.canPerformNetworkAction),
-                            buttonStyle('bordered'),
-                            buttonBorderShape('capsule'),
-                            controlSize('small'),
-                            fixedSize(),
-                            tint(colors.secondaryLabel),
-                          ]}
-                        />
-                        <Button
-                          label={vm.t('profile.acceptInvite')}
-                          onPress={() => void vm.handleAccept(request.id)}
-                          modifiers={[
-                            disabledModifier(!vm.canPerformNetworkAction),
-                            buttonStyle('borderedProminent'),
-                            buttonBorderShape('capsule'),
-                            controlSize('small'),
-                            fixedSize(),
-                            tint(colors.accent),
-                          ]}
-                        />
-                      </HStack>
-                    )
-                  }>
-                  <Text textStyle={{ color: colors.label }}>{title}</Text>
-                </ListItem>
-              );
-            })}
-          </NativeSettingsSection>
-        ) : null}
-
         {vm.outgoingRequests.length > 0 ? (
           <NativeSettingsSection title={vm.t('profile.outgoingInvites', { count: vm.outgoingRequests.length })}>
             {vm.outgoingRequests.map((request) => {
               const avatarPath = request.recipient.avatar_storage_path ?? null;
-              const loading = isOutgoingRequestBusy(vm.actionLoadingId, request.id);
+              const loading = isOutgoingRequestBusy(vm.busyKeys, request.id);
               return (
                 <NativeSettingsSwipeActions
                   key={request.id}
@@ -184,7 +121,7 @@ export default function FriendsScreen() {
                     title={request.recipient.display_name || `@${request.recipient.username}`}
                     supportingText={loading ? vm.t('common.loading') : vm.t('profile.outgoingInviteStatus')}
                     avatar={{
-                      url: avatarPath ? vm.outgoingAvatarUrls[avatarPath] ?? null : null,
+                      url: avatarPath ? vm.avatarUrls[avatarPath] ?? null : null,
                       storagePath: avatarPath,
                       emoji: request.recipient.avatar_emoji ?? null,
                       fallbackInitial: request.recipient.username,
@@ -198,46 +135,40 @@ export default function FriendsScreen() {
           </NativeSettingsSection>
         ) : null}
 
-        <NativeSettingsSection
-          title={vm.t('profile.friends', { count: vm.friends.length })}
-          footer={vm.t('profile.screenshotPermissionHint')}>
-          {vm.friends.length === 0 ? (
-            <NativeSettingsEmptyRow text={vm.t('profile.noFriends')} />
-          ) : null}
+        <NativeSettingsSection title={vm.t('profile.friends', { count: vm.friends.length })}>
+          <NativeSettingsListStatus
+            state={vm.friendsListState}
+            emptyText={vm.t('profile.noFriends')}
+            onRetry={vm.retryFriends}
+          />
           {vm.friends.map((friend) => {
             const avatarPath = friend.avatar_storage_path ?? null;
-            const disabled = isFriendRowBusy(vm.actionLoadingId, friend.id);
+            const busy = isFriendRowBusy(vm.busyKeys, friend.id);
+            const displayName = friend.display_name?.trim();
+            const friendshipBadge = vm.friendshipBadges.get(friend.id);
             return (
               <NativeSettingsSwipeActions
                 key={friend.id}
                 actionLabel={vm.t('profile.removeFriend')}
-                disabled={disabled || !vm.canPerformNetworkAction}
+                disabled={busy || !vm.canPerformNetworkAction}
                 onAction={() => confirmRemoveFriend(friend.id, friend.username)}>
+                {/* Settings and actions for one friend live on its detail screen (chevron). */}
                 <NativeSettingsRow
-                  title={friend.display_name || `@${friend.username}`}
-                  supportingText={[
-                    friend.bio?.trim(),
-                    vm.t('profile.screenshotPermission'),
-                  ]
-                    .filter(Boolean)
-                    .join('\n')}
+                  title={displayName || `@${friend.username}`}
+                  supportingText={busy ? vm.t('common.loading') : displayName ? `@${friend.username}` : undefined}
                   avatar={{
-                    url: avatarPath ? vm.friendAvatarUrls[avatarPath] ?? null : null,
+                    url: avatarPath ? vm.avatarUrls[avatarPath] ?? null : null,
                     storagePath: avatarPath,
                     emoji: friend.avatar_emoji ?? null,
                     fallbackInitial: friend.username,
                   }}
-                  disabled={disabled}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/chat/[peerId]',
-                      params: { peerId: friend.id },
-                    })
+                  trailing={
+                    friendshipBadge ? <FriendshipBadgeLabel badge={friendshipBadge} /> : undefined
                   }
-                  switchValue={vm.resolveFriendCapturePolicy(friend.id) === 'allow'}
-                  onSwitchValueChange={vm.canPerformNetworkAction
-                    ? (allowed) => void vm.handleToggleFriendCapture(friend.id, allowed)
-                    : undefined}
+                  showsChevron
+                  disabled={busy}
+                  onPress={() => router.push({ pathname: '/friend/[id]', params: { id: friend.id } })}
+                  accessibilityHint={vm.t('friends.openFriendHint')}
                   testID={`friend-${friend.id}`}
                 />
               </NativeSettingsSwipeActions>

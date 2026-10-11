@@ -1,7 +1,9 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../hooks/useAppTheme';
+import { Button } from '../components/ui/button';
+import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 
 export default function NotFoundScreen() {
@@ -15,18 +17,7 @@ export default function NotFoundScreen() {
       <Text selectable style={[styles.message, { color: colors.secondaryLabel }]}>
         {t('notFound.message')}
       </Text>
-      <Pressable
-        accessibilityLabel={t('notFound.backToApp')}
-        accessibilityRole="button"
-        style={({ pressed }) => [
-          styles.button,
-          { backgroundColor: colors.buttonPrimaryBg },
-          pressed && styles.pressed,
-        ]}
-        onPress={() => router.replace('/(tabs)')}
-      >
-        <Text style={[styles.buttonLabel, { color: colors.buttonPrimaryText }]}>{t('notFound.backToApp')}</Text>
-      </Pressable>
+      <Button title={t('notFound.backToApp')} onPress={() => router.replace('/(tabs)')} />
     </View>
   );
 }
@@ -36,35 +27,20 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: spacing.xxxl,
   },
   symbol: {
     ...typography.largeTitle,
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   title: {
     ...typography.title2,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   message: {
     ...typography.body,
     textAlign: 'center',
-    marginBottom: 24,
-  },
-  button: {
-    minHeight: 44,
-    borderRadius: 14,
-    borderCurve: 'continuous',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-  },
-  buttonLabel: {
-    ...typography.headline,
-  },
-  pressed: {
-    opacity: 0.7,
+    marginBottom: spacing.xxl,
   },
 });

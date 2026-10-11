@@ -4,12 +4,13 @@ import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
   NativeSettingsActionRow,
-  NativeSettingsEmptyRow,
+  NativeSettingsListStatus,
   NativeSettingsRow,
   NativeSettingsSection,
 } from '../../../components/ui/native-settings';
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
 import { useAppTheme } from '../../../hooks/useAppTheme';
+import { resolveSettingsListState } from '../../../lib/settingsListState';
 import { queryKeys } from '../../../lib/queryKeys';
 import {
   createDataExportDownloadUrl,
@@ -131,7 +132,16 @@ export default function DataExportScreen() {
         </NativeSettingsSection>
         <NativeSettingsSection title={t('dataExport.history')}>
           {jobs.length === 0 ? (
-            <NativeSettingsEmptyRow text={t('dataExport.empty')} />
+            <NativeSettingsListStatus
+              state={resolveSettingsListState({
+                itemCount: 0,
+                hasData: query.data !== undefined,
+                isError: query.isError,
+                canUseNetworkSession,
+              })}
+              emptyText={t('dataExport.empty')}
+              onRetry={() => void query.refetch()}
+            />
           ) : (
             jobs.map((job) => (
               <NativeSettingsRow

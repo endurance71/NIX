@@ -14,10 +14,14 @@ type Props = {
   dragY: SharedValue<number>;
   color: string;
   shadow: string;
+  island: string;
 };
 
-/** Skia geometry/filter from the upstream example, with NiX colors and drag alignment. */
-export const NotificationGoo = memo(function NotificationGoo({ layout, drop, expand, tint, dragY, color, shadow }: Props) {
+/**
+ * Skia geometry/filter from the upstream example, with NiX colors and drag alignment.
+ * Loaded lazily (React.lazy in NotificationPresentation): Skia must not initialize at app start.
+ */
+const NotificationGoo = memo(function NotificationGoo({ layout, drop, expand, tint, dragY, color, shadow, island }: Props) {
   const geometry = useDerivedValue(() => buildNotificationGeometry({ drop: drop.value, expand: expand.value, layout }));
   const x = useDerivedValue(() => geometry.value.x);
   const y = useDerivedValue(() => geometry.value.y + dragY.value);
@@ -30,7 +34,7 @@ export const NotificationGoo = memo(function NotificationGoo({ layout, drop, exp
   const neckHeight = useDerivedValue(() => geometry.value.neckHeight);
   const neckRadius = useDerivedValue(() => geometry.value.neckRadius);
   const opacity = useDerivedValue(() => geometry.value.shadowOpacity);
-  const droplet = useDerivedValue(() => interpolateColor(tint.value, [0.06, 0.88], ['#000000', color]), [color]);
+  const droplet = useDerivedValue(() => interpolateColor(tint.value, [0.06, 0.88], [island, color]), [island, color]);
   const matrix = useMemo(() => buildGooMatrix({ gain: 22, threshold: 0.43 }), []);
   const blur = 14.3;
   const inset = blur * 0.26;
@@ -46,12 +50,14 @@ export const NotificationGoo = memo(function NotificationGoo({ layout, drop, exp
       <Group layer={<Paint><Blur blur={blur} /><ColorMatrix matrix={matrix} /></Paint>}>
         <RoundedRect x={islandX + inset} y={layout.islandTop + inset}
           width={layout.islandWidth - inset * 2} height={layout.islandHeight - inset * 2}
-          r={layout.islandRadius - inset} color="#000000" />
-        <RoundedRect x={neckX} y={neckY} width={neckWidth} height={neckHeight} r={neckRadius} color="#000000" />
+          r={layout.islandRadius - inset} color={island} />
+        <RoundedRect x={neckX} y={neckY} width={neckWidth} height={neckHeight} r={neckRadius} color={island} />
         <RoundedRect x={x} y={y} width={width} height={height} r={radius} color={droplet} />
       </Group>
       <RoundedRect x={islandX} y={layout.islandTop} width={layout.islandWidth}
-        height={layout.islandHeight} r={layout.islandRadius} color="#000000" />
+        height={layout.islandHeight} r={layout.islandRadius} color={island} />
     </Canvas>
   );
 });
+
+export default NotificationGoo;

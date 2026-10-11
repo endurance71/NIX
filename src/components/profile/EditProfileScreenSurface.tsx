@@ -3,7 +3,6 @@ import {
   ActionSheetIOS,
   ActivityIndicator,
   Alert,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -11,19 +10,16 @@ import {
   View,
 } from 'react-native';
 import { FieldGroup, RNHostView, Text as NativeText } from '@expo/ui';
+import { HStack } from '@expo/ui/swift-ui';
 import { font, foregroundStyle, frame, lineLimit } from '@expo/ui/swift-ui/modifiers';
 import { Stack } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAuth } from '../../hooks/useAuth';
-import {
-  AVATAR_SIGNED_URL_STALE_TIME_MS,
-  clearProfileAvatar,
-  createSignedAvatarUrls,
-} from '../../services/avatarService';
+import { clearProfileAvatar } from '../../services/avatarService';
 import { getCurrentUserProfile, updateCurrentUserProfile } from '../../services/profileService';
-import { avatarSignedUrlsQueryKey, queryKeys } from '../../lib/queryKeys';
+import { queryKeys } from '../../lib/queryKeys';
 import {
   getProfileFieldDecision,
   normalizeDisplayName,
@@ -34,20 +30,20 @@ import {
   pickProfileAvatarPhoto,
   type AvatarPhotoSource,
 } from '../../lib/profileScreenActions';
-import { notifyError, notifyInfo, notifySuccess } from '../../lib/appNotify';
+import { notifyError, notifyOffline, notifySuccess } from '../../lib/appNotify';
 import { runWithFinally } from '../../lib/runWithFinally';
 import { APP_ICON_SIZE } from '../../theme/app-icons';
-import { APP_FONT_FAMILY } from '../../theme/typography';
+import { radius } from '../../theme/radius';
+import { spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 import { AppIcon } from '../ui/app-icon';
 import { AvatarCircle } from '../ui/avatar-circle';
 import { AppBottomSheet } from '../ui/app-bottom-sheet';
-import {
-  ActionSheetPrimaryButton,
-  ActionSheetSecondaryButton,
-  ActionSheetSurface,
-} from '../ui/action-sheet-surface';
+import { ActionSheetSurface } from '../ui/action-sheet-surface';
+import { Button } from '../ui/button';
 import { NativeSettingsRow } from '../ui/native-settings';
 import { SettingsListScreen } from '../ui/settings-list-screen';
+import { useSignedAvatarUrls } from '../../hooks/useSignedAvatarUrls';
 
 type EditableProfileField = 'display_name' | 'bio';
 
@@ -61,7 +57,7 @@ function ProfileFieldValue({ value, muted = false }: { value: string; muted?: bo
   return (
     <NativeText
       modifiers={[
-        font({ textStyle: 'body' }),
+        font({ design: 'rounded', textStyle: 'body' }),
         foregroundStyle(muted ? colors.tertiaryLabel : colors.secondaryLabel),
         lineLimit(1),
         frame({ maxWidth: 210, alignment: 'trailing' }),
@@ -104,14 +100,18 @@ function ProfileFieldEditorSheet({
       nativeBottomSheet
       actions={
         <>
-          <ActionSheetPrimaryButton
-            label={t('common.save')}
+          <Button
+            size="large"
+            fullWidth
+            title={t('common.save')}
             loading={busy}
             disabled={invalid || unchanged}
             onPress={submit}
           />
-          <ActionSheetSecondaryButton
-            label={t('common.cancel')}
+          <Button
+            variant="tertiary"
+            fullWidth
+            title={t('common.cancel')}
             disabled={busy}
             onPress={onCancel}
           />
@@ -230,12 +230,7 @@ function useEditableProfileData() {
     staleTime: 1000 * 60 * 5,
   });
   const avatarPaths = profileRow?.avatar_storage_path ? [profileRow.avatar_storage_path] : [];
-  const { data: avatarUrls = {} } = useQuery({
-    queryKey: avatarSignedUrlsQueryKey(avatarPaths),
-    queryFn: () => createSignedAvatarUrls(avatarPaths),
-    enabled: canUseNetworkSession && avatarPaths.length > 0,
-    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
-  });
+  const avatarUrls = useSignedAvatarUrls(avatarPaths, { enabled: canUseNetworkSession });
   const avatarUrl = profileRow?.avatar_storage_path
     ? (avatarUrls[profileRow.avatar_storage_path] ?? null)
     : null;
@@ -275,7 +270,7 @@ export default function EditProfileScreenSurface() {
 
   const saveField = async (value: string) => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     if (!editor || fieldBusy) return;
@@ -302,7 +297,7 @@ export default function EditProfileScreenSurface() {
 
   const chooseAvatar = async (source: AvatarPhotoSource) => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     if (avatarBusy) return;
@@ -315,7 +310,7 @@ export default function EditProfileScreenSurface() {
 
   const confirmRemoveAvatar = () => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     Alert.alert(t('profile.removeAvatarConfirmTitle'), t('profile.removeAvatarConfirmMessage'), [
@@ -344,42 +339,24 @@ export default function EditProfileScreenSurface() {
 
   const openAvatarMenu = () => {
     if (avatarBusy) return;
-    if (Platform.OS === 'ios') {
-      const options = [
-        t('profile.takePhoto'),
-        t('profile.choosePhoto'),
-        ...(hasAvatar ? [t('profile.removeAvatar')] : []),
-        t('common.cancel'),
-      ];
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          cancelButtonIndex: options.length - 1,
-          destructiveButtonIndex: hasAvatar ? 2 : undefined,
-        },
-        (index) => {
-          if (index === 0) void chooseAvatar('camera');
-          if (index === 1) void chooseAvatar('library');
-          if (hasAvatar && index === 2) confirmRemoveAvatar();
-        },
-      );
-      return;
-    }
-
-    Alert.alert(t('profile.editPhoto'), undefined, [
-      { text: t('profile.takePhoto'), onPress: () => void chooseAvatar('camera') },
-      { text: t('profile.choosePhoto'), onPress: () => void chooseAvatar('library') },
-      ...(hasAvatar
-        ? [
-            {
-              text: t('profile.removeAvatar'),
-              style: 'destructive' as const,
-              onPress: confirmRemoveAvatar,
-            },
-          ]
-        : []),
-      { text: t('common.cancel'), style: 'cancel' },
-    ]);
+    const options = [
+      t('profile.takePhoto'),
+      t('profile.choosePhoto'),
+      ...(hasAvatar ? [t('profile.removeAvatar')] : []),
+      t('common.cancel'),
+    ];
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options,
+        cancelButtonIndex: options.length - 1,
+        destructiveButtonIndex: hasAvatar ? 2 : undefined,
+      },
+      (index) => {
+        if (index === 0) void chooseAvatar('camera');
+        if (index === 1) void chooseAvatar('library');
+        if (hasAvatar && index === 2) confirmRemoveAvatar();
+      },
+    );
   };
 
   return (
@@ -387,52 +364,55 @@ export default function EditProfileScreenSurface() {
       <SettingsListScreen loading={canUseNetworkSession && profilePending}>
         <FieldGroup.Section>
           <FieldGroup.SectionHeader>
-            <RNHostView matchContents>
-              <View style={styles.hero}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('profile.editPhoto')}
-                  disabled={avatarBusy || !canUseNetworkSession}
-                  onPress={openAvatarMenu}
-                  style={({ pressed }) => [
-                    styles.avatarButton,
-                    pressed && styles.pressed,
-                    avatarBusy && styles.busy,
-                  ]}>
-                  <AvatarCircle
-                    size={116}
-                    url={avatarUrl}
-                    storagePath={profileRow?.avatar_storage_path ?? null}
-                    emoji={profileRow?.avatar_emoji ?? null}
-                    fallbackInitial={fallbackInitial}
-                  />
-                  <View
-                    style={[
-                      styles.cameraBadge,
-                      {
-                        backgroundColor: colors.accent,
-                        borderColor: colors.secondarySystemBackground,
-                      },
+            {/* The hosted view is only as wide as its content, so the SwiftUI frame centres it. */}
+            <HStack modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}>
+              <RNHostView matchContents>
+                <View style={styles.hero}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('profile.editPhoto')}
+                    disabled={avatarBusy || !canUseNetworkSession}
+                    onPress={openAvatarMenu}
+                    style={({ pressed }) => [
+                      styles.avatarButton,
+                      pressed && styles.pressed,
+                      avatarBusy && styles.busy,
                     ]}>
-                    {avatarBusy ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <AppIcon name="camera" size={APP_ICON_SIZE.md} color="#FFFFFF" />
-                    )}
-                  </View>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={avatarBusy || !canUseNetworkSession}
-                  hitSlop={8}
-                  onPress={openAvatarMenu}
-                  style={({ pressed }) => pressed && styles.pressed}>
-                  <Text style={[styles.editPhotoLabel, { color: colors.accent }]}>
-                    {avatarBusy ? t('profile.changeAvatarLoading') : t('profile.editPhoto')}
-                  </Text>
-                </Pressable>
-              </View>
-            </RNHostView>
+                    <AvatarCircle
+                      size={116}
+                      url={avatarUrl}
+                      storagePath={profileRow?.avatar_storage_path ?? null}
+                      emoji={profileRow?.avatar_emoji ?? null}
+                      fallbackInitial={fallbackInitial}
+                    />
+                    <View
+                      style={[
+                        styles.cameraBadge,
+                        {
+                          backgroundColor: colors.accent,
+                          borderColor: colors.secondarySystemBackground,
+                        },
+                      ]}>
+                      {avatarBusy ? (
+                        <ActivityIndicator size="small" color={colors.onAccent} />
+                      ) : (
+                        <AppIcon name="camera" size={APP_ICON_SIZE.md} color={colors.onAccent} />
+                      )}
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={avatarBusy || !canUseNetworkSession}
+                    hitSlop={8}
+                    onPress={openAvatarMenu}
+                    style={({ pressed }) => pressed && styles.pressed}>
+                    <Text style={[styles.editPhotoLabel, { color: colors.accent }]}>
+                      {avatarBusy ? t('profile.changeAvatarLoading') : t('profile.editPhoto')}
+                    </Text>
+                  </Pressable>
+                </View>
+              </RNHostView>
+            </HStack>
           </FieldGroup.SectionHeader>
 
           <ProfileIdentityRows
@@ -444,9 +424,8 @@ export default function EditProfileScreenSurface() {
           <FieldGroup.SectionFooter>
             <NativeText
               modifiers={[
-                font({ textStyle: 'footnote' }),
+                font({ design: 'rounded', textStyle: 'footnote' }),
                 foregroundStyle(colors.secondaryLabel),
-                lineLimit(2),
               ]}>
               {t('profile.bioVisibilityHint')}
             </NativeText>
@@ -481,9 +460,9 @@ const styles = StyleSheet.create({
   hero: {
     width: '100%',
     alignItems: 'center',
-    paddingTop: 8,
-    paddingBottom: 24,
-    gap: 14,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xxl,
+    gap: spacing.md,
   },
   avatarButton: {
     width: 128,
@@ -503,21 +482,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editPhotoLabel: {
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: '600',
-    fontFamily: APP_FONT_FAMILY,
+    ...typography.headline,
   },
   editorInput: {
     width: '100%',
     minHeight: 50,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 17,
-    lineHeight: 22,
-    fontFamily: APP_FONT_FAMILY,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    ...typography.body,
   },
   editorInputMultiline: {
     minHeight: 112,
@@ -525,23 +500,19 @@ const styles = StyleSheet.create({
   },
   editorMeta: {
     minHeight: 36,
-    paddingTop: 6,
+    paddingTop: spacing.sm,
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: spacing.md,
   },
   editorError: {
     flex: 1,
-    fontSize: 13,
-    lineHeight: 17,
-    fontFamily: APP_FONT_FAMILY,
+    ...typography.footnote,
   },
   characterCount: {
-    fontSize: 13,
-    lineHeight: 17,
+    ...typography.footnote,
     fontVariant: ['tabular-nums'],
-    fontFamily: APP_FONT_FAMILY,
   },
   pressed: {
     opacity: 0.62,

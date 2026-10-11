@@ -1,15 +1,25 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
-import { FieldGroup, ListItem, RNHostView, Switch, Text } from '@expo/ui';
-import { Button as SwiftUIButton, HStack, Image as SwiftImage, SwipeActions, VStack } from '@expo/ui/swift-ui';
+import { FieldGroup, ListItem, RNHostView, Text } from '@expo/ui';
+import {
+  Button as SwiftUIButton,
+  HStack,
+  Image as SwiftImage,
+  Spacer,
+  SwipeActions,
+  Toggle,
+  VStack,
+} from '@expo/ui/swift-ui';
 import { SymbolView } from 'expo-symbols';
 import {
+  accessibilityElement,
+  accessibilityHidden,
+  accessibilityHint,
   buttonStyle,
   disabled as swiftDisabled,
   font,
   foregroundStyle,
   frame,
-  lineLimit,
   listRowBackground,
   listRowInsets,
   listRowSeparator,
@@ -17,13 +27,20 @@ import {
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
+import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import type { SettingsListState } from '../../lib/settingsListState';
+import {
+  isNativeSettingsToggleEnabled,
+  resolveNativeSettingsRowKind,
+} from '../../lib/nativeSettingsRow';
 import {
   APP_ICON_SIZE,
   resolveAppIconName,
   resolveSettingsIconMetrics,
   type AppIconName,
 } from '../../theme/app-icons';
+import { spacing } from '../../theme/spacing';
 import { AvatarCircle } from './avatar-circle';
 
 type NativeSettingsSectionProps = {
@@ -42,9 +59,8 @@ export function NativeSettingsSection({ title, footer, children }: NativeSetting
         <FieldGroup.SectionFooter>
           <Text
             modifiers={[
-              font({ textStyle: 'footnote' }),
+              font({ design: 'rounded', textStyle: 'footnote' }),
               foregroundStyle(colors.secondaryLabel),
-              lineLimit(2),
             ]}>
             {footer}
           </Text>
@@ -74,6 +90,8 @@ type NativeSettingsRowProps = {
   showsChevron?: boolean;
   switchValue?: boolean;
   onSwitchValueChange?: (value: boolean) => void;
+  /** VoiceOver hint for a tappable row (what happens on activation). */
+  accessibilityHint?: string;
   testID?: string;
 };
 
@@ -122,14 +140,7 @@ function NativeSettingsLeading({
 function NativeSettingsTrailing({
   trailing,
   showsChevron,
-  switchValue,
-  onSwitchValueChange,
-  disabled,
-  testID,
-}: Pick<
-  NativeSettingsRowProps,
-  'trailing' | 'showsChevron' | 'switchValue' | 'onSwitchValueChange' | 'disabled' | 'testID'
->) {
+}: Pick<NativeSettingsRowProps, 'trailing' | 'showsChevron'>) {
   const { colors } = useAppTheme();
   // Always SwiftImage for disclosure — SymbolView inside / beside SwiftUI accessories
   // diverges in weight/tint from plain trailing chevrons.
@@ -141,16 +152,8 @@ function NativeSettingsTrailing({
     />
   ) : null;
 
-  return typeof switchValue === 'boolean' && onSwitchValueChange ? (
-    <Switch
-      value={switchValue}
-      onValueChange={onSwitchValueChange}
-      disabled={disabled}
-      modifiers={[tint(colors.accent)]}
-      testID={testID ? `${testID}-switch` : undefined}
-    />
-  ) : trailing && chevron ? (
-    <HStack alignment="center" spacing={8}>
+  return trailing && chevron ? (
+    <HStack alignment="center" spacing={spacing.sm}>
       {trailing}
       {chevron}
     </HStack>
@@ -159,6 +162,11 @@ function NativeSettingsTrailing({
   );
 }
 
+/**
+ * One settings row. Rows with `switchValue` are a labelled native `Toggle` (VoiceOver: "title,
+ * switch, on"); rows with `onPress` are a row button; everything else is static content without a
+ * button trait. A switch without `onSwitchValueChange` (e.g. offline) stays visible but disabled.
+ */
 export function NativeSettingsRow({
   title,
   supportingText,
@@ -173,9 +181,11 @@ export function NativeSettingsRow({
   showsChevron = false,
   switchValue,
   onSwitchValueChange,
+  accessibilityHint: hint,
   testID,
 }: NativeSettingsRowProps) {
   const { colors } = useAppTheme();
+  const kind = resolveNativeSettingsRowKind({ switchValue, onPress });
   const foregroundColor = disabled
     ? colors.tertiaryLabel
     : role === 'destructive'
@@ -186,46 +196,78 @@ export function NativeSettingsRow({
     : role === 'destructive'
       ? colors.destructive
       : (iconColor ?? colors.accent);
-  const resolvedLeading = (
+  const hasLeading = Boolean(avatar || icon || leading);
+  const resolvedLeading = hasLeading ? (
     <NativeSettingsLeading
       avatar={avatar}
       icon={icon}
       leading={leading}
       color={resolvedIconColor}
     />
-  );
-  const resolvedTrailing = (
-    <NativeSettingsTrailing
-      trailing={trailing}
-      showsChevron={showsChevron}
-      switchValue={switchValue}
-      onSwitchValueChange={onSwitchValueChange}
-      disabled={disabled}
-      testID={testID}
-    />
+  ) : null;
+  const titleText = (
+    <Text modifiers={[font({ design: 'rounded', textStyle: 'body' }), foregroundStyle(foregroundColor)]}>{title}</Text>
   );
   const resolvedSupportingText = supportingText ? (
     <Text
       modifiers={[
-        font({ textStyle: 'footnote' }),
+        font({ design: 'rounded', textStyle: 'footnote' }),
         foregroundStyle(colors.secondaryLabel),
-        lineLimit(2),
       ]}>
       {supportingText}
     </Text>
   ) : undefined;
 
+  if (kind === 'toggle') {
+    const enabled = isNativeSettingsToggleEnabled({ disabled, onSwitchValueChange });
+    return (
+      <HStack alignment="center" spacing={spacing.md} testID={testID}>
+        {/* Leading is already SwiftUI (an avatar hosts its own RN view): no RNHostView here. */}
+        {resolvedLeading ? <HStack modifiers={[accessibilityHidden()]}>{resolvedLeading}</HStack> : null}
+        <Toggle
+          isOn={switchValue}
+          onIsOnChange={(value) => onSwitchValueChange?.(value)}
+          modifiers={[tint(colors.accent), swiftDisabled(!enabled)]}
+          testID={testID ? `${testID}-switch` : undefined}>
+          {titleText}
+          {resolvedSupportingText}
+        </Toggle>
+      </HStack>
+    );
+  }
+
+  const resolvedTrailing = <NativeSettingsTrailing trailing={trailing} showsChevron={showsChevron} />;
+
+  if (kind === 'static') {
+    return (
+      <HStack
+        alignment="center"
+        spacing={spacing.md}
+        testID={testID}
+        modifiers={[accessibilityElement('combine')]}>
+        {resolvedLeading}
+        <VStack alignment="leading" spacing={spacing.xxs}>
+          {titleText}
+          {resolvedSupportingText}
+        </VStack>
+        <Spacer />
+        {trailing || showsChevron ? resolvedTrailing : null}
+      </HStack>
+    );
+  }
+
   return (
     <ListItem
-      leading={resolvedLeading}
+      leading={resolvedLeading ?? undefined}
       trailing={resolvedTrailing}
       supportingText={resolvedSupportingText}
-      onPress={disabled ? undefined : onPress}
+      onPress={onPress}
+      modifiers={[
+        ...(disabled ? [swiftDisabled(true)] : []),
+        ...(hint ? [accessibilityHint(hint)] : []),
+      ]}
       testID={testID}>
-      <Text
-        modifiers={[font({ textStyle: 'body' }), foregroundStyle(foregroundColor), lineLimit(2)]}>
-        {title}
-      </Text>
+      {titleText}
     </ListItem>
   );
 }
@@ -285,12 +327,44 @@ export function NativeSettingsActionRow({
   );
 }
 
+/** What an empty list shows: the empty text, the offline note or a load error with Retry. */
+export function NativeSettingsListStatus({
+  state,
+  emptyText,
+  onRetry,
+}: {
+  state: SettingsListState;
+  emptyText: string;
+  onRetry?: () => void;
+}) {
+  const { t } = useTranslation();
+  if (state === 'items') return null;
+  if (state === 'empty') return <NativeSettingsEmptyRow text={emptyText} />;
+  if (state === 'offline') return <NativeSettingsEmptyRow text={t('root.offlineCacheMissing')} />;
+  return (
+    <>
+      <NativeSettingsEmptyRow text={t('common.loadFailed')} />
+      {onRetry ? <NativeSettingsRow title={t('common.retry')} icon="retry" onPress={onRetry} /> : null}
+    </>
+  );
+}
+
+/** Trailing count, like the unread count in Mail or pending updates in Settings. */
+export function NativeSettingsCount({ count }: { count: number }) {
+  const { colors } = useAppTheme();
+  return (
+    <Text modifiers={[font({ design: 'rounded', textStyle: 'body' }), foregroundStyle(colors.secondaryLabel)]}>
+      {String(count)}
+    </Text>
+  );
+}
+
 export function NativeSettingsEmptyRow({ text }: { text: string }) {
   const { colors } = useAppTheme();
   return (
     <Text
       modifiers={[
-        font({ textStyle: 'footnote' }),
+        font({ design: 'rounded', textStyle: 'footnote' }),
         foregroundStyle(colors.secondaryLabel),
       ]}>
       {text}
@@ -303,7 +377,7 @@ export function NativeSettingsCenteredFooter({ lines }: { lines: string[] }) {
   return (
     <VStack
       alignment="center"
-      spacing={2}
+      spacing={spacing.xxs}
       modifiers={[
         listRowBackground('transparent'),
         listRowSeparator('hidden'),
@@ -314,7 +388,7 @@ export function NativeSettingsCenteredFooter({ lines }: { lines: string[] }) {
         <Text
           key={line}
           modifiers={[
-            font({ textStyle: 'footnote' }),
+            font({ design: 'rounded', textStyle: 'footnote' }),
             foregroundStyle(colors.secondaryLabel),
             multilineTextAlignment('center'),
             frame({ maxWidth: Infinity, alignment: 'center' }),

@@ -39,7 +39,29 @@ export type ThemeColors = {
   destructive: string;
   cameraControlBackground: string;
   cameraControlTint: string;
+  /** Launch screen tile (matches the splash and the app icon). */
+  launchBackground: string;
+  /** Front-camera "flash": the white screen that lights the subject. */
+  screenFlash: string;
   viewerChromeFill: string;
+  /** In-app notification card drop shadow. */
+  notificationShadow: string;
+  /** Hardware-matching Dynamic Island fill for the island morph (always black). */
+  notificationIsland: string;
+  /** Full-screen media surfaces (viewer, preview, camera): black in light and dark. */
+  cinemaBackground: string;
+  /** Top scrim behind the media viewer's progress bars and header. */
+  cinemaScrim: string;
+  /** Unfilled Stories-style progress segment over media. */
+  cinemaTrack: string;
+  /** Secondary text on full-screen media surfaces (loading hints over black). */
+  cinemaSecondaryLabel: string;
+  /** Text and symbols drawn on an accent-filled control. */
+  onAccent: string;
+  /** Text and symbols drawn on a `destructive`-filled control. */
+  onDestructive: string;
+  /** Neutral swatch for „no color” / disabled color chips (systemGray). */
+  systemGray: string;
 };
 
 export const darkColors: ThemeColors = {
@@ -79,7 +101,18 @@ export const darkColors: ThemeColors = {
   destructive: '#FF453A',
   cameraControlBackground: '#00000059',
   cameraControlTint: '#FFFFFF',
+  launchBackground: '#4B4DF0',
+  screenFlash: '#FFFFFF',
   viewerChromeFill: '#FFFFFF17',
+  notificationShadow: '#00000066',
+  notificationIsland: '#000000',
+  cinemaBackground: '#000000',
+  cinemaScrim: '#00000073',
+  cinemaTrack: '#FFFFFF59',
+  cinemaSecondaryLabel: '#FFFFFFB3',
+  onAccent: '#FFFFFF',
+  onDestructive: '#FFFFFF',
+  systemGray: '#8E8E93',
 };
 
 export const lightColors: ThemeColors = {
@@ -119,5 +152,16 @@ export const lightColors: ThemeColors = {
   destructive: '#FF3B30',
   cameraControlBackground: '#00000059',
   cameraControlTint: '#FFFFFF',
+  launchBackground: '#4B4DF0',
+  screenFlash: '#FFFFFF',
   viewerChromeFill: '#FFFFFF26',
+  notificationShadow: '#10131C24',
+  notificationIsland: '#000000',
+  cinemaBackground: '#000000',
+  cinemaScrim: '#00000073',
+  cinemaTrack: '#FFFFFF59',
+  cinemaSecondaryLabel: '#FFFFFFB3',
+  onAccent: '#FFFFFF',
+  onDestructive: '#FFFFFF',
+  systemGray: '#8E8E93',
 };

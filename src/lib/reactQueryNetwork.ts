@@ -1,14 +1,15 @@
 import { AppState } from 'react-native';
 import type { AppStateStatus } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
+import { getConnectivity, subscribeConnectivity } from './connectivity';
 
 let lifecycleBound = false;
-let physicalOnline = true;
 let authOnline = true;
 
 function syncOnlineState() {
-  onlineManager.setOnline(physicalOnline && authOnline);
+  // Physical connectivity comes from the shared store, so React Query pauses with the same
+  // (debounced) signal as auth, realtime, the outbox and uploads.
+  onlineManager.setOnline(getConnectivity().online && authOnline);
 }
 
 export function setReactQueryAuthOnline(online: boolean) {
@@ -26,10 +27,8 @@ export function bindReactQueryAppLifecycle(): () => void {
   };
 
   const sub = AppState.addEventListener('change', onAppStateChange);
-  const unsubscribeNetwork = NetInfo.addEventListener((state) => {
-    physicalOnline = state.isConnected !== false && state.isInternetReachable !== false;
-    syncOnlineState();
-  });
+  const unsubscribeNetwork = subscribeConnectivity(syncOnlineState);
+  syncOnlineState();
   if (process.env.EXPO_OS !== 'web') {
     focusManager.setFocused(AppState.currentState === 'active');
   }

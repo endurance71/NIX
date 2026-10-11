@@ -61,6 +61,14 @@ type UploadRecipientRow = {
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;
 
+/**
+ * Finished rows (completed, cancelled, expired) are only needed for the short „Sent” confirmation
+ * in the UI. Without pruning every list read decrypted all past uploads (PERF-8).
+ */
+export const FINISHED_UPLOAD_RETENTION_MS = 10 * 60 * 1000;
+const FINISHED_STATES_SQL = `('completed', 'partially_completed', 'cancelled', 'expired')`;
+const FINISHED_AT_SQL = 'COALESCE(finished_at, updated_at)';
+
 function parseHeaders(value: string | null) {
   if (!value) return null;
   try {
@@ -277,22 +285,31 @@ async function toJob(row: UploadJobRow, recipients: DurableUploadRecipient[]): P
   };
 }
 
-export async function listDurableUploadJobs(ownerId: string): Promise<DurableUploadJob[]> {
+export async function listDurableUploadJobs(
+  ownerId: string,
+  { now = Date.now() }: { now?: number } = {}
+): Promise<DurableUploadJob[]> {
   const db = await getUploadQueueDatabase();
+  // Finished rows older than the retention window are invisible even before they are purged.
+  const finishedBefore = now - FINISHED_UPLOAD_RETENTION_MS;
   const [rows, recipientRows] = await Promise.all([
     db.getAllAsync<UploadJobRow>(
       `SELECT * FROM upload_jobs
        WHERE owner_id = ?
+         AND NOT (state IN ${FINISHED_STATES_SQL} AND ${FINISHED_AT_SQL} < ?)
        ORDER BY created_at DESC`,
-      ownerId
+      ownerId,
+      finishedBefore
     ),
     db.getAllAsync<UploadRecipientRow>(
       `SELECT r.*
        FROM upload_recipients r
        JOIN upload_jobs j ON j.id = r.job_id
        WHERE j.owner_id = ?
+         AND NOT (j.state IN ${FINISHED_STATES_SQL} AND COALESCE(j.finished_at, j.updated_at) < ?)
        ORDER BY r.sequence_index, r.receiver_id`,
-      ownerId
+      ownerId,
+      finishedBefore
     ),
   ]);
   const recipientsByJob = new Map<string, DurableUploadRecipient[]>();
@@ -460,7 +477,14 @@ const fieldToColumn: Record<keyof DurableUploadJob, string | null> = {
 export async function patchDurableUploadJob(
   jobId: string,
   patch: Partial<Omit<DurableUploadJob, 'id' | 'recipients'>>,
-  guard: { unlessStates?: UploadJobState[] } = {}
+  guard: {
+    unlessStates?: UploadJobState[];
+    /**
+     * Compare-and-set: the UPDATE applies only while the row is still in one of these states
+     * (e.g. claiming a parked job for the background task). `changes === 0` means it lost.
+     */
+    onlyStates?: UploadJobState[];
+  } = {}
 ) {
   const entries = Object.entries(patch) as [
     keyof DurableUploadJob,
@@ -497,10 +521,19 @@ export async function patchDurableUploadJob(
   assignments.push('updated_at = ?');
   values.push(Date.now(), jobId);
   const excluded = guard.unlessStates ?? [];
-  const stateGuard = excluded.length > 0
-    ? ` AND state NOT IN (${excluded.map(() => '?').join(', ')})`
-    : '';
-  values.push(...excluded);
+  const required = guard.onlyStates ?? [];
+  let stateGuard = '';
+  if (excluded.length > 0) {
+    stateGuard += ` AND state NOT IN (${excluded.map(() => '?').join(', ')})`;
+    values.push(...excluded);
+  }
+  if (guard.onlyStates) {
+    // An empty allow-list matches nothing rather than everything.
+    stateGuard += required.length > 0
+      ? ` AND state IN (${required.map(() => '?').join(', ')})`
+      : ' AND 0';
+    values.push(...required);
+  }
   return db.runAsync(
     `UPDATE upload_jobs SET ${assignments.join(', ')} WHERE id = ?${stateGuard}`,
     ...values
@@ -526,6 +559,27 @@ export async function purgeExpiredDurableUploadJobs(now = Date.now()) {
     now
   );
   return rows;
+}
+
+/** Deletes finished rows past the retention window; returns their ids for staged-file cleanup. */
+export async function purgeFinishedDurableUploadJobs(
+  now = Date.now(),
+  retentionMs = FINISHED_UPLOAD_RETENTION_MS
+) {
+  const db = await getUploadQueueDatabase();
+  const finishedBefore = now - retentionMs;
+  const rows = await db.getAllAsync<{ id: string }>(
+    `SELECT id FROM upload_jobs
+     WHERE state IN ${FINISHED_STATES_SQL} AND ${FINISHED_AT_SQL} < ?`,
+    finishedBefore
+  );
+  if (rows.length === 0) return [];
+  await db.runAsync(
+    `DELETE FROM upload_jobs
+     WHERE state IN ${FINISHED_STATES_SQL} AND ${FINISHED_AT_SQL} < ?`,
+    finishedBefore
+  );
+  return rows.map((row) => row.id);
 }
 
 export async function purgeOwnerDurableUploadJobs(ownerId: string) {

@@ -107,6 +107,9 @@ async function waitForOwnTextJob(jobId: string, transport: AccountTransport): Pr
   throw new DomainError('UNKNOWN', 'Moderacja trwa zbyt długo. Spróbuj ponownie.');
 }
 
+/** Server-enforced limit (the composer caps input at the same length). */
+export const TEXT_MESSAGE_MAX_LENGTH = 2000;
+
 export async function sendTextMessage({
   receiverId,
   body,
@@ -119,7 +122,7 @@ export async function sendTextMessage({
     throw new DomainError('INVALID_INPUT', 'Wiadomość nie może być pusta.');
   }
 
-  if (trimmedBody.length > 2000) {
+  if (trimmedBody.length > TEXT_MESSAGE_MAX_LENGTH) {
     throw new DomainError('INVALID_INPUT', 'Wiadomość przekracza limit 2000 znaków.');
   }
 
@@ -269,7 +272,49 @@ export async function deleteTextMessageConversation(peerId: string): Promise<num
 export type RecentTextMessageItem = TextMessage & {
   peer_id: string;
   is_unread?: boolean;
+  /** Set on inbox rows built from the local text outbox (not yet on the server). */
+  outbox_state?: 'pending' | 'sending' | 'failed';
 };
+
+/** Columns selected for the inbox text preview; mirrored by the `get_inbox_bundle` RPC. */
+export type RecentTextMessageRow = Pick<
+  TextMessage,
+  | 'id'
+  | 'sender_id'
+  | 'receiver_id'
+  | 'body'
+  | 'created_at'
+  | 'expires_at'
+  | 'client_message_id'
+  | 'is_system'
+> & {
+  metadata: unknown;
+  /** Read receipt; only backends with 20261011160000_message_status_receipts return it. */
+  read_at?: string | null;
+};
+
+export function mapRecentTextMessageRow(
+  msg: RecentTextMessageRow,
+  currentUserId: string
+): RecentTextMessageItem {
+  return {
+    ...normalizeMessage(msg),
+    peer_id: msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id,
+  };
+}
+
+/**
+ * Rows from `get_inbox_bundle` already carry `peer_id` (computed against `auth.uid()`), so no
+ * client-side user lookup is needed.
+ */
+export function mapRecentTextMessageRpcRow(
+  msg: RecentTextMessageRow & { peer_id: string }
+): RecentTextMessageItem {
+  return {
+    ...normalizeMessage(msg),
+    peer_id: msg.peer_id,
+  };
+}
 
 export async function fetchRecentTextMessagesForInbox(): Promise<RecentTextMessageItem[]> {
   const user = await getCurrentUser();
@@ -290,8 +335,35 @@ export async function fetchRecentTextMessagesForInbox(): Promise<RecentTextMessa
     return [];
   }
 
-  return (data || []).map((msg) => ({
-    ...normalizeMessage(msg),
-    peer_id: msg.sender_id === user.id ? msg.receiver_id : msg.sender_id,
-  }));
+  return (data || []).map((msg) => mapRecentTextMessageRow(msg, user.id));
+}
+
+export type TextMessageSavedState = {
+  id: string;
+  saved_at: string | null;
+  saved_by: string | null;
+  expires_at: string;
+};
+
+/**
+ * „Zapisz w czacie” / „Nie zapisuj” (migration 20261012100000). Either participant may save or
+ * unsave; an unsaved message expires 24 h later.
+ */
+export async function setTextMessageSaved(messageId: string, saved: boolean): Promise<TextMessageSavedState> {
+  const { data, error } = await supabase.rpc('set_text_message_saved', {
+    p_message_id: messageId,
+    p_saved: saved,
+  });
+  if (error) {
+    const text = errorText(error);
+    if (text.includes('NOT_FOUND')) throw new DomainError('NOT_FOUND', 'Wiadomość już zniknęła.');
+    if (text.includes('UNAUTHORIZED')) throw new DomainError('UNAUTHORIZED', 'Wymagane logowanie.');
+    // Keep the PostgREST code: the caller hides the feature when the RPC is not deployed.
+    throw Object.assign(new DomainError('UNKNOWN', error.message || 'Nie udało się zapisać wiadomości.'), {
+      postgrestCode: error.code,
+    });
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== 'object') throw new DomainError('NOT_FOUND', 'Wiadomość już zniknęła.');
+  return row as TextMessageSavedState;
 }

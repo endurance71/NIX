@@ -7,16 +7,15 @@ import {
   frame,
   resizable,
 } from '@expo/ui/swift-ui/modifiers';
-import { useAppTheme } from '../../hooks/useAppTheme';
 import { AUTH_LOGIN_LOGO_CORNER_RADIUS, AUTH_LOGIN_LOGO_SIZE } from '../../theme/authLayout';
 
-const logoLight = require('../../../assets/brand/app/ios-light.png');
-const logoDark = require('../../../assets/brand/app/ios-dark.png');
+// The opaque app icon reads on both appearances; the dark/tinted variants are only the mark on
+// a transparent background (iOS supplies their backdrop).
+const logo = require('../../../assets/brand/app/ios-light.png');
 
-/** App icon for login hero — switches with system light/dark. */
+/** App icon for the login hero. */
 export function AuthBrandMark() {
-  const { isDark } = useAppTheme();
-  const logoUri = Asset.fromModule(isDark ? logoDark : logoLight).uri;
+  const logoUri = Asset.fromModule(logo).uri;
 
   return (
     <VStack spacing={0} modifiers={[frame({ alignment: 'center' })]}>

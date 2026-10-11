@@ -1,4 +1,5 @@
 import type { ThemeColors } from '../theme/colors';
+import { SOFT_SCROLL_EDGE_EFFECTS } from '../theme/scrollEdge';
 
 type AuthNavigationColors = Pick<ThemeColors, 'accent' | 'background' | 'label'>;
 
@@ -18,5 +19,6 @@ export function getAuthStackScreenOptions(colors: AuthNavigationColors) {
     headerTitleStyle: { color: colors.label },
     headerStyle: { backgroundColor: 'transparent' },
     contentStyle: { backgroundColor: colors.background },
+    scrollEdgeEffects: SOFT_SCROLL_EDGE_EFFECTS,
   };
 }

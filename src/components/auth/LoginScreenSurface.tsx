@@ -19,7 +19,7 @@ export function LoginScreenSurface({ vm }: LoginScreenSurfaceProps) {
       <LoginHeroSection />
       <LoginCredentialsSection vm={vm} passwordRef={passwordRef} />
       <LoginActionsSection vm={vm} />
-      {vm.showAppleSignIn ? <LoginAlternativeAuthSection vm={vm} /> : null}
+      {vm.showAppleSignIn || vm.showPasskeySignIn ? <LoginAlternativeAuthSection vm={vm} /> : null}
     </LoginAuthLayout>
   );
 }

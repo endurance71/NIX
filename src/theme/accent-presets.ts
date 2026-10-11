@@ -36,3 +36,28 @@ export function resolveAccentColor(
   const preset = getAccentPreset(presetId);
   return scheme === 'dark' ? preset.dark : preset.light;
 }
+
+function relativeLuminance(hex: string): number {
+  const value = hex.replace('#', '').slice(0, 6);
+  const channels = [0, 2, 4].map((offset) => parseInt(value.slice(offset, offset + 2), 16) / 255);
+  const [r, g, b] = channels.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG contrast ratio between two #RRGGBB colours (1–21). */
+export function contrastRatio(a: string, b: string): number {
+  const [light, dark] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+const ON_ACCENT_LIGHT = '#FFFFFF';
+const ON_ACCENT_DARK = '#1C1C1E';
+
+/**
+ * Text/glyph colour on an accent fill (buttons, own chat bubbles, selected chips). White unless
+ * it drops below 3:1, the large-text/UI threshold iOS uses for filled buttons — orange and teal
+ * get dark ink instead of unreadable white.
+ */
+export function resolveOnAccentColor(accent: string): string {
+  return contrastRatio(ON_ACCENT_LIGHT, accent) >= 3 ? ON_ACCENT_LIGHT : ON_ACCENT_DARK;
+}

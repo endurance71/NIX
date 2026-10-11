@@ -2,6 +2,15 @@ import type { InboxThreadItem } from './inboxThreads';
 import type { SentNix } from '../services/nixService';
 import type { SupportedLocale } from './i18n';
 import type { ViewerOpenParams } from './viewerRoute';
+import {
+  incomingNixStatus,
+  incomingTextStatus,
+  messageKindForMedia,
+  outgoingNixStatus,
+  outgoingTextStatus,
+  type MessageKind,
+  type MessageStatus,
+} from './messageStatus';
 
 export type InboxRowStatus = 'new' | 'sent' | 'opened' | 'cleaned' | 'cleanupFailed';
 
@@ -10,6 +19,7 @@ export type InboxRowMediaType = 'image' | 'video';
 export type RecipientUploadPhase =
   | 'preparing'
   | 'uploading'
+  | 'confirming'
   | 'waiting_network'
   | 'retry_scheduled'
   | 'paused'
@@ -20,6 +30,8 @@ export type RecipientUploadPresentation = {
   phase: RecipientUploadPhase;
   progress: number;
   jobIds: string[];
+  /** Server batch ids (= `nixes.client_upload_id`) of jobs that already have one. */
+  batchIds: string[];
   jobCount: number;
   sharedRecipientCount: number;
   createdAt: number;
@@ -44,6 +56,9 @@ export type InboxRowModel = {
   direction: 'received' | 'sent';
   unread: boolean;
   status: InboxRowStatus;
+  /** Unified, Snapchat-style status (see messageStatus). */
+  messageStatus: MessageStatus;
+  messageKind: MessageKind;
   createdAt: string;
   timestampLabel: string;
   avatarStoragePath: string | null;
@@ -52,6 +67,8 @@ export type InboxRowModel = {
   mediaType: InboxRowMediaType | null;
   upload: RecipientUploadPresentation | null;
   openParams: ViewerOpenParams | null;
+  /** `nixes.client_upload_id` of a sent NiX, when the query selected it (matches `job.batchId`). */
+  clientUploadId?: string | null;
 };
 
 export function resolveSentInboxStatus(
@@ -88,6 +105,15 @@ export function buildInboxRowModel(
       direction: item.direction,
       unread: textMessage.is_unread === true,
       status: item.direction === 'received' ? 'opened' : 'sent',
+      messageKind: 'text',
+      messageStatus:
+        item.direction === 'received'
+          ? incomingTextStatus(textMessage.is_unread === true)
+          : textMessage.outbox_state
+            ? textMessage.outbox_state === 'failed'
+              ? 'failed'
+              : 'sending'
+            : outgoingTextStatus(textMessage),
       createdAt: textMessage.created_at,
       timestampLabel: formatInboxTimestamp(textMessage.created_at, locale, { now, yesterdayLabel }),
       avatarStoragePath: peerProfile?.avatar_storage_path ?? null,
@@ -113,6 +139,8 @@ export function buildInboxRowModel(
       direction: 'received',
       unread,
       status: unread ? 'new' : 'opened',
+      messageKind: messageKindForMedia(nix.media_type),
+      messageStatus: incomingNixStatus(nix),
       createdAt: nix.created_at,
       timestampLabel: formatInboxTimestamp(nix.created_at, locale, { now, yesterdayLabel }),
       avatarStoragePath: nix.sender?.avatar_storage_path ?? null,
@@ -135,6 +163,9 @@ export function buildInboxRowModel(
   }
 
   const { nix } = item;
+  const clientUploadId = 'client_upload_id' in nix && typeof nix.client_upload_id === 'string'
+    ? nix.client_upload_id
+    : null;
   const username = nix.receiver?.username || unknownUsername;
   const displayName = nix.receiver?.display_name || null;
   return {
@@ -146,6 +177,8 @@ export function buildInboxRowModel(
     direction: 'sent',
     unread: false,
     status: resolveSentInboxStatus(nix),
+    messageKind: messageKindForMedia(nix.media_type),
+    messageStatus: outgoingNixStatus(nix),
     createdAt: nix.created_at,
     timestampLabel: formatInboxTimestamp(nix.created_at, locale, { now, yesterdayLabel }),
     avatarStoragePath: nix.receiver?.avatar_storage_path ?? null,
@@ -153,6 +186,7 @@ export function buildInboxRowModel(
     mediaType: null,
     upload: null,
     openParams: null,
+    clientUploadId,
   };
 }
 

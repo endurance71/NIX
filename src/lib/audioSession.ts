@@ -1,12 +1,23 @@
 import { setAudioModeAsync, type AudioMode } from 'expo-audio';
 import { trackEvent } from './telemetry';
+import { sleep } from './sleep';
 
-export type AudioSessionMode = 'playback' | 'recording';
+/**
+ * `mixedPlayback`: playback that never interrupts the user's own audio (muted viewer videos).
+ */
+export type AudioSessionMode = 'playback' | 'mixedPlayback' | 'recording';
 
 const PLAYBACK_MODE: Partial<AudioMode> = {
   playsInSilentMode: true,
   allowsRecording: false,
   interruptionMode: 'doNotMix',
+  shouldPlayInBackground: false,
+};
+
+const MIXED_PLAYBACK_MODE: Partial<AudioMode> = {
+  playsInSilentMode: true,
+  allowsRecording: false,
+  interruptionMode: 'mixWithOthers',
   shouldPlayInBackground: false,
 };
 
@@ -49,9 +60,6 @@ function isInsufficientPriorityError(error: unknown): boolean {
   );
 }
 
-async function waitMs(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 async function applyMode(mode: AudioSessionMode, modeConfig: Partial<AudioMode>) {
   const previousMode = getCurrentAudioSessionMode();
@@ -80,7 +88,7 @@ async function applyMode(mode: AudioSessionMode, modeConfig: Partial<AudioMode>)
         throw error;
       }
 
-      await waitMs(RETRY_DELAYS_MS[attempt - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]);
+      await sleep(RETRY_DELAYS_MS[attempt - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]);
       await tryAttempt(attempt + 1);
     }
   };
@@ -114,4 +122,27 @@ export async function configureForRecording(): Promise<void> {
     pendingPromise = null;
   });
   return pendingPromise;
+}
+
+/**
+ * Sesja audio iOS, która nie przerywa muzyki użytkownika (wyciszone wideo w viewerze).
+ * Idempotentny jak `configureForPlayback`.
+ */
+export async function configureForMixedPlayback(): Promise<void> {
+  if (lastConfiguredMode === 'mixedPlayback') return;
+  if (pendingPromise) return pendingPromise;
+  pendingPromise = applyMode('mixedPlayback', MIXED_PLAYBACK_MODE).finally(() => {
+    pendingPromise = null;
+  });
+  return pendingPromise;
+}
+
+/**
+ * Viewer: dźwięk wideo przejmuje sesję (`doNotMix`) tylko po włączeniu go przez użytkownika;
+ * wyciszone wideo miksuje się z muzyką. Czeka na trwającą zmianę trybu, żeby nie zostać
+ * w trybie ustawianym przez poprzednie (np. odwrotne) przełączenie.
+ */
+export async function configureForViewerVideo(soundOn: boolean): Promise<void> {
+  if (pendingPromise) await pendingPromise.catch(() => undefined);
+  return soundOn ? configureForPlayback() : configureForMixedPlayback();
 }

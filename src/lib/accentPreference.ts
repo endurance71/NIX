@@ -26,10 +26,37 @@ export async function loadAccentPresetId(): Promise<AccentPresetId> {
   }
 }
 
+let accentPreload: Promise<AccentPresetId> | null = null;
+let preloadedAccentPresetId: AccentPresetId | null = null;
+
+/**
+ * Starts reading the persisted accent once per app run (PERF-6) — call it at module load so it
+ * runs in parallel with auth bootstrap — and remembers the result for synchronous reads.
+ */
+export function preloadAccentPresetId(): Promise<AccentPresetId> {
+  accentPreload ??= loadAccentPresetId().then((id) => {
+    preloadedAccentPresetId ??= id;
+    return preloadedAccentPresetId;
+  });
+  return accentPreload;
+}
+
+/** The preloaded (or since saved) accent, or `null` while the first read is still pending. */
+export function getPreloadedAccentPresetId(): AccentPresetId | null {
+  return preloadedAccentPresetId;
+}
+
 export async function saveAccentPresetId(id: AccentPresetId): Promise<void> {
+  preloadedAccentPresetId = normalizeAccentPresetId(id);
   try {
     await AsyncStorage.setItem(STORAGE_KEY, normalizeAccentPresetId(id));
   } catch {
     /* ignoruj brak zapisu preferencji */
   }
+}
+
+/** Test-only: forget the module-level preload. */
+export function resetAccentPreloadForTests() {
+  accentPreload = null;
+  preloadedAccentPresetId = null;
 }

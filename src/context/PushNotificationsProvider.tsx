@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { Alert } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { sendQuickTextReply } from '../lib/viewerQuickReply';
 import { router } from 'expo-router';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -26,16 +27,22 @@ import {
   getLocalPushDesired,
   getPushDeviceState,
   getPushPermissionState,
-  markPushPromptOffered,
+  getPushPromptOffers,
+  markPushPromptOffers,
   openSystemNotificationSettings,
   registerCurrentPushDevice,
   requestPushPermission,
   setLocalPushDesired,
   subscribeToAppForeground,
   touchCurrentPushDevice,
-  wasPushPromptOffered,
 } from '../services/pushNotificationService';
-import { parsePushNotificationData, routeForPushNotification } from '../lib/pushNotificationPayload';
+import {
+  parsePushNotificationData,
+  routeForPushNotification,
+  shouldSuppressForegroundPush,
+} from '../lib/pushNotificationPayload';
+import { decidePushRationale, type PushRationaleSource } from '../lib/pushRationale';
+import { appNotificationQueue } from '../lib/notificationQueue';
 import { queryKeys } from '../lib/queryKeys';
 import { notifyError } from '../lib/appNotify';
 import { trackEvent } from '../lib/telemetry';
@@ -44,11 +51,7 @@ import { activeChatPeerRef } from '../lib/activeChatPeer';
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const data = parsePushNotificationData(notification.request.content.data);
-    const isChatNotification =
-      data?.type === 'new_text_message' ||
-      data?.type === 'message_reaction' ||
-      data?.type === 'capture_attempt';
-    const suppress = isChatNotification && data?.actorId === activeChatPeerRef.current;
+    const suppress = shouldSuppressForegroundPush(data, activeChatPeerRef.current);
 
     return {
       shouldPlaySound: !suppress,
@@ -119,21 +122,44 @@ async function refreshPushNotificationState(
   }
 }
 
+/** Notification category with an inline "Reply" text field (set by push-dispatch as `categoryId`). */
+export const NIX_REPLY_CATEGORY = 'nix_reply';
+const NIX_REPLY_ACTION = 'reply';
+
 async function processPushNotificationResponse({
   response,
   canNavigate,
   queryClient,
   handledResponses,
   pendingResponse,
+  ownerId,
 }: {
   response: Notifications.NotificationResponse;
   canNavigate: boolean;
   queryClient: QueryClient;
   handledResponses: { current: Set<string> };
   pendingResponse: { current: Notifications.NotificationResponse | null };
+  ownerId: string;
 }) {
   const identifier = response.notification.request.identifier;
   if (handledResponses.current.has(identifier)) return;
+  // Inline reply from the notification: queue the text (durable outbox) without opening a screen.
+  if (response.actionIdentifier === NIX_REPLY_ACTION) {
+    const replyTo = parsePushNotificationData(response.notification.request.content.data);
+    handledResponses.current.add(identifier);
+    if (replyTo?.actorId && response.userText?.trim()) {
+      await sendQuickTextReply({
+        ownerId,
+        peerId: replyTo.actorId,
+        body: response.userText,
+        online: true,
+        queryClient,
+      }).catch((error) => console.warn('Notification reply failed', error));
+      trackEvent('push_notification_replied', { type: replyTo.type });
+    }
+    await Notifications.clearLastNotificationResponseAsync();
+    return;
+  }
   if (!canNavigate) {
     pendingResponse.current = response;
     return;
@@ -157,7 +183,8 @@ async function processPushNotificationResponse({
     ]);
   }
   trackEvent('push_notification_opened', { type: data.type });
-  router.push(routeForPushNotification(data) as any);
+  // `navigate` reuses an already open chat/tab instead of stacking a duplicate screen (NOTIF-11).
+  router.navigate(routeForPushNotification(data) as any);
   await Notifications.clearLastNotificationResponseAsync();
 }
 
@@ -241,13 +268,16 @@ export function PushNotificationsProvider({
     });
   }, [busy, refresh, t, userId]);
 
-  const offerPushRationale = useCallback(async () => {
+  const offerPushRationale = useCallback(async (source: PushRationaleSource) => {
     if (!userId || state === 'enabled' || state === 'denied' || state === 'unavailable' || state === 'loading' || busy) {
       return;
     }
-    if (await wasPushPromptOffered(userId)) return;
-    await markPushPromptOffered(userId);
-    trackEvent('push_rationale_shown');
+    const offers = decidePushRationale(source, await getPushPromptOffers(userId));
+    if (!offers) return;
+    await markPushPromptOffers(userId, offers);
+    // Never drop a system Alert onto a banner that is still entering or leaving.
+    await appNotificationQueue.whenSettled();
+    trackEvent('push_rationale_shown', { source });
     Alert.alert(t('push.rationaleTitle'), t('push.rationaleBody'), [
       { text: t('push.notNow'), style: 'cancel' },
       { text: t('push.enableAction'), onPress: () => void enable() },
@@ -255,10 +285,10 @@ export function PushNotificationsProvider({
   }, [busy, enable, state, t, userId]);
 
   const offerAfterSuccessfulSend = useCallback(async () => {
-    await offerPushRationale();
+    await offerPushRationale('after_send');
   }, [offerPushRationale]);
   const offerPushRationaleFromEffect = useEffectEvent(() => {
-    void offerPushRationale();
+    void offerPushRationale('onboarding');
   });
 
   useEffect(() => {
@@ -292,6 +322,7 @@ export function PushNotificationsProvider({
         queryClient,
         handledResponses,
         pendingResponse,
+        ownerId: userId,
       });
     });
     const tokenSubscription = Notifications.addPushTokenListener((token) => {
@@ -310,6 +341,7 @@ export function PushNotificationsProvider({
         queryClient,
         handledResponses,
         pendingResponse,
+        ownerId: userId,
       });
     }
     return () => {
@@ -319,7 +351,7 @@ export function PushNotificationsProvider({
   }, [canNavigate, queryClient, userId]);
 
   useEffect(() => {
-    if (!canNavigate || !pendingResponse.current) return;
+    if (!canNavigate || !pendingResponse.current || !userId) return;
     const response = pendingResponse.current;
     pendingResponse.current = null;
     void processPushNotificationResponse({
@@ -328,8 +360,22 @@ export function PushNotificationsProvider({
       queryClient,
       handledResponses,
       pendingResponse,
+      ownerId: userId,
     });
-  }, [canNavigate, queryClient]);
+  }, [canNavigate, queryClient, userId]);
+
+  // The inline "Reply" action on message notifications; titles follow the app language.
+  useEffect(() => {
+    if (!userId) return;
+    void Notifications.setNotificationCategoryAsync(NIX_REPLY_CATEGORY, [
+      {
+        identifier: NIX_REPLY_ACTION,
+        buttonTitle: t('push.replyAction'),
+        textInput: { submitButtonTitle: t('push.replySend'), placeholder: t('push.replyPlaceholder') },
+        options: { opensAppToForeground: false },
+      },
+    ]).catch((error) => console.warn('Notification category setup failed', error));
+  }, [t, userId]);
 
   const value = useMemo(() => userId ? ({
     state,

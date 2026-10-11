@@ -172,7 +172,7 @@ export function AuthFormLayout({ children, description }: AuthFormLayoutProps) {
               {description ? (
                 <Text
                   modifiers={[
-                    font({ textStyle: 'subheadline' }),
+                    font({ design: 'rounded', textStyle: 'subheadline' }),
                     foregroundStyle(colors.secondaryLabel),
                     multilineTextAlignment('leading'),
                     frame({ width: contentWidth, alignment: 'leading' }),
@@ -229,15 +229,18 @@ type AuthFieldProps = Omit<TextInputProps, 'value' | 'defaultValue'> & {
 export function AuthSecondaryButton({
   label,
   onPress,
+  disabled,
 }: {
   label: string;
   onPress: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Button
       label={label}
       variant="text"
       onPress={onPress}
+      disabled={disabled}
       modifiers={[controlSize('regular'), frame({ minHeight: 44, alignment: 'center' })]}
     />
   );
@@ -263,7 +266,7 @@ export function AuthFooterPrompt({
         spacing={4}
         modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'leading' })]}>
         {prompt ? (
-          <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(colors.secondaryLabel)]}>
+          <Text modifiers={[font({ design: 'rounded', textStyle: 'subheadline' }), foregroundStyle(colors.secondaryLabel)]}>
             {prompt}
           </Text>
         ) : null}
@@ -281,12 +284,12 @@ export function AuthFooterPrompt({
       alignment="center"
       spacing={0}
       modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'leading' })]}>
-      <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(colors.secondaryLabel)]}>
+      <Text modifiers={[font({ design: 'rounded', textStyle: 'subheadline' }), foregroundStyle(colors.secondaryLabel)]}>
         {`${prompt} `}
       </Text>
       <Text
         modifiers={[
-          font({ textStyle: 'subheadline', weight: 'semibold' }),
+          font({ design: 'rounded', textStyle: 'subheadline', weight: 'semibold' }),
           foregroundStyle(colors.label),
           onTapGesture(onPress),
         ]}>
@@ -302,7 +305,7 @@ export function AuthTextLink({ label, onPress }: { label: string; onPress: () =>
   return (
     <Text
       modifiers={[
-        font({ textStyle: 'subheadline' }),
+        font({ design: 'rounded', textStyle: 'subheadline' }),
         foregroundStyle(colors.systemBlue),
         onTapGesture(onPress),
       ]}>
@@ -311,45 +314,12 @@ export function AuthTextLink({ label, onPress }: { label: string; onPress: () =>
   );
 }
 
-export function AuthLeadingLink({ label, onPress }: { label: string; onPress: () => void }) {
-  const { colors } = useAppTheme();
-  const contentWidth = useAuthContentWidth();
-
-  return (
-    <HStack
-      alignment="center"
-      spacing={0}
-      modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'leading' })]}>
-      <Text
-        modifiers={[
-          font({ textStyle: 'subheadline', weight: 'semibold' }),
-          foregroundStyle(colors.label),
-          onTapGesture(onPress),
-        ]}>
-        {label}
-      </Text>
-    </HStack>
-  );
-}
-
-/** @deprecated Use AuthLeadingLink */
-export function AuthTrailingLink({ label, onPress }: { label: string; onPress: () => void }) {
-  return <AuthLeadingLink label={label} onPress={onPress} />;
-}
-
-export function AuthSecondaryText({ children }: { children: string }) {
-  const { colors } = useAppTheme();
-  return (
-    <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(colors.secondaryLabel)]}>
-      {children}
-    </Text>
-  );
-}
-
+// Field footers carry real information (privacy of the birth date, username rules), so they use
+// the secondary label like iOS section footers; tertiary is too faint (~2.3:1).
 export function AuthTertiaryText({ children }: { children: string }) {
   const { colors } = useAppTheme();
   return (
-    <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.tertiaryLabel)]}>
+    <Text modifiers={[font({ design: 'rounded', textStyle: 'footnote' }), foregroundStyle(colors.secondaryLabel)]}>
       {children}
     </Text>
   );
@@ -358,7 +328,7 @@ export function AuthTertiaryText({ children }: { children: string }) {
 export function AuthHighlightedText({ children }: { children: string }) {
   const { colors } = useAppTheme();
   return (
-    <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.label)]}>
+    <Text modifiers={[font({ design: 'rounded', textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.label)]}>
       {children}
     </Text>
   );
@@ -375,7 +345,7 @@ export function AuthErrorText({ children }: { children: string }) {
   return (
     <Text
       modifiers={[
-        font({ textStyle: 'footnote', weight: 'semibold' }),
+        font({ design: 'rounded', textStyle: 'footnote', weight: 'semibold' }),
         foregroundStyle(colors.destructive),
         frame({ width: contentWidth, alignment: 'leading' }),
       ]}>
@@ -405,7 +375,7 @@ export function AuthFormDivider({ label }: { label: string }) {
       />
       <Text
         modifiers={[
-          font({ textStyle: 'footnote', weight: 'medium' }),
+          font({ design: 'rounded', textStyle: 'footnote', weight: 'medium' }),
           foregroundStyle(colors.secondaryLabel),
           fixedSize({ horizontal: true, vertical: false }),
         ]}>
@@ -439,7 +409,7 @@ export function AuthEmailDescription({
       {before ? (
         <Text
           modifiers={[
-            font({ textStyle: 'subheadline' }),
+            font({ design: 'rounded', textStyle: 'subheadline' }),
             foregroundStyle(colors.secondaryLabel),
             multilineTextAlignment('leading'),
           ]}>
@@ -450,7 +420,7 @@ export function AuthEmailDescription({
       {after ? (
         <Text
           modifiers={[
-            font({ textStyle: 'subheadline' }),
+            font({ design: 'rounded', textStyle: 'subheadline' }),
             foregroundStyle(colors.secondaryLabel),
             multilineTextAlignment('leading'),
           ]}>
@@ -461,18 +431,6 @@ export function AuthEmailDescription({
   );
 }
 
-export function AuthFormSection({ children }: PropsWithChildren) {
-  return <>{children}</>;
-}
-
-export function AuthFormFooter({ children }: { children: ReactNode }) {
-  return <>{children}</>;
-}
-
-export function AuthTextLinkButton({ label, onPress }: { label: string; onPress: () => void }) {
-  return <AuthSecondaryButton label={label} onPress={onPress} />;
-}
-
-export function AuthInlineLink({ label, onPress }: { label: string; onPress: () => void }) {
+function AuthInlineLink({ label, onPress }: { label: string; onPress: () => void }) {
   return <AuthSecondaryButton label={label} onPress={onPress} />;
 }

@@ -28,6 +28,8 @@ export function buildInboxLocalMessages(
       metadata: null,
       peer_id: job.receiverId,
       is_unread: false,
+      read_at: null,
+      outbox_state: job.state === 'expired' ? 'failed' : job.state,
       peerProfile: friend
         ? {
             username: friend.username,

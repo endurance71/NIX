@@ -2,11 +2,12 @@ import { PropsWithChildren } from 'react';
 import { ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { FieldGroup, RNHostView } from '@expo/ui';
-import { frame, refreshable } from '@expo/ui/swift-ui/modifiers';
+import { frame, refreshable, scrollEdgeEffectStyle } from '@expo/ui/swift-ui/modifiers';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { AppHost } from './app-host';
 import { OfflineStatusBanner } from '../auth/OfflineStatusBanner';
 import { useAuth } from '../../hooks/useAuth';
+import { useTranslation } from 'react-i18next';
 
 type SettingsListScreenProps = PropsWithChildren<{
   loading?: boolean;
@@ -16,13 +17,14 @@ type SettingsListScreenProps = PropsWithChildren<{
 export function SettingsListScreen({ children, loading, onRefresh }: SettingsListScreenProps) {
   const { colors, statusBarStyle } = useAppTheme();
   const { isOfflineAuthenticated } = useAuth();
+  const { t } = useTranslation();
 
   if (loading) {
     return (
       <AppHost
         style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
         <StatusBar style={statusBarStyle} />
-        <ActivityIndicator color={colors.label} />
+        <ActivityIndicator color={colors.label} accessibilityLabel={t('common.loading')} />
       </AppHost>
     );
   }
@@ -36,6 +38,7 @@ export function SettingsListScreen({ children, loading, onRefresh }: SettingsLis
         style={{ backgroundColor: colors.background }}
         modifiers={[
           frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
+          scrollEdgeEffectStyle('soft'),
           ...(onRefresh ? [refreshable(onRefresh)] : []),
         ]}>
         {isOfflineAuthenticated ? (

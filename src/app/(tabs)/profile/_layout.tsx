@@ -2,6 +2,8 @@ import Stack from 'expo-router/stack';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../../hooks/useAppTheme';
 import { useAuth } from '../../../hooks/useAuth';
+import { APP_FONT_FAMILY } from '../../../theme/typography';
+import { SOFT_SCROLL_EDGE_EFFECTS } from '../../../theme/scrollEdge';
 
 export default function ProfileTabLayout() {
   const { t } = useTranslation();
@@ -13,20 +15,26 @@ export default function ProfileTabLayout() {
       screenOptions={{
         headerShown: true,
         headerBackButtonDisplayMode: 'minimal',
-        headerLargeTitle: true,
+        headerLargeTitleEnabled: true,
         headerTintColor: colors.accent,
         headerTransparent: !isOfflineAuthenticated,
         headerShadowVisible: false,
         headerLargeTitleShadowVisible: false,
         headerStyle: { backgroundColor: isOfflineAuthenticated ? colors.background : 'transparent' },
         headerLargeStyle: { backgroundColor: isOfflineAuthenticated ? colors.background : 'transparent' },
+        // Same rounded face as the rest of the app (root stack headers use it too).
         headerTitleStyle: {
+          fontFamily: APP_FONT_FAMILY,
+          fontWeight: '700',
           color: colors.label,
         },
         headerLargeTitleStyle: {
+          fontFamily: APP_FONT_FAMILY,
+          fontWeight: '700',
           color: colors.label,
         },
         contentStyle: { backgroundColor: colors.background },
+        scrollEdgeEffects: SOFT_SCROLL_EDGE_EFFECTS,
         title: t('profile.title'),
       }}>
       <Stack.Screen name="index" />

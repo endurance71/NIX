@@ -20,7 +20,7 @@ export function LoginHeroSection() {
       <AuthBrandMark />
       <Text
         modifiers={[
-          font({ textStyle: 'footnote' }),
+          font({ design: 'rounded', textStyle: 'footnote' }),
           foregroundStyle(colors.secondaryLabel),
           multilineTextAlignment('center'),
           frame({ width: contentWidth, alignment: 'center' }),

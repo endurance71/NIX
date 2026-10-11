@@ -1,6 +1,6 @@
 import { useId } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
+import { StyleSheet } from 'react-native';
 import {
   Button,
   GlassEffectContainer,
@@ -10,6 +10,7 @@ import {
   Text as SwiftText,
 } from '@expo/ui/swift-ui';
 import {
+  accessibilityAddTraits,
   accessibilityLabel as swiftAccessibilityLabel,
   animation,
   Animation,
@@ -29,19 +30,17 @@ import {
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { useAppTheme } from '../../hooks/useAppTheme';
 import type { LensOption } from '../../lib/cameraLenses';
 import type { ThemeColors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
 
 const CHIP_WIDTH = 44;
-const CHIP_HEIGHT = 34;
+/** HIG minimum touch target; the capsule stays compact through its padding. */
+const CHIP_HEIGHT = 44;
 const CAPSULE_PAD = 3;
 
 const SELECTION_SPRING = Animation.spring({ response: 0.38, dampingFraction: 0.82 });
 
 function canUseLiquidGlass(): boolean {
-  if (Platform.OS !== 'ios') return false;
   try {
     return isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
   } catch {
@@ -68,6 +67,8 @@ function formatSwitcherLabel(option: LensOption): string {
 type NativeLensSwitcherProps = {
   options: LensOption[];
   activeLensId: string | null;
+  /** Live zoom of the active chip after a pinch (e.g. "1,6×"); null shows the preset label. */
+  activeLabelOverride?: string | null;
   onSelect: (lensOptionId: string) => void;
   disabled?: boolean;
   colors: ThemeColors;
@@ -80,11 +81,12 @@ type NativeLensSwitcherProps = {
 export function NativeLensSwitcher({
   options,
   activeLensId,
+  activeLabelOverride = null,
   onSelect,
   disabled = false,
   colors,
 }: NativeLensSwitcherProps) {
-  const { isDark } = useAppTheme();
+  const { t } = useTranslation();
   const namespaceId = useId();
   const useGlass = canUseLiquidGlass();
 
@@ -98,68 +100,13 @@ export function NativeLensSwitcher({
     options.findIndex((option) => option.id === selection)
   );
 
-  const pillOffsetX = CAPSULE_PAD + selectionIndex * CHIP_WIDTH;
-
-  const fallbackPillStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: withSpring(pillOffsetX, {
-          damping: 18,
-          stiffness: 220,
-          mass: 0.7,
-        }),
-      },
-    ],
-  }));
-
   if (options.length === 0 || !selection) return null;
 
-  const solidCapsuleFill = isDark ? colors.cameraControlBackground : '#FFFFFFB3';
+  // Camera chrome is always dark (Host is pinned to the dark scheme below), in light mode too.
+  const solidCapsuleFill = colors.cameraControlBackground;
   const solidSelectionFill = colors.accent;
   const capsuleHeight = CHIP_HEIGHT + CAPSULE_PAD * 2;
   const capsuleWidth = options.length * CHIP_WIDTH + CAPSULE_PAD * 2;
-
-  if (Platform.OS !== 'ios') {
-    return (
-      <View
-        style={[
-          styles.fallbackCapsule,
-          { backgroundColor: solidCapsuleFill, width: capsuleWidth },
-        ]}>
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.fallbackPill,
-            { backgroundColor: solidSelectionFill },
-            fallbackPillStyle,
-          ]}
-        />
-        {options.map((option) => {
-          const isActive = option.id === selection;
-          const label = formatSwitcherLabel(option);
-          return (
-            <Pressable
-              key={option.id}
-              onPress={() => onSelect(option.id)}
-              disabled={disabled}
-              accessibilityRole="button"
-              accessibilityLabel={`Obiektyw ${label}`}
-              accessibilityState={{ selected: isActive, disabled }}
-              style={styles.fallbackChip}>
-              <Text
-                style={[
-                  styles.fallbackLabel,
-                  { color: isActive ? '#FFFFFF' : colors.label },
-                  isActive && styles.fallbackLabelActive,
-                ]}>
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    );
-  }
 
   const chips = (
     <HStack
@@ -185,7 +132,7 @@ export function NativeLensSwitcher({
       ]}>
       {options.map((option) => {
         const isActive = option.id === selection;
-        const label = formatSwitcherLabel(option);
+        const label = isActive && activeLabelOverride ? activeLabelOverride : formatSwitcherLabel(option);
         return (
           <Button
             key={option.id}
@@ -212,7 +159,8 @@ export function NativeLensSwitcher({
                       matchedGeometryEffect('lens-selection-geometry', namespaceId),
                     ]
                 : []),
-              swiftAccessibilityLabel(`Obiektyw ${label}`),
+              swiftAccessibilityLabel(t('camera.lensA11y', { label })),
+              ...(isActive ? [accessibilityAddTraits(['isSelected'])] : []),
               swiftDisabled(disabled),
             ]}>
             <SwiftText
@@ -231,7 +179,10 @@ export function NativeLensSwitcher({
   );
 
   return (
-    <Host matchContents style={[styles.host, { width: capsuleWidth, height: capsuleHeight }]}>
+    <Host
+      matchContents
+      colorScheme="dark"
+      style={[styles.host, { width: capsuleWidth, height: capsuleHeight }]}>
       <Namespace id={namespaceId}>
         {useGlass ? (
           <GlassEffectContainer
@@ -250,36 +201,5 @@ export function NativeLensSwitcher({
 const styles = StyleSheet.create({
   host: {
     alignSelf: 'center',
-  },
-  fallbackCapsule: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: CHIP_HEIGHT + CAPSULE_PAD * 2,
-    paddingHorizontal: CAPSULE_PAD,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  fallbackPill: {
-    position: 'absolute',
-    top: CAPSULE_PAD,
-    left: 0,
-    width: CHIP_WIDTH,
-    height: CHIP_HEIGHT,
-    borderRadius: CHIP_HEIGHT / 2,
-  },
-  fallbackChip: {
-    width: CHIP_WIDTH,
-    height: CHIP_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fallbackLabel: {
-    ...typography.caption,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  fallbackLabelActive: {
-    fontWeight: '700',
   },
 });

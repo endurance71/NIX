@@ -77,10 +77,6 @@ function authError(message: string) {
 }
 
 async function requestAppleCredential() {
-  if (process.env.EXPO_OS !== 'ios') {
-    return { credential: null, rawNonce: null, error: authError(APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE).error };
-  }
-
   const available = await AppleAuthentication.isAvailableAsync();
   if (!available) {
     return { credential: null, rawNonce: null, error: authError(APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE).error };
@@ -165,10 +161,6 @@ export async function reauthenticateAppleSession(expectedUserId: string) {
 
 export async function reauthenticateAppleForAccountDeletion() {
   try {
-    if (process.env.EXPO_OS !== 'ios') {
-      return { authorizationCode: null, error: authError(APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE).error };
-    }
-
     const available = await AppleAuthentication.isAvailableAsync();
     if (!available) {
       return { authorizationCode: null, error: authError(APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE).error };

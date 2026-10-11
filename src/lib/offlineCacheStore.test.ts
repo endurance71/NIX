@@ -30,6 +30,14 @@ const backend: OfflineCacheBackend = {
     else rows.push(row);
   },
   async list(ownerId) { return rows.filter((row) => row.owner_id === ownerId); },
+  async listChatScopes(ownerId) {
+    const latest = new Map<string, number>();
+    for (const row of rows) {
+      if (row.owner_id !== ownerId || row.category !== 'chat' || !row.scope_id) continue;
+      latest.set(row.scope_id, Math.max(latest.get(row.scope_id) ?? 0, row.cached_at));
+    }
+    return [...latest].map(([scope_id, cached_at]) => ({ scope_id, cached_at }));
+  },
   async deleteEntry(ownerId, queryKey) {
     const index = rows.findIndex((row) => row.owner_id === ownerId && row.query_key === queryKey);
     if (index >= 0) rows.splice(index, 1);
@@ -89,6 +97,33 @@ describe('offline cache store', () => {
     expect(scopes.size).toBe(20);
     expect(scopes.has('peer-0')).toBe(false);
     expect(scopes.has('peer-21')).toBe(true);
+  });
+
+  it('prunes chats without loading encrypted payloads', async () => {
+    const list = vi.spyOn(backend, 'list');
+    const store = createOfflineCacheStore(backend, codec);
+    await store.write('user-a', ['textMessagesWithPeer', 'peer-1'], [], 1);
+    expect(list).not.toHaveBeenCalled();
+    list.mockRestore();
+  });
+
+  it('decrypts entries concurrently and keeps their order', async () => {
+    const store = createOfflineCacheStore(backend, codec);
+    await store.write('user-a', ['acceptedFriends'], [{ id: 'friend' }], 1);
+    await store.write('user-a', ['currentUserProfile', 'user-a'], { username: 'good' }, 2);
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const slowCodec: OfflineCacheCodec = { ...codec, async decrypt(...args) {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight -= 1;
+      return codec.decrypt(...args);
+    } };
+    const entries = await createOfflineCacheStore(backend, slowCodec).read('user-a');
+    expect(maxInFlight).toBe(2);
+    expect(entries.map((entry) => entry.queryKey[0])).toEqual(['acceptedFriends', 'currentUserProfile']);
+    expect(await store.read('user-a')).toHaveLength(2);
   });
 
   it('cancels a write being encrypted when logout clears the account', async () => {

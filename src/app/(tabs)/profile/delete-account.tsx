@@ -16,6 +16,7 @@ import { reauthenticateAppleForAccountDeletion } from '../../../services/socialA
 import { NativeSettingsActionRow } from '../../../components/ui/native-settings';
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
 import { runWithFinally } from '../../../lib/runWithFinally';
+import { getAuthFormErrorKey } from '../../../lib/authFormError';
 import { queryKeys } from '../../../lib/queryKeys';
 
 export default function DeleteAccountScreen() {
@@ -74,11 +75,12 @@ export default function DeleteAccountScreen() {
           const message = cause instanceof Error ? cause.message : '';
           if (message === 'APPLE_SIGN_IN_NO_AUTHORIZATION_CODE') {
             setError(t('profile.deleteAccountAppleCodeError'));
-          } else if (message && !/authorizationcode|client_secret|identity.token/i.test(message)) {
-            setError(message);
-          } else {
-            setError(t('profile.deleteAccountFailed'));
+            return;
           }
+          // Server and provider messages are technical and English; only mapped auth errors
+          // (wrong password, rate limit, offline) are worth showing verbatim.
+          const authKey = getAuthFormErrorKey(cause as { code?: unknown; message?: unknown });
+          setError(t(authKey === 'auth.requestFailed' ? 'profile.deleteAccountFailed' : authKey));
         }
       },
       () => setLoading(false)
@@ -89,12 +91,18 @@ export default function DeleteAccountScreen() {
     <>
       <SettingsListScreen loading={authLoading}>
         <FieldGroup.Section title={t('profile.deleteAccountTitle')}>
+          {/* A section renders only its last footer, so the Apple note joins the warning. */}
           <FieldGroup.SectionFooter>
-            <Text>{t('profile.deleteAccountDescription')}</Text>
+            <Text>
+              {hasApple
+                ? `${t('profile.deleteAccountDescription')}\n\n${t('profile.deleteAccountReauthenticateApple')}`
+                : t('profile.deleteAccountDescription')}
+            </Text>
           </FieldGroup.SectionFooter>
           <TextInput
             placeholder={t('profile.deleteAccountConfirmLabel')}
             autoCapitalize="none"
+            autoCorrect={false}
             editable={canUseNetworkSession && !loading}
             onChangeText={(value) => {
               setConfirmation(value);
@@ -115,15 +123,11 @@ export default function DeleteAccountScreen() {
               testID="delete-account-password"
             />
           ) : null}
-          {hasApple ? (
-            <FieldGroup.SectionFooter>
-              <Text>{t('profile.deleteAccountReauthenticateApple')}</Text>
-            </FieldGroup.SectionFooter>
-          ) : null}
         </FieldGroup.Section>
         <FieldGroup.Section>
           <NativeSettingsActionRow
             title={loading ? t('profile.deleteAccountProcessing') : t('profile.deleteAccountAction')}
+            destructive
             disabled={disabled}
             onPress={() => void removeAccount()}
           />

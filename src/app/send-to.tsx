@@ -1,74 +1,88 @@
 import { paramFirst, decodeParamUri } from '../lib/previewRoute';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { listAcceptedFriends, type FriendProfile } from '../services/friendService';
-import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../services/avatarService';
-import { toDomainError } from '../services/errors';
-import { useVideoDraft } from '../context/videoDraft';
+import { ACCEPTED_FRIENDS_LIMIT, listAcceptedFriends, type FriendProfile } from '../services/friendService';
 import { usePhotoDraft } from '../context/photoDraft';
-import { useUploadQueue } from '../context/uploadQueue';
-import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
+import { queryKeys } from '../lib/queryKeys';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
+import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { AppIcon } from '../components/ui/app-icon';
 import { AvatarCircle } from '../components/ui/avatar-circle';
+import { Button } from '../components/ui/button';
 import { normalizeNixViewDurationSec } from '../lib/nixViewDuration';
 import { applySuggestedRecipientOnce } from '../lib/suggestedRecipient';
 import { toggleSetValue } from '../lib/selection';
 import { useScreenInsets } from '../hooks/useScreenInsets';
-import { notifyError, notifySuccess } from '../lib/appNotify';
-import { selection, tap } from '../lib/haptics';
-import { usePushNotifications } from '../context/pushNotifications';
+import { selection } from '../lib/haptics';
 import { APP_ICON_SIZE } from '../theme/app-icons';
-import { runWithFinally } from '../lib/runWithFinally';
 import { useTranslation } from 'react-i18next';
-import { bakeMediaOverlays } from '../lib/bakeMediaTextOverlay';
-import { normalizeMediaTextOverlay } from '../types/mediaTextOverlay';
-import { normalizeMediaDrawingOverlay } from '../types/mediaDrawingOverlay';
 import { useAuth } from '../hooks/useAuth';
+import { useSignedAvatarUrls } from '../hooks/useSignedAvatarUrls';
+import { useSendMedia } from '../hooks/useSendMedia';
 import { OfflineStatusBanner } from '../components/auth/OfflineStatusBanner';
-import { mediaEditingViewport } from '../lib/mediaPresentation';
+import type { InboxBundle } from '../lib/inboxQuery';
+import {
+  buildRecipientSections,
+  collectInboxRecentActivity,
+  recentRecipientIds,
+  recipientDisplayName,
+  summarizeRecipientNames,
+} from '../lib/sendRecipients';
+import { useFriendshipOverview } from '../hooks/useFriendshipBadges';
+import { friendshipBadgeAccessibilityLabel, type FriendshipBadge } from '../lib/friendStreaks';
+import { StreakBadge } from '../components/friend/StreakBadge';
 
-function throwRejectedResult(result: PromiseRejectedResult | undefined) {
-  if (result) throw result.reason;
-}
+const RECENT_RECIPIENTS_LIMIT = 5;
+
+type RecipientListItem =
+  | { type: 'header'; key: string; title: string }
+  | { type: 'friend'; key: string; profile: FriendProfile; badge: FriendshipBadge | null };
 
 type FriendRecipientRowProps = {
   avatarUrl: string | null;
   item: FriendProfile;
+  badge: FriendshipBadge | null;
   onToggle: (id: string) => void;
   selected: boolean;
-  tintColor: string;
+  disabled: boolean;
 };
 
 function FriendRecipientRow({
   avatarUrl,
   item,
+  badge,
   onToggle,
   selected,
-  tintColor,
+  disabled,
 }: FriendRecipientRowProps) {
   const { colors } = useAppTheme();
   const { t } = useTranslation();
+  const name = recipientDisplayName(item, t('common.unknown'));
+  const showUsername = Boolean(item.display_name?.trim() && item.username);
+  const a11yLabel = [
+    name,
+    friendshipBadgeAccessibilityLabel(badge, t),
+    showUsername ? `@${item.username}` : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
   return (
     <Pressable
-      accessibilityLabel={t(selected ? 'sendTo.deselectA11y' : 'sendTo.selectA11y', {
-        username: item.username,
-      })}
+      accessibilityLabel={a11yLabel}
       accessibilityRole="button"
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled }}
+      disabled={disabled}
       style={({ pressed }) => [
         styles.profileRow,
         { borderBottomColor: colors.separator },
-        selected && { backgroundColor: colors.systemFill },
-        pressed && styles.profileRowPressed,
+        pressed && { backgroundColor: colors.systemFill },
       ]}
-      onPress={() => onToggle(item.id)}
-    >
+      onPress={() => onToggle(item.id)}>
       <View style={styles.avatarWrap}>
         <AvatarCircle
           size={40}
@@ -78,11 +92,90 @@ function FriendRecipientRow({
           fallbackInitial={item.username?.charAt(0)}
         />
       </View>
-      <Text numberOfLines={1} style={[styles.username, { color: colors.label }]}>
-        {item.display_name ? item.display_name : item.username ? `@${item.username}` : t('common.unknown')}
-      </Text>
-      {selected ? <AppIcon name="checkCircle" size={APP_ICON_SIZE.xxl} color={tintColor} /> : null}
+      <View style={styles.rowText}>
+        <View style={styles.nameRow}>
+          <Text numberOfLines={1} style={[styles.name, { color: colors.label }]}>
+            {name}
+          </Text>
+          <StreakBadge badge={badge} decorative />
+        </View>
+        {showUsername ? (
+          <Text numberOfLines={1} style={[styles.username, { color: colors.secondaryLabel }]}>
+            @{item.username}
+          </Text>
+        ) : null}
+      </View>
+      <AppIcon
+        name={selected ? 'checkCircleFill' : 'circle'}
+        size={APP_ICON_SIZE.xxl}
+        color={selected ? colors.accent : colors.tertiaryLabel}
+      />
     </Pressable>
+  );
+}
+
+function SectionHeader({ title }: { title: string }) {
+  const { colors } = useAppTheme();
+  return (
+    <Text accessibilityRole="header" style={[styles.sectionHeader, { color: colors.secondaryLabel }]}>
+      {title}
+    </Text>
+  );
+}
+
+function openFromEmptyState(pathname: '/friend-scan-qr' | '/friend-my-code') {
+  router.dismiss();
+  setTimeout(() => router.push(pathname), 50);
+}
+
+function EmptyRecipients({
+  stylesForTheme,
+  offlineSnapshotMissing,
+}: {
+  stylesForTheme: ReturnType<typeof createStyles>;
+  offlineSnapshotMissing: boolean;
+}) {
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
+  if (offlineSnapshotMissing) {
+    return (
+      <View style={stylesForTheme.emptyState}>
+        <Text style={stylesForTheme.emptyStateText}>{t('sendTo.offlineCacheMissing')}</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={stylesForTheme.emptyState}>
+      <Text style={stylesForTheme.emptyStateText}>{t('sendTo.empty')}</Text>
+      <View style={styles.emptyActions}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => openFromEmptyState('/friend-scan-qr')}
+          style={({ pressed }) => [
+            styles.emptyAction,
+            { backgroundColor: colors.secondarySystemFill },
+            pressed && styles.pressed,
+          ]}>
+          <AppIcon name="personAdd" size={APP_ICON_SIZE.md} color={colors.accent} />
+          <Text style={[styles.emptyActionText, { color: colors.accent }]}>
+            {t('sendTo.addFriendsCta')}
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => openFromEmptyState('/friend-my-code')}
+          style={({ pressed }) => [
+            styles.emptyAction,
+            { backgroundColor: colors.secondarySystemFill },
+            pressed && styles.pressed,
+          ]}>
+          <AppIcon name="myQrCode" size={APP_ICON_SIZE.md} color={colors.accent} />
+          <Text style={[styles.emptyActionText, { color: colors.accent }]}>
+            {t('sendTo.myQrCodeCta')}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -92,9 +185,10 @@ function RecipientList({
   isError,
   isFetching,
   refetch,
-  profiles,
-  avatarUrls,
-  selectedIds,
+  items,
+  hasProfiles,
+  searchQuery,
+  extraData,
   renderItem,
   stylesForTheme,
   isOfflineRecipientSnapshotMissing,
@@ -104,61 +198,155 @@ function RecipientList({
   isError: boolean;
   isFetching: boolean;
   refetch: () => unknown;
-  profiles: FriendProfile[];
-  avatarUrls: Record<string, string>;
-  selectedIds: Set<string>;
-  renderItem: (info: { item: FriendProfile }) => React.ReactElement;
+  items: RecipientListItem[];
+  hasProfiles: boolean;
+  searchQuery: string;
+  extraData: unknown;
+  renderItem: (info: { item: RecipientListItem }) => React.ReactElement;
   stylesForTheme: ReturnType<typeof createStyles>;
   isOfflineRecipientSnapshotMissing: boolean;
 }) {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
-  return showInitialLoader ? (
-    <ActivityIndicator color={colors.label} style={styles.loading} />
-  ) : canUseNetworkSession && isError ? (
-    <View style={stylesForTheme.emptyState}>
-      <Text style={stylesForTheme.emptyStateText}>{t('sendTo.loadFailure')}</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('common.retry')}
-        onPress={() => void refetch()}
-        style={styles.retryButton}
-        disabled={isFetching}>
-        {isFetching ? (
-          <ActivityIndicator color={colors.label} />
-        ) : (
-          <Text style={[styles.retryButtonText, { color: colors.systemBlue }]}>
-            {t('common.retry')}
-          </Text>
-        )}
-      </Pressable>
-    </View>
-  ) : (
+  if (showInitialLoader) return <ActivityIndicator color={colors.label} style={styles.loading} />;
+  if (canUseNetworkSession && isError) {
+    return (
+      <View style={stylesForTheme.emptyState}>
+        <Text style={stylesForTheme.emptyStateText}>{t('sendTo.loadFailure')}</Text>
+        <Button
+          title={t('common.retry')}
+          onPress={() => void refetch()}
+          variant="tertiary"
+          loading={isFetching}
+          style={styles.retryButton}
+        />
+      </View>
+    );
+  }
+  return (
     <View style={stylesForTheme.listWrap}>
       <FlashList
-        data={profiles}
-        extraData={{ avatarUrls, selectedIds }}
-        // @ts-expect-error - estimatedItemSize type issue
-        estimatedItemSize={64}
-        getItemType={() => 'friend-recipient'}
-        keyExtractor={(item) => item.id}
+        data={items}
+        extraData={extraData}
+        getItemType={(item) => item.type}
+        keyExtractor={(item) => item.key}
         renderItem={renderItem}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={stylesForTheme.listContent}
         ListEmptyComponent={
-          <View style={stylesForTheme.emptyState}>
-            <Text style={stylesForTheme.emptyStateText}>
-              {t(isOfflineRecipientSnapshotMissing ? 'sendTo.offlineCacheMissing' : 'sendTo.empty')}
-            </Text>
-          </View>
+          hasProfiles ? (
+            <View style={stylesForTheme.emptyState}>
+              <Text style={stylesForTheme.emptyStateText}>
+                {t('sendTo.noSearchResults', { query: searchQuery.trim() })}
+              </Text>
+            </View>
+          ) : (
+            <EmptyRecipients
+              stylesForTheme={stylesForTheme}
+              offlineSnapshotMissing={isOfflineRecipientSnapshotMissing}
+            />
+          )
         }
       />
     </View>
   );
 }
 
+function SendToHeader({ disabled }: { disabled: boolean }) {
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
+  return (
+    <View style={styles.header}>
+      <View style={styles.headerSide} />
+      <Text accessibilityRole="header" numberOfLines={1} style={[styles.headerTitle, { color: colors.label }]}>
+        {t('sendTo.title')}
+      </Text>
+      <View style={[styles.headerSide, styles.headerSideEnd]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('common.close')}
+          accessibilityState={{ disabled }}
+          disabled={disabled}
+          hitSlop={8}
+          onPress={() => router.back()}
+          style={({ pressed }) => [
+            styles.closeButton,
+            { backgroundColor: colors.secondarySystemFill },
+            (pressed || disabled) && styles.pressed,
+          ]}>
+          <AppIcon name="close" size={APP_ICON_SIZE.sm} color={colors.secondaryLabel} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function RecipientSearchField({
+  value,
+  onChangeText,
+}: {
+  value: string;
+  onChangeText: (value: string) => void;
+}) {
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
+  return (
+    <View style={[styles.searchField, { backgroundColor: colors.secondarySystemFill }]}>
+      <AppIcon name="search" size={APP_ICON_SIZE.sm} color={colors.secondaryLabel} />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={t('sendTo.searchPlaceholder')}
+        placeholderTextColor={colors.secondaryLabel}
+        accessibilityLabel={t('sendTo.searchPlaceholder')}
+        autoCapitalize="none"
+        autoCorrect={false}
+        clearButtonMode="while-editing"
+        returnKeyType="search"
+        style={[styles.searchInput, { color: colors.label }]}
+      />
+    </View>
+  );
+}
+
+function useRecipientItems(profiles: FriendProfile[], searchQuery: string) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  // Best friends and badges come from the streak RPC; without it both are simply absent.
+  const { badges, bestFriendIds } = useFriendshipOverview();
+  const bundle = queryClient.getQueryData<InboxBundle>(queryKeys.inboxNixesBundle);
+  const recentIds = recentRecipientIds(
+    collectInboxRecentActivity(bundle),
+    profiles.map((profile) => profile.id),
+    RECENT_RECIPIENTS_LIMIT,
+  );
+  const { best, recent, others } = buildRecipientSections({
+    profiles,
+    bestFriendIds,
+    recentIds,
+    query: searchQuery,
+  });
+  const items: RecipientListItem[] = [];
+  const pushFriend = (profile: FriendProfile, key: string) =>
+    items.push({ type: 'friend', key, profile, badge: badges.get(profile.id) ?? null });
+  if (best.length > 0) {
+    items.push({ type: 'header', key: 'header-best', title: t('sendTo.bestFriendsSection') });
+    for (const profile of best) pushFriend(profile, `best-${profile.id}`);
+  }
+  if (recent.length > 0) {
+    items.push({ type: 'header', key: 'header-recent', title: t('sendTo.recentSection') });
+    for (const profile of recent) pushFriend(profile, `recent-${profile.id}`);
+  }
+  if ((best.length > 0 || recent.length > 0) && others.length > 0) {
+    items.push({ type: 'header', key: 'header-friends', title: t('sendTo.friendsSection') });
+  }
+  for (const profile of others) pushFriend(profile, profile.id);
+  return items;
+}
+
 export default function SendToSheet() {
-  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { topContentInset, bottomContentInset } = useScreenInsets('sheet');
@@ -170,20 +358,12 @@ export default function SendToSheet() {
     mode?: string;
     recipientId?: string;
   }>();
-  const { draft: draftPhoto, clearDraft: clearPhotoDraft } = usePhotoDraft();
+  const { draft: draftPhoto } = usePhotoDraft();
   const photoUri = draftPhoto?.uri ?? decodeParamUri(paramFirst(rawParams.uri));
-  const mode = paramFirst(rawParams.mode);
   const viewDurationSec = normalizeNixViewDurationSec(paramFirst(rawParams.viewDurationSec));
-  const isVideo = mode === 'video';
-  const {
-    segments,
-    clearSegments,
-    textOverlay: videoTextOverlay,
-    drawingOverlay: videoDrawingOverlay,
-  } = useVideoDraft();
-  const { enqueueMediaBatch, cancelUpload } = useUploadQueue();
+  const isVideo = paramFirst(rawParams.mode) === 'video';
+  const { send, isSending } = useSendMedia({ isVideo, photoUri });
   const { user, isOfflineAuthenticated, canUseNetworkSession } = useAuth();
-  const { offerAfterSuccessfulSend } = usePushNotifications();
   const {
     data: profilesData,
     isLoading,
@@ -192,7 +372,7 @@ export default function SendToSheet() {
     refetch,
   } = useQuery({
     queryKey: queryKeys.acceptedFriends,
-    queryFn: () => listAcceptedFriends({ limit: 50 }),
+    queryFn: () => listAcceptedFriends({ limit: ACCEPTED_FRIENDS_LIMIT }),
     enabled: Boolean(user) && canUseNetworkSession,
     staleTime: 1000 * 60 * 2,
   });
@@ -216,8 +396,7 @@ export default function SendToSheet() {
   const showInitialLoader = canUseNetworkSession && isLoading && profiles.length === 0;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [isSending, setIsSending] = useState(false);
-  const sendLockRef = useRef(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const didPreselectRecipientRef = useRef(false);
   const suggestedRecipientId = paramFirst(rawParams.recipientId);
 
@@ -234,126 +413,35 @@ export default function SendToSheet() {
     }
   }, [profilesData, suggestedRecipientId]);
 
-  const selectedCount = selectedIds.size;
+  // Keep the order in which people were picked for the button label.
   const selectedIdList = Array.from(selectedIds);
-
-  const paths = profiles.flatMap((p) => (p.avatar_storage_path ? [p.avatar_storage_path] : []));
-  const sortedFriendAvatarPaths = Array.from(new Set(paths)).sort();
-
-  const { data: avatarUrls = {} } = useQuery({
-    queryKey: avatarSignedUrlsQueryKey(sortedFriendAvatarPaths),
-    queryFn: () => createSignedAvatarUrls(sortedFriendAvatarPaths),
-    enabled: canUseNetworkSession && sortedFriendAvatarPaths.length > 0,
-    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
+  const selectedCount = selectedIdList.length;
+  const profilesById = new Map(profiles.map((profile) => [profile.id, profile] as const));
+  const selectedNames = selectedIdList.map((id) => {
+    const profile = profilesById.get(id);
+    return profile ? recipientDisplayName(profile, t('common.unknown')) : t('common.unknown');
   });
+  const summary = summarizeRecipientNames(selectedNames);
+  const sendLabel = isSending
+    ? t('sendTo.securing')
+    : !summary
+      ? t('sendTo.selectRecipients')
+      : summary.extra > 0
+        ? t('sendTo.sendToNamesMore', { names: summary.names, count: summary.extra })
+        : t('sendTo.sendToNames', { names: summary.names });
 
-  const handleSend = async () => {
-    if (selectedCount === 0 || isSending || sendLockRef.current) return;
-    if (!isVideo && !photoUri) return;
-    if (isVideo && (!segments?.length || segments.length === 0)) return;
+  const avatarUrls = useSignedAvatarUrls(
+    profiles.map((profile) => profile.avatar_storage_path),
+    { enabled: canUseNetworkSession },
+  );
+  const items = useRecipientItems(profiles, searchQuery);
 
-    tap('medium');
-    sendLockRef.current = true;
-    setIsSending(true);
-
-    const recipients = selectedIdList.map((receiverId) => ({
-      receiverId,
+  const handleSend = () => {
+    void send({
+      recipientIds: selectedIdList,
       viewDurationSec,
-      sequenceIndex: 0,
-    }));
-    const enqueuedJobIds: string[] = [];
-    await runWithFinally(
-      async () => {
-        try {
-          const textOverlay = isVideo
-            ? normalizeMediaTextOverlay(videoTextOverlay)
-            : normalizeMediaTextOverlay(draftPhoto?.textOverlay);
-          const drawingOverlay = isVideo
-            ? normalizeMediaDrawingOverlay(videoDrawingOverlay)
-            : normalizeMediaDrawingOverlay(draftPhoto?.drawingOverlay);
-
-          if (isVideo) {
-            const bakedSegments = await Promise.all(
-              segments!.map(async (segment) => {
-                const mediaViewport = mediaEditingViewport({
-                  media: segment,
-                  viewportWidth,
-                  viewportHeight,
-                  captureOrientation: segment.captureOrientation,
-                });
-                const baked = await bakeMediaOverlays({
-                  uri: segment.uri,
-                  mediaType: 'video',
-                  textOverlay,
-                  drawingOverlay,
-                  viewportWidth: mediaViewport.width,
-                  viewportHeight: mediaViewport.height,
-                });
-                return { ...segment, uri: baked.uri };
-              }),
-            );
-            const segmentInputs = bakedSegments.map((segment, sequenceIndex) => ({
-              fileUri: segment.uri,
-              mediaType: 'video' as const,
-              recipients: recipients.map((recipient) => ({ ...recipient, sequenceIndex })),
-              playbackDurationMs: segment.durationMs,
-            }));
-            const results = await Promise.allSettled(
-              segmentInputs.map((input) => enqueueMediaBatch(input)),
-            );
-            for (const result of results) {
-              if (result.status === 'fulfilled') enqueuedJobIds.push(result.value.jobId);
-            }
-            const failedResult = results.find(
-              (result): result is PromiseRejectedResult => result.status === 'rejected',
-            );
-            throwRejectedResult(failedResult);
-          } else {
-            const mediaViewport = mediaEditingViewport({
-              media: draftPhoto ?? {},
-              viewportWidth,
-              viewportHeight,
-              captureOrientation: draftPhoto?.captureOrientation,
-            });
-            const baked = await bakeMediaOverlays({
-              uri: photoUri!,
-              mediaType: 'image',
-              textOverlay,
-              drawingOverlay,
-              viewportWidth: mediaViewport.width,
-              viewportHeight: mediaViewport.height,
-            });
-            const result = await enqueueMediaBatch({
-              fileUri: baked.uri,
-              mediaType: 'image',
-              recipients,
-              // After bake dimensions may change slightly; omit to force safe re-encode path when baked.
-              sourceWidth: baked.didBake ? undefined : draftPhoto?.width,
-              sourceHeight: baked.didBake ? undefined : draftPhoto?.height,
-            });
-            enqueuedJobIds.push(result.jobId);
-          }
-
-          if (isVideo) clearSegments();
-          else clearPhotoDraft();
-          notifySuccess(t('inbox.sent'));
-          router.dismissAll();
-          router.replace('/(tabs)/inbox');
-          setTimeout(() => void offerAfterSuccessfulSend(), 400);
-        } catch (err) {
-          await Promise.all(
-            enqueuedJobIds.map((jobId) => cancelUpload(jobId).catch(() => undefined)),
-          );
-          notifyError(t('sendTo.enqueueFailureTitle'), {
-            message: toDomainError(err, t('sendTo.enqueueFailureBody')).message,
-          });
-        }
-      },
-      () => {
-        setIsSending(false);
-        sendLockRef.current = false;
-      },
-    );
+      returnToPeerId: suggestedRecipientId,
+    });
   };
 
   const toggleSelection = (id: string) => {
@@ -361,21 +449,36 @@ export default function SendToSheet() {
     setSelectedIds((prev) => toggleSetValue(prev, id));
   };
 
-  const renderItem = ({ item }: { item: FriendProfile }) => (
-    <FriendRecipientRow
-      item={item}
-      selected={selectedIds.has(item.id)}
-      onToggle={toggleSelection}
-      tintColor={colors.systemBlue}
-      avatarUrl={item.avatar_storage_path ? (avatarUrls[item.avatar_storage_path] ?? null) : null}
-    />
-  );
+  const renderItem = ({ item }: { item: RecipientListItem }) =>
+    item.type === 'header' ? (
+      <SectionHeader title={item.title} />
+    ) : (
+      <FriendRecipientRow
+        item={item.profile}
+        badge={item.badge}
+        selected={selectedIds.has(item.profile.id)}
+        onToggle={toggleSelection}
+        disabled={isSending}
+        avatarUrl={
+          item.profile.avatar_storage_path
+            ? (avatarUrls[item.profile.avatar_storage_path] ?? null)
+            : null
+        }
+      />
+    );
+
+  const sendDisabled = selectedCount === 0 || isSending;
 
   return (
     <View style={stylesForTheme.container}>
-      <Text style={stylesForTheme.title}>{t('sendTo.title')}</Text>
-      <Text style={stylesForTheme.subtitle}>{t('sendTo.subtitle')}</Text>
+      {/* Swipe-to-dismiss is blocked while the media is being secured (SEND-11); for a sheet
+          this sets UIKit's isModalInPresentation. */}
+      <Stack.Screen options={{ gestureEnabled: !isSending }} />
+      <SendToHeader disabled={isSending} />
       <OfflineStatusBanner />
+      {profiles.length > 0 ? (
+        <RecipientSearchField value={searchQuery} onChangeText={setSearchQuery} />
+      ) : null}
 
       <RecipientList
         showInitialLoader={showInitialLoader}
@@ -383,86 +486,132 @@ export default function SendToSheet() {
         isError={isError}
         isFetching={isFetching}
         refetch={refetch}
-        profiles={profiles}
-        avatarUrls={avatarUrls}
-        selectedIds={selectedIds}
+        items={items}
+        hasProfiles={profiles.length > 0}
+        searchQuery={searchQuery}
+        extraData={{ avatarUrls, selectedIds, isSending }}
         renderItem={renderItem}
         stylesForTheme={stylesForTheme}
         isOfflineRecipientSnapshotMissing={isOfflineRecipientSnapshotMissing}
       />
 
       <View style={stylesForTheme.footer}>
-        <Text style={stylesForTheme.selectionCount}>
-          {t('sendTo.selectedCount', { count: selectedCount })}
-        </Text>
-        <Pressable
-          accessibilityLabel={t('sendTo.sendA11y')}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: selectedCount === 0 || isSending }}
-          style={[
-            stylesForTheme.sendButton,
-            (selectedCount === 0 || isSending) && styles.sendButtonDisabled,
-          ]}
+        <Button
+          title={sendLabel}
           onPress={handleSend}
-          disabled={selectedCount === 0 || isSending}>
-          {isSending ? (
-            <View style={styles.sendingContent}>
-              <ActivityIndicator color={colors.buttonPrimaryText} />
-              <Text style={stylesForTheme.sendButtonText}>{t('sendTo.securing')}</Text>
-            </View>
-          ) : (
-            <Text style={stylesForTheme.sendButtonText}>
-              {selectedCount > 1
-                ? t('sendTo.sendMany', { count: selectedCount })
-                : t('sendTo.sendOne')}
-            </Text>
-          )}
-        </Pressable>
+          size="large"
+          fullWidth
+          loading={isSending}
+          disabled={sendDisabled}
+        />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    minHeight: 44,
+  },
+  headerSide: {
+    width: 44,
+  },
+  headerSideEnd: {
+    alignItems: 'flex-end',
+  },
+  headerTitle: {
+    ...typography.headline,
+    flex: 1,
+    textAlign: 'center',
+  },
+  closeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    minHeight: 36,
+    borderRadius: 10,
+    borderCurve: 'continuous',
+  },
+  searchInput: {
+    ...typography.body,
+    flex: 1,
+    paddingVertical: 7,
+  },
+  sectionHeader: {
+    ...typography.footnote,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 6,
+  },
   profileRow: {
     minHeight: 64,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    gap: 12,
+    paddingVertical: 10,
     paddingHorizontal: 24,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  profileRowPressed: {
-    opacity: 0.72,
-  },
   avatarWrap: {
-    marginRight: 16,
+    marginRight: 4,
+  },
+  rowText: {
+    flex: 1,
+    gap: 2,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  name: {
+    ...typography.callout,
+    fontWeight: '500',
+    flexShrink: 1,
   },
   username: {
-    ...typography.callout,
-    flex: 1,
-    fontWeight: '500',
+    ...typography.footnote,
   },
   loading: {
     marginTop: 20,
   },
   retryButton: {
+    marginTop: spacing.lg,
+  },
+  emptyActions: {
     marginTop: 16,
-    alignSelf: 'center',
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: 12,
+    gap: 10,
   },
-  retryButtonText: {
-    ...typography.headline,
-  },
-  sendButtonDisabled: {
-    opacity: 0.5,
-  },
-  sendingContent: {
+  emptyAction: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
+    minHeight: 48,
+    borderRadius: 12,
+    borderCurve: 'continuous',
+    paddingHorizontal: 16,
+  },
+  emptyActionText: {
+    ...typography.headline,
+  },
+  pressed: {
+    opacity: 0.6,
   },
 });
 
@@ -476,59 +625,25 @@ const createStyles = (colors: ThemeColors, paddingTop: number, bottomInset: numb
     listContent: {
       paddingBottom: Math.max(bottomInset, 12),
     },
-    title: {
-      ...typography.title2,
-      color: colors.label,
-      textAlign: 'center',
-      paddingHorizontal: 22,
-    },
-    subtitle: {
-      ...typography.footnote,
-      marginTop: 6,
-      marginBottom: 12,
-      textAlign: 'center',
-      color: colors.tertiaryLabel,
-      paddingHorizontal: 22,
-    },
     listWrap: {
       flex: 1,
       width: '100%',
-      marginTop: 10,
+      marginTop: 4,
     },
     footer: {
-      paddingHorizontal: 22,
-      paddingTop: 18,
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.md,
       paddingBottom: Math.max(bottomInset, 28),
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.separator,
       backgroundColor: 'transparent',
     },
-    selectionCount: {
-      ...typography.footnote,
-      color: colors.tertiaryLabel,
-      marginBottom: 10,
-      fontVariant: ['tabular-nums'],
-    },
-    sendButton: {
-      minHeight: 56,
-      flexDirection: 'row',
-      backgroundColor: colors.buttonPrimaryBg,
-      borderRadius: 28,
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: 8,
-      paddingHorizontal: 16,
-    },
-    sendButtonText: {
-      ...typography.headline,
-      color: colors.buttonPrimaryText,
-    },
     emptyState: {
       paddingHorizontal: 24,
-      paddingTop: paddingTop,
+      paddingTop: 24,
     },
     emptyStateText: {
       ...typography.callout,
-      color: colors.tertiaryLabel,
+      color: colors.secondaryLabel,
     },
   });

@@ -1,9 +1,12 @@
 import { DatabaseSync } from 'node:sqlite';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  FINISHED_UPLOAD_RETENTION_MS,
   getDurableUploadJob,
   getUploadQueueDatabase,
+  listDurableUploadJobs,
   patchDurableUploadJob,
+  purgeFinishedDurableUploadJobs,
   purgeOwnerDurableUploadJobs,
 } from './durableUploadQueueDb';
 
@@ -99,5 +102,93 @@ describe('upload capability secrets at rest', () => {
     expect(await getDurableUploadJob('job', 'owner')).not.toBeNull();
     await purgeOwnerDurableUploadJobs('owner');
     expect(clearedKeys).toContain('owner');
+  });
+});
+
+describe('finished job retention', () => {
+  async function insertJob(id: string, state: string, finishedAt: number | null, updatedAt = 1) {
+    const db = await getUploadQueueDatabase();
+    await db.runAsync(`INSERT INTO upload_jobs
+      (id, owner_id, media_type, state, staged_uri, created_at, updated_at, expires_at, finished_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, 'owner', 'image', state, 'file:///image.jpg', 1, updatedAt, 999_999_999, finishedAt);
+    await db.runAsync(`INSERT INTO upload_recipients (job_id, receiver_id, view_duration_sec, sequence_index)
+      VALUES (?, ?, ?, ?)`, id, 'friend', 5, 0);
+  }
+
+  it('hides and purges finished rows past the window but keeps active and failed work', async () => {
+    const now = 100 * FINISHED_UPLOAD_RETENTION_MS;
+    const old = now - FINISHED_UPLOAD_RETENTION_MS - 1;
+    const recent = now - 1_000;
+    await insertJob('old-completed', 'completed', old);
+    await insertJob('old-cancelled', 'cancelled', null, old);
+    await insertJob('old-expired', 'expired', old);
+    await insertJob('recent-completed', 'completed', recent);
+    await insertJob('old-failed', 'failed', old);
+
+    const listed = (await listDurableUploadJobs('owner', { now })).map((job) => job.id).sort();
+    expect(listed).toEqual(['job', 'old-failed', 'recent-completed']);
+
+    const purged = await purgeFinishedDurableUploadJobs(now);
+    expect(purged.sort()).toEqual(['old-cancelled', 'old-completed', 'old-expired']);
+    expect(await getDurableUploadJob('old-completed')).toBeNull();
+    expect(await getDurableUploadJob('recent-completed')).not.toBeNull();
+    expect(await getDurableUploadJob('old-failed')).not.toBeNull();
+    const db = await getUploadQueueDatabase();
+    const orphanRecipients = await db.getAllAsync<{ job_id: string }>(
+      'SELECT job_id FROM upload_recipients WHERE job_id = ?', 'old-completed'
+    );
+    expect(orphanRecipients).toEqual([]);
+    expect(await purgeFinishedDurableUploadJobs(now)).toEqual([]);
+  });
+});
+
+describe('offline preparation persistence (OFF-11)', () => {
+  it('claims a job only from the expected states (compare-and-set)', async () => {
+    await patchDurableUploadJob('job', { state: 'waiting_network' });
+    const claim = () => patchDurableUploadJob('job', { state: 'requesting_target' }, {
+      onlyStates: ['queued', 'waiting_network', 'retry_scheduled'],
+    });
+    expect((await claim()).changes).toBe(1);
+    // The second claimant (foreground vs background) loses.
+    expect((await claim()).changes).toBe(0);
+    expect((await getDurableUploadJob('job'))?.state).toBe('requesting_target');
+    expect((await patchDurableUploadJob('job', { state: 'queued' }, { onlyStates: [] })).changes).toBe(0);
+  });
+
+  it('combines the allow-list with the stop-list', async () => {
+    await patchDurableUploadJob('job', { state: 'paused' });
+    const result = await patchDurableUploadJob('job', { state: 'waiting_network' }, {
+      onlyStates: ['queued', 'paused'],
+      unlessStates: ['paused'],
+    });
+    expect(result.changes).toBe(0);
+  });
+
+  it('keeps everything begin needs after preparing offline, for a later read (restart)', async () => {
+    await patchDurableUploadJob('job', {
+      preparedUri: 'file:///NiX/Uploads/job/prepared.jpg',
+      contentType: 'image/jpeg',
+      fileExtension: 'jpg',
+      finalSizeBytes: 123_456,
+      bytesTotal: 123_456,
+      thumbnailB64: 'data:image/jpeg;base64,AAAA',
+      state: 'waiting_network',
+      progress: 0.25,
+      nextAttemptAt: null,
+    }, { unlessStates: [...stopped] });
+    const [restored] = await listDurableUploadJobs('owner');
+    expect(restored).toMatchObject({
+      state: 'waiting_network',
+      preparedUri: 'file:///NiX/Uploads/job/prepared.jpg',
+      contentType: 'image/jpeg',
+      fileExtension: 'jpg',
+      finalSizeBytes: 123_456,
+      bytesTotal: 123_456,
+      thumbnailB64: 'data:image/jpeg;base64,AAAA',
+      progress: 0.25,
+      nextAttemptAt: null,
+      batchId: null,
+      uploadUrl: null,
+    });
   });
 });

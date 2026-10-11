@@ -50,3 +50,19 @@ export function routeForPushNotification(
   }
   return '/(tabs)/inbox';
 }
+
+/** Pushes about the conversation the user is looking at; `new_nix` arrives in that chat too (NOTIF-11). */
+const ACTIVE_CHAT_TYPES = new Set<PushNotificationType>([
+  'new_nix',
+  'new_text_message',
+  'message_reaction',
+  'capture_attempt',
+]);
+
+/** Foreground banner/sound/badge suppression while the sender's chat is the active screen. */
+export function shouldSuppressForegroundPush(
+  data: PushNotificationData | null,
+  activeChatPeerId: string | null
+): boolean {
+  return Boolean(data && activeChatPeerId && ACTIVE_CHAT_TYPES.has(data.type) && data.actorId === activeChatPeerId);
+}

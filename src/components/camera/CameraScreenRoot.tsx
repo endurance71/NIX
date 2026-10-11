@@ -18,8 +18,6 @@ export default function CameraScreenRoot() {
           permissionContainer: vm.styles.permissionContainer,
           permissionText: vm.styles.permissionText,
           permissionHint: vm.styles.permissionHint,
-          permissionButton: vm.styles.permissionButton,
-          permissionButtonText: vm.styles.permissionButtonText,
         }}
       />
     );
@@ -33,8 +31,6 @@ export default function CameraScreenRoot() {
         styles={{
           permissionContainer: vm.styles.permissionContainer,
           permissionText: vm.styles.permissionText,
-          permissionButton: vm.styles.permissionButton,
-          permissionButtonText: vm.styles.permissionButtonText,
         }}
       />
     );

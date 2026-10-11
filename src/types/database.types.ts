@@ -186,6 +186,9 @@ type DomainRows = {
         thumbnail_b64: string | null;
         is_replayed: boolean;
         replay_expires_at: string | null;
+        /** Absent on backends before 20261011160000_message_status_receipts. */
+        replayed_at?: string | null;
+        unplayable_at?: string | null;
     };
     nix_cleanup_queue: {
         nix_id: string;
@@ -241,6 +244,8 @@ type DomainRows = {
         client_message_id: string | null;
         is_system: boolean;
         metadata: Record<string, unknown> | null;
+        /** Read receipt for the sender; absent on backends before 20261011160000. */
+        read_at?: string | null;
     };
     message_reactions: {
         id: string;
