@@ -44,8 +44,14 @@ export function NativeMessageMenu({
   onRemoveReaction,
   actions,
   bleed = 0,
+  preview,
 }: {
   children: ReactElement;
+  /**
+   * What lifts while the menu is open. Without it the system lifts the hosted trigger, bleed
+   * included, on a light platter that framed the bubble.
+   */
+  preview?: ReactElement;
   /**
    * Room around the bubble for what draws outside it (the tail, Tapback badges): the hosted view
    * clips to its bounds, so it grows by `bleed` on each side and a negative margin keeps the layout.
@@ -69,6 +75,11 @@ export function NativeMessageMenu({
             </View>
           </RNHostView>
         </ContextMenu.Trigger>
+        {preview ? (
+          <ContextMenu.Preview>
+            <RNHostView matchContents>{preview}</RNHostView>
+          </ContextMenu.Preview>
+        ) : null}
         <ContextMenu.Items>
           {canReact ? (
             <Section>
