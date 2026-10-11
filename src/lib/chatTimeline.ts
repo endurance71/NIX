@@ -226,14 +226,16 @@ function groupableText(item: ChatTimelineItem | undefined): ChatTimelineText | n
 function joinsGroup(previous: ChatTimelineText | null, next: ChatTimelineText | null): boolean {
   if (!previous || !next) return false;
   if (previous.message.sender_id !== next.message.sender_id) return false;
+  // A reply to a NiX carries its quoted header above the bubble: it always starts a new group.
+  if (next.message.reply_to_nix_id) return false;
   const gap = stampMs(next.created_at) - stampMs(previous.created_at);
   return gap >= 0 && gap <= BUBBLE_GROUP_GAP_MS;
 }
 
 /**
  * Sets `group` on every text item (in place: the items were just created by the builder). A
- * separator, a NiX, an upload or a system line between two texts always ends the group, so
- * timestamps keep appearing only between groups.
+ * separator, a NiX, an upload or a system line between two texts always ends the group, and a
+ * reply to a NiX always starts one, so timestamps keep appearing only between groups.
  */
 export function assignBubbleGroups<I extends ChatTimelineItem>(items: I[]): I[] {
   for (let index = 0; index < items.length; index += 1) {

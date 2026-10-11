@@ -45,6 +45,7 @@ export function mergeChatOutboxMessages(
       client_message_id: job.id,
       is_system: false,
       metadata: null,
+      reply_to_nix_id: job.replyToNixId,
       isSending: outboxStatus === 'sending',
       sendFailed: outboxStatus === 'failed',
       outboxStatus,

@@ -12,6 +12,8 @@ export type ChatMessageExtras = {
   voice_path?: string | null;
   voice_duration_ms?: number | null;
   voice_waveform?: readonly number[] | null;
+  /** `fetch_text_messages_with_peer` (20261013100000): media type of the NiX it replies to. */
+  reply_to_nix_media_type?: string | null;
 };
 
 export type ChatTextMessage = TextMessage & ChatMessageExtras;

@@ -134,6 +134,8 @@ import {
 import type { VoiceRecordingResult } from '../../hooks/useVoiceRecorder';
 import { BubbleTail } from './BubbleTail';
 import { VoiceMessageBody } from './VoiceMessageBody';
+import { NixReplyHeader } from './NixReplyHeader';
+import { chatNixReplyContext, chatTimelineNixIndex, type ChatNixReplyContext } from '../../lib/chatNixReply';
 import { ComposerVoiceHost, VoiceRecordingStrip, VoiceReviewStrip } from './ComposerVoice';
 import type { ComposerVoiceState } from '../../hooks/useComposerVoice';
 
@@ -724,6 +726,10 @@ type MessageBubbleProps = {
   /** Voice message: length and loudness samples; `null` for text. */
   voiceDurationMs: number | null;
   voiceWaveform: readonly number[] | null;
+  /** Reply to a NiX: the quoted header above the bubble (primitives keep the memo cheap). */
+  replyToNixId: string | null;
+  replyToNixKind: ChatNixReplyContext['kind'];
+  replyToNixInTimeline: boolean;
   onOpenPicker: (messageId: string, isOwn: boolean, canReact: boolean, layout: BubbleWindowLayout) => void;
   onReact: (messageId: string, emoji: MessageReactionEmoji) => void;
   onCopy: (messageId: string) => void;
@@ -733,6 +739,7 @@ type MessageBubbleProps = {
   onCancelSending: (outboxId: string) => void;
   onSetSaved: (messageId: string, saved: boolean) => void;
   onToggleVoice: (messageId: string) => void;
+  onShowRepliedNix: (nixId: string) => void;
 };
 
 type BubbleAccessibilityAction = { name: string; label: string };
@@ -751,9 +758,11 @@ function bubbleAccessibilityActions(
     reportable: boolean;
     retryable: boolean;
     deletable: boolean;
+    showRepliedNix: boolean;
   },
 ): BubbleAccessibilityAction[] {
   const actions: BubbleAccessibilityAction[] = [];
+  if (flags.showRepliedNix) actions.push({ name: 'showNix', label: t('chat.replyShowNix') });
   if (flags.playable) {
     actions.push({ name: 'activate', label: flags.playing ? t('chat.voicePause') : t('chat.voicePlay') });
   }
@@ -798,9 +807,10 @@ type BubbleActionHandlers = {
   report: () => void;
   retry: () => void;
   delete: () => void;
+  showNix: () => void;
 };
 
-const SIMPLE_BUBBLE_ACTIONS = ['activate', 'toggleSave', 'copy', 'report', 'retry', 'delete'] as const;
+const SIMPLE_BUBBLE_ACTIONS = ['activate', 'toggleSave', 'copy', 'report', 'retry', 'delete', 'showNix'] as const;
 
 function runBubbleAccessibilityAction(name: string, handlers: BubbleActionHandlers) {
   if (name.startsWith('react:')) {
@@ -872,6 +882,18 @@ function bubbleAccessibilityBody(
   return params.body;
 }
 
+/** Pill text and VoiceOver text of a reply's quoted header. */
+function nixReplyTexts(
+  t: ChatScreenViewModel['t'],
+  isOwn: boolean,
+  peerName: string,
+): { label: string; a11y: string } {
+  // My reply answers the peer's NiX; the peer's reply answers mine (see chatNixReplyContext).
+  return isOwn
+    ? { label: t('chat.replyToPeerNix', { name: peerName }), a11y: t('chat.a11yReplyToPeerNix', { name: peerName }) }
+    : { label: t('chat.replyToYourNix'), a11y: t('chat.a11yReplyToYourNix') };
+}
+
 /** VoiceOver text of the save state, or `null`. */
 function savedAccessibilityText(
   t: ChatScreenViewModel['t'],
@@ -912,6 +934,9 @@ const MessageBubble = memo(function MessageBubble({
   canSave,
   voiceDurationMs,
   voiceWaveform,
+  replyToNixId,
+  replyToNixKind,
+  replyToNixInTimeline,
   onOpenPicker,
   onReact,
   onCopy,
@@ -921,6 +946,7 @@ const MessageBubble = memo(function MessageBubble({
   onCancelSending,
   onSetSaved,
   onToggleVoice,
+  onShowRepliedNix,
 }: MessageBubbleProps) {
   const { colors } = useAppTheme();
   const { t } = useTranslation();
@@ -1015,9 +1041,20 @@ const MessageBubble = memo(function MessageBubble({
 
   const myEmoji = reactions.find((reaction) => reaction.user_id === currentUserId)?.emoji ?? null;
   const statusText = outboxStatusText(outboxStatus);
+  const replyContext: ChatNixReplyContext | null =
+    replyToNixId && !expired
+      ? {
+          nixId: replyToNixId,
+          kind: replyToNixKind,
+          nixOwner: isOwn ? 'peer' : 'mine',
+          inTimeline: replyToNixInTimeline,
+        }
+      : null;
+  const replyTexts = replyContext ? nixReplyTexts(t, isOwn, peerName) : null;
   const accessibilityLabel = chatMessageAccessibilityLabel({
     sender: senderName,
     body: bubbleAccessibilityBody(t, { expired, voiceDurationMs, body }),
+    replyContext: replyTexts?.a11y ?? null,
     time: formatChatTime(createdAt, locale),
     status: statusText,
     saved: savedAccessibilityText(t, savedBy, peerName),
@@ -1039,6 +1076,7 @@ const MessageBubble = memo(function MessageBubble({
     reportable: !isOwn && outboxStatus === null,
     retryable: failed && outboxId !== null,
     deletable: (failed || expired) && outboxId !== null,
+    showRepliedNix: replyContext?.inTimeline === true,
   });
   const onAccessibilityAction = (event: AccessibilityActionEvent) => {
     runBubbleAccessibilityAction(event.nativeEvent.actionName, {
@@ -1049,6 +1087,7 @@ const MessageBubble = memo(function MessageBubble({
       report: () => onReport(messageId),
       retry: () => (outboxId ? onRetry(outboxId) : undefined),
       delete: () => (outboxId ? onDeleteOutbox(outboxId) : undefined),
+      showNix: () => (replyContext ? onShowRepliedNix(replyContext.nixId) : undefined),
     });
   };
 
@@ -1071,6 +1110,14 @@ const MessageBubble = memo(function MessageBubble({
           { maxWidth },
           focusStyle,
         ]}>
+        {replyContext && replyTexts ? (
+          <NixReplyHeader
+            context={replyContext}
+            label={replyTexts.label}
+            isOwn={isOwn}
+            onPress={onShowRepliedNix}
+          />
+        ) : null}
         <View ref={bubbleRef} collapsable={false}>
           <Pressable
             onPress={onPress}
@@ -1318,6 +1365,7 @@ const NixChip = memo(function NixChip({
   nix,
   reaction,
   maxWidth,
+  highlighted,
   onOpen,
   t,
 }: {
@@ -1325,11 +1373,23 @@ const NixChip = memo(function NixChip({
   /** The receiver's tapback on this NiX, drawn on the chip's outer corner like message reactions. */
   reaction: MessageReactionEmoji | null;
   maxWidth: number;
+  /** Briefly ringed after a reply's quoted header scrolled here. */
+  highlighted: boolean;
   onOpen: (nixId: string) => void;
   t: ChatScreenViewModel['t'];
 }) {
   const { colors } = useAppTheme();
   const isOwn = nix.direction === 'sent';
+  const motionEnabled = useMotionEnabled();
+  const highlightOpacity = useSharedValue(0);
+  useEffect(() => {
+    const target = highlighted ? 1 : 0;
+    // Reduce Motion: the ring simply appears and disappears.
+    highlightOpacity.set(
+      motionEnabled ? withTiming(target, { duration: highlighted ? duration.fast : duration.slow }) : target
+    );
+  }, [highlighted, highlightOpacity, motionEnabled]);
+  const highlightStyle = useAnimatedStyle(() => ({ opacity: highlightOpacity.get() }));
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -1359,6 +1419,10 @@ const NixChip = memo(function NixChip({
   // The status symbol leads the chip, large, like Snapchat's chat rows; the text follows.
   const chip = (
     <View style={[styles.bubble, styles.chipLayout, { backgroundColor: bubbleBg }]}>
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.nixHighlightRing, { borderColor: colors.accent }, highlightStyle]}
+      />
       <SymbolView
         name={resolveAppIconName(statusPresentation.icon)}
         size={APP_ICON_SIZE.xxl}
@@ -2652,6 +2716,36 @@ function ChatReactionPickerLayer({
   );
 }
 
+/** How long the NiX chip stays ringed after a reply's header scrolled to it. */
+const REPLIED_NIX_HIGHLIGHT_MS = 1400;
+
+/**
+ * Tapping a reply's quoted header (or its VoiceOver action) scrolls the list to the NiX it
+ * answers and briefly rings that chip. A NiX outside the loaded timeline: nothing happens.
+ */
+function useRepliedNixJump(
+  nixes: readonly ChatNixEvent[],
+  timeline: readonly ChatTimelineEntry[],
+  listRef: RefObject<FlashListRef<ChatTimelineEntry> | null>,
+  motionEnabled: boolean
+) {
+  const [highlightedNixId, setHighlightedNixId] = useState<string | null>(null);
+  const nixesById = useMemo(() => new Map(nixes.map((nix) => [nix.id, nix])), [nixes]);
+  useEffect(() => {
+    if (!highlightedNixId) return;
+    const timer = setTimeout(() => setHighlightedNixId(null), REPLIED_NIX_HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [highlightedNixId]);
+  const onShowRepliedNix = useStableHandler((nixId: string) => {
+    const index = chatTimelineNixIndex(timeline, nixId);
+    if (index < 0) return;
+    selection();
+    void listRef.current?.scrollToIndex({ index, animated: motionEnabled, viewPosition: 0.5 });
+    setHighlightedNixId(nixId);
+  });
+  return { highlightedNixId, nixesById, onShowRepliedNix };
+}
+
 export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
   const { colors } = useAppTheme();
   const { top, bottomContentInset } = useScreenInsets('stackHeader');
@@ -2767,6 +2861,12 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
   } = vm;
   const peerName = chatPeerName(vm);
   const youLabel = t('chat.a11yYou');
+  const { highlightedNixId, nixesById, onShowRepliedNix } = useRepliedNixJump(
+    vm.nixes,
+    timeline,
+    listRef,
+    motionEnabled
+  );
 
   const renderTimelineItem = useCallback(({ item }: { item: ChatTimelineEntry }) => {
     if (item.type === 'separator') {
@@ -2778,6 +2878,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
           nix={item.nix}
           reaction={nixReactionsById[item.nix.id]?.emoji ?? null}
           maxWidth={bubbleMaxWidth}
+          highlighted={highlightedNixId === item.nix.id}
           t={t}
           onOpen={onOpenNix}
         />
@@ -2790,6 +2891,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
           nix={item.nix}
           reaction={nixReactionsById[item.nix.id]?.emoji ?? null}
           maxWidth={bubbleMaxWidth}
+          highlighted={highlightedNixId === item.nix.id}
           t={t}
           onOpen={onOpenNix}
         />
@@ -2819,6 +2921,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     const canReact = canPerformNetworkAction && outboxStatus === null;
     const receipt = message.id === receiptMessageId ? outgoingTextStatus(message) : null;
     const voice = chatVoiceInfo(message);
+    const reply = chatNixReplyContext(message, currentUserId, nixesById);
     return (
       <MessageBubble
         messageId={message.id}
@@ -2843,6 +2946,9 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
         canSave={canSaveMessages && outboxStatus === null}
         voiceDurationMs={voice ? voice.durationMs : null}
         voiceWaveform={message.voice_waveform ?? null}
+        replyToNixId={reply?.nixId ?? null}
+        replyToNixKind={reply?.kind ?? 'photo'}
+        replyToNixInTimeline={reply?.inTimeline ?? false}
         onOpenPicker={onOpenPicker}
         onReact={onReactToMessage}
         onCopy={onCopyMessage}
@@ -2852,6 +2958,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
         onCancelSending={onCancelSending}
         onSetSaved={onSetSaved}
         onToggleVoice={onToggleVoice}
+        onShowRepliedNix={onShowRepliedNix}
       />
     );
   }, [
@@ -2862,7 +2969,9 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     canSaveMessages,
     currentUserId,
     focusedMessageId,
+    highlightedNixId,
     locale,
+    nixesById,
     onCancelSending,
     onCopyMessage,
     onDeleteOutbox,
@@ -2874,6 +2983,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     onRetryText,
     onRetryUpload,
     onSetSaved,
+    onShowRepliedNix,
     onToggleVoice,
     onUploadAction,
     peerName,
@@ -3219,6 +3329,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 2,
     zIndex: 1,
+  },
+  nixHighlightRing: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderWidth: 2,
+    borderRadius: BUBBLE_CORNER_RADIUS + 4,
+    borderCurve: 'continuous',
   },
   nixReactionBadge: {
     position: 'absolute',

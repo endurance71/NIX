@@ -328,6 +328,26 @@ describe('bubble groups', () => {
     ]);
   });
 
+  it('a reply to a NiX starts a new group (its header sits above the bubble)', () => {
+    const timeline = buildUnifiedChatTimeline(
+      [
+        msg({ id: '1', created_at: '2026-07-24T10:00:00.000Z' }),
+        msg({ id: 'reply', created_at: '2026-07-24T10:00:10.000Z', reply_to_nix_id: 'n1' }),
+        msg({ id: '2', created_at: '2026-07-24T10:00:20.000Z' }),
+        msg({ id: 'reply2', created_at: '2026-07-24T10:00:30.000Z', reply_to_nix_id: 'n2' }),
+      ],
+      [],
+      'pl',
+      new Date('2026-07-24T12:00:00.000Z'),
+    );
+    expect(groups(timeline)).toEqual([
+      ['1', 'single'],
+      ['reply', 'first'],
+      ['2', 'last'],
+      ['reply2', 'single'],
+    ]);
+  });
+
   it('the text-only builder groups too', () => {
     const timeline = buildChatTimeline(
       [

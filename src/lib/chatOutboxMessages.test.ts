@@ -15,6 +15,7 @@ function job(partial: Partial<TextOutboxJob> & Pick<TextOutboxJob, 'id'>): TextO
     updatedAt: 0,
     expiresAt: Date.parse('2026-10-11T10:00:00.000Z'),
     errorCode: null,
+    replyToNixId: null,
     ...partial,
   };
 }
@@ -107,5 +108,15 @@ describe('mergeChatOutboxMessages', () => {
       { now: Date.parse('2026-10-10T12:00:00.000Z') },
     );
     expect(merged.map((message) => message.outboxStatus)).toEqual(['expired']);
+  });
+});
+
+describe('reply to a NiX', () => {
+  it('an outbox bubble carries the NiX it answers, so the quoted header shows at once', () => {
+    const merged = mergeChatOutboxMessages([], [job({ id: 'r', replyToNixId: 'nix-1' }), job({ id: 'p' })], 'me');
+    expect(merged.map((message) => [message.id, message.reply_to_nix_id])).toEqual([
+      ['temp-r', 'nix-1'],
+      ['temp-p', null],
+    ]);
   });
 });

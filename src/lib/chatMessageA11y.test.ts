@@ -26,6 +26,19 @@ describe('chatMessageAccessibilityLabel', () => {
     ).toBe('Anna: Hej, 9:30, Nie wysłano, reakcje: ❤️ (Ty), 👍 (Anna)');
   });
 
+  it('says which NiX a reply answers right after the text', () => {
+    expect(
+      chatMessageAccessibilityLabel({
+        sender: 'Anna',
+        body: 'Super!',
+        replyContext: 'odpowiedź na Twojego NiX-a',
+        time: '9:30',
+        reactions: [],
+        formatReactions,
+      })
+    ).toBe('Anna: Super!, odpowiedź na Twojego NiX-a, 9:30');
+  });
+
   it('falls back to the sender when there is no body (expired tombstone)', () => {
     expect(
       chatMessageAccessibilityLabel({ sender: 'Ty', body: '', time: '', status: 'Wygasło', reactions: [], formatReactions })
