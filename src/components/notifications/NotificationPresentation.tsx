@@ -14,9 +14,11 @@ import { useNotificationAnimation } from './useNotificationAnimation';
 import { useNotificationGesture } from './useNotificationGesture';
 import { CARD_ENTER_OFFSET, CARD_MIN_SCALE, CONTENT_MIN_SCALE } from './vendor/timeline';
 
-// Skia (and its native view registry) is only evaluated the first time a prominent island
-// notification is shown, never during app start (PERF-4).
-const NotificationGoo = lazy(() => import('./NotificationGoo'));
+// Skia (and its native view registry) is not evaluated during app start (PERF-4): the chunk is
+// prefetched once the app is idle, so the first island card does not wait for it.
+const loadNotificationGoo = () => import('./NotificationGoo');
+const NotificationGoo = lazy(loadNotificationGoo);
+const PREFETCH_GOO_DELAY_MS = 2500;
 
 type Props = { snapshot: NotificationSnapshot; reducedMotion: boolean; screenReader: boolean };
 
@@ -26,7 +28,12 @@ export function NotificationPresentation(props: Props) {
   const insets = useSafeAreaInsets();
   const [measured, setMeasured] = useState<{ height: number; width: number; fontScale: number } | null>(null);
   const maxHeight = Math.max(72, height - insets.top - insets.bottom - 40);
-  const allowMorph = Boolean(snapshot.notification?.prominent) && !reducedMotion;
+  const allowMorph = snapshot.notification?.prominent !== false && !reducedMotion;
+  useEffect(() => {
+    if (reducedMotion) return;
+    const timer = setTimeout(() => void loadNotificationGoo().catch(() => undefined), PREFETCH_GOO_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [reducedMotion]);
   const layout = notificationLayout(width, insets.top, Math.min(maxHeight, measured?.height ?? 72), allowMorph);
   const onLayout = (event: LayoutChangeEvent) => {
     const nextHeight = Math.ceil(event.nativeEvent.layout.height);

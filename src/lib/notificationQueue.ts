@@ -9,8 +9,9 @@ export type AppNotificationConfig = {
   id?: string;
   onPress?: () => void;
   /**
-   * Rare, prominent result: the card grows out of the Dynamic Island (Skia morph, ~1.3 s) when the
-   * layout allows it. Everything else uses the fast card (≤ 300 ms in, ≤ 220 ms out).
+   * Every card grows out of the Dynamic Island (Skia morph) when the layout allows it — iPhones
+   * with an island, Reduce Motion off. `false` opts a card into the fast card instead (≤ 300 ms in,
+   * ≤ 220 ms out). The lifetime starts once the card is fully visible, so the morph never eats it.
    */
   prominent?: boolean;
 };
