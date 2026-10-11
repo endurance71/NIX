@@ -28,6 +28,9 @@ Twelfth OTA (2026-10-11): update group `76866662-384b-4ca9-8572-f558fa733148`, s
 Tapback bar; the message menu lifts a bubble-only preview (no light frame).
 Thirteenth OTA (2026-10-11): update group `77f2cf1c-e256-412d-855b-a7f02a776670`, source `cef9ae5` — the Tapback
 bar folds back into the bubble when it closes.
+Fourteenth OTA (2026-10-11): update group `66acc331-eb9a-4869-8022-025ff9998faf`, source `fec4975` — long press blurs the chat,
+lifts the bubble and shows the large Tapback bar above the glass action menu (replaces the system context menu,
+whose emoji palette size is fixed).
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
