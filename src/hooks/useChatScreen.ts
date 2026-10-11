@@ -1002,9 +1002,11 @@ export function useChatScreen(peerId: string) {
     queryClient.setQueryData<TextMessage[]>(messagesKey, (rows) =>
       rows?.map((row) => (row.id === messageId ? { ...row, body, edited_at: new Date().toISOString() } : row)),
     );
-    setComposerContext(null);
     try {
       const result = await editOwnTextMessage(messageId, body);
+      // Only now: on a failure the composer puts the text back under the same „Edytowanie” banner,
+      // so it can never go out as a new message.
+      setComposerContext(null);
       if (result.status === 'pending') {
         void waitForTextEdit(result.jobId)
           .then(() => queryClient.invalidateQueries({ queryKey: messagesKey }))
