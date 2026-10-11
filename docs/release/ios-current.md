@@ -10,9 +10,12 @@ Supersedes build 13 (never uploaded). Same **runtime 1.0.13** and channel produc
 thirty-fifth applies. Merged into `main` (`83bd0ad`), version bump `6c5462d`. Adds in the binary: the brand assets
 regenerated from the drawn logo (app icon light / dark / tinted, launch screen, widget logo); in JS: the welcome
 tour shown right after a successful sign-in (once per account), the login stage, Memories zoom, chat polish.
-Local Release Archive: `~/.nix-ops/release-1.0.13-14/` (ARCHIVE SUCCEEDED, 1.0.13 / 14). CLI upload fails with
-„Failed to Use Accounts” (no Apple account in Xcode for xcodebuild); upload via Organizer → Distribute App by the
-owner, then assign NiX Internal QA and Team (Expo) and add PL/EN What to Test.
+Local Release Archive: `~/.nix-ops/release-1.0.13-14/` (ARCHIVE SUCCEEDED, 1.0.13 / 14). Uploaded 2026-10-11 with
+`xcodebuild -exportArchive` and the App Store Connect team API key „NiX claude” (Admin; cloud-managed distribution
+signing — an App Manager key fails with „Cloud signing permission error”). Build id
+`0ff17740-330b-48df-8193-7fc34d92b71f`: VALID, `usesNonExemptEncryption=false`, **IN_BETA_TESTING** in **NiX
+Internal QA** and **Team (Expo)**, PL/EN What to Test set through the API (`~/.nix-ops/release-1.0.13-14/asc.mjs`).
+Keys live in `~/.appstoreconnect/private_keys/`, never in the repo.
 
 ## Feature candidate — 1.0.13 (13), 2026-10-11
 
