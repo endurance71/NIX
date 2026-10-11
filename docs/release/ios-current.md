@@ -65,6 +65,11 @@ welcome tour follows the system light / dark appearance.
 Twenty-ninth OTA (2026-10-11): update group `382fbacc-3efd-4f08-a1d4-398c1b296d21`, source `5d78e54` — the login form no longer jumps under the hero (safe area
 read late), the Apple button keeps its size when busy, the logo starts drawing once the screen settles, and the
 rising stroke no longer shows as a floating dot.
+Thirtieth OTA (2026-10-11): update group `5bdd3cde-6942-49d5-94f7-7e09c7334f8b`, source `7816b86` — brand
+masters follow the drawn logo (flat ink, glass rising stroke, no shadows); in-app assets refreshed. The app icon,
+launch screen and widget logo changed too but ship only in a new binary (not in build 13's archive).
+Thirty-first OTA (2026-10-11): update group `0a3ee0b1-e301-4bf7-82e1-7f6693af557c`, source `8b3571e` — the drawn
+logo's glass stroke is glass from the first frame, no stray dots.
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
