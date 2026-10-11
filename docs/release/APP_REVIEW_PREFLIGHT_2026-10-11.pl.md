@@ -109,6 +109,27 @@ poniżej lista blokerów w kolejności.
 - Prośba o ocenę tylko systemowym API (5.6.1).
 - Linki do polityki, regulaminu i wsparcia działają (200).
 
+## Postęp
+
+### Krok 1 — kod (gałąź `fix/app-review-preflight`)
+
+| Punkt | Stan | Gdzie |
+| --- | --- | --- |
+| Konto prywatne egzekwowane | zrobione | `20261015100000_enforce_private_accounts.sql`: wyszukiwanie po nazwie pomija profile prywatne, a RLS `friendships_insert` odrzuca bezpośrednie zaproszenie. QR i link zaproszenia działają. Test: `supabase/tests/private_accounts_test.sql` (8/8). |
+| Dowód przy zgłoszeniu głosówki | zrobione | `report-content` kopiuje nagranie do `moderation-evidence/{report}/evidence.m4a`; dozwolone typy audio w kubełku (`20261015101000_…`). Filtr audio przed dostarczeniem pozostaje otwarty. |
+| Powód „Zagrożenie dla dziecka” | zrobione | `child_safety`: priorytet krytyczny (`20261015102000_…`), Edge Function, klient, i18n, procedura w `docs/moderation-runbook.md`. |
+| Copy we wprowadzeniu, Azure, zdjęcie z Instagrama | zrobione | `src/lib/i18n.ts` (`welcome.*`), `assets/onboarding/ephemeral.jpg`, `CREDITS.md`. |
+| Rozszerzenie udostępniania bez responder chain | zrobione | Zostały tylko `extensionContext.open` i powiadomienie; `trace()` działa wyłącznie w `#if DEBUG`. |
+| Manifesty prywatności | zrobione | Własny manifest każdego rozszerzenia; aplikacja ma dodane 1C8F.1 i zbierane typy danych (`app.json` → `ios.privacyManifests`). Szczegóły: `docs/native-extensions.md`. |
+| `Info.plist` | zrobione | Usunięty `fetch`; tekst zgody na aparat wspomina kody QR. Celowo zostają: `PortraitUpsideDown` (Expo ustawia go dla `portrait`; telefony z Face ID go ignorują) oraz `NSAllowsLocalNetworking` (dev build na iPhonie łączy się z Metro w sieci LAN; nie wymaga uzasadnienia w review). |
+| Opis widżetu PL/EN | zrobione | `plugins/withWidgetExtras.js` (`localizeInboxDescription`). |
+| Średnie: emoji serii (4.1), miękkie „cofnij wysłanie”, moderacja profili | otwarte | Poza krokiem 1; decyzja po wydaniu buildu 15. |
+
+Zbierane typy danych w manifeście muszą się zgadzać z App Privacy w ASC (krok 2):
+- e-mail, imię i nazwisko (nazwa wyświetlana), identyfikator użytkownika, identyfikator urządzenia (token push);
+- wiadomości, zdjęcia i wideo, audio, inne treści użytkownika;
+- wszystkie powiązane z kontem, bez śledzenia, cel: działanie aplikacji.
+
 ## Kolejność prac
 
 1. Kod (OTA + build 15): egzekucja konta prywatnego, dowody głosówek, poprawki copy we wprowadzeniu,

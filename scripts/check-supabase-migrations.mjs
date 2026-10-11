@@ -72,6 +72,9 @@ const expected = [
   '20261012120000_friend_streaks.sql',
   '20261013100000_text_message_reply_to_nix.sql',
   '20261014100000_text_message_reply_edit_unsend.sql',
+  '20261015100000_enforce_private_accounts.sql',
+  '20261015101000_moderation_evidence_allow_audio.sql',
+  '20261015102000_child_safety_report_reason.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();

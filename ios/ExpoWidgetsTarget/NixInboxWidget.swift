@@ -10,7 +10,7 @@ struct NixInboxWidget: Widget {
       WidgetsEntryView(entry: entry)
     }
     .configurationDisplayName("NiX")
-    .description("Nowe NiX-y w skrzynce")
+    .description(Text(verbatim: Locale.preferredLanguages.first?.hasPrefix("pl") ?? false ? "Nowe NiX-y w skrzynce" : "New NiXes in your inbox"))
     .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryRectangular])
   }
 }

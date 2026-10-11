@@ -8,7 +8,9 @@ const { withXcodeProject } = require('expo/config-plugins');
  * - an asset catalog with `NixWidgetLogo` (Live Activity and Home Screen widget), rebuilt from
  *   `assets/brand/widget/`;
  * - the iOS 18 Control Center camera control (`plugins/widget-extras/NixCameraControl.swift`),
- *   registered in the generated widget bundle.
+ *   registered in the generated widget bundle;
+ * - its privacy manifest (`plugins/widget-extras/PrivacyInfo.xcprivacy`);
+ * - a Polish/English description of the inbox widget.
  */
 const TARGET_NAME = 'ExpoWidgetsTarget';
 const IMAGE_SET = 'NixWidgetLogo';
@@ -42,7 +44,7 @@ function writeCatalog(projectRoot, platformRoot) {
   );
 }
 
-function addCatalogToTarget(project) {
+function addResourceToTarget(project, fileName, lastKnownFileType) {
   const target = project.pbxTargetByName(TARGET_NAME);
   const targetUuid = project.findTargetKey(TARGET_NAME);
   if (!target || !targetUuid) return;
@@ -51,8 +53,8 @@ function addCatalogToTarget(project) {
   const groupKey = project.findPBXGroupKey({ name: TARGET_NAME }) ?? project.findPBXGroupKey({ path: TARGET_NAME });
   if (!groupKey) return;
   const group = project.getPBXGroupByKey(groupKey);
-  // Idempotent: the catalog is referenced once per target group.
-  if (group.children.some((child) => child.comment === 'Assets.xcassets')) return;
+  // Idempotent: each resource is referenced once per target group.
+  if (group.children.some((child) => child.comment === fileName)) return;
 
   // The xcode library's lookup falls back to the app's own Resources phase, so resolve the
   // phase strictly through this target's buildPhases.
@@ -73,16 +75,31 @@ function addCatalogToTarget(project) {
   const buildFileUuid = project.generateUuid();
   fileRefs[fileRefUuid] = {
     isa: 'PBXFileReference',
-    lastKnownFileType: 'folder.assetcatalog',
-    path: 'Assets.xcassets',
+    lastKnownFileType,
+    path: fileName,
     sourceTree: '"<group>"',
   };
-  fileRefs[`${fileRefUuid}_comment`] = 'Assets.xcassets';
+  fileRefs[`${fileRefUuid}_comment`] = fileName;
   const buildFiles = project.pbxBuildFileSection();
-  buildFiles[buildFileUuid] = { isa: 'PBXBuildFile', fileRef: fileRefUuid, fileRef_comment: 'Assets.xcassets' };
-  buildFiles[`${buildFileUuid}_comment`] = 'Assets.xcassets in Resources';
-  group.children.push({ value: fileRefUuid, comment: 'Assets.xcassets' });
-  resourcesPhase.files.push({ value: buildFileUuid, comment: 'Assets.xcassets in Resources' });
+  buildFiles[buildFileUuid] = { isa: 'PBXBuildFile', fileRef: fileRefUuid, fileRef_comment: fileName };
+  buildFiles[`${buildFileUuid}_comment`] = `${fileName} in Resources`;
+  group.children.push({ value: fileRefUuid, comment: fileName });
+  resourcesPhase.files.push({ value: buildFileUuid, comment: `${fileName} in Resources` });
+}
+
+function addCatalogToTarget(project) {
+  addResourceToTarget(project, 'Assets.xcassets', 'folder.assetcatalog');
+}
+
+// The widget links React Native and ExpoWidgets (App Group UserDefaults), so it declares the same
+// required-reason APIs as the app; expo-widgets generates no manifest of its own.
+const PRIVACY_MANIFEST = 'PrivacyInfo.xcprivacy';
+
+function writePrivacyManifest(projectRoot, platformRoot) {
+  fs.copyFileSync(
+    path.join(projectRoot, 'plugins', 'widget-extras', PRIVACY_MANIFEST),
+    path.join(platformRoot, TARGET_NAME, PRIVACY_MANIFEST)
+  );
 }
 
 const CONTROL_FILE = 'NixCameraControl.swift';
@@ -95,6 +112,24 @@ function writeCameraControl(projectRoot, platformRoot) {
   if (index.includes('NixCameraControl()')) return;
   const registration = '    if #available(iOS 18.0, *) {\n      NixCameraControl()\n    }\n    WidgetLiveActivity()';
   fs.writeFileSync(indexPath, index.replace(/^ {4}WidgetLiveActivity\(\)/m, registration));
+}
+
+// expo-widgets writes the app.json description (English) as a literal; the widget gallery shows
+// it in the device language, so pick Polish the same way NixCameraControl does.
+const INBOX_WIDGET_FILE = 'NixInboxWidget.swift';
+const INBOX_DESCRIPTION_EN = 'New NiXes in your inbox';
+const INBOX_DESCRIPTION_PL = 'Nowe NiX-y w skrzynce';
+
+function localizeInboxDescription(platformRoot) {
+  const filePath = path.join(platformRoot, TARGET_NAME, INBOX_WIDGET_FILE);
+  if (!fs.existsSync(filePath)) return;
+  const source = fs.readFileSync(filePath, 'utf8');
+  const literal = `.description("${INBOX_DESCRIPTION_EN}")`;
+  if (!source.includes(literal)) return;
+  const localized =
+    `.description(Text(verbatim: Locale.preferredLanguages.first?.hasPrefix("pl") ?? false` +
+    ` ? "${INBOX_DESCRIPTION_PL}" : "${INBOX_DESCRIPTION_EN}"))`;
+  fs.writeFileSync(filePath, source.replace(literal, localized));
 }
 
 function addSourceToTarget(project, fileName) {
@@ -129,11 +164,16 @@ module.exports = function withWidgetExtras(config) {
     const { projectRoot, platformProjectRoot } = config.modRequest;
     writeCatalog(projectRoot, platformProjectRoot);
     writeCameraControl(projectRoot, platformProjectRoot);
+    writePrivacyManifest(projectRoot, platformProjectRoot);
+    localizeInboxDescription(platformProjectRoot);
     addCatalogToTarget(config.modResults);
+    addResourceToTarget(config.modResults, PRIVACY_MANIFEST, 'text.xml');
     addSourceToTarget(config.modResults, CONTROL_FILE);
     return config;
   });
 };
 
 module.exports.addCatalogToTarget = addCatalogToTarget;
+module.exports.addResourceToTarget = addResourceToTarget;
+module.exports.localizeInboxDescription = localizeInboxDescription;
 module.exports.addSourceToTarget = addSourceToTarget;

@@ -1133,6 +1133,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
       'harassment',
       'hate',
       'sexual_content',
+      'child_safety',
       'violence',
       'self_harm',
       'impersonation',

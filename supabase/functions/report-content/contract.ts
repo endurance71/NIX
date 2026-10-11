@@ -8,6 +8,7 @@ export const REPORT_REASONS = new Set([
   'spam',
   'privacy',
   'illegal_content',
+  'child_safety',
   'other',
 ]);
 

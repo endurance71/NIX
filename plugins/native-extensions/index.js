@@ -319,6 +319,32 @@ function addShared(objects, projectId) {
   }
 }
 
+const PRIVACY_MANIFEST = 'PrivacyInfo.xcprivacy';
+
+/**
+ * Each extension ships its own privacy manifest (required-reason APIs it calls) in its Resources
+ * phase. Separate from `addExtension` so targets created before the manifests existed get it too.
+ */
+function addPrivacyManifest(objects, extension) {
+  const { name } = extension;
+  const buildFile = uuid(`${name}:build:${PRIVACY_MANIFEST}`);
+  if (section(objects, 'PBXBuildFile')[buildFile]) return;
+  const found = findTarget(objects, name);
+  if (!found) return;
+  const resources = phaseOf(objects, found.target, 'PBXResourcesBuildPhase');
+  const group = section(objects, 'PBXGroup')[uuid(`${name}:group`)];
+  if (!resources || !group) return;
+  const fileRef = uuid(`${name}:file:${PRIVACY_MANIFEST}`);
+  put(objects, 'PBXFileReference', fileRef, {
+    isa: 'PBXFileReference', lastKnownFileType: 'text.xml', path: PRIVACY_MANIFEST, sourceTree: '"<group>"',
+  }, PRIVACY_MANIFEST);
+  group.children.push({ value: fileRef, comment: PRIVACY_MANIFEST });
+  put(objects, 'PBXBuildFile', buildFile, {
+    isa: 'PBXBuildFile', fileRef, fileRef_comment: PRIVACY_MANIFEST,
+  }, `${PRIVACY_MANIFEST} in Resources`);
+  resources.files.push({ value: buildFile, comment: `${PRIVACY_MANIFEST} in Resources` });
+}
+
 /** Adds every extension target and the shared sources to an `xcode` project object. */
 function applyNativeExtensions(project, { projectRoot, platformRoot }) {
   copySources(projectRoot, platformRoot);
@@ -329,6 +355,7 @@ function applyNativeExtensions(project, { projectRoot, platformRoot }) {
   for (const extension of EXTENSIONS) {
     addExtension(objects, projectId, app, extension);
     migrateExtensionKit(objects, app, extension);
+    addPrivacyManifest(objects, extension);
   }
   addShared(objects, projectId);
   return project;

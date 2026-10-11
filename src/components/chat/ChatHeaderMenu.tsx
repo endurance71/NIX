@@ -4,6 +4,7 @@ export const CHAT_PEER_REPORT_REASONS = [
   'harassment',
   'hate',
   'sexual_content',
+  'child_safety',
   'violence',
   'self_harm',
   'impersonation',

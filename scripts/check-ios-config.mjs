@@ -57,8 +57,8 @@ const backgroundModesMatch = plist.match(
 const backgroundModes = backgroundModesMatch
   ? [...backgroundModesMatch[1].matchAll(/<string>([^<]+)<\/string>/g)].map((match) => match[1]).sort()
   : [];
-if (backgroundModes.join(',') !== 'fetch,processing') {
-  fail('UIBackgroundModes must contain only fetch and processing for upload recovery');
+if (backgroundModes.join(',') !== 'processing') {
+  fail('UIBackgroundModes must contain only processing (expo-background-task upload recovery)');
 }
 if (
   !plist.includes('<key>BGTaskSchedulerPermittedIdentifiers</key>')

@@ -16,8 +16,10 @@ final class ShareViewController: UIViewController {
     Task { await handleShare() }
   }
 
-  /// Step log for diagnosing shares (`SharedIntake/share-debug.log`, read by the dev app).
+  /// Step log for diagnosing shares (`SharedIntake/share-debug.log`, read by the dev app). Debug
+  /// builds only: a release build never writes it.
   private func trace(_ message: String) {
+    #if DEBUG
     guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroup) else { return }
     let folder = container.appendingPathComponent(Self.intakeFolder, isDirectory: true)
     try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -30,6 +32,7 @@ final class ShareViewController: UIViewController {
     } else {
       try? Data(line.utf8).write(to: file)
     }
+    #endif
   }
 
   private func handleShare() async {
@@ -100,46 +103,16 @@ final class ShareViewController: UIViewController {
     }
   }
 
-  /// Tries the extension context first, then the host application object in the responder
-  /// chain (extensions may not use `UIApplication` APIs directly).
+  /// Asks the system to open NiX through the extension context only (the public API for
+  /// extensions). When the host refuses, the caller falls back to a local notification and the app
+  /// picks the shared file up on its next activation.
   private func openContainingApp(_ url: URL) async -> Bool {
-    if let context = extensionContext {
-      let opened = await withCheckedContinuation { continuation in
-        context.open(url) { success in continuation.resume(returning: success) }
-      }
-      trace("extensionContext.open=\(opened)")
-      if opened { return true }
+    guard let context = extensionContext else { return false }
+    let opened = await withCheckedContinuation { continuation in
+      context.open(url) { success in continuation.resume(returning: success) }
     }
-    // Scenes (`_UIHostedWindowScene` in a share sheet) take UIScene.OpenExternalURLOptions, the
-    // application object takes a dictionary; passing the wrong one crashes the extension.
-    let selector = NSSelectorFromString("openURL:options:completionHandler:")
-    typealias OpenURL = @convention(c) (AnyObject, Selector, NSURL, AnyObject, ((Bool) -> Void)?) -> Void
-    var responder: UIResponder? = self
-    while let current = responder {
-      if current.responds(to: selector), let method = current.method(for: selector) {
-        let options: AnyObject = current is UIScene ? UIScene.OpenExternalURLOptions() : NSDictionary()
-        trace("responder \(type(of: current)) answers openURL")
-        let open = unsafeBitCast(method, to: OpenURL.self)
-        // Some iOS versions never call back; do not wait forever.
-        let opened = await withCheckedContinuation { continuation in
-          var resumed = false
-          let resume: (Bool) -> Void = { success in
-            DispatchQueue.main.async {
-              guard !resumed else { return }
-              resumed = true
-              continuation.resume(returning: success)
-            }
-          }
-          open(current, selector, url as NSURL, options) { success in resume(success) }
-          DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { resume(false) }
-        }
-        trace("\(type(of: current)) open=\(opened)")
-        if opened { return true }
-      }
-      responder = current.next
-    }
-    trace("no responder answers openURL")
-    return false
+    trace("extensionContext.open=\(opened)")
+    return opened
   }
 
   private func postOpenNotification(isVideo: Bool) async {
