@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
+import { View } from 'react-native';
 import { Host } from '@expo/ui';
 import { Button, ContextMenu, Divider, Picker, RNHostView, Section, Text } from '@expo/ui/swift-ui';
-import { accessibilityLabel, menuOrder, pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
+import { accessibilityLabel, font, menuOrder, pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
 import { MESSAGE_REACTION_EMOJIS, MESSAGE_REACTION_GLYPHS } from '../../services/messageReactionService';
 import { resolveAppIconName, type AppIconName } from '../../theme/app-icons';
@@ -42,8 +43,14 @@ export function NativeMessageMenu({
   onReact,
   onRemoveReaction,
   actions,
+  bleed = 0,
 }: {
   children: ReactElement;
+  /**
+   * Room around the bubble for what draws outside it (the tail, Tapback badges): the hosted view
+   * clips to its bounds, so it grows by `bleed` on each side and a negative margin keeps the layout.
+   */
+  bleed?: number;
   canReact: boolean;
   selectedEmoji: MessageReactionEmoji | null;
   onReact: (emoji: MessageReactionEmoji) => void;
@@ -53,10 +60,14 @@ export function NativeMessageMenu({
   const { t } = useTranslation();
   if (!canReact && actions.length === 0) return children;
   return (
-    <Host matchContents>
+    <Host matchContents style={{ marginHorizontal: -bleed }}>
       <ContextMenu modifiers={[menuOrder('fixed')]}>
         <ContextMenu.Trigger>
-          <RNHostView matchContents>{children}</RNHostView>
+          <RNHostView matchContents>
+            <View collapsable={false} style={{ paddingHorizontal: bleed }}>
+              {children}
+            </View>
+          </RNHostView>
         </ContextMenu.Trigger>
         <ContextMenu.Items>
           {canReact ? (
@@ -70,7 +81,7 @@ export function NativeMessageMenu({
                 // palette without one. VoiceOver still gets the name.
                 modifiers={[pickerStyle('palette'), accessibilityLabel(t('chat.reactionPalette'))]}>
                 {MESSAGE_REACTION_EMOJIS.map((emoji) => (
-                  <Text key={emoji} modifiers={[tag(emoji)]}>
+                  <Text key={emoji} modifiers={[tag(emoji), font({ size: 28 })]}>
                     {MESSAGE_REACTION_GLYPHS[emoji]}
                   </Text>
                 ))}

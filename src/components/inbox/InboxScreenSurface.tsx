@@ -137,15 +137,22 @@ function avatarView({
   storagePath,
   emoji,
   fallbackInitial,
+  slot,
 }: {
   size: number;
   url: string | null;
   storagePath: string | null;
   emoji: string | null;
   fallbackInitial: string;
+  /**
+   * Where the row / pin sits. When SwiftUI moves a row (a pin taken out of the list, a new message
+   * on top) the hosted React view could stay detached and the avatar went blank; a new slot mounts
+   * a fresh host. The image itself comes from the cache, so nothing flickers.
+   */
+  slot: string;
 }) {
   return (
-    <RNHostView matchContents>
+    <RNHostView key={slot} matchContents>
       <View
         collapsable={false}
         accessibilityElementsHidden
@@ -364,6 +371,7 @@ function MessageRowContent({
   friendshipBadge,
   reactionGlyph,
   t,
+  slot,
 }: {
   row: InboxRowModel;
   avatarUrl: string | null;
@@ -373,6 +381,7 @@ function MessageRowContent({
   friendshipBadge: FriendshipBadge | null;
   reactionGlyph: string | null;
   t: Translate;
+  slot: string;
 }) {
   const { colors } = useAppTheme();
   const { fontScale } = useWindowDimensions();
@@ -403,6 +412,7 @@ function MessageRowContent({
         storagePath: row.avatarStoragePath,
         emoji: row.avatarEmoji,
         fallbackInitial: row.username,
+        slot,
       })}
 
       <VStack
@@ -623,6 +633,7 @@ const MessageRow = memo(function MessageRow({
   avatarUrl,
   busy,
   isFirst,
+  position,
   pinned,
   muted,
   friendshipBadge,
@@ -636,6 +647,8 @@ const MessageRow = memo(function MessageRow({
   avatarUrl: string | null;
   busy: boolean;
   isFirst: boolean;
+  /** Index in the list, for the avatar host (see avatarView). */
+  position: number;
   pinned: boolean;
   muted: boolean;
   friendshipBadge: FriendshipBadge | null;
@@ -683,6 +696,7 @@ const MessageRow = memo(function MessageRow({
       friendshipBadge={friendshipBadge}
       reactionGlyph={reactionGlyph}
       t={t}
+      slot={`row:${position}`}
     />
   );
 
@@ -916,6 +930,7 @@ const PinnedConversationCell = memo(function PinnedConversationCell({
             storagePath: row.avatarStoragePath,
             emoji: row.avatarEmoji,
             fallbackInitial: row.username,
+            slot: `${x}:${y}`,
           })}
           {/* Unread: a blue dot on the avatar's corner, like an unread pin in Messages. */}
           {row.unread ? (
@@ -996,6 +1011,10 @@ const PinnedConversationCell = memo(function PinnedConversationCell({
   return (
     <ContextMenu modifiers={placement}>
       <ContextMenu.Trigger>{cellButton}</ContextMenu.Trigger>
+      {/* Inside the list the system would lift the whole grid row; lift just this pin. */}
+      <ContextMenu.Preview>
+        <VStack modifiers={[padding({ all: 16 })]}>{content}</VStack>
+      </ContextMenu.Preview>
       <ContextMenu.Items>
         <PinnedUploadMenuItems
           row={row}
@@ -1276,6 +1295,7 @@ function InboxList({
       avatarUrl={row.avatarStoragePath ? vm.avatarUrls[row.avatarStoragePath] ?? null : null}
       busy={vm.busyPeerIds.has(row.peerId)}
       isFirst={index === 0}
+      position={index}
       pinned={vm.pinnedPeerIds.has(row.peerId)}
       muted={vm.mutedPeerIds.has(row.peerId)}
       friendshipBadge={vm.friendshipBadges.get(row.peerId) ?? null}

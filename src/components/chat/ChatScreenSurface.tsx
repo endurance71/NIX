@@ -708,6 +708,8 @@ function savedAccessibilityText(
 
 const EMPTY_WAVEFORM: readonly number[] = [];
 const NOOP = () => undefined;
+/** Tapback badges stick out past the bubble's corner further than the tail does. */
+const NATIVE_MENU_BLEED = REACTION_BADGE_CORNER_OUTSET + 2;
 
 /**
  * Memoized with primitive props and id-keyed stable handlers (PERF-10): a re-render of the
@@ -1008,6 +1010,7 @@ const MessageBubble = memo(function MessageBubble({
         <View collapsable={false}>
           {nativeMenu ? (
             <NativeMessageMenu
+              bleed={NATIVE_MENU_BLEED}
               canReact={canReact}
               selectedEmoji={myEmoji}
               onReact={(emoji) => onReact(messageId, emoji)}
