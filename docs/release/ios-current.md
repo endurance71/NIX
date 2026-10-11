@@ -50,6 +50,8 @@ tour opens and ends on the NiX logo drawing itself with the wordmark.
 Twenty-second OTA (2026-10-11): update group `75aa601d-ede1-47cb-abe0-c50fd52d1de4`, source `a4f02df` — welcome
 set-up steps (notifications, camera and microphone, public or private account, Memories) and a "getting your app
 ready" finale with the logo.
+Twenty-third OTA (2026-10-11): update group `7cd2bf8a-debb-407b-be52-dbc575123a26`, source `6fe3b49` — welcome set-up steps no longer advance on their own when a
+permission is already granted; they show "Turned On" and wait for Continue.
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
