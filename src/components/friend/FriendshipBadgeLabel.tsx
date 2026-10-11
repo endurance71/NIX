@@ -19,14 +19,17 @@ import {
 /**
  * SwiftUI streak / best-friend glyphs („💛 🔥 12 ⌛”) for native list rows (inbox, friends list).
  * Never truncated: the name next to it gives way first. `decorative` hides it from VoiceOver when
- * the row already speaks the badge in its own combined label.
+ * the row already speaks the badge in its own combined label. `compact` is the caption size used
+ * next to a name under a pinned avatar (inbox grid).
  */
 export function FriendshipBadgeLabel({
   badge,
   decorative = false,
+  compact = false,
 }: {
   badge: FriendshipBadge | null | undefined;
   decorative?: boolean;
+  compact?: boolean;
 }) {
   const { t } = useTranslation();
   const text = formatFriendshipBadge(badge);
@@ -34,7 +37,7 @@ export function FriendshipBadgeLabel({
   return (
     <Text
       modifiers={[
-        font({ design: 'rounded', textStyle: 'subheadline', weight: 'semibold' }),
+        font({ design: 'rounded', textStyle: compact ? 'caption' : 'subheadline', weight: 'semibold' }),
         monospacedDigit(),
         foregroundStyle({ type: 'hierarchical', style: 'primary' }),
         lineLimit(1),

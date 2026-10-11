@@ -17,13 +17,16 @@ import {
   SwipeActions,
   Text,
   VStack,
+  ZStack,
 } from '@expo/ui/swift-ui';
 import {
+  Animation,
   accessibilityElement,
   accessibilityHidden,
   accessibilityHint,
   accessibilityLabel,
   accessibilityValue,
+  animation,
   buttonStyle,
   contentShape,
   controlSize,
@@ -66,6 +69,13 @@ import {
 import type { InboxScreenViewModel } from '../../hooks/useInboxScreen';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useStableHandler } from '../../hooks/useStableHandler';
+import {
+  PINNED_GRID_NAME_SPACING,
+  layoutPinnedGrid,
+  pinnedGridAnimationKey,
+  resolvePinnedGridColumns,
+} from '../../lib/inboxPinnedGrid';
+import { useMotionEnabled } from '../../theme/motion';
 import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 import { AppHost } from '../ui/app-host';
 import { AvatarCircle } from '../ui/avatar-circle';
@@ -429,6 +439,19 @@ function selectPrimaryUploadAction(upload: InboxRowModel['upload']): UploadRowAc
   return null;
 }
 
+function uploadActionLabel(action: UploadRowAction, t: Translate) {
+  switch (action) {
+    case 'resume':
+      return t('inbox.uploadResume');
+    case 'retry':
+      return t('inbox.uploadRetry');
+    case 'pause':
+      return t('inbox.uploadPause');
+    case 'cancel':
+      return t('inbox.uploadCancel');
+  }
+}
+
 function MessageLeadingSwipeActions({
   row,
   pinned,
@@ -454,17 +477,11 @@ function MessageLeadingSwipeActions({
 
   // A row that is still sending keeps its upload controls on the leading edge.
   if (upload && (primaryUploadAction || upload.actions.cancelJobIds.length > 0)) {
-    const primaryUploadLabel =
-      primaryUploadAction === 'resume'
-        ? t('inbox.uploadResume')
-        : primaryUploadAction === 'retry'
-          ? t('inbox.uploadRetry')
-          : t('inbox.uploadPause');
     return (
       <SwipeActions.Actions edge="leading" allowsFullSwipe={false}>
         {primaryUploadAction ? (
           <Button
-            label={primaryUploadLabel}
+            label={uploadActionLabel(primaryUploadAction, t)}
             onPress={() => onUploadAction(primaryUploadAction)}
             modifiers={[tint(primaryUploadAction === 'retry' ? colors.warning : colors.systemBlue)]}
           />
@@ -744,6 +761,334 @@ const MessageRow = memo(function MessageRow({
   );
 });
 
+/** Insets of the list row that hosts the pinned grid; the grid lays out in the width between them. */
+const PINNED_GRID_ROW_INSET = 16;
+const PINNED_UNREAD_DOT_SIZE = 14;
+/** Ring in the screen background around the unread dot, so it reads on any avatar photo. */
+const PINNED_UNREAD_RING = 3;
+const PINNED_STATUS_BADGE_SIZE = 28;
+/** Pin / unpin: cells glide to their new place (≈ motion.spring.default, SwiftUI `.smooth`). */
+const PINNED_GRID_ANIMATION = Animation.smooth({ duration: 0.35 });
+
+/** Upload progress / problem (or a pending action) in a small badge on the avatar's corner. */
+function PinnedStatusBadge({ row, busy }: { row: InboxRowModel; busy: boolean }) {
+  const { colors } = useAppTheme();
+  const uploadColor = useUploadPhaseColor(row.upload?.phase) ?? colors.accentText;
+  const upload = row.upload;
+  if (!busy && !upload) return null;
+  const icon = upload ? UPLOAD_PHASE_ICONS[upload.phase] : null;
+  return (
+    <ZStack alignment="center" modifiers={[accessibilityHidden()]}>
+      <Circle
+        modifiers={[
+          frame({ width: PINNED_STATUS_BADGE_SIZE, height: PINNED_STATUS_BADGE_SIZE }),
+          foregroundStyle(colors.background),
+        ]}
+      />
+      {busy ? (
+        <ProgressView modifiers={[controlSize('small')]} />
+      ) : icon ? (
+        <Image systemName={resolveAppIconName(icon)} size={APP_ICON_SIZE.sm} color={uploadColor} />
+      ) : (
+        <ProgressView
+          value={upload?.progress ?? 0}
+          modifiers={[
+            progressViewStyle('circular'),
+            frame({ width: 20, height: 20 }),
+            tint(uploadColor),
+          ]}
+        />
+      )}
+    </ZStack>
+  );
+}
+
+/** Retry / resume / pause / cancel of a pinned conversation's upload — rows have them on swipe. */
+function PinnedUploadMenuItems({
+  row,
+  onUploadAction,
+  divided,
+  t,
+}: {
+  row: InboxRowModel;
+  onUploadAction: (action: UploadRowAction) => void;
+  /** A divider before the conversation actions that follow. */
+  divided: boolean;
+  t: Translate;
+}) {
+  const primary = selectPrimaryUploadAction(row.upload);
+  const canCancel = Boolean(row.upload?.actions.cancelJobIds.length);
+  if (!primary && !canCancel) return null;
+  return (
+    <>
+      {primary ? (
+        <Button label={uploadActionLabel(primary, t)} onPress={() => onUploadAction(primary)} />
+      ) : null}
+      {canCancel ? (
+        <Button
+          label={uploadActionLabel('cancel', t)}
+          role="destructive"
+          onPress={() => onUploadAction('cancel')}
+        />
+      ) : null}
+      {divided ? <Divider /> : null}
+    </>
+  );
+}
+
+/**
+ * One pinned conversation: a large avatar with the name under it, like a pin in Messages. Tap and
+ * long press do what the row does (open the chat / the same context menu); VoiceOver reads one
+ * element with the row's label. Memoized like `MessageRow` (PERF-16).
+ */
+const PinnedConversationCell = memo(function PinnedConversationCell({
+  row,
+  avatarUrl,
+  busy,
+  muted,
+  friendshipBadge,
+  reactionGlyph,
+  muteAvailable,
+  networkActionsEnabled,
+  handlers,
+  x,
+  y,
+  cellWidth,
+  cellHeight,
+  avatarSize,
+  animationKey,
+  t,
+}: {
+  row: InboxRowModel;
+  avatarUrl: string | null;
+  busy: boolean;
+  muted: boolean;
+  friendshipBadge: FriendshipBadge | null;
+  reactionGlyph: string | null;
+  muteAvailable: boolean;
+  networkActionsEnabled: boolean;
+  handlers: RowHandlers;
+  x: number;
+  y: number;
+  cellWidth: number;
+  cellHeight: number;
+  avatarSize: number;
+  /** Pinned-set key for the glide animation; `null` with Reduce Motion (cells jump into place). */
+  animationKey: number | null;
+  t: Translate;
+}) {
+  const { colors } = useAppTheme();
+  const menu = resolveInboxRowMenu({ row, busy, online: networkActionsEnabled, muteAvailable });
+  const name = row.display_name || `@${row.username}`;
+  const a11yLabel = buildInboxRowAccessibilityLabel({
+    name,
+    friendshipLabel: friendshipBadgeAccessibilityLabel(friendshipBadge, t),
+    unreadLabel: row.unread ? t('inbox.unreadA11y') : null,
+    pinnedLabel: t('inbox.pinnedA11y'),
+    mutedLabel: muted ? t('inbox.mutedA11y') : null,
+    // The grid shows no status line; VoiceOver still gets the facts the row would show.
+    status: rowSubtitle(row, t, reactionGlyph),
+    timestamp: row.upload ? '' : row.timestampLabel,
+  });
+
+  // Absolutely placed in the grid (see layoutPinnedGrid): padding, not offset, so the context
+  // menu preview lifts from where the cell really is; the padding animates on pin / unpin.
+  const placement: ModifierConfig[] = [
+    padding({ leading: x, top: y }),
+    ...(animationKey === null ? [] : [animation(PINNED_GRID_ANIMATION, animationKey)]),
+  ];
+
+  const content = (
+    <VStack
+      alignment="center"
+      spacing={PINNED_GRID_NAME_SPACING}
+      modifiers={[
+        frame({ width: cellWidth, height: cellHeight, alignment: 'top' }),
+        contentShape(shapes.rectangle()),
+      ]}>
+      <ZStack
+        alignment="bottomTrailing"
+        modifiers={[frame({ width: avatarSize, height: avatarSize })]}>
+        <ZStack alignment="topLeading" modifiers={[frame({ width: avatarSize, height: avatarSize })]}>
+          {avatarView({
+            size: avatarSize,
+            url: avatarUrl,
+            storagePath: row.avatarStoragePath,
+            emoji: row.avatarEmoji,
+            fallbackInitial: row.username,
+          })}
+          {/* Unread: a blue dot on the avatar's corner, like an unread pin in Messages. */}
+          {row.unread ? (
+            <ZStack alignment="center" modifiers={[accessibilityHidden()]}>
+              <Circle
+                modifiers={[
+                  frame({
+                    width: PINNED_UNREAD_DOT_SIZE + PINNED_UNREAD_RING * 2,
+                    height: PINNED_UNREAD_DOT_SIZE + PINNED_UNREAD_RING * 2,
+                  }),
+                  foregroundStyle(colors.background),
+                ]}
+              />
+              <Circle
+                modifiers={[
+                  frame({ width: PINNED_UNREAD_DOT_SIZE, height: PINNED_UNREAD_DOT_SIZE }),
+                  foregroundStyle(colors.systemBlue),
+                ]}
+              />
+            </ZStack>
+          ) : null}
+        </ZStack>
+        <PinnedStatusBadge row={row} busy={busy} />
+      </ZStack>
+      {/* Streak / best-friend glyphs stay; the name truncates first. */}
+      <HStack alignment="center" spacing={3} modifiers={[frame({ maxWidth: cellWidth })]}>
+        {muted ? (
+          <Image
+            systemName={resolveAppIconName('notificationOff')}
+            size={APP_ICON_SIZE.xs}
+            color={colors.secondaryLabel}
+            modifiers={[accessibilityHidden()]}
+          />
+        ) : null}
+        <Text
+          modifiers={[
+            font({ design: 'rounded', textStyle: 'footnote', weight: row.unread ? 'semibold' : 'regular' }),
+            foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+            lineLimit(1),
+          ]}>
+          {name}
+        </Text>
+        <FriendshipBadgeLabel badge={friendshipBadge} decorative compact />
+      </HStack>
+    </VStack>
+  );
+
+  if (busy) {
+    return (
+      <HStack
+        modifiers={[...placement, accessibilityElement('ignore'), accessibilityLabel(a11yLabel)]}>
+        {content}
+      </HStack>
+    );
+  }
+
+  const cellButton = (
+    <Button
+      onPress={() => handlers.onOpen(row)}
+      modifiers={[
+        buttonStyle('plain'),
+        accessibilityLabel(a11yLabel),
+        accessibilityHint(
+          row.kind === 'nix' && row.unread ? t('inbox.openHint') : t('inbox.openChatHint'),
+        ),
+      ]}>
+      {content}
+    </Button>
+  );
+  const hasRowMenu = hasInboxRowMenu(menu);
+  const hasUploadItems = Boolean(
+    selectPrimaryUploadAction(row.upload) || row.upload?.actions.cancelJobIds.length,
+  );
+  if (!hasRowMenu && !hasUploadItems) {
+    return <HStack modifiers={placement}>{cellButton}</HStack>;
+  }
+
+  return (
+    <ContextMenu modifiers={placement}>
+      <ContextMenu.Trigger>{cellButton}</ContextMenu.Trigger>
+      <ContextMenu.Items>
+        <PinnedUploadMenuItems
+          row={row}
+          onUploadAction={(action) => handlers.onUploadAction(row, action)}
+          divided={hasRowMenu}
+          t={t}
+        />
+        {hasRowMenu ? (
+          <MessageContextMenuItems
+            menu={menu}
+            pinned
+            muted={muted}
+            onTogglePin={() => handlers.onTogglePin(row)}
+            onSetMute={(duration) => handlers.onSetMute(row, duration)}
+            onMarkRead={() => handlers.onMarkRead(row)}
+            onReport={() => handlers.onReport(row)}
+            onBlock={() => handlers.onBlock(row)}
+            onDelete={() => handlers.onDelete(row)}
+            t={t}
+          />
+        ) : null}
+      </ContextMenu.Items>
+    </ContextMenu>
+  );
+});
+
+/**
+ * Pinned conversations as a grid of large avatars at the top of the list (Messages, iOS 26): rows
+ * of `columns`, every row centered. One list row, so it scrolls with the conversations under it.
+ */
+function PinnedConversationsGrid({
+  rows,
+  columns,
+  vm,
+  handlers,
+}: {
+  rows: readonly InboxRowModel[];
+  columns: number;
+  vm: InboxScreenViewModel;
+  handlers: RowHandlers;
+}) {
+  const { colors } = useAppTheme();
+  const { width, fontScale } = useWindowDimensions();
+  const motionEnabled = useMotionEnabled();
+  const gridWidth = Math.max(0, width - PINNED_GRID_ROW_INSET * 2);
+  const layout = layoutPinnedGrid({ count: rows.length, columns, width: gridWidth, fontScale });
+  const animationKey = motionEnabled ? pinnedGridAnimationKey(rows.map((row) => row.peerId)) : null;
+
+  return (
+    <ZStack
+      alignment="topLeading"
+      modifiers={[
+        frame({ width: gridWidth, height: layout.height, alignment: 'topLeading' }),
+        listRowInsets({
+          top: 8,
+          leading: PINNED_GRID_ROW_INSET,
+          bottom: 16,
+          trailing: PINNED_GRID_ROW_INSET,
+        }),
+        listRowBackground(colors.background),
+        listRowSeparator('hidden'),
+        // Fades a pin in / out while the others glide (and the row resizes) on pin / unpin.
+        ...(animationKey === null ? [] : [animation(PINNED_GRID_ANIMATION, animationKey)]),
+      ]}>
+      {rows.map((row, index) => {
+        const position = layout.positions[index] ?? { x: 0, y: 0 };
+        return (
+          <PinnedConversationCell
+            // Peer key: a pin keeps its cell (and avatar) while the grid reflows around it.
+            key={`pin:${row.peerId}`}
+            row={row}
+            avatarUrl={row.avatarStoragePath ? vm.avatarUrls[row.avatarStoragePath] ?? null : null}
+            busy={vm.busyPeerIds.has(row.peerId)}
+            muted={vm.mutedPeerIds.has(row.peerId)}
+            friendshipBadge={vm.friendshipBadges.get(row.peerId) ?? null}
+            reactionGlyph={reactionGlyphFor(vm.nixReactionFor(row))}
+            muteAvailable={vm.muteAvailable}
+            networkActionsEnabled={vm.canPerformNetworkAction}
+            handlers={handlers}
+            x={position.x}
+            y={position.y}
+            cellWidth={layout.cellWidth}
+            cellHeight={layout.cellHeight}
+            avatarSize={layout.avatarSize}
+            animationKey={animationKey}
+            t={vm.t}
+          />
+        );
+      })}
+    </ZStack>
+  );
+}
+
 function LegacyUnavailableState({
   title,
   description,
@@ -906,7 +1251,23 @@ function InboxList({
     [onBlock, onDelete, onMarkRead, onMute, onOpen, onReport, onSetMute, onTogglePin, onUploadAction],
   );
 
-  const messageRows = vm.rows.map((row, index) => (
+  // Pinned conversations become the avatar grid (like Messages) unless searching or at the largest
+  // text sizes, where they stay ordinary rows at the top of the list.
+  const { fontScale } = useWindowDimensions();
+  const pinnedGridColumns = resolvePinnedGridColumns(fontScale);
+  const showPinnedGrid = pinnedGridColumns !== null && vm.pinnedRows.length > 0;
+  const listRows = showPinnedGrid ? vm.unpinnedRows : vm.rows;
+  const pinnedGrid = showPinnedGrid ? (
+    <PinnedConversationsGrid
+      key="pinned-grid"
+      rows={vm.pinnedRows}
+      columns={pinnedGridColumns}
+      vm={vm}
+      handlers={handlers}
+    />
+  ) : null;
+
+  const messageRows = listRows.map((row, index) => (
     <MessageRow
       // One row per conversation: keyed by peer so the optimistic upload row and the confirmed
       // server row are the same SwiftUI row (no remount / avatar flicker on confirmation).
@@ -958,10 +1319,16 @@ function InboxList({
             })}
           </Section>
         ) : null}
-        {messageRows.length > 0 && vm.requests.length > 0 ? (
-          <Section title={vm.t('inbox.messages')}>{messageRows}</Section>
+        {(pinnedGrid || messageRows.length > 0) && vm.requests.length > 0 ? (
+          <Section title={vm.t('inbox.messages')}>
+            {pinnedGrid}
+            {messageRows}
+          </Section>
         ) : (
-          messageRows
+          <>
+            {pinnedGrid}
+            {messageRows}
+          </>
         )}
       </List>
     </AppHost>

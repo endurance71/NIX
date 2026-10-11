@@ -8,6 +8,7 @@ import {
   normalizeConversationPins,
   orderRowsWithPins,
   parseStoredConversationPins,
+  splitPinnedRows,
 } from './conversationPins';
 
 const pin = (peerId: string, pinnedAt: string) => ({ peerId, pinnedAt });
@@ -72,6 +73,35 @@ describe('orderRowsWithPins', () => {
   it('returns the same array when no visible row is pinned', () => {
     expect(orderRowsWithPins(rows, [])).toBe(rows);
     expect(orderRowsWithPins(rows, [pin('zzz', '2026-10-01T00:00:00Z')])).toBe(rows);
+  });
+});
+
+describe('splitPinnedRows', () => {
+  const rows = [{ peerId: 'a' }, { peerId: 'b' }, { peerId: 'c' }, { peerId: 'd' }];
+
+  it('takes the pinned rows out in pin order and keeps the rest in recency order', () => {
+    const { pinned, rest } = splitPinnedRows(rows, [
+      pin('d', '2026-10-01T00:00:00Z'),
+      pin('gone', '2026-10-01T12:00:00Z'),
+      pin('b', '2026-10-02T00:00:00Z'),
+    ]);
+    expect(pinned.map((row) => row.peerId)).toEqual(['d', 'b']);
+    expect(rest.map((row) => row.peerId)).toEqual(['a', 'c']);
+  });
+
+  it('keeps the same rows array when no visible row is pinned', () => {
+    expect(splitPinnedRows(rows, []).rest).toBe(rows);
+    expect(splitPinnedRows(rows, [pin('zzz', '2026-10-01T00:00:00Z')])).toEqual({ pinned: [], rest: rows });
+    expect(splitPinnedRows(rows, [pin('zzz', '2026-10-01T00:00:00Z')]).rest).toBe(rows);
+  });
+
+  it('can pin every conversation', () => {
+    const { pinned, rest } = splitPinnedRows(rows.slice(0, 2), [
+      pin('b', '2026-10-01T00:00:00Z'),
+      pin('a', '2026-10-02T00:00:00Z'),
+    ]);
+    expect(pinned.map((row) => row.peerId)).toEqual(['b', 'a']);
+    expect(rest).toEqual([]);
   });
 });
 

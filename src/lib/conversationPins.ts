@@ -12,7 +12,7 @@ export type ConversationPin = {
   pinnedAt: string;
 };
 
-/** Upper bound on pins, like Messages: the pinned block stays a short, scannable list. */
+/** Upper bound on pins, like Messages: the pinned avatar grid stays at most three rows of three. */
 export const MAX_CONVERSATION_PINS = 9;
 
 function pinTime(pin: ConversationPin): number {
@@ -72,21 +72,34 @@ export function canAddConversationPin(pins: readonly ConversationPin[], peerId: 
 }
 
 /**
- * Pinned rows first, in pin order; the rest keep their (recency) order. Pins without a visible row
- * (deleted conversation, blocked peer) are ignored. Returns the same array when nothing is pinned.
+ * Splits rows into the pinned ones (in pin order) and the rest (in their recency order). Pins
+ * without a visible row (deleted conversation, blocked peer) are ignored. When nothing visible is
+ * pinned, `rest` is the same array.
+ */
+export function splitPinnedRows<T extends { peerId: string }>(
+  rows: readonly T[],
+  pins: readonly ConversationPin[],
+): { pinned: readonly T[]; rest: readonly T[] } {
+  if (pins.length === 0 || rows.length === 0) return { pinned: [], rest: rows };
+  const rank = new Map(pins.map((pin, index) => [pin.peerId, index] as const));
+  const pinned: T[] = [];
+  const rest: T[] = [];
+  for (const row of rows) (rank.has(row.peerId) ? pinned : rest).push(row);
+  if (pinned.length === 0) return { pinned: [], rest: rows };
+  pinned.sort((left, right) => rank.get(left.peerId)! - rank.get(right.peerId)!);
+  return { pinned, rest };
+}
+
+/**
+ * Pinned rows first, in pin order; the rest keep their (recency) order. Returns the same array when
+ * nothing visible is pinned.
  */
 export function orderRowsWithPins<T extends { peerId: string }>(
   rows: readonly T[],
   pins: readonly ConversationPin[],
 ): readonly T[] {
-  if (pins.length === 0 || rows.length === 0) return rows;
-  const rank = new Map(pins.map((pin, index) => [pin.peerId, index] as const));
-  const pinned: T[] = [];
-  const rest: T[] = [];
-  for (const row of rows) (rank.has(row.peerId) ? pinned : rest).push(row);
-  if (pinned.length === 0) return rows;
-  pinned.sort((left, right) => rank.get(left.peerId)! - rank.get(right.peerId)!);
-  return [...pinned, ...rest];
+  const { pinned, rest } = splitPinnedRows(rows, pins);
+  return pinned.length === 0 ? rest : [...pinned, ...rest];
 }
 
 /**

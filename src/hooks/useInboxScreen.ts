@@ -39,7 +39,7 @@ import { fetchMessageReactionsWithPeer } from '../services/messageReactionServic
 import { useAuth } from './useAuth';
 import { useSignedAvatarUrls } from './useSignedAvatarUrls';
 import { filterInboxRows, filterInviteRequests } from '../lib/inboxSearch';
-import { orderRowsWithPins } from '../lib/conversationPins';
+import { orderRowsWithPins, splitPinnedRows } from '../lib/conversationPins';
 import type { ConversationMuteDuration } from '../lib/inboxRowMenu';
 import { notify as hapticNotify } from '../lib/haptics';
 import { markTextConversationRead } from '../services/conversationReadService';
@@ -276,6 +276,15 @@ export function useInboxScreen() {
     () => filterInboxRows(orderedRows, deferredSearchQuery),
     [orderedRows, deferredSearchQuery],
   );
+  // The pinned avatar grid (like Messages) takes the pinned conversations out of the list; while
+  // searching there is no grid and the matches are ordinary rows.
+  const searching = deferredSearchQuery.trim().length > 0;
+  const pinnedSplit = useMemo(
+    () => (searching ? null : splitPinnedRows(allRows, preferences.pins)),
+    [allRows, preferences.pins, searching],
+  );
+  const pinnedRows = pinnedSplit?.pinned ?? EMPTY_LIST;
+  const unpinnedRows = pinnedSplit?.rest ?? rows;
   // Reactions the peer left on my sent NiXes, shown next to their status ("Otwarto · ❤️").
   const sentNixIds = useMemo(
     () =>
@@ -618,7 +627,12 @@ export function useInboxScreen() {
 
   return {
     t,
+    /** Every visible conversation, pinned first (search results, or the fallback without a grid). */
     rows,
+    /** Pinned conversations for the avatar grid, in pin order; empty while searching. */
+    pinnedRows,
+    /** The list under the pinned grid: `rows` without the pinned ones. */
+    unpinnedRows,
     requests: visibleRequests,
     avatarUrls,
     pinnedPeerIds: preferences.pinnedPeerIds,
