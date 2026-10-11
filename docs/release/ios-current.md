@@ -27,6 +27,8 @@ the chat scroll edge effect and delivered uploads shown as NiX chips. Builds 10/
 Second OTA (2026-10-11): update group `4b2509ef-fe14-4f0a-b39e-80101cc7401e`, source `4c43f63` — soft chat scroll edge via
 `ScrollViewMarker`, camera close button back to the originating chat, live loudness spectrum while recording, every
 in-app notification grows out of the Dynamic Island.
+Third OTA (2026-10-11): update group `fd949aa5-db8a-4d07-aec3-1fd89a93ba84`, source `021f831` — the voice recording
+spectrum glides at display rate on the UI thread.
 
 The 1.0.12 App Review track
 (build 11) is unaffected.
