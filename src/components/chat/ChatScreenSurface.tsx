@@ -143,8 +143,8 @@ import {
 import { MessageReplyHeader } from './MessageReplyHeader';
 import { SwipeToReply } from './SwipeToReply';
 import { ComposerContextBar } from './ComposerContextBar';
-import { NativeMessageMenu, type NativeMessageMenuAction } from './NativeMessageMenu';
-import { TapbackOverlay, type TapbackTarget } from './TapbackOverlay';
+import type { MessageActionMenuItem } from './MessageActionMenu';
+import { MessageOverlay, type MessageOverlayRequest } from './MessageOverlay';
 
 type ChatTimelineEntry = ChatTimelineItem<OptimisticTextMessage>;
 
@@ -501,8 +501,11 @@ type MessageBubbleProps = {
   actions: ChatMessageActions;
   onReact: (messageId: string, emoji: MessageReactionEmoji) => void;
   onRemoveReaction: (messageId: string) => void;
-  /** Double tap: the large Tapback bar alone (iMessage), measured in window coordinates. */
-  onDoubleTap: (messageId: string, isOwn: boolean, frame: { x: number; y: number; width: number; height: number }) => void;
+  /**
+   * Double tap (`tapback`: the large emoji bar alone) or long press (`menu`: blur, lifted bubble,
+   * emoji bar and actions), with the bubble's frame in window coordinates.
+   */
+  onOpenOverlay: (request: BubbleOverlayRequest) => void;
   onCopy: (messageId: string) => void;
   onReport: (messageId: string) => void;
   onRetry: (outboxId: string) => void;
@@ -713,8 +716,12 @@ const EMPTY_WAVEFORM: readonly number[] = [];
 const NOOP = () => undefined;
 /** Two taps on a text bubble within this window open the Tapback bar (iMessage). */
 const DOUBLE_TAP_MS = 300;
-/** Tapback badges stick out past the bubble's corner further than the tail does. */
-const NATIVE_MENU_BLEED = REACTION_BADGE_CORNER_OUTSET + 2;
+/** What a bubble asks the screen to show; the screen converts the frame to its own coordinates. */
+type BubbleOverlayRequest = Omit<MessageOverlayRequest, 'target'> & {
+  messageId: string;
+  isOwn: boolean;
+  frame: { x: number; y: number; width: number; height: number };
+};
 
 /**
  * Memoized with primitive props and id-keyed stable handlers (PERF-10): a re-render of the
@@ -755,7 +762,7 @@ const MessageBubble = memo(function MessageBubble({
   actions,
   onReact,
   onRemoveReaction,
-  onDoubleTap,
+  onOpenOverlay,
   onCopy,
   onReport,
   onRetry,
@@ -913,7 +920,7 @@ const MessageBubble = memo(function MessageBubble({
   // The system context menu (Messages order): Reply, Copy, Edit, Forward, Save, then the
   // destructive Undo Send / Report.
   const nativeMenu = mode.longPress === 'picker';
-  const menuActions: NativeMessageMenuAction[] = [];
+  const menuActions: MessageActionMenuItem[] = [];
   if (nativeMenu) {
     if (actions.reply) {
       menuActions.push({ key: 'reply', section: 0, label: t('chat.reply'), icon: 'reply', destructive: false, onPress: () => onReply(messageId) });
@@ -947,12 +954,40 @@ const MessageBubble = memo(function MessageBubble({
   // Double tap opens the Tapback bar on a text bubble; a voice bubble's single tap plays it.
   const bubbleRef = useRef<View>(null);
   const doubleTapEnabled = canReact && !isVoice && mode.press === null;
-  const openTapback = () => {
+  // The copy that lifts above the blur on long press (its badge does nothing there).
+  const previewContent = (
+    <MessageBubbleContent
+      messageId={messageId}
+      body={body}
+      voice={voice}
+      outboxStatus={outboxStatus}
+      isOwn={isOwn}
+      group={group}
+      bubbleBg={bubbleBg}
+      labelColor={labelColor}
+      reactions={reactions}
+      currentUserId={currentUserId}
+      ownReactionBg={ownReactionBg}
+      peerReactionBg={peerReactionBg}
+      onPressBadge={NOOP}
+    />
+  );
+  const openOverlay = (overlayMode: MessageOverlayRequest['mode']) => {
     bubbleRef.current?.measureInWindow((x, y, width, height) => {
       selection();
-      onDoubleTap(messageId, isOwn, { x, y, width, height });
+      onOpenOverlay({
+        mode: overlayMode,
+        messageId,
+        isOwn,
+        canReact,
+        frame: { x, y, width, height },
+        // A clear copy of the bubble lifts above the blur (badges and tail included).
+        preview: overlayMode === 'menu' ? previewContent : null,
+        actions: overlayMode === 'menu' ? menuActions : [],
+      });
     });
   };
+  const openTapback = () => openOverlay('tapback');
   const lastTapAtRef = useRef(0);
   const onBubblePress = () => {
     if (onPress) {
@@ -968,10 +1003,27 @@ const MessageBubble = memo(function MessageBubble({
       lastTapAtRef.current = now;
     }
   };
+  const bubbleContent = (
+    <MessageBubbleContent
+      messageId={messageId}
+      body={body}
+      voice={voice}
+      outboxStatus={outboxStatus}
+      isOwn={isOwn}
+      group={group}
+      bubbleBg={bubbleBg}
+      labelColor={labelColor}
+      reactions={reactions}
+      currentUserId={currentUserId}
+      ownReactionBg={ownReactionBg}
+      peerReactionBg={peerReactionBg}
+      onPressBadge={nativeMenu ? openTapback : onLongPressBubble}
+    />
+  );
   const bubblePressableInner = (
     <Pressable
       onPress={onBubblePress}
-      onLongPress={nativeMenu ? undefined : onLongPressBubble}
+      onLongPress={nativeMenu ? () => openOverlay('menu') : onLongPressBubble}
       delayLongPress={350}
       accessible
       // A plain message is text; a voice note plays, a failed / expired bubble acts on a tap.
@@ -980,21 +1032,7 @@ const MessageBubble = memo(function MessageBubble({
       accessibilityActions={accessibilityActions}
       onAccessibilityAction={onAccessibilityAction}
       style={styles.bubblePressable}>
-      <MessageBubbleContent
-        messageId={messageId}
-        body={body}
-        voice={voice}
-        outboxStatus={outboxStatus}
-        isOwn={isOwn}
-        group={group}
-        bubbleBg={bubbleBg}
-        labelColor={labelColor}
-        reactions={reactions}
-        currentUserId={currentUserId}
-        ownReactionBg={ownReactionBg}
-        peerReactionBg={peerReactionBg}
-        onPressBadge={nativeMenu ? NOOP : onLongPressBubble}
-      />
+      {bubbleContent}
     </Pressable>
   );
   const bubblePressable = (
@@ -1042,40 +1080,7 @@ const MessageBubble = memo(function MessageBubble({
             onPress={onShowRepliedNix}
           />
         ) : null}
-        <View collapsable={false}>
-          {nativeMenu ? (
-            <NativeMessageMenu
-              bleed={NATIVE_MENU_BLEED}
-              preview={
-                // The bubble alone fills the preview platter, which rounds it (no frame around it).
-                <View
-                  collapsable={false}
-                  style={[styles.bubble, styles.previewBubble, { backgroundColor: bubbleBg, maxWidth }]}>
-                  {voice ? (
-                    <VoiceMessageBody
-                      messageId={messageId}
-                      durationMs={voice.durationMs}
-                      waveform={voice.waveform}
-                      color={labelColor}
-                      buttonFill={isOwn ? colors.onChatBubbleOwn : colors.accent}
-                      buttonGlyph={isOwn ? colors.accent : colors.onAccent}
-                    />
-                  ) : (
-                    <Text style={[styles.bubbleText, { color: labelColor }]}>{body}</Text>
-                  )}
-                </View>
-              }
-              canReact={canReact}
-              selectedEmoji={myEmoji}
-              onReact={(emoji) => onReact(messageId, emoji)}
-              onRemoveReaction={() => onRemoveReaction(messageId)}
-              actions={menuActions}>
-              {bubblePressable}
-            </NativeMessageMenu>
-          ) : (
-            bubblePressable
-          )}
-        </View>
+        {bubblePressable}
         {edited && !expired ? <EditedMarker isOwn={isOwn} /> : null}
         {savedBy ? <SavedMarker savedBy={savedBy} peerName={peerName} isOwn={isOwn} /> : null}
         {receipt ? <MessageReceipt status={receipt} /> : null}
@@ -2611,11 +2616,12 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
   } = useChatTimelineHandlers(vm);
   const onCancelContext = useStableHandler(() => vm.handleCancelComposerContext());
   const rootRef = useRef<View>(null);
-  const [tapback, setTapback] = useState<TapbackTarget | null>(null);
-  const onDoubleTap = useStableHandler(
-    (messageId: string, isOwn: boolean, frame: { x: number; y: number; width: number; height: number }) => {
-      rootRef.current?.measureInWindow((rootX, rootY, rootWidth) => {
-        setTapback({
+  const [overlay, setOverlay] = useState<MessageOverlayRequest | null>(null);
+  const onOpenOverlay = useStableHandler(({ messageId, isOwn, frame, ...request }: BubbleOverlayRequest) => {
+    rootRef.current?.measureInWindow((rootX, rootY, rootWidth, rootHeight) => {
+      setOverlay({
+        ...request,
+        target: {
           messageId,
           isOwn,
           x: frame.x - rootX,
@@ -2623,13 +2629,16 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
           width: frame.width,
           height: frame.height,
           rootWidth,
-        });
+          rootHeight,
+        },
       });
-    },
-  );
-  const tapbackMessage = tapback ? vm.messages.find((message) => message.id === tapback.messageId) ?? null : null;
-  const tapbackEmoji = tapback
-    ? (vm.reactionsByMessageId.get(tapback.messageId) ?? []).find(
+    });
+  });
+  const overlayMessage = overlay
+    ? vm.messages.find((message) => message.id === overlay.target.messageId) ?? null
+    : null;
+  const overlayEmoji = overlay
+    ? (vm.reactionsByMessageId.get(overlay.target.messageId) ?? []).find(
         (reaction) => reaction.user_id === vm.currentUserId,
       )?.emoji ?? null
     : null;
@@ -2787,7 +2796,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
         actions={outboxStatus === 'expired' ? EMPTY_ACTIONS : messageActionsFor(message)}
         onReact={onReactToMessage}
         onRemoveReaction={onRemoveReaction}
-        onDoubleTap={onDoubleTap}
+        onOpenOverlay={onOpenOverlay}
         onCopy={onCopyMessage}
         onReport={onReportMessage}
         onRetry={onRetryText}
@@ -2824,8 +2833,8 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     onCancelSending,
     onCopyMessage,
     onDeleteOutbox,
-    onDoubleTap,
     onOpenNix,
+    onOpenOverlay,
     onOpenUploadActions,
     onReactToMessage,
     onRemoveReaction,
@@ -2919,16 +2928,17 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
           onPress={scrollToNewest}
         />
       </View>
-      {tapback && tapbackMessage ? (
-        <TapbackOverlay
-          target={tapback}
+      {overlay && overlayMessage ? (
+        <MessageOverlay
+          request={overlay}
           minTop={listTopInset}
-          selectedEmoji={tapbackEmoji}
+          bottomLimit={restingPad}
+          selectedEmoji={overlayEmoji}
           onSelect={(emoji) => {
-            // Same emoji again = take it back (handled in the view model); the bar closes itself.
-            void vm.handleSetReaction(tapbackMessage, emoji);
+            // Same emoji again = take it back (handled in the view model); the overlay closes itself.
+            void vm.handleSetReaction(overlayMessage, emoji);
           }}
-          onDismiss={() => setTapback(null)}
+          onDismiss={() => setOverlay(null)}
         />
       ) : null}
     </View>
@@ -3122,11 +3132,6 @@ const styles = StyleSheet.create({
     borderRadius: BUBBLE_CORNER_RADIUS,
     paddingHorizontal: 12,
     paddingVertical: 8,
-  },
-  previewBubble: {
-    borderRadius: 0,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
   },
   bubbleText: {
     ...typography.body,
