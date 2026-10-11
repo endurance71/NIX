@@ -4,6 +4,16 @@
 > Dated sprint plans and audit snapshots are historical evidence and must link
 > here instead of presenting their old binary state as current.
 
+## Feature candidate — 1.0.13 (12), 2026-10-11
+
+Branch `fix/app-cleanup-stage1` (source `385379c`, includes the build-11 branch) adds new native targets (Share,
+Notification Service and Lock Screen capture extensions, inbox widget, camera control) and modules, so it ships with
+**version 1.0.13, build 12, runtime 1.0.13**. OTA for runtime 1.0.12 must never carry this JS. The matching backend is
+**deployed** — see [deployment record](BACKEND_DEPLOYMENT_2026-10-11.md); it stays compatible with builds 10 and 11.
+Local Release Archive **PASS** (app and four extensions 1.0.13 (12), runtime 1.0.13, channel production, Hermes bundle
+with the production Supabase URL). TestFlight upload via Organizer and device QA pending. The 1.0.12 App Review track
+(build 11) is unaffected.
+
 ## Next candidate in preparation — build 11, 2026-10-10
 
 Branch `fix/pre-review-hardening` ([PR #56](https://github.com/endurance71/NIX/pull/56), CI green) carries the pre-review hardening: auth email links verified by `token_hash` instead of installing sessions from URLs, no navigation remount on connectivity changes, encrypted upload-queue capabilities, Apple sign-in consent text, localized auth errors, chat history paging and code cleanup. App and widget build numbers are **11**; runtime stays **1.0.12**. Build 11 is not archived or uploaded yet.
