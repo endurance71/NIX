@@ -11,6 +11,7 @@ import Animated, {
   FadeOut,
   SlideInRight,
   SlideOutLeft,
+  ZoomIn,
   cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
@@ -149,26 +150,15 @@ export function WelcomeSetup({
     void album.setSavingEnabled(value).catch(() => undefined);
   };
 
-  // Granting moves on by itself, like the system set-up assistant.
   const notificationsOn = push.state === 'enabled';
-  useEffect(() => {
-    if (step === 'notifications' && notificationsOn && busy === false) {
-      const id = setTimeout(() => setIndex((value) => (STEPS[value] === 'notifications' ? value + 1 : value)), 650);
-      return () => clearTimeout(id);
-    }
-    if (step === 'camera' && cameraGranted === true && busy === false) {
-      const id = setTimeout(() => setIndex((value) => (STEPS[value] === 'camera' ? value + 1 : value)), 650);
-      return () => clearTimeout(id);
-    }
-  }, [busy, cameraGranted, notificationsOn, step]);
 
   let primaryLabel = t('welcome.next');
   let primaryAction: () => void = next;
-  let primaryDisabled = false;
+  // Already on: the step says so and waits for Continue; it never moves on by itself.
+  let alreadyOn = false;
   if (step === 'notifications') {
     if (notificationsOn) {
-      primaryLabel = t('welcome.setup.enabled');
-      primaryDisabled = true;
+      alreadyOn = true;
     } else if (push.state === 'denied') {
       primaryLabel = t('welcome.setup.openSettings');
       primaryAction = () => void enableNotifications();
@@ -178,8 +168,7 @@ export function WelcomeSetup({
     }
   } else if (step === 'camera') {
     if (cameraGranted) {
-      primaryLabel = t('welcome.setup.enabled');
-      primaryDisabled = true;
+      alreadyOn = true;
     } else {
       primaryLabel = t('welcome.setup.camera.action');
       primaryAction = () => void allowCamera();
@@ -187,7 +176,7 @@ export function WelcomeSetup({
   } else if (step === 'memories') {
     primaryLabel = t('welcome.setup.finish');
   }
-  const showLater = step === 'notifications' || step === 'camera';
+  const showLater = (step === 'notifications' || step === 'camera') && !alreadyOn;
 
   return (
     <View style={[StyleSheet.absoluteFill, { paddingTop: topInset + 14, paddingBottom: bottomInset + 16 }]}>
@@ -203,6 +192,7 @@ export function WelcomeSetup({
           {t(`welcome.setup.${step}.title`)}
         </Text>
         <Text style={[styles.text, { color: ink.cinemaSecondaryLabel }]}>{t(`welcome.setup.${step}.body`)}</Text>
+        {alreadyOn ? <EnabledBadge label={t('welcome.setup.enabled')} accent={colors.accent} motionEnabled={motionEnabled} /> : null}
 
         {step === 'privacy' ? (
           <View style={styles.options}>
@@ -255,7 +245,7 @@ export function WelcomeSetup({
                 buttonStyle(canUseLiquidGlass() ? 'glassProminent' : 'borderedProminent'),
                 controlSize('large'),
                 tint(colors.accent),
-                swiftDisabled(primaryDisabled || busy),
+                swiftDisabled(busy),
               ]}>
               <SwiftText
                 modifiers={[
@@ -277,6 +267,19 @@ export function WelcomeSetup({
         </Host>
       </View>
     </View>
+  );
+}
+
+/** "Turned On" with a check, popping in when a permission is (or becomes) granted. */
+function EnabledBadge({ label, accent, motionEnabled }: { label: string; accent: string; motionEnabled: boolean }) {
+  return (
+    <Animated.View
+      entering={motionEnabled ? ZoomIn.springify().damping(14) : FadeIn}
+      style={[styles.enabled, { borderColor: accent }]}
+      accessibilityRole="text">
+      <SymbolView name={resolveAppIconName('checkCircleFill')} size={18} tintColor={accent} weight="semibold" />
+      <Text style={[styles.enabledText, { color: ink.label }]}>{label}</Text>
+    </Animated.View>
   );
 }
 
@@ -543,6 +546,20 @@ const styles = StyleSheet.create({
   },
   actions: {
     paddingHorizontal: 24,
+  },
+  enabled: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1.5,
+  },
+  enabledText: {
+    ...typography.subheadline,
+    fontWeight: '600',
   },
   buttonHost: {
     alignSelf: 'stretch',
