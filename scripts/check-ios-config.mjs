@@ -14,7 +14,16 @@ const project = readFileSync(new URL('../ios/NiX.xcodeproj/project.pbxproj', imp
 const xcodeEnv = readFileSync(new URL('../ios/.xcode.env', import.meta.url), 'utf8');
 const easIgnore = readFileSync(new URL('../.easignore', import.meta.url), 'utf8');
 
-const purposeKeys = ['NSCameraUsageDescription', 'NSMicrophoneUsageDescription', 'NSPhotoLibraryUsageDescription'];
+const purposeKeys = [
+  'NSCameraUsageDescription',
+  'NSMicrophoneUsageDescription',
+  'NSPhotoLibraryUsageDescription',
+  'NSPhotoLibraryAddUsageDescription',
+];
+const localeFiles = {
+  en: JSON.parse(readFileSync(new URL('../src/locales/en/common.json', import.meta.url), 'utf8')),
+  pl: JSON.parse(readFileSync(new URL('../src/locales/pl/common.json', import.meta.url), 'utf8')),
+};
 let failed = false;
 
 function fail(message) {
@@ -32,6 +41,11 @@ for (const key of purposeKeys) {
   if (!plist.includes(plistEntry)) fail(`${key} differs between app.json and native Info.plist`);
   if (!en.includes(`"${key}" = "${expected}";`)) fail(`${key} is missing or stale in English localization`);
   if (!pl.includes(`"${key}" = `)) fail(`${key} is missing in Polish localization`);
+  // Prebuild regenerates the .lproj files from app.json `locales`; keep both sources in step.
+  if (localeFiles.en[key] !== expected) fail(`${key} is missing or stale in src/locales/en/common.json`);
+  if (!localeFiles.pl[key] || !pl.includes(`"${key}" = "${localeFiles.pl[key]}";`)) {
+    fail(`${key} differs between src/locales/pl/common.json and the Polish InfoPlist.strings`);
+  }
 }
 
 for (const forbiddenKey of ['NSFaceIDUsageDescription', 'NSLocalNetworkUsageDescription', 'NSBonjourServices']) {
