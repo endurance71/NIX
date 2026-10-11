@@ -62,6 +62,9 @@ Twenty-seventh OTA (2026-10-11): update group `7e7966b6-347e-4d6c-84f5-1be714b88
 login stage follows the system light / dark appearance.
 Twenty-eighth OTA (2026-10-11): update group `29718d4a-35d6-441d-bdd3-cd327422d6f5`, source `06766aa` — the
 welcome tour follows the system light / dark appearance.
+Twenty-ninth OTA (2026-10-11): update group `382fbacc-3efd-4f08-a1d4-398c1b296d21`, source `5d78e54` — the login form no longer jumps under the hero (safe area
+read late), the Apple button keeps its size when busy, the logo starts drawing once the screen settles, and the
+rising stroke no longer shows as a floating dot.
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
