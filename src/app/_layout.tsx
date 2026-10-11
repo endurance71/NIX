@@ -333,7 +333,8 @@ function AppStack({
         <Stack.Screen
           name="memory-viewer"
           options={{
-            presentation: 'fullScreenModal',
+            // Pushed, not presented: the zoom from the Memories cell (Link.AppleZoom) is set up
+            // after the screen mounts, which a modal presentation has already outrun.
             headerShown: true,
             headerTransparent: true,
             headerShadowVisible: false,
