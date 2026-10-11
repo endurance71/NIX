@@ -1,6 +1,8 @@
 import { StyleSheet, View } from 'react-native';
 import Svg, { Defs, G, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
-import Animated, { useAnimatedProps, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedProps, useAnimatedReaction, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
+import { tap } from '../../lib/haptics';
 import { darkColors } from '../../theme/colors';
 import { APP_FONT_FAMILY } from '../../theme/typography';
 import { backOut, easeInOut, easeOut, seg } from './welcomeMotion';
@@ -37,6 +39,23 @@ export function WelcomeLogo({ progress, size, glowColor }: { progress: SharedVal
     const p = seg(progress.get(), 0.44, 0.74);
     return { strokeDashoffset: RISE.length * (1 - easeInOut(p)), strokeOpacity: p > 0 ? 1 : 0 };
   });
+  // Felt as it is written: a tick as the pen touches down, a tap as each stroke lands, a firmer
+  // one for the last, and soft taps as the letters drop in.
+  useAnimatedReaction(
+    () => progress.get(),
+    (now, before) => {
+      if (before == null || now <= before) return;
+      const crossed = (mark: number) => before < mark && now >= mark;
+      if (crossed(0.01)) scheduleOnRN(tap, 'soft');
+      if (crossed(0.36)) scheduleOnRN(tap, 'light');
+      if (crossed(0.52)) scheduleOnRN(tap, 'light');
+      if (crossed(0.74)) scheduleOnRN(tap, 'heavy');
+      if (crossed(0.72)) scheduleOnRN(tap, 'rigid');
+      if (crossed(0.79)) scheduleOnRN(tap, 'soft');
+      if (crossed(0.86)) scheduleOnRN(tap, 'soft');
+      if (crossed(0.93)) scheduleOnRN(tap, 'soft');
+    },
+  );
   // A small settle once the last stroke lands.
   const markStyle = useAnimatedStyle(() => {
     const settle = seg(progress.get(), 0.72, 0.86);

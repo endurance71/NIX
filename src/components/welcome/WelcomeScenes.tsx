@@ -10,7 +10,7 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { darkColors } from '../../theme/colors';
 import { resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 import { APP_FONT_FAMILY, typography } from '../../theme/typography';
-import { appear, backOut, cycleFade, easeInOut, easeOut, seg, useSceneTimeline } from './welcomeMotion';
+import { appear, backOut, cycleFade, easeInOut, easeOut, seg, useSceneBeats, useSceneTimeline, type SceneBeat } from './welcomeMotion';
 
 export const WELCOME_PHOTOS = {
   welcome: require('../../../assets/onboarding/welcome.jpg') as ImageSource,
@@ -77,8 +77,18 @@ function Avatar({ letter, size, color }: { letter: string; size: number; color: 
 
 // #region 1. Welcome: moments fan out of the app icon
 
+const WELCOME_BEATS: readonly SceneBeat[] = [
+  { at: 0.1, feel: 'soft' },
+  { at: 0.14, feel: 'soft' },
+  { at: 0.26, feel: 'medium' },
+  { at: 0.4, feel: 'light' },
+  { at: 0.54, feel: 'light' },
+  { at: 0.68, feel: 'light' },
+];
+
 export function WelcomeScene({ active, width, height, motionEnabled }: SceneProps) {
   const t = useSceneTimeline(active, 7000, motionEnabled, 0.5);
+  useSceneBeats(active, 7000, motionEnabled, WELCOME_BEATS);
   const cardW = Math.min(width * 0.42, height * 0.36);
   const cardH = cardW * 1.36;
   const cards = [
@@ -171,10 +181,20 @@ function AppIconBadge({ t, size, offsetY }: { t: SharedValue<number>; size: numb
 
 // #region 2. Capture: sticker, shutter, flash, the shot flies to friends
 
+// Sticker lands, shutter press, release with the flash, the shot reaches friends, sent.
+const CAPTURE_BEATS: readonly SceneBeat[] = [
+  { at: 0.15, feel: 'light' },
+  { at: 0.35, feel: 'rigid' },
+  { at: 0.39, feel: 'heavy' },
+  { at: 0.7, feel: 'light' },
+  { at: 0.82, feel: 'success' },
+];
+
 export function CaptureScene({ active, width, height, motionEnabled }: SceneProps) {
   const { t: translate } = useTranslation();
   const { colors } = useAppTheme();
   const t = useSceneTimeline(active, 6200, motionEnabled, 0.3);
+  useSceneBeats(active, 6200, motionEnabled, CAPTURE_BEATS);
   const phoneH = height * 0.96;
   const phoneW = phoneH * 0.49;
 
@@ -277,10 +297,19 @@ const RING_STROKE = 5;
 const RING_R = (RING - RING_STROKE) / 2;
 const RING_LENGTH = 2 * Math.PI * RING_R;
 
+// The screenshot toast, a tick as the ring runs out, the dissolve, and Opened.
+const EPHEMERAL_BEATS: readonly SceneBeat[] = [
+  { at: 0.28, feel: 'rigid' },
+  { at: 0.62, feel: 'medium' },
+  { at: 0.7, feel: 'soft' },
+  { at: 0.8, feel: 'light' },
+];
+
 export function EphemeralScene({ active, width, height, motionEnabled }: SceneProps) {
   const { t: translate } = useTranslation();
   const { colors } = useAppTheme();
   const t = useSceneTimeline(active, 5600, motionEnabled, 0.42);
+  useSceneBeats(active, 5600, motionEnabled, EPHEMERAL_BEATS);
   const cardW = Math.min(width * 0.6, height * 0.56);
   const cardH = cardW * 1.5;
 
@@ -355,10 +384,20 @@ export function EphemeralScene({ active, width, height, motionEnabled }: ScenePr
 
 const WAVE_BARS = [0.45, 0.8, 0.55, 1, 0.7, 0.4, 0.9, 0.6, 0.35, 0.75, 0.5, 0.85, 0.45, 0.6];
 
+// Each bubble arriving, the Tapback, and the reply.
+const CHAT_BEATS: readonly SceneBeat[] = [
+  { at: 0.06, feel: 'light' },
+  { at: 0.18, feel: 'light' },
+  { at: 0.32, feel: 'light' },
+  { at: 0.48, feel: 'medium' },
+  { at: 0.62, feel: 'light' },
+];
+
 export function ChatScene({ active, width, height, motionEnabled }: SceneProps) {
   const { t: translate } = useTranslation();
   const { colors } = useAppTheme();
   const t = useSceneTimeline(active, 7200, motionEnabled, 0.7);
+  useSceneBeats(active, 7200, motionEnabled, CHAT_BEATS);
   const phoneH = height * 0.96;
   const phoneW = phoneH * 0.49;
   const bubbleMax = phoneW * 0.74;
@@ -523,10 +562,21 @@ const GRID_PHOTOS = [
 ];
 const ZOOM_CELL = 4;
 
+// The album filling in, then the memory zooming open and closing.
+const MEMORIES_BEATS: readonly SceneBeat[] = [
+  { at: 0.06, feel: 'soft' },
+  { at: 0.14, feel: 'soft' },
+  { at: 0.22, feel: 'soft' },
+  { at: 0.34, feel: 'light' },
+  { at: 0.56, feel: 'medium' },
+  { at: 0.86, feel: 'soft' },
+];
+
 export function MemoriesScene({ active, width, height, motionEnabled }: SceneProps) {
   const { t: translate } = useTranslation();
   const { colors } = useAppTheme();
   const t = useSceneTimeline(active, 6600, motionEnabled, 0.36);
+  useSceneBeats(active, 6600, motionEnabled, MEMORIES_BEATS);
   const gap = 6;
   const gridSize = Math.min(width * 0.78, height * 0.82);
   const cell = (gridSize - gap * (GRID - 1)) / GRID;

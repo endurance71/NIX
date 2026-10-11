@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { notify, tap, type ImpactIntensity } from '../../lib/haptics';
 import { Easing, cancelAnimation, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
 /**
@@ -57,4 +58,23 @@ export function appear(t: number, a: number, b: number, pop = false) {
   'worklet';
   const x = seg(t, a, b);
   return (pop ? backOut(x) : easeOut(x)) * cycleFade(t);
+}
+
+/** A haptic on a scene's key moment: an impact, or `success` for a completed action. */
+export type SceneBeat = { at: number; feel: ImpactIntensity | 'success' };
+
+/**
+ * Plays the scene's haptic beats in step with its first cycle after the page arrives (the user
+ * swiped there, so they are feedback, not noise); the looping repeats stay silent.
+ */
+export function useSceneBeats(active: boolean, cycleMs: number, motionEnabled: boolean, beats: readonly SceneBeat[]) {
+  useEffect(() => {
+    if (!active || !motionEnabled) return;
+    const timers = beats.map((beat) =>
+      setTimeout(() => (beat.feel === 'success' ? notify('success') : tap(beat.feel)), beat.at * cycleMs),
+    );
+    return () => timers.forEach(clearTimeout);
+    // `beats` is a module constant per scene.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, cycleMs, motionEnabled]);
 }

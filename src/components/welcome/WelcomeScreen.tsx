@@ -29,7 +29,7 @@ import { Button, Text as SwiftText } from '@expo/ui/swift-ui';
 import { buttonStyle, controlSize, font, foregroundStyle, frame, tint } from '@expo/ui/swift-ui/modifiers';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAuth } from '../../hooks/useAuth';
-import { notify } from '../../lib/haptics';
+import { notify, selection, tap } from '../../lib/haptics';
 import { canUseLiquidGlass } from '../../lib/liquidGlass';
 import { markWelcomeSeen } from '../../lib/welcomeOnboarding';
 import { darkColors } from '../../theme/colors';
@@ -139,6 +139,7 @@ export function WelcomeScreen() {
 
   const skipIntro = () => {
     if (curtain !== 'intro') return;
+    tap('light');
     cancelAnimation(logo);
     logo.set(1);
     liftCurtain();
@@ -153,7 +154,10 @@ export function WelcomeScreen() {
   useAnimatedReaction(
     () => Math.round(scrollX.get() / Math.max(1, width)),
     (next, previous) => {
-      if (next !== previous) scheduleOnRN(setPage, next);
+      if (next === previous) return;
+      scheduleOnRN(setPage, next);
+      // A detent as each page snaps in.
+      if (previous != null) scheduleOnRN(selection);
     },
   );
 
@@ -203,6 +207,7 @@ export function WelcomeScreen() {
   };
 
   const startSetup = () => {
+    tap('medium');
     if (!session) {
       finish();
       return;
@@ -272,7 +277,10 @@ export function WelcomeScreen() {
             <Host matchContents colorScheme="dark">
               <Button
                 label={t('welcome.skip')}
-                onPress={() => finish()}
+                onPress={() => {
+                tap('light');
+                finish();
+              }}
                 modifiers={[buttonStyle(canUseLiquidGlass() ? 'glass' : 'bordered'), tint(ink.label)]}
               />
             </Host>
@@ -432,6 +440,12 @@ function ChecklistRow({
     const p = Math.min(1, Math.max(0, (prep.get() - start) / 0.18));
     return { opacity: p, transform: [{ translateY: (1 - p) * 8 }] };
   });
+  useAnimatedReaction(
+    () => prep.get() >= start + 0.08,
+    (ticked, before) => {
+      if (ticked && before === false) scheduleOnRN(tap, 'light');
+    },
+  );
   const checkStyle = useAnimatedStyle(() => {
     const p = Math.min(1, Math.max(0, (prep.get() - start - 0.08) / 0.12));
     return { transform: [{ scale: p < 1 ? 0.4 + 0.8 * p : 1 }] };

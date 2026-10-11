@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Camera } from 'expo-camera';
@@ -26,7 +26,7 @@ import { usePushNotifications } from '../../context/pushNotifications';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { useMemoriesAlbum } from '../../hooks/useMemoriesAlbum';
-import { selection } from '../../lib/haptics';
+import { notify, selection, tap } from '../../lib/haptics';
 import { canUseLiquidGlass } from '../../lib/liquidGlass';
 import { queryKeys } from '../../lib/queryKeys';
 import { getCurrentUserProfile, updateCurrentUserProfile } from '../../services/profileService';
@@ -112,8 +112,13 @@ export function WelcomeSetup({
   ];
 
   const next = () => {
-    if (index < STEPS.length - 1) setIndex(index + 1);
-    else onDone(summary());
+    if (index < STEPS.length - 1) {
+      tap('light');
+      setIndex(index + 1);
+    } else {
+      tap('medium');
+      onDone(summary());
+    }
   };
 
   const run = async (task: () => Promise<void>) => {
@@ -134,6 +139,16 @@ export function WelcomeSetup({
       }
       await push.enable();
     });
+
+  // A granted permission is a success, felt the moment its badge pops in.
+  const grantedNow = (step === 'notifications' && push.state === 'enabled') || (step === 'camera' && cameraGranted === true);
+  // Keyed by step: arriving on a step that was granted earlier is not a new success.
+  const grantedRef = useRef({ step, granted: grantedNow });
+  useEffect(() => {
+    const before = grantedRef.current;
+    if (before.step === step && grantedNow && !before.granted) notify('success');
+    grantedRef.current = { step, granted: grantedNow };
+  }, [grantedNow, step]);
 
   const allowCamera = () =>
     run(async () => {
