@@ -42,91 +42,91 @@ export default function ProfileTabLayout() {
         name="edit"
         options={{
           title: t('profile.editProfile'),
-          headerLargeTitle: false,
+          headerLargeTitleEnabled: false,
         }}
       />
       <Stack.Screen
         name="friends"
         options={{
           title: t('profile.friendsTitle'),
-          headerLargeTitle: false,
+          headerLargeTitleEnabled: false,
         }}
       />
       <Stack.Screen
         name="my-code"
         options={{
           title: t('profile.myQrCode'),
-          headerLargeTitle: false,
+          headerLargeTitleEnabled: false,
         }}
       />
       <Stack.Screen
         name="safety"
         options={{
           title: t('profile.safetyCenter'),
-          headerLargeTitle: false,
+          headerLargeTitleEnabled: false,
         }}
       />
       <Stack.Screen
         name="appearance"
         options={{
           title: t('profile.appearanceTitle'),
-          headerLargeTitle: false,
+          headerLargeTitleEnabled: false,
         }}
       />
       <Stack.Screen
         name="privacy-security"
         options={{
           title: t('profile.privacySectionTitle'),
-          headerLargeTitle: false,
+          headerLargeTitleEnabled: false,
         }}
       />
       <Stack.Screen
         name="devices"
         options={{
           title: t('devices.title'),
-          headerLargeTitle: false,
+          headerLargeTitleEnabled: false,
         }}
       />
       <Stack.Screen
         name="notifications"
         options={{
           title: t('notifications.title'),
-          headerLargeTitle: false,
+          headerLargeTitleEnabled: false,
         }}
       />
       <Stack.Screen
         name="data-export"
         options={{
           title: t('dataExport.title'),
-          headerLargeTitle: false,
+          headerLargeTitleEnabled: false,
         }}
       />
       <Stack.Screen
         name="change-password"
         options={{
           title: t('profile.changePassword'),
-          headerLargeTitle: false,
+          headerLargeTitleEnabled: false,
         }}
       />
       <Stack.Screen
         name="delete-account"
         options={{
           title: t('profile.deleteAccount'),
-          headerLargeTitle: false,
+          headerLargeTitleEnabled: false,
         }}
       />
       <Stack.Screen
         name="privacy-policy"
         options={{
           title: t('profile.privacyPolicy'),
-          headerLargeTitle: false,
+          headerLargeTitleEnabled: false,
         }}
       />
       <Stack.Screen
         name="terms"
         options={{
           title: t('profile.terms'),
-          headerLargeTitle: false,
+          headerLargeTitleEnabled: false,
         }}
       />
     </Stack>
