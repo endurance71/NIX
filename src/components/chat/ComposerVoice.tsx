@@ -1,20 +1,20 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
-  useAnimatedReaction,
   useAnimatedStyle,
+  useFrameCallback,
   useSharedValue,
   withRepeat,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { scheduleOnRN } from 'react-native-worklets';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useComposerVoice, type ComposerVoiceState } from '../../hooks/useComposerVoice';
 import type { VoiceRecordingResult } from '../../hooks/useVoiceRecorder';
 import { configureForPlayback } from '../../lib/audioSession';
 import { formatVoiceDuration } from '../../lib/chatMessageExtras';
+import { VOICE_METERING_INTERVAL_MS } from '../../lib/voiceMessage';
 import { APP_ICON_SIZE } from '../../theme/app-icons';
 import { useMotionEnabled } from '../../theme/motion';
 import { typography } from '../../theme/typography';
@@ -24,38 +24,74 @@ import type { ChatScreenViewModel } from '../../hooks/useChatScreen';
 type Translate = ChatScreenViewModel['t'];
 
 const STRIP_BUTTON_SIZE = 32;
-const SPECTRUM_BARS = 32;
+const SPECTRUM_BARS = 48;
 const SPECTRUM_HEIGHT = 22;
 const SPECTRUM_BAR_WIDTH = 3;
+const SPECTRUM_GAP = 3;
+/** One bar per metering sample; the row glides by this much between samples. */
+const SPECTRUM_STEP = SPECTRUM_BAR_WIDTH + SPECTRUM_GAP;
 const SPECTRUM_FLOOR = 0.08;
 const SPECTRUM_KEYS = Array.from({ length: SPECTRUM_BARS }, (_, index) => `spectrum-${index}`);
-const EMPTY_SPECTRUM = Array.from({ length: SPECTRUM_BARS }, () => 0);
+const EMPTY_SPECTRUM: number[] = Array.from({ length: SPECTRUM_BARS }, () => 0);
+
+function SpectrumBar({
+  index,
+  samples,
+  color,
+}: {
+  index: number;
+  samples: SharedValue<number[]>;
+  color: string;
+}) {
+  const style = useAnimatedStyle(() => {
+    const value = samples.get()[index] ?? 0;
+    return {
+      height: Math.max(
+        SPECTRUM_BAR_WIDTH,
+        (SPECTRUM_FLOOR + value * (1 - SPECTRUM_FLOOR)) * SPECTRUM_HEIGHT,
+      ),
+    };
+  });
+  return <Animated.View style={[styles.spectrumBar, { backgroundColor: color }, style]} />;
+}
 
 /**
- * Live loudness bars while recording, newest on the right, scrolling left like the Voice Memos
- * meter. Fed by the recorder's metering (~10 Hz); a steady low line with Reduce Motion.
+ * Live loudness bars while recording, newest entering on the right and the row gliding left at
+ * display rate (like Voice Memos). Everything runs on the UI thread: a frame callback takes a
+ * sample of the recorder's level every metering interval and moves the row in between, so the
+ * motion stays smooth although the meter itself updates ~10× per second. A still line with
+ * Reduce Motion.
  */
 function LiveSpectrum({ level, color }: { level: SharedValue<number>; color: string }) {
   const motionEnabled = useMotionEnabled();
-  const [levels, setLevels] = useState<readonly number[]>(EMPTY_SPECTRUM);
-  const push = (value: number) =>
-    setLevels((current) => [...current.slice(1), Math.max(0, Math.min(1, value))]);
-  useAnimatedReaction(
-    () => level.get(),
-    (current, previous) => {
-      if (current !== previous) scheduleOnRN(push, current);
-    },
-  );
+  const samples = useSharedValue<number[]>(EMPTY_SPECTRUM);
+  const offset = useSharedValue(0);
+  const lastSampleAt = useSharedValue(-1);
+
+  useFrameCallback((frame) => {
+    'worklet';
+    const now = frame.timeSinceFirstFrame;
+    if (lastSampleAt.get() < 0 || now - lastSampleAt.get() >= VOICE_METERING_INTERVAL_MS) {
+      lastSampleAt.set(now);
+      const next = samples.get().slice(1);
+      next.push(Math.max(0, Math.min(1, level.get())));
+      samples.set(next);
+    }
+    const progress = Math.min(1, (now - lastSampleAt.get()) / VOICE_METERING_INTERVAL_MS);
+    offset.set(SPECTRUM_STEP * (1 - progress));
+  }, motionEnabled);
+
+  const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: offset.get() }] }));
   return (
-    <View style={styles.spectrum} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      {SPECTRUM_KEYS.map((key, index) => {
-        const value = motionEnabled ? (levels[index] ?? 0) : 0;
-        const height = Math.max(
-          SPECTRUM_BAR_WIDTH,
-          Math.round((SPECTRUM_FLOOR + value * (1 - SPECTRUM_FLOOR)) * SPECTRUM_HEIGHT),
-        );
-        return <View key={key} style={[styles.spectrumBar, { height, backgroundColor: color }]} />;
-      })}
+    <View
+      style={styles.spectrum}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants">
+      <Animated.View style={[styles.spectrumRow, rowStyle]}>
+        {SPECTRUM_KEYS.map((key, index) => (
+          <SpectrumBar key={key} index={index} samples={samples} color={color} />
+        ))}
+      </Animated.View>
     </View>
   );
 }
@@ -203,10 +239,15 @@ const styles = StyleSheet.create({
   spectrum: {
     flex: 1,
     height: SPECTRUM_HEIGHT,
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  spectrumRow: {
+    position: 'absolute',
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    overflow: 'hidden',
+    gap: SPECTRUM_GAP,
   },
   spectrumBar: {
     width: SPECTRUM_BAR_WIDTH,
