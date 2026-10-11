@@ -60,6 +60,13 @@ export default function ProfileTabLayout() {
         }}
       />
       <Stack.Screen
+        name="memories"
+        options={{
+          title: t('memories.title'),
+          headerLargeTitleEnabled: false,
+        }}
+      />
+      <Stack.Screen
         name="safety"
         options={{
           title: t('profile.safetyCenterSummary'),
