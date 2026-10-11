@@ -70,6 +70,11 @@ masters follow the drawn logo (flat ink, glass rising stroke, no shadows); in-ap
 launch screen and widget logo changed too but ship only in a new binary (not in build 13's archive).
 Thirty-first OTA (2026-10-11): update group `0a3ee0b1-e301-4bf7-82e1-7f6693af557c`, source `8b3571e` — the drawn
 logo's glass stroke is glass from the first frame, no stray dots.
+Thirty-second OTA (2026-10-11): update group `9acc9038-5337-4333-9972-7a07a179f560`, source `898c4ec` — the
+login form holds still (host ignores safe areas; the stage lifts it above the keyboard) and the logo is drawn at
+a steady pace.
+Thirty-third OTA (2026-10-11): update group `649d5c96-948b-4c25-a88e-21fa185a2506`, source `622e740` — warmer
+login tagline.
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
