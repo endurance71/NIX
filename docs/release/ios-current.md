@@ -16,7 +16,14 @@ JS in the same source: reply (swipe or menu), edit, undo send and forward in the
 bubbles, pinned conversations as an avatar grid in the inbox. Backend: migration `20261014100000` and `report-content`
 deployed first (see the [deployment record](BACKEND_DEPLOYMENT_2026-10-11.md)).
 Local Release Archive: source `1e16611` (version bump `f6579d9`), `~/.nix-ops/release-1.0.13-13/`. Upload and
-TestFlight assignment: pending.
+TestFlight assignment: pending — CLI export fails with „Failed to Use Accounts” and the EAS attempt stopped at the
+Apple ID login needed to create the Share / Notification Service / Capture provisioning profiles (no build was
+started). Needs the owner at the Mac (Organizer → Distribute, or `eas build` with an Apple login).
+Tenth OTA (2026-10-11): update group `cbd89fae-2c4a-49a9-9e51-eea089004952`, source `87dd48a` — the JS above for
+build 12 (caption bar stays hidden there: no native support).
+Eleventh OTA (2026-10-11): update group `fcc22a09-67fc-4997-8bbb-ddd205aa8249`, source `507fa2a` — bubble tails and
+Tapback badges no longer clipped by the native menu host, inbox avatars stay after a reorder, a pin's menu lifts only
+that pin.
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
