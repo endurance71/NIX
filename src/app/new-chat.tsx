@@ -91,7 +91,9 @@ function NewChatHeader() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   return (
-    <AppHost matchContents>
+    // Full width from RN layout, height from the content (AppHost defaults to `flex: 1`, which
+    // pushed the title into the middle of the sheet and collapsed Cancel onto it).
+    <AppHost matchContents={{ vertical: true }} style={styles.header}>
       <ZStack modifiers={[frame({ maxWidth: Infinity }), padding({ horizontal: 16, top: 4 })]}>
         <SwiftText
           modifiers={[
@@ -293,6 +295,9 @@ const styles = StyleSheet.create({
   },
   username: {
     ...typography.footnote,
+  },
+  header: {
+    alignSelf: 'stretch',
   },
   searchRow: {
     flexDirection: 'row',
