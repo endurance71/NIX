@@ -79,7 +79,8 @@ describe('memory chunk encryption', () => {
       onChunk: (part) => { parts.push(part); },
     });
     expect(concat(parts)).toEqual(plain);
-  });
+    // Pure-JS AES over ~2 chunks: slower than the 5 s default when the whole suite runs in parallel.
+  }, 30_000);
 
   it('handles an empty payload as one sealed chunk', async () => {
     const { sealed, chunkCount } = await encrypt(new Uint8Array(0));
