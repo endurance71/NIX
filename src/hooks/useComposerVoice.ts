@@ -1,18 +1,19 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Alert, Linking } from 'react-native';
-import { useSharedValue } from 'react-native-reanimated';
 import { useVoiceRecorder, type VoiceRecordingResult } from './useVoiceRecorder';
 import type { ChatScreenViewModel } from './useChatScreen';
 import { notifyError, notifyInfo } from '../lib/appNotify';
 import { selection, tap } from '../lib/haptics';
+import { formatVoiceDuration } from '../lib/chatMessageExtras';
 import { voiceRecordingOutcome } from '../lib/voiceMessage';
 import { deleteLocalRecording } from '../services/voiceMessageService';
 
 type Translate = ChatScreenViewModel['t'];
 
 /**
- * Hold-to-record state for the composer: start on touch down, slide left to cancel, release to
- * send, auto-send at 60 s. VoiceOver users get a tap-to-start / tap-to-send toggle instead.
+ * Tap-to-record with an explicit send: tap the mic to start, Stop (or the 60 s limit) ends the
+ * take and shows it for review, and only Send sends it. Nothing is ever sent by releasing a finger,
+ * so a stray touch cannot send a recording.
  */
 export function useComposerVoice({
   t,
@@ -23,52 +24,37 @@ export function useComposerVoice({
   onSend: (recording: VoiceRecordingResult) => void;
   onRecordingStart: () => void;
 }) {
-  const startPendingRef = useRef(false);
-  const pressedRef = useRef(false);
-  const releaseRef = useRef<(cancelled: boolean) => Promise<void>>(async () => undefined);
-  const voice = useVoiceRecorder({ onMaxDuration: () => void releaseRef.current(false) });
-  /** Finger offset (≤ 0) while holding; shared with the strip and the button. */
-  const dragX = useSharedValue(0);
+  const [pending, setPending] = useState<VoiceRecordingResult | null>(null);
+  const stopRef = useRef<() => Promise<void>>(async () => undefined);
+  const voice = useVoiceRecorder({ onMaxDuration: () => void stopRef.current() });
 
-  const release = async (cancelled: boolean) => {
-    pressedRef.current = false;
-    const wasPending = startPendingRef.current;
+  /** Ends the take and keeps it for review (too short: discarded with a hint). */
+  const stop = async () => {
     const result = await voice.finish();
-    if (!result) {
-      // Released before the recorder was ready: a tap, not a hold.
-      if (wasPending && !cancelled) notifyInfo(t('chat.voiceHoldToRecord'));
+    if (!result) return;
+    if (voiceRecordingOutcome({ durationMs: result.durationMs, cancelled: false }) !== 'send') {
+      deleteLocalRecording(result.uri);
+      notifyInfo(t('chat.voiceTooShort'));
       return;
     }
-    const outcome = voiceRecordingOutcome({ durationMs: result.durationMs, cancelled });
-    if (outcome === 'send') {
-      tap('light');
-      onSend(result);
-      return;
-    }
-    deleteLocalRecording(result.uri);
-    if (outcome === 'cancel') {
-      selection();
-      AccessibilityInfo.announceForAccessibility(t('chat.voiceCancelled'));
-    } else {
-      notifyInfo(t('chat.voiceHoldToRecord'));
-    }
+    tap('light');
+    setPending(result);
+    AccessibilityInfo.announceForAccessibility(
+      t('chat.voiceReviewA11y', { time: formatVoiceDuration(result.durationMs) }),
+    );
   };
   useEffect(() => {
-    releaseRef.current = release;
+    stopRef.current = stop;
   });
 
-  const begin = async () => {
-    pressedRef.current = true;
-    startPendingRef.current = true;
+  const start = async () => {
+    if (pending || voice.recording) return;
     onRecordingStart();
     const result = await voice.start();
-    startPendingRef.current = false;
     switch (result) {
       case 'started':
         tap('medium');
         AccessibilityInfo.announceForAccessibility(t('chat.voiceRecordingA11y', { time: '0:00' }));
-        // Released while the session was starting up: treat it as a too-short take.
-        if (!pressedRef.current) void release(false);
         return;
       case 'permissionPrompted':
         notifyInfo(t('chat.voiceMicGranted'));
@@ -87,13 +73,46 @@ export function useComposerVoice({
     }
   };
 
+  /** Throws away the running take. */
+  const cancelRecording = async () => {
+    await voice.cancel();
+    selection();
+    AccessibilityInfo.announceForAccessibility(t('chat.voiceCancelled'));
+  };
+
+  /** Throws away the reviewed take. */
+  const discard = () => {
+    if (!pending) return;
+    deleteLocalRecording(pending.uri);
+    setPending(null);
+    selection();
+    AccessibilityInfo.announceForAccessibility(t('chat.voiceCancelled'));
+  };
+
+  const send = () => {
+    if (!pending) return;
+    tap('light');
+    onSend(pending);
+    setPending(null);
+  };
+
+  // A reviewed take that is never sent must not stay on disk.
+  const pendingRef = useRef(pending);
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+  useEffect(() => () => deleteLocalRecording(pendingRef.current?.uri), []);
+
   return {
     recording: voice.recording,
+    pending,
     elapsedMs: voice.elapsedMs,
     level: voice.level,
-    dragX,
-    begin,
-    release,
+    start,
+    stop,
+    cancelRecording,
+    discard,
+    send,
   };
 }
 

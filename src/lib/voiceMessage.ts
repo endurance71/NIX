@@ -11,8 +11,6 @@ export const VOICE_MIN_DURATION_MS = 700;
 export const VOICE_WAVEFORM_SAMPLES = 48;
 /** Metering poll while recording. */
 export const VOICE_METERING_INTERVAL_MS = 100;
-/** Sliding the finger this far left (pt) cancels the recording on release. */
-export const VOICE_CANCEL_DISTANCE = 96;
 
 /**
  * iOS metering is average power in dBFS (-160…0). Speech sits roughly in -50…0; below that is
@@ -60,13 +58,6 @@ export function waveformBars(samples: readonly number[], barCount: number): numb
     bars.push(Math.max(VOICE_BAR_FLOOR, Math.min(1, value / 100)));
   }
   return bars;
-}
-
-/** 0 at rest → 1 at the cancel threshold (drives the „slide to cancel” hint). */
-export function voiceCancelProgress(translationX: number): number {
-  'worklet';
-  if (!Number.isFinite(translationX) || translationX >= 0) return 0;
-  return Math.min(1, -translationX / VOICE_CANCEL_DISTANCE);
 }
 
 export type VoiceRecordingOutcome = 'send' | 'cancel' | 'tooShort';

@@ -101,6 +101,8 @@ export type AppIconName =
   | 'unsaveMessage'
   | 'savedMessage'
   | 'micFill'
+  // Voice composer: ends a recording for review.
+  | 'stopFill'
   | 'chevronLeft'
   // Search fields: clears the query.
   | 'clearText';
@@ -202,6 +204,7 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   search: 'magnifyingglass',
   playFill: 'play.fill',
   pauseFill: 'pause.fill',
+  stopFill: 'stop.fill',
   italic: 'italic',
   underline: 'underline',
   strikethrough: 'strikethrough',

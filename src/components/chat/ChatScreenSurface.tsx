@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
   type Ref,
   type RefObject,
 } from 'react';
@@ -133,7 +132,7 @@ import {
 import type { VoiceRecordingResult } from '../../hooks/useVoiceRecorder';
 import { BubbleTail } from './BubbleTail';
 import { VoiceMessageBody } from './VoiceMessageBody';
-import { ComposerVoiceHost, VoiceMicButton, VoiceRecordingStrip } from './ComposerVoice';
+import { ComposerVoiceHost, VoiceRecordingStrip, VoiceReviewStrip } from './ComposerVoice';
 import type { ComposerVoiceState } from '../../hooks/useComposerVoice';
 
 type ChatTimelineEntry = ChatTimelineItem<OptimisticTextMessage>;
@@ -1864,18 +1863,9 @@ const ChatComposer = memo(function ChatComposer({
     inputField
   );
 
-  const renderControlShell = (glyph: ReactNode) =>
-    useGlass ? (
-      <GlassView style={styles.sendGlass} glassEffectStyle="regular" isInteractive>
-        {glyph}
-      </GlassView>
-    ) : (
-      <View style={[styles.sendGlass, fallbackFill]}>{glyph}</View>
-    );
-
   /**
-   * Camera and Send are native SwiftUI glass buttons (one press response, from the glass). The mic
-   * stays an RN `GlassView` shell: its hold-and-slide gesture needs Gesture Handler.
+   * Camera, Send, the mic, Stop and voice Send are native SwiftUI glass buttons (one press
+   * response, from the glass).
    */
   const composerButton = {
     size: COMPOSER_CONTROL_SIZE,
@@ -1887,42 +1877,69 @@ const ChatComposer = memo(function ChatComposer({
     colorScheme,
   };
 
-  // The mic replaces Send while the draft is empty (iMessage); it stays while a take is running
-  // even if the connection drops, so the gesture can always finish.
+  // The mic replaces Send while the draft is empty (iMessage). Tap records, Stop ends the take
+  // for review, and only the explicit Send sends it — a stray touch can never send a recording.
+  // Recording and review stay available if the connection drops meanwhile.
   const renderRow = (voice: ComposerVoiceState | null) => {
     const recording = voice?.recording ?? false;
-    const showMic = voice !== null && (recording || (voiceAvailable && !text.trim()));
+    const pendingVoice = voice?.pending ?? null;
+    const voiceBusy = recording || pendingVoice !== null;
+    const showMic = voice !== null && !voiceBusy && voiceAvailable && !text.trim();
+    const voiceStrip =
+      recording && voice ? (
+        <VoiceRecordingStrip
+          t={t}
+          elapsedMs={voice.elapsedMs}
+          level={voice.level}
+          onCancel={() => void voice.cancelRecording()}
+        />
+      ) : pendingVoice && voice ? (
+        <VoiceReviewStrip t={t} recording={pendingVoice} onDiscard={voice.discard} />
+      ) : null;
     return (
       <View style={styles.composerRow}>
         <NativeChromeIconButton
           {...composerButton}
           name="camera"
           onPress={onOpenCamera}
-          disabled={recording}
+          disabled={voiceBusy}
           accessibilityLabel={t('chat.openCamera')}
           accessibilityHint={t('chat.openCameraHint')}
         />
 
         {useGlass ? (
           <GlassView style={styles.inputGlass} glassEffectStyle="regular" isInteractive>
-            {recording && voice ? (
-              <VoiceRecordingStrip t={t} elapsedMs={voice.elapsedMs} level={voice.level} dragX={voice.dragX} />
-            ) : (
-              composerInput
-            )}
+            {voiceStrip ?? composerInput}
           </GlassView>
         ) : (
           <View style={[styles.inputGlass, fallbackFill]}>
-            {recording && voice ? (
-              <VoiceRecordingStrip t={t} elapsedMs={voice.elapsedMs} level={voice.level} dragX={voice.dragX} />
-            ) : (
-              composerInput
-            )}
+            {voiceStrip ?? composerInput}
           </View>
         )}
 
-        {showMic && voice ? (
-          <VoiceMicButton t={t} voice={voice} size={COMPOSER_CONTROL_SIZE} renderShell={renderControlShell} />
+        {recording && voice ? (
+          <NativeChromeIconButton
+            {...composerButton}
+            name="stopFill"
+            tintColor={colors.destructive}
+            onPress={() => void voice.stop()}
+            accessibilityLabel={t('chat.voiceStop')}
+          />
+        ) : pendingVoice && voice ? (
+          <NativeChromeIconButton
+            {...composerButton}
+            name="send"
+            onPress={voice.send}
+            accessibilityLabel={t('chat.voiceSendRecording')}
+          />
+        ) : showMic && voice ? (
+          <NativeChromeIconButton
+            {...composerButton}
+            name="mic"
+            onPress={() => void voice.start()}
+            accessibilityLabel={t('chat.voiceRecord')}
+            accessibilityHint={t('chat.voiceRecordHint')}
+          />
         ) : (
           <NativeChromeIconButton
             {...composerButton}
@@ -3337,13 +3354,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
     paddingTop: COMPOSER_INPUT_VERTICAL_PAD,
     paddingBottom: COMPOSER_INPUT_VERTICAL_PAD,
-  },
-  sendGlass: {
-    width: COMPOSER_CONTROL_SIZE,
-    height: COMPOSER_CONTROL_SIZE,
-    borderRadius: COMPOSER_CONTROL_SIZE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   footerRow: {
     flexDirection: 'row',

@@ -3,9 +3,7 @@ import {
   downsampleWaveform,
   meteringToLevel,
   VOICE_BAR_FLOOR,
-  VOICE_CANCEL_DISTANCE,
   VOICE_MIN_DURATION_MS,
-  voiceCancelProgress,
   voiceObjectPath,
   voicePlaybackProgress,
   voiceRecordingOutcome,
@@ -47,13 +45,8 @@ describe('waveformBars', () => {
   });
 });
 
-describe('recording gesture', () => {
-  it('cancel progress grows only when sliding left', () => {
-    expect(voiceCancelProgress(20)).toBe(0);
-    expect(voiceCancelProgress(-VOICE_CANCEL_DISTANCE / 2)).toBeCloseTo(0.5);
-    expect(voiceCancelProgress(-VOICE_CANCEL_DISTANCE * 2)).toBe(1);
-  });
-  it('release sends, cancels or rejects a tap', () => {
+describe('recording outcome', () => {
+  it('keeps a long enough take, cancels or rejects a too-short one', () => {
     expect(voiceRecordingOutcome({ durationMs: 5_000, cancelled: false })).toBe('send');
     expect(voiceRecordingOutcome({ durationMs: 5_000, cancelled: true })).toBe('cancel');
     expect(voiceRecordingOutcome({ durationMs: VOICE_MIN_DURATION_MS - 1, cancelled: false })).toBe('tooShort');
