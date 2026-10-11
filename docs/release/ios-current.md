@@ -15,8 +15,10 @@ with the production Supabase URL). **Uploaded** from Organizer on 2026-10-11 (so
 for `hermesvm.framework`). The first upload attempt was rejected because the Lock Screen camera extension was embedded
 as a Foundation extension; it is now an ExtensionKit extension in `NiX.app/Extensions`. Xcode's distribution copy step
 fails with Homebrew `rsync` 3.4.4 on `PATH` (`--extended-attributes: unknown option`); start Xcode with
-`env PATH=/usr/bin:/bin:/usr/sbin:/sbin …/Xcode.app/Contents/MacOS/Xcode` for Organizer uploads. ASC processing,
-group assignment and device QA pending. The 1.0.12 App Review track
+`env PATH=/usr/bin:/bin:/usr/sbin:/sbin …/Xcode.app/Contents/MacOS/Xcode` for Organizer uploads. ASC build
+`62a485e7-4b36-471b-82b4-fa1106fdc000` processed (**Ready to Submit**, expires in 90 days), assigned to **NiX Internal
+QA** and **Team (Expo)** (4 internal testers each), bilingual PL/EN What to Test saved and verified after reload.
+Device QA pending. The 1.0.12 App Review track
 (build 11) is unaffected.
 
 ## Next candidate in preparation — build 11, 2026-10-10
