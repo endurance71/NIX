@@ -30,13 +30,12 @@ import { notify, selection, tap } from '../../lib/haptics';
 import { canUseLiquidGlass } from '../../lib/liquidGlass';
 import { queryKeys } from '../../lib/queryKeys';
 import { getCurrentUserProfile, updateCurrentUserProfile } from '../../services/profileService';
-import { darkColors } from '../../theme/colors';
+import { useStageInk } from '../brand/stageInk';
 import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 import { ACCENT_PRESETS, resolveAccentColor, type AccentPresetId } from '../../theme/accent-presets';
 import { useMotionEnabled } from '../../theme/motion';
 import { APP_FONT_FAMILY, typography } from '../../theme/typography';
 
-const ink = darkColors;
 
 export type WelcomeSetupStep = 'notifications' | 'camera' | 'accent' | 'privacy' | 'memories';
 const STEPS: readonly WelcomeSetupStep[] = ['notifications', 'camera', 'accent', 'privacy', 'memories'];
@@ -58,8 +57,9 @@ export function WelcomeSetup({
   bottomInset: number;
   onDone: (summary: WelcomeSetupSummary) => void;
 }) {
+  const ink = useStageInk();
   const { t } = useTranslation();
-  const { colors, accentPresetId, setAccentPresetId } = useAppTheme();
+  const { colors, colorScheme, accentPresetId, setAccentPresetId } = useAppTheme();
   const motionEnabled = useMotionEnabled();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -270,7 +270,7 @@ export function WelcomeSetup({
       </Animated.View>
 
       <View style={styles.actions}>
-        <Host matchContents={{ vertical: true }} colorScheme="dark" style={styles.buttonHost}>
+        <Host matchContents={{ vertical: true }} colorScheme={colorScheme} style={styles.buttonHost}>
           <VStack spacing={6}>
             <Button
               onPress={primaryAction}
@@ -347,6 +347,7 @@ function Swatch({ color, label, selected, onPress }: { color: string; label: str
 
 /** "Turned On" with a check, popping in when a permission is (or becomes) granted. */
 function EnabledBadge({ label, accent, motionEnabled }: { label: string; accent: string; motionEnabled: boolean }) {
+  const ink = useStageInk();
   return (
     <Animated.View
       entering={motionEnabled ? ZoomIn.springify().damping(14) : FadeIn}
@@ -370,6 +371,7 @@ function StepProgress({ count, index, accent, label }: { count: number; index: n
 }
 
 function ProgressSegment({ filled, accent }: { filled: boolean; accent: string }) {
+  const ink = useStageInk();
   const fill = useSharedValue(filled ? 1 : 0);
   useEffect(() => {
     fill.set(withTiming(filled ? 1 : 0, { duration: 420, easing: Easing.bezier(0.23, 1, 0.32, 1) }));
@@ -438,6 +440,7 @@ function HeroSymbol({
 
 /** A mock notification that drops in over the bell, so the step shows what it turns on. */
 function NotificationBanner({ loop, text }: { loop: SharedValue<number>; text: string }) {
+  const ink = useStageInk();
   const { colors } = useAppTheme();
   const style = useAnimatedStyle(() => {
     const p = loop.get();
@@ -448,7 +451,7 @@ function NotificationBanner({ loop, text }: { loop: SharedValue<number>; text: s
   });
   return (
     <Animated.View style={[styles.banner, { borderColor: ink.cinemaTrack }, style]}>
-      <BlurView intensity={50} tint="systemThinMaterialDark" style={StyleSheet.absoluteFill} />
+      <BlurView intensity={50} tint="systemThinMaterial" style={StyleSheet.absoluteFill} />
       <View style={[styles.bannerIcon, { backgroundColor: colors.accent }]}>
         <SymbolView name={resolveAppIconName('camera')} size={14} tintColor={colors.onAccent} weight="bold" />
       </View>
@@ -474,6 +477,7 @@ function OptionCard({
   accent: string;
   onPress: () => void;
 }) {
+  const ink = useStageInk();
   const ring = useSharedValue(selected ? 1 : 0);
   useEffect(() => {
     ring.set(withTiming(selected ? 1 : 0, { duration: 220 }));

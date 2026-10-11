@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import Animated, { useAnimatedProps, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { darkColors } from '../../theme/colors';
+import { useStageInk } from '../brand/stageInk';
 import { resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 import { APP_FONT_FAMILY, typography } from '../../theme/typography';
 import { appear, backOut, cycleFade, easeInOut, easeOut, seg, useSceneBeats, useSceneTimeline, type SceneBeat } from './welcomeMotion';
@@ -22,6 +23,9 @@ export const WELCOME_PHOTOS = {
 
 const APP_ICON = require('../../../assets/brand/app/ios-light.png') as ImageSource;
 
+/** The phone mock-up and what sits on a photo stay dark, like a real camera, in both appearances. */
+const cam = darkColors;
+
 export type SceneProps = {
   active: boolean;
   width: number;
@@ -30,7 +34,6 @@ export type SceneProps = {
 };
 
 /** The welcome scenes are a dark "cinema" surface in both themes. */
-const ink = darkColors;
 
 // #region Shared pieces
 
@@ -40,10 +43,10 @@ function PhoneFrame({ width, height, children }: { width: number; height: number
     <View
       style={[
         styles.phone,
-        { width, height, borderRadius: width * 0.16, borderColor: ink.cinemaTrack, backgroundColor: ink.cinemaBackground },
+        { width, height, borderRadius: width * 0.16, borderColor: cam.cinemaTrack, backgroundColor: cam.cinemaBackground },
       ]}>
       <View style={[styles.phoneScreen, { borderRadius: width * 0.13 }]}>{children}</View>
-      <View style={[styles.island, { width: width * 0.3, top: width * 0.04, backgroundColor: ink.cinemaBackground }]} />
+      <View style={[styles.island, { width: width * 0.3, top: width * 0.04, backgroundColor: cam.cinemaBackground }]} />
     </View>
   );
 }
@@ -54,9 +57,10 @@ function Icon({ name, size, color }: { name: AppIconName; size: number; color: s
 
 /** A glass-ish pill (blur + hairline), used for toasts and chips inside the scenes. */
 function Pill({ icon, label, tint }: { icon: AppIconName; label: string; tint: string }) {
+  const ink = useStageInk();
   return (
     <View style={[styles.pill, { borderColor: ink.cinemaTrack }]}>
-      <BlurView intensity={40} tint="systemThinMaterialDark" style={StyleSheet.absoluteFill} />
+      <BlurView intensity={40} tint="systemThinMaterial" style={StyleSheet.absoluteFill} />
       <Icon name={icon} size={14} color={tint} />
       <Text style={[styles.pillText, { color: ink.label }]} numberOfLines={1}>
         {label}
@@ -66,6 +70,7 @@ function Pill({ icon, label, tint }: { icon: AppIconName; label: string; tint: s
 }
 
 function Avatar({ letter, size, color }: { letter: string; size: number; color: string }) {
+  const ink = useStageInk();
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: color }]}>
       <Text style={[styles.avatarText, { fontSize: size * 0.42, color: ink.onAccent }]}>{letter}</Text>
@@ -191,6 +196,7 @@ const CAPTURE_BEATS: readonly SceneBeat[] = [
 ];
 
 export function CaptureScene({ active, width, height, motionEnabled }: SceneProps) {
+  const ink = useStageInk();
   const { t: translate } = useTranslation();
   const { colors } = useAppTheme();
   const t = useSceneTimeline(active, 6200, motionEnabled, 0.3);
@@ -243,7 +249,7 @@ export function CaptureScene({ active, width, height, motionEnabled }: SceneProp
         <Image source={WELCOME_PHOTOS.capture} style={StyleSheet.absoluteFill} contentFit="cover" />
       </Animated.View>
       <Animated.View style={[styles.sticker, sticker]}>
-        <Text style={[styles.stickerText, { color: ink.label }]}>{translate('welcome.demo.sticker')}</Text>
+        <Text style={[styles.stickerText, { color: cam.label }]}>{translate('welcome.demo.sticker')}</Text>
       </Animated.View>
     </>
   );
@@ -253,10 +259,10 @@ export function CaptureScene({ active, width, height, motionEnabled }: SceneProp
       <View style={{ transform: [{ translateX: -width * 0.1 }] }}>
         <PhoneFrame width={phoneW} height={phoneH}>
           {screen}
-          <View style={[styles.shutterRing, { borderColor: ink.label, bottom: phoneH * 0.06 }]}>
-            <Animated.View style={[styles.shutterInner, { backgroundColor: ink.label }, shutterInner]} />
+          <View style={[styles.shutterRing, { borderColor: cam.label, bottom: phoneH * 0.06 }]}>
+            <Animated.View style={[styles.shutterInner, { backgroundColor: cam.label }, shutterInner]} />
           </View>
-          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: ink.screenFlash }, flash]} />
+          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: cam.screenFlash }, flash]} />
         </PhoneFrame>
         <Animated.View
           pointerEvents="none"
@@ -267,7 +273,7 @@ export function CaptureScene({ active, width, height, motionEnabled }: SceneProp
           ]}>
           <Image source={WELCOME_PHOTOS.capture} style={StyleSheet.absoluteFill} contentFit="cover" />
           <View style={styles.sticker}>
-            <Text style={[styles.stickerText, { color: ink.label }]}>{translate('welcome.demo.sticker')}</Text>
+            <Text style={[styles.stickerText, { color: cam.label }]}>{translate('welcome.demo.sticker')}</Text>
           </View>
         </Animated.View>
       </View>
@@ -347,7 +353,7 @@ export function EphemeralScene({ active, width, height, motionEnabled }: ScenePr
         </Animated.View>
         <Animated.View style={[styles.ring, ring]}>
           <Svg width={RING} height={RING}>
-            <Circle cx={RING / 2} cy={RING / 2} r={RING_R} stroke={ink.cinemaTrack} strokeWidth={RING_STROKE} fill={ink.cinemaScrim} />
+            <Circle cx={RING / 2} cy={RING / 2} r={RING_R} stroke={cam.cinemaTrack} strokeWidth={RING_STROKE} fill={cam.cinemaScrim} />
             <AnimatedCircle
               cx={RING / 2}
               cy={RING / 2}
@@ -363,7 +369,7 @@ export function EphemeralScene({ active, width, height, motionEnabled }: ScenePr
           </Svg>
           <View style={StyleSheet.absoluteFill} pointerEvents="none">
             <View style={styles.ringIcon}>
-              <Icon name="timer" size={20} color={ink.label} />
+              <Icon name="timer" size={20} color={cam.label} />
             </View>
           </View>
         </Animated.View>
@@ -394,6 +400,7 @@ const CHAT_BEATS: readonly SceneBeat[] = [
 ];
 
 export function ChatScene({ active, width, height, motionEnabled }: SceneProps) {
+  const ink = useStageInk();
   const { t: translate } = useTranslation();
   const { colors } = useAppTheme();
   const t = useSceneTimeline(active, 7200, motionEnabled, 0.7);
@@ -458,6 +465,7 @@ function ChatBubble({
   tapbackAt?: number;
   children: ReactNode;
 }) {
+  const ink = useStageInk();
   const style = useAnimatedStyle(() => {
     const p = appear(t.get(), start, start + 0.08, true);
     return {
@@ -527,6 +535,7 @@ function WaveBar({
 }
 
 function TypingDots({ t }: { t: SharedValue<number> }) {
+  const ink = useStageInk();
   const container = useAnimatedStyle(() => ({ opacity: appear(t.get(), 0.74, 0.8) }));
   return (
     <Animated.View style={[styles.bubble, styles.bubbleIncoming, styles.typing, { backgroundColor: ink.chatBubbleIncoming }, container]}>
@@ -538,6 +547,7 @@ function TypingDots({ t }: { t: SharedValue<number> }) {
 }
 
 function TypingDot({ t, index }: { t: SharedValue<number>; index: number }) {
+  const ink = useStageInk();
   const style = useAnimatedStyle(() => ({
     transform: [{ translateY: -Math.max(0, Math.sin((t.get() * 14 - index * 0.18) * Math.PI * 2)) * 3 }],
   }));

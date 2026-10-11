@@ -30,7 +30,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { notify, selection, tap } from '../../lib/haptics';
 import { canUseLiquidGlass } from '../../lib/liquidGlass';
 import { markWelcomeSeen } from '../../lib/welcomeOnboarding';
-import { darkColors } from '../../theme/colors';
+import { useStageInk } from '../brand/stageInk';
 import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 import { useMotionEnabled } from '../../theme/motion';
 import { APP_FONT_FAMILY, typography } from '../../theme/typography';
@@ -46,7 +46,6 @@ import {
   type SceneProps,
 } from './WelcomeScenes';
 
-const ink = darkColors;
 
 const SCENE_PAGES: readonly { key: string; Scene: ComponentType<SceneProps> }[] = [
   { key: 'welcome', Scene: WelcomeScene },
@@ -83,8 +82,9 @@ function pageProgress(scrollX: SharedValue<number>, index: number, width: number
  * on a "What's New"-style list. Dark in both themes, like the camera and viewer.
  */
 export function WelcomeScreen() {
+  const ink = useStageInk();
   const { t } = useTranslation();
-  const { colors } = useAppTheme();
+  const { colors, colorScheme, isDark, statusBarStyle } = useAppTheme();
   const motionEnabled = useMotionEnabled();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -228,8 +228,15 @@ export function WelcomeScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: ink.cinemaBackground }]}>
-      <StatusBar style="light" />
-      <AmbientGlow color={colors.accent} width={width} height={height} scrollX={scrollX} motionEnabled={motionEnabled} />
+      <StatusBar style={statusBarStyle} />
+      <AmbientGlow
+        color={colors.accent}
+        width={width}
+        height={height}
+        scrollX={scrollX}
+        motionEnabled={motionEnabled}
+        intensity={isDark ? 1 : 0.65}
+      />
       {phase === 'tour' ? (
         <Animated.View exiting={FadeOut.duration(260)} style={StyleSheet.absoluteFill}>
         <Animated.ScrollView
@@ -273,7 +280,7 @@ export function WelcomeScreen() {
 
         {isLast ? null : (
           <View style={[styles.skip, { top: insets.top + 6 }]}>
-            <Host matchContents colorScheme="dark">
+            <Host matchContents colorScheme={colorScheme}>
               <Button
                 label={t('welcome.skip')}
                 onPress={() => {
@@ -294,7 +301,7 @@ export function WelcomeScreen() {
             color={ink.label}
             label={t('welcome.pageA11y', { current: page + 1, total: PAGE_COUNT })}
           />
-          <Host matchContents={{ vertical: true }} colorScheme="dark" style={styles.buttonHost}>
+          <Host matchContents={{ vertical: true }} colorScheme={colorScheme} style={styles.buttonHost}>
             <Button
               onPress={goNext}
               modifiers={[
@@ -365,6 +372,7 @@ function LogoCurtain({
   summary: WelcomeSetupSummary | null;
   prep: SharedValue<number>;
 }) {
+  const ink = useStageInk();
   // Lifting off, the logo grows slightly as the curtain fades (it "opens" onto the tour).
   const style = useAnimatedStyle(() => ({ opacity: opacity.get() }));
   const logoStyle = useAnimatedStyle(() => ({ transform: [{ scale: 1 + (1 - opacity.get()) * 0.12 }] }));
@@ -382,7 +390,7 @@ function LogoCurtain({
         accessibilityRole="image"
         accessibilityLabel={outro ? `${label}. ${caption}` : label}>
         <Animated.View style={logoStyle}>
-          <DrawnLogo progress={logo} size={Math.min(148, width * 0.36)} glowColor={accent} />
+          <DrawnLogo progress={logo} size={Math.min(148, width * 0.36)} glowColor={accent} inkColor={ink.label} />
         </Animated.View>
         {outro ? (
           <View style={styles.prepare}>
@@ -402,6 +410,7 @@ function LogoCurtain({
 
 /** A small ring that sweeps while the app "gets ready" and turns into a check at the end. */
 function PrepareSpinner({ prep, accent }: { prep: SharedValue<number>; accent: string }) {
+  const ink = useStageInk();
   const ringStyle = useAnimatedStyle(() => ({
     opacity: 1 - Math.min(1, Math.max(0, (prep.get() - 0.85) / 0.15)),
     transform: [{ rotate: `${prep.get() * 720}deg` }],
@@ -433,6 +442,7 @@ function ChecklistRow({
   prep: SharedValue<number>;
   accent: string;
 }) {
+  const ink = useStageInk();
   // Rows tick off one after another across the "getting ready" beat.
   const start = (index / Math.max(1, count)) * 0.7;
   const style = useAnimatedStyle(() => {
@@ -482,6 +492,7 @@ function ScenePage({
   motionEnabled: boolean;
   children: ReactNode;
 }) {
+  const ink = useStageInk();
   // The scene trails the swipe slightly (parallax); the copy fades and slides a little further.
   const stageStyle = useAnimatedStyle(() => {
     const progress = pageProgress(scrollX, index, width);
@@ -531,6 +542,7 @@ function FeaturesPage({
   top: number;
   motionEnabled: boolean;
 }) {
+  const ink = useStageInk();
   const { t } = useTranslation();
   return (
     <View style={{ width, height }}>
@@ -584,6 +596,7 @@ function FeatureRow({
   width: number;
   motionEnabled: boolean;
 }) {
+  const ink = useStageInk();
   const { colors } = useAppTheme();
   const pop = useSharedValue(motionEnabled ? 0 : 1);
   useEffect(() => {

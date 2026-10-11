@@ -85,7 +85,7 @@ export function LoginStage({ children }: { children: ReactNode }) {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <AmbientGlow color={colors.accent} width={width} height={height} motionEnabled={motionEnabled} centerY={0.2} intensity={isDark ? 1 : 0.45} />
+      <AmbientGlow color={colors.accent} width={width} height={height} motionEnabled={motionEnabled} centerY={0.2} intensity={isDark ? 1 : 0.65} />
       {BACKDROP.map((card, index) => (
         <BackdropCard
           key={index}
