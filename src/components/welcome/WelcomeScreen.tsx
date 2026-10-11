@@ -9,6 +9,8 @@ import { useTranslation } from 'react-i18next';
 import Animated, {
   Easing,
   Extrapolation,
+  FadeIn,
+  FadeOut,
   cancelAnimation,
   interpolate,
   useAnimatedReaction,
@@ -26,6 +28,7 @@ import { Host } from '@expo/ui';
 import { Button, Text as SwiftText } from '@expo/ui/swift-ui';
 import { buttonStyle, controlSize, font, foregroundStyle, frame, tint } from '@expo/ui/swift-ui/modifiers';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { useAuth } from '../../hooks/useAuth';
 import { notify } from '../../lib/haptics';
 import { canUseLiquidGlass } from '../../lib/liquidGlass';
 import { markWelcomeSeen } from '../../lib/welcomeOnboarding';
@@ -34,6 +37,7 @@ import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme
 import { useMotionEnabled } from '../../theme/motion';
 import { APP_FONT_FAMILY, typography } from '../../theme/typography';
 import { WelcomeLogo } from './WelcomeLogo';
+import { WelcomeSetup, type WelcomeSetupSummary } from './WelcomeSetup';
 import {
   CaptureScene,
   ChatScene,
@@ -94,6 +98,11 @@ export function WelcomeScreen() {
   const [curtain, setCurtain] = useState<Curtain>('intro');
   const logo = useSharedValue(motionEnabled ? 0 : 1);
   const curtainOpacity = useSharedValue(1);
+  // After the tour, signed-in users set the app up before the closing logo.
+  const { session } = useAuth();
+  const [phase, setPhase] = useState<'tour' | 'setup'>('tour');
+  const [summary, setSummary] = useState<WelcomeSetupSummary | null>(null);
+  const prep = useSharedValue(0);
 
   const liftCurtain = () => {
     'worklet';
@@ -158,8 +167,9 @@ export function WelcomeScreen() {
     setTimeout(close, 420);
   };
 
-  // Ends on the logo drawing itself once more, then closes.
-  const finish = () => {
+  // Ends on the logo drawing itself once more while "getting the app ready" ticks off the
+  // choices from set-up, then closes.
+  const finish = (choices?: WelcomeSetupSummary) => {
     if (finishingRef.current) return;
     finishingRef.current = true;
     void markWelcomeSeen();
@@ -168,8 +178,11 @@ export function WelcomeScreen() {
       close();
       return;
     }
+    setSummary(choices ?? null);
+    const prepMs = choices ? 1500 : 700;
     cancelAnimation(logo);
     logo.set(0);
+    prep.set(0);
     curtainOpacity.set(0);
     setCurtain('outro');
     curtainOpacity.set(
@@ -177,16 +190,29 @@ export function WelcomeScreen() {
         if (!finished) return;
         logo.set(
           withTiming(1, { duration: LOGO_DRAW_MS, easing: Easing.linear }, (done) => {
-            if (done) scheduleOnRN(closeAfterOutro);
+            if (!done) return;
+            prep.set(
+              withTiming(1, { duration: prepMs, easing: Easing.linear }, (ready) => {
+                if (ready) scheduleOnRN(closeAfterOutro);
+              }),
+            );
           }),
         );
       }),
     );
   };
 
+  const startSetup = () => {
+    if (!session) {
+      finish();
+      return;
+    }
+    setPhase('setup');
+  };
+
   const goNext = () => {
     if (isLast) {
-      finish();
+      startSetup();
       return;
     }
     scrollRef.current?.scrollTo({ x: (page + 1) * width, animated: motionEnabled });
@@ -200,84 +226,92 @@ export function WelcomeScreen() {
     <View style={[styles.root, { backgroundColor: ink.cinemaBackground }]}>
       <StatusBar style="light" />
       <AmbientGlow color={colors.accent} width={width} height={height} scrollX={scrollX} motionEnabled={motionEnabled} />
-      <Animated.ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled
-        bounces={false}
-        showsHorizontalScrollIndicator={false}
-        onScroll={onScroll}
-        scrollEventThrottle={16}>
-        {SCENE_PAGES.map(({ key, Scene }, index) => (
-          <ScenePage
-            key={key}
-            index={index}
-            title={t(`welcome.pages.${key}.title`)}
-            body={t(`welcome.pages.${key}.body`)}
+      {phase === 'tour' ? (
+        <Animated.View exiting={FadeOut.duration(260)} style={StyleSheet.absoluteFill}>
+        <Animated.ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          bounces={false}
+          showsHorizontalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}>
+          {SCENE_PAGES.map(({ key, Scene }, index) => (
+            <ScenePage
+              key={key}
+              index={index}
+              title={t(`welcome.pages.${key}.title`)}
+              body={t(`welcome.pages.${key}.body`)}
+              scrollX={scrollX}
+              width={width}
+              height={height}
+              stageTop={stageTop}
+              stageHeight={stageHeight}
+              motionEnabled={motionEnabled}>
+              <Scene
+                active={page === index && curtain === null}
+                width={width}
+                height={stageHeight}
+                motionEnabled={motionEnabled}
+              />
+            </ScenePage>
+          ))}
+          <FeaturesPage
+            index={SCENE_PAGES.length}
+            active={isLast && curtain === null}
             scrollX={scrollX}
             width={width}
             height={height}
-            stageTop={stageTop}
-            stageHeight={stageHeight}
-            motionEnabled={motionEnabled}>
-            <Scene
-              active={page === index && curtain === null}
-              width={width}
-              height={stageHeight}
-              motionEnabled={motionEnabled}
-            />
-          </ScenePage>
-        ))}
-        <FeaturesPage
-          index={SCENE_PAGES.length}
-          active={isLast && curtain === null}
-          scrollX={scrollX}
-          width={width}
-          height={height}
-          top={insets.top + 60}
-          motionEnabled={motionEnabled}
-        />
-      </Animated.ScrollView>
+            top={insets.top + 60}
+            motionEnabled={motionEnabled}
+          />
+        </Animated.ScrollView>
 
-      {isLast ? null : (
-        <View style={[styles.skip, { top: insets.top + 6 }]}>
-          <Host matchContents colorScheme="dark">
+        {isLast ? null : (
+          <View style={[styles.skip, { top: insets.top + 6 }]}>
+            <Host matchContents colorScheme="dark">
+              <Button
+                label={t('welcome.skip')}
+                onPress={() => finish()}
+                modifiers={[buttonStyle(canUseLiquidGlass() ? 'glass' : 'bordered'), tint(ink.label)]}
+              />
+            </Host>
+          </View>
+        )}
+
+        <View style={[styles.controls, { bottom: controlsBottom }]} pointerEvents="box-none">
+          <PageDots
+            count={PAGE_COUNT}
+            scrollX={scrollX}
+            width={width}
+            color={ink.label}
+            label={t('welcome.pageA11y', { current: page + 1, total: PAGE_COUNT })}
+          />
+          <Host matchContents={{ vertical: true }} colorScheme="dark" style={styles.buttonHost}>
             <Button
-              label={t('welcome.skip')}
-              onPress={finish}
-              modifiers={[buttonStyle(canUseLiquidGlass() ? 'glass' : 'bordered'), tint(ink.label)]}
-            />
+              onPress={goNext}
+              modifiers={[
+                buttonStyle(canUseLiquidGlass() ? 'glassProminent' : 'borderedProminent'),
+                controlSize('large'),
+                tint(colors.accent),
+              ]}>
+              <SwiftText
+                modifiers={[
+                  font({ design: 'rounded', textStyle: 'headline', weight: 'semibold' }),
+                  foregroundStyle(colors.onAccent),
+                  frame({ maxWidth: Infinity, minHeight: 30 }),
+                ]}>
+                {isLast ? t('welcome.setUp') : t('welcome.next')}
+              </SwiftText>
+            </Button>
           </Host>
         </View>
+        </Animated.View>
+      ) : (
+        <Animated.View entering={FadeIn.duration(420).delay(120)} style={StyleSheet.absoluteFill}>
+          <WelcomeSetup topInset={insets.top} bottomInset={insets.bottom} onDone={(choices) => finish(choices)} />
+        </Animated.View>
       )}
-
-      <View style={[styles.controls, { bottom: controlsBottom }]} pointerEvents="box-none">
-        <PageDots
-          count={PAGE_COUNT}
-          scrollX={scrollX}
-          width={width}
-          color={ink.label}
-          label={t('welcome.pageA11y', { current: page + 1, total: PAGE_COUNT })}
-        />
-        <Host matchContents={{ vertical: true }} colorScheme="dark" style={styles.buttonHost}>
-          <Button
-            onPress={goNext}
-            modifiers={[
-              buttonStyle(canUseLiquidGlass() ? 'glassProminent' : 'borderedProminent'),
-              controlSize('large'),
-              tint(colors.accent),
-            ]}>
-            <SwiftText
-              modifiers={[
-                font({ design: 'rounded', textStyle: 'headline', weight: 'semibold' }),
-                foregroundStyle(colors.onAccent),
-                frame({ maxWidth: Infinity, minHeight: 30 }),
-              ]}>
-              {isLast ? t('welcome.start') : t('welcome.next')}
-            </SwiftText>
-          </Button>
-        </Host>
-      </View>
 
       {curtain ? (
         <LogoCurtain
@@ -287,13 +321,20 @@ export function WelcomeScreen() {
           width={width}
           onPress={curtain === 'intro' ? skipIntro : undefined}
           label={t('welcome.logoA11y')}
+          outro={curtain === 'outro'}
+          caption={t('welcome.preparing')}
+          summary={summary}
+          prep={prep}
         />
       ) : null}
     </View>
   );
 }
 
-/** Full-screen stage for the logo, over the tour; the intro can be tapped through. */
+/**
+ * Full-screen stage for the logo, over the tour; the intro can be tapped through. Closing, it
+ * says the app is getting ready and ticks off what set-up turned on.
+ */
 function LogoCurtain({
   logo,
   opacity,
@@ -301,6 +342,10 @@ function LogoCurtain({
   width,
   onPress,
   label,
+  outro,
+  caption,
+  summary,
+  prep,
 }: {
   logo: SharedValue<number>;
   opacity: SharedValue<number>;
@@ -308,10 +353,19 @@ function LogoCurtain({
   width: number;
   onPress?: () => void;
   label: string;
+  outro: boolean;
+  caption: string;
+  summary: WelcomeSetupSummary | null;
+  prep: SharedValue<number>;
 }) {
   // Lifting off, the logo grows slightly as the curtain fades (it "opens" onto the tour).
   const style = useAnimatedStyle(() => ({ opacity: opacity.get() }));
   const logoStyle = useAnimatedStyle(() => ({ transform: [{ scale: 1 + (1 - opacity.get()) * 0.12 }] }));
+  const captionStyle = useAnimatedStyle(() => {
+    const p = Math.min(1, Math.max(0, (logo.get() - 0.8) / 0.2));
+    return { opacity: p, transform: [{ translateY: (1 - p) * 10 }] };
+  });
+  const items = (summary ?? []).filter((item) => item.done);
   return (
     <Animated.View style={[StyleSheet.absoluteFill, styles.curtain, { backgroundColor: ink.cinemaBackground }, style]}>
       <Pressable
@@ -319,11 +373,75 @@ function LogoCurtain({
         onPress={onPress}
         disabled={!onPress}
         accessibilityRole="image"
-        accessibilityLabel={label}>
+        accessibilityLabel={outro ? `${label}. ${caption}` : label}>
         <Animated.View style={logoStyle}>
           <WelcomeLogo progress={logo} size={Math.min(148, width * 0.36)} glowColor={accent} />
         </Animated.View>
+        {outro ? (
+          <View style={styles.prepare}>
+            <Animated.View style={[styles.captionRow, captionStyle]}>
+              <PrepareSpinner prep={prep} accent={accent} />
+              <Text style={[styles.caption, { color: ink.cinemaSecondaryLabel }]}>{caption}</Text>
+            </Animated.View>
+            {items.map((item, index) => (
+              <ChecklistRow key={item.key} label={item.label} index={index} count={items.length} prep={prep} accent={accent} />
+            ))}
+          </View>
+        ) : null}
       </Pressable>
+    </Animated.View>
+  );
+}
+
+/** A small ring that sweeps while the app "gets ready" and turns into a check at the end. */
+function PrepareSpinner({ prep, accent }: { prep: SharedValue<number>; accent: string }) {
+  const ringStyle = useAnimatedStyle(() => ({
+    opacity: 1 - Math.min(1, Math.max(0, (prep.get() - 0.85) / 0.15)),
+    transform: [{ rotate: `${prep.get() * 720}deg` }],
+  }));
+  const checkStyle = useAnimatedStyle(() => {
+    const p = Math.min(1, Math.max(0, (prep.get() - 0.85) / 0.15));
+    return { opacity: p, transform: [{ scale: 0.5 + 0.5 * p }] };
+  });
+  return (
+    <View style={styles.spinner}>
+      <Animated.View style={[styles.spinnerRing, { borderColor: ink.cinemaTrack, borderTopColor: accent }, ringStyle]} />
+      <Animated.View style={[StyleSheet.absoluteFill, styles.spinnerCheck, checkStyle]}>
+        <SymbolView name={resolveAppIconName('checkCircleFill')} size={18} tintColor={accent} weight="bold" />
+      </Animated.View>
+    </View>
+  );
+}
+
+function ChecklistRow({
+  label,
+  index,
+  count,
+  prep,
+  accent,
+}: {
+  label: string;
+  index: number;
+  count: number;
+  prep: SharedValue<number>;
+  accent: string;
+}) {
+  // Rows tick off one after another across the "getting ready" beat.
+  const start = (index / Math.max(1, count)) * 0.7;
+  const style = useAnimatedStyle(() => {
+    const p = Math.min(1, Math.max(0, (prep.get() - start) / 0.18));
+    return { opacity: p, transform: [{ translateY: (1 - p) * 8 }] };
+  });
+  const checkStyle = useAnimatedStyle(() => {
+    const p = Math.min(1, Math.max(0, (prep.get() - start - 0.08) / 0.12));
+    return { transform: [{ scale: p < 1 ? 0.4 + 0.8 * p : 1 }] };
+  });
+  return (
+    <Animated.View style={[styles.checkRow, style]}>
+      <Animated.View style={checkStyle}>
+        <SymbolView name={resolveAppIconName('checkmark')} size={14} tintColor={accent} weight="bold" />
+      </Animated.View>
+      <Text style={[styles.checkText, { color: ink.label }]}>{label}</Text>
     </Animated.View>
   );
 }
@@ -590,6 +708,43 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  prepare: {
+    position: 'absolute',
+    bottom: '16%',
+    alignItems: 'center',
+    gap: 10,
+  },
+  captionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 6,
+  },
+  caption: {
+    ...typography.callout,
+    fontWeight: '600',
+  },
+  spinner: {
+    width: 20,
+    height: 20,
+  },
+  spinnerRing: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 10,
+    borderWidth: 2.5,
+  },
+  spinnerCheck: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  checkText: {
+    ...typography.subheadline,
   },
   glow: {
     position: 'absolute',
