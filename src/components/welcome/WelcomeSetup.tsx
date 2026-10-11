@@ -48,7 +48,7 @@ import { useMotionEnabled } from '../../theme/motion';
 import { APP_FONT_FAMILY, typography } from '../../theme/typography';
 
 
-export type WelcomeSetupStep = 'notifications' | 'camera' | 'accent' | 'privacy' | 'memories';
+type WelcomeSetupStep = 'notifications' | 'camera' | 'accent' | 'privacy' | 'memories';
 const STEPS: readonly WelcomeSetupStep[] = ['notifications', 'camera', 'accent', 'privacy', 'memories'];
 
 /** What the user chose, shown back as a checklist while the app gets ready. */

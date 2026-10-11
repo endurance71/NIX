@@ -13,7 +13,7 @@ import { resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 import { APP_FONT_FAMILY, typography } from '../../theme/typography';
 import { appear, backOut, cycleFade, easeInOut, easeOut, seg, useSceneBeats, useSceneTimeline, type SceneBeat } from './welcomeMotion';
 
-export const WELCOME_PHOTOS = {
+const WELCOME_PHOTOS = {
   welcome: require('../../../assets/onboarding/welcome.jpg') as ImageSource,
   capture: require('../../../assets/onboarding/capture.jpg') as ImageSource,
   ephemeral: require('../../../assets/onboarding/ephemeral.jpg') as ImageSource,

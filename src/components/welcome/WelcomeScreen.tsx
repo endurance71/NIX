@@ -180,7 +180,7 @@ export function WelcomeScreen() {
   const finish = (choices?: WelcomeSetupSummary) => {
     if (finishingRef.current) return;
     finishingRef.current = true;
-    void markWelcomeSeen();
+    void markWelcomeSeen(session?.user.id ?? null);
     if (!motionEnabled) {
       notify('success');
       close();

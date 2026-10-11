@@ -607,24 +607,34 @@ function usePendingFriendInviteRedirect(enabled: boolean, segments: string[]) {
   }, [enabled, segments]);
 }
 
-let welcomePresentedThisLaunch = false;
+/** The account the tour was opened for in this run (a later sign-in of another account still gets it). */
+let welcomePresentedFor: string | null = null;
 
-/** Opens the welcome tour once per launch when it is due, after routing has settled. */
-function useWelcomePresentation(enabled: boolean, segments: string[]) {
+/**
+ * Sign in first, then the welcome tour: it opens on the tabs right after a sign-in in this run
+ * (not for a session restored at launch), once per account. Not over the post-signup profile
+ * step, and only once the redirects are done.
+ */
+function useWelcomePresentation(enabled: boolean, segments: string[], userId: string | null, signedInNow: boolean) {
   useEffect(() => {
-    // Not over the post-signup profile step, and only once the redirects are done.
-    if (!enabled || welcomePresentedThisLaunch || segments[1] === 'onboarding') return;
-    if (segments[0] !== '(tabs)' && segments[0] !== '(auth)') return;
+    if (!enabled || !userId || welcomePresentedFor === userId || segments[0] !== '(tabs)') return;
     let cancelled = false;
-    void shouldPresentWelcome().then((due) => {
-      if (cancelled || !due || welcomePresentedThisLaunch) return;
-      welcomePresentedThisLaunch = true;
+    void shouldPresentWelcome(userId, signedInNow).then((due) => {
+      if (cancelled || !due || welcomePresentedFor === userId) return;
+      welcomePresentedFor = userId;
       router.push('/welcome');
     });
     return () => {
       cancelled = true;
     };
-  }, [enabled, segments]);
+  }, [enabled, segments, signedInNow, userId]);
+}
+
+/** True once a session appears after this run has seen the signed-out state (a fresh sign-in). */
+function useSignedInThisRun(authStatus: string, userId: string | null) {
+  const [sawSignedOut, setSawSignedOut] = useState(false);
+  if (!sawSignedOut && authStatus === 'anonymous' && !userId) setSawSignedOut(true);
+  return sawSignedOut && Boolean(userId);
 }
 
 function RootNavigator() {
@@ -702,6 +712,7 @@ function RootNavigator() {
     return unsubscribe;
   }, [appReady, blockingStatus, bootstrap.status, navigationRef, needsOnboarding, segments, session]);
 
+  const signedInNow = useSignedInThisRun(authStatus, userId);
   useWelcomePresentation(
     appReady
       && !blockingStatus
@@ -713,6 +724,8 @@ function RootNavigator() {
         segments,
       }),
     segments,
+    userId,
+    signedInNow,
   );
 
   usePendingFriendInviteRedirect(

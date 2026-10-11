@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Alert } from 'react-native';
 import Constants from 'expo-constants';
 import { Stack, router } from 'expo-router';
@@ -15,7 +15,6 @@ import {
 import { SettingsListScreen } from '../ui/settings-list-screen';
 import { iosRoadmapFeatures } from '../../config/iosRoadmapFeatures';
 import { resolveAppIconName } from '../../theme/app-icons';
-import { canTestWelcome, loadWelcomeAlwaysShow, saveWelcomeAlwaysShow } from '../../lib/welcomeOnboarding';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
@@ -25,20 +24,6 @@ export default function ProfileScreenSurface() {
     vm.t('profile.creatorValue', { creator: 'MT HUB' }),
     vm.t('profile.appVersionValue', { version: appVersion }),
   ];
-
-  // The welcome tour's test switch: the owner's account and the simulator only.
-  const welcomeTester = canTestWelcome(vm.profileUsername, Constants.isDevice);
-  const [welcomeAlwaysShow, setWelcomeAlwaysShow] = useState(false);
-  useEffect(() => {
-    if (!welcomeTester) return;
-    let alive = true;
-    void loadWelcomeAlwaysShow().then((value) => {
-      if (alive) setWelcomeAlwaysShow(value);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [welcomeTester]);
 
   useEffect(() => {
     return registerTabScrollToTop('profile', () => {
@@ -181,29 +166,6 @@ export default function ProfileScreenSurface() {
             testID="profile-terms"
           />
         </NativeSettingsSection>
-
-        {welcomeTester ? (
-          <NativeSettingsSection title={vm.t('welcome.testSectionTitle')}>
-            <NativeSettingsRow
-              title={vm.t('welcome.alwaysShow')}
-              icon="retry"
-              iconColor={colors.accentText}
-              switchValue={welcomeAlwaysShow}
-              onSwitchValueChange={(value) => {
-                setWelcomeAlwaysShow(value);
-                void saveWelcomeAlwaysShow(value).catch(() => setWelcomeAlwaysShow(!value));
-              }}
-              testID="profile-welcome-always"
-            />
-            <NativeSettingsRow
-              title={vm.t('welcome.showNow')}
-              icon="playFill"
-              iconColor={colors.accentText}
-              onPress={() => router.push('/welcome')}
-              testID="profile-welcome-show"
-            />
-          </NativeSettingsSection>
-        ) : null}
 
         {/* Danger Zone */}
         <NativeSettingsSection title={vm.t('profile.accountActionsSectionTitle')}>
