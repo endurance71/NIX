@@ -4,6 +4,16 @@
 > Dated sprint plans and audit snapshots are historical evidence and must link
 > here instead of presenting their old binary state as current.
 
+## Feature candidate — 1.0.13 (14), 2026-10-11
+
+Supersedes build 13 (never uploaded). Same **runtime 1.0.13** and channel production, so every OTA up to the
+thirty-fifth applies. Merged into `main` (`83bd0ad`), version bump `6c5462d`. Adds in the binary: the brand assets
+regenerated from the drawn logo (app icon light / dark / tinted, launch screen, widget logo); in JS: the welcome
+tour shown right after a successful sign-in (once per account), the login stage, Memories zoom, chat polish.
+Local Release Archive: `~/.nix-ops/release-1.0.13-14/` (ARCHIVE SUCCEEDED, 1.0.13 / 14). CLI upload fails with
+„Failed to Use Accounts” (no Apple account in Xcode for xcodebuild); upload via Organizer → Distribute App by the
+owner, then assign NiX Internal QA and Team (Expo) and add PL/EN What to Test.
+
 ## Feature candidate — 1.0.13 (13), 2026-10-11
 
 Same branch and runtime as build 12 (**runtime 1.0.13**, channel production); build 13 adds native code that JS turns
