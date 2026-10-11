@@ -58,6 +58,8 @@ Twenty-fifth OTA (2026-10-11): update group `8f1b5b33-a2d1-47a0-8f73-692fb1a8614
 in step with the welcome motion (scene beats, logo strokes, page snaps, set-up, finale checklist).
 Twenty-sixth OTA (2026-10-11): update group `ac2cffaa-af77-4ae3-bbe0-627148e506bb`, source `8a76626` — login on
 the welcome stage (dark backdrop, accent glow, drawn logo, form rising in).
+Twenty-seventh OTA (2026-10-11): update group `7e7966b6-347e-4d6c-84f5-1be714b888ec`, source `a58f529` — the
+login stage follows the system light / dark appearance.
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
