@@ -1,6 +1,8 @@
 import { PropsWithChildren } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { radius } from '../../theme/radius';
+import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 
 type NativeSectionCardProps = PropsWithChildren<{
@@ -30,10 +32,11 @@ function textAlignStyle(align: 'left' | 'center') {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 14,
+    borderRadius: radius.button,
+    borderCurve: 'continuous',
     borderWidth: 1,
-    padding: 14,
-    gap: 8,
+    padding: spacing.lg,
+    gap: spacing.sm,
   },
   title: {
     ...typography.headline,
@@ -43,6 +46,6 @@ const styles = StyleSheet.create({
     ...typography.footnote,
   },
   content: {
-    gap: 8,
+    gap: spacing.sm,
   },
 });

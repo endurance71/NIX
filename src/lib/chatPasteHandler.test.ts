@@ -35,7 +35,6 @@ function createDeps(overrides: Record<string, unknown> = {}) {
   const setDraft = vi.fn();
   const notifyError = vi.fn();
   const notifySuccess = vi.fn();
-  const announce = vi.fn();
   const openPreview = vi.fn();
   const setImporting = vi.fn();
   let importing = false;
@@ -52,12 +51,11 @@ function createDeps(overrides: Record<string, unknown> = {}) {
       t: (key: string) => key,
       notifyError,
       notifySuccess,
-      announce,
       openPreview,
       pasteIo: createIo(true),
       ...overrides,
     },
-    spies: { setInputBody, setDraft, notifyError, notifySuccess, announce, openPreview, setImporting },
+    spies: { setInputBody, setDraft, notifyError, notifySuccess, openPreview, setImporting },
   };
 }
 
@@ -89,7 +87,6 @@ describe('handleChatPastePayload', () => {
     expect(draft.ownedTemporaryUris).toEqual([draft.uri]);
     expect(spies.openPreview).toHaveBeenCalledWith('peer-1');
     expect(spies.notifySuccess).toHaveBeenCalledWith('chat.pasteImageAdded');
-    expect(spies.announce).toHaveBeenCalledWith('chat.pasteImageAdded');
     expect(spies.setImporting).toHaveBeenCalledWith(true);
     expect(spies.setImporting).toHaveBeenLastCalledWith(false);
   });

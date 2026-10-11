@@ -3,7 +3,7 @@ import { Stack } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
-  NativeSettingsEmptyRow,
+  NativeSettingsListStatus,
   NativeSettingsRow,
   NativeSettingsSection,
 } from '../../../components/ui/native-settings';
@@ -13,6 +13,7 @@ import { notifyDomainError, notifySuccess } from '../../../lib/appNotify';
 import { queryKeys } from '../../../lib/queryKeys';
 import { listBlockedUsers, listMyContentReports, unblockUser } from '../../../services/safetyService';
 import { useAuth } from '../../../hooks/useAuth';
+import { resolveSettingsListState } from '../../../lib/settingsListState';
 
 export default function SafetyScreen() {
   const { t } = useTranslation();
@@ -30,7 +31,9 @@ export default function SafetyScreen() {
 
   const confirmUnblock = (userId: string, username: string | null) => {
     if (!canUseNetworkSession) return;
-    Alert.alert(t('profile.unblockConfirmTitle'), t('profile.unblockConfirmMessage', { username: username ?? 'NiX' }), [
+    Alert.alert(t('profile.unblockConfirmTitle'), username
+      ? t('profile.unblockConfirmMessage', { username })
+      : t('profile.unblockConfirmMessageGeneric'), [
       { text: t('common.cancel'), style: 'cancel' },
       {
         text: t('profile.unblock'),
@@ -67,7 +70,16 @@ export default function SafetyScreen() {
               />
             ))
           ) : (
-            <NativeSettingsEmptyRow text={t('profile.noBlockedUsers')} />
+            <NativeSettingsListStatus
+              state={resolveSettingsListState({
+                itemCount: 0,
+                hasData: blockedQuery.data !== undefined,
+                isError: blockedQuery.isError,
+                canUseNetworkSession,
+              })}
+              emptyText={t('profile.noBlockedUsers')}
+              onRetry={() => void blockedQuery.refetch()}
+            />
           )}
         </NativeSettingsSection>
 
@@ -85,11 +97,20 @@ export default function SafetyScreen() {
               />
             ))
           ) : (
-            <NativeSettingsEmptyRow text={t('profile.noReports')} />
+            <NativeSettingsListStatus
+              state={resolveSettingsListState({
+                itemCount: 0,
+                hasData: reportsQuery.data !== undefined,
+                isError: reportsQuery.isError,
+                canUseNetworkSession,
+              })}
+              emptyText={t('profile.noReports')}
+              onRetry={() => void reportsQuery.refetch()}
+            />
           )}
         </NativeSettingsSection>
       </SettingsListScreen>
-      <Stack.Screen.Title style={{ color: colors.label }}>{t('profile.safetyCenter')}</Stack.Screen.Title>
+      <Stack.Screen.Title style={{ color: colors.label }}>{t('profile.safetyCenterSummary')}</Stack.Screen.Title>
     </>
   );
 }

@@ -3,7 +3,6 @@ import ExpoWidgets
 import Foundation
 
 private let uploadLiveActivityName = "UploadStatusActivity"
-private let uploadLiveActivityURL = URL(string: "nix://inbox")
 
 private struct EnqueueOptions: Record {
   @Field var jobId: String = ""
@@ -17,6 +16,8 @@ private struct EnqueueOptions: Record {
   @Field var expiresAt: Double = 0
   @Field var mediaType: String = "video"
   @Field var sizeBytes: Double = 0
+  @Field var locale: String = "en"
+  @Field var nextRetryAt: Double = 0
 }
 
 public final class NixBackgroundUploaderModule: Module {
@@ -43,6 +44,23 @@ public final class NixBackgroundUploaderModule: Module {
       BackgroundUploadCoordinator.shared.eventSink = nil
     }
 
+    AsyncFunction("downloadPhotoToMemory") {
+      (requestId: String, url: String, bearerToken: String, maxBytes: Int) in
+      try await PhotoMemoryDownloader.shared.download(
+        requestId: requestId, url: url, bearerToken: bearerToken, maxBytes: maxBytes
+      )
+    }
+
+    AsyncFunction("cancelPhotoDownload") { (requestId: String) in
+      PhotoMemoryDownloader.shared.cancel(requestId: requestId)
+    }
+
+    AsyncFunction("savePhotoToLibrary") { (base64: String, contentType: String) in
+      try await PhotoMemoryDownloader.shared.saveToPhotoLibrary(
+        base64: base64, contentType: contentType
+      )
+    }
+
     AsyncFunction("stageFile") { (jobId: String, sourceUri: URL, fileName: String) in
       let started = Date()
       print("[NixBackgroundUploader] stageFile start job=\(jobId) file=\(fileName)")
@@ -66,6 +84,8 @@ public final class NixBackgroundUploaderModule: Module {
 
     AsyncFunction("enqueue") { (options: EnqueueOptions) in
       guard
+        options.sizeBytes.isFinite, options.sizeBytes >= 0, options.sizeBytes < Double(Int64.max),
+        options.nextRetryAt.isFinite,
         let fileUri = URL(string: options.fileUri),
         let uploadUrl = URL(string: options.uploadUrl),
         let finalizeUrl = URL(string: options.finalizeUrl)
@@ -87,7 +107,9 @@ public final class NixBackgroundUploaderModule: Module {
         finalizeToken: options.finalizeToken,
         expiresAt: options.expiresAt,
         mediaType: options.mediaType,
-        sizeBytes: Int64(options.sizeBytes)
+        sizeBytes: Int64(options.sizeBytes),
+        locale: options.locale,
+        nextRetryAt: options.nextRetryAt
       )
     }
 
@@ -111,15 +133,17 @@ public final class NixBackgroundUploaderModule: Module {
       await BackgroundUploadCoordinator.shared.reconcile()
     }
 
+    // JS → native queue view for the background Live Activity writer (SEND-2). Synchronous
+    // body: runs in call order on the module queue, so it lands before a following sync.
+    AsyncFunction("reportLiveActivityState") { (state: String) in
+      BackgroundUploadCoordinator.shared.reportLiveActivityState(state)
+    }
+
     AsyncFunction("syncLiveActivity") { (props: String) in
       guard #available(iOS 16.2, *) else {
         return ["enabled": false, "activeCount": 0] as [String: Any]
       }
-      await ExpoWidgetsLiveActivityBridge.startOrUpdate(
-        name: uploadLiveActivityName,
-        props: props,
-        url: uploadLiveActivityURL
-      )
+      await BackgroundUploadCoordinator.shared.syncLiveActivity(props: props)
       return ExpoWidgetsLiveActivityBridge.status(name: uploadLiveActivityName)
     }
   }

@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NiX · Podgląd powiadomień</title>
+<style>
+:root { color-scheme: light; --ink:#19191C; --muted:#72727D; --blue:#007AFF; --border:#E6E6EC; }
+* { box-sizing:border-box; }
+body { margin:0; background:#F7F7FA; color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+button,select,input { font:inherit; }
+button,select { cursor:pointer; }
+button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible { outline:3px solid #007AFF88; outline-offset:4px; }
+button { -webkit-tap-highlight-color:transparent; }
+.page { max-width:1170px; padding:44px 42px 28px; margin:auto; }
+.top { display:flex; align-items:center; justify-content:space-between; gap:24px; }
+.brand { font-size:30px; line-height:1; font-weight:800; letter-spacing:-2px; }
+.brand span { color:#007AFF; }
+.tag { font-size:12px; font-weight:600; color:#737380; border:1px solid #DDDDE5; border-radius:30px; padding:8px 12px; background:#FFFFFFAA; }
+h1 { font-size:clamp(28px,4vw,43px); line-height:1.14; letter-spacing:-1.6px; margin:32px 0 11px; font-weight:700; }
+.intro { font-size:15px; line-height:1.6; color:var(--muted); margin:0; max-width:650px; }
+.workbench { display:grid; grid-template-columns:minmax(280px,1fr) 310px; gap:56px; align-items:start; margin-top:32px; }
+.stage { border-radius:36px; background:radial-gradient(ellipse at 50% 60%,#E2ECFF 0%,#F0F0F6 65%,#EBEBF1 100%); padding:30px 32px 26px; display:flex; flex-direction:column; align-items:center; min-width:0; overflow:hidden; }
+.device-wrap { position:relative; max-width:100%; width:407px; flex:none; }
+.device { padding:7px; position:absolute; left:0; top:0; background:#252529; border:2px solid #6C6C75; border-radius:53px; box-shadow:0 24px 36px #171A2930,0 4px 8px #171A2920,inset 0 0 0 2px #111113; transform-origin:top left; }
+.screen { position:relative; overflow:hidden; border-radius:43px; background:var(--appBg); color:var(--text); font-family:"SF Pro Rounded",ui-rounded,-apple-system,BlinkMacSystemFont,sans-serif; }
+.hardware { position:absolute; z-index:9; background:#000; pointer-events:none; }
+.island { width:126px; height:37.33px; border-radius:19px; left:calc(50% - 63px); top:12px; }
+.island::after { content:""; position:absolute; right:10px; top:12px; width:12px; height:12px; border-radius:50%; background:radial-gradient(circle at 30% 30%,#1A2442,#080A12 55%); box-shadow:0 0 0 2px #090909; }
+.notch { width:160px; height:31px; left:calc(50% - 80px); top:0; border-radius:0 0 21px 21px; }
+.statusbar { position:absolute; left:28px; right:25px; top:19px; display:flex; justify-content:space-between; align-items:center; font-size:15px; font-weight:600; height:20px; }
+.status-icons { display:flex; align-items:center; gap:5px; }
+.status-icons svg { width:15px; height:14px; }
+.app { padding:var(--appTop) 24px 0; }
+.app-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:26px; }
+.app-brand { font-size:30px; font-weight:800; letter-spacing:-1.6px; }
+.avatar-me { width:39px; height:39px; border-radius:50%; background:var(--surface); border:1px solid var(--separator); display:grid; place-items:center; color:var(--text); font-size:14px; font-weight:600; }
+.app h2 { font-size:29px; margin:0 0 7px; letter-spacing:-.8px; }
+.app-sub { font-size:14px; line-height:20px; color:var(--secondary); margin:0 0 26px; }
+.friend-row { display:flex; gap:21px; padding:5px 0 23px; border-bottom:1px solid var(--separator); margin-bottom:20px; }
+.friend { text-align:center; font-size:12px; color:var(--secondary); }
+.friend-avatar { width:55px; height:55px; border-radius:50%; margin-bottom:9px; display:grid; place-items:center; font-size:18px; font-weight:600; color:#FFF; border:3px solid var(--appBg); outline:2px solid var(--blue); }
+.friend:nth-child(1) .friend-avatar { background:linear-gradient(145deg,#889BCD,#515C87); }
+.friend:nth-child(2) .friend-avatar { background:linear-gradient(145deg,#BAA389,#776756); }
+.friend:nth-child(3) .friend-avatar { background:linear-gradient(145deg,#93B5A8,#597D6E); }
+.friend:nth-child(4) .friend-avatar { background:var(--surface); color:var(--secondary); outline-color:var(--separator); font-size:25px; font-weight:400; }
+.section-caption { color:var(--secondary); font-size:12px; letter-spacing:.8px; font-weight:600; text-transform:uppercase; margin-bottom:12px; }
+.chat { display:flex; align-items:center; gap:13px; padding:15px 0; border-bottom:1px solid var(--separator); }
+.chat-avatar { width:46px; height:46px; border-radius:50%; background:var(--surface); display:grid; place-items:center; font-size:16px; font-weight:600; }
+.chat-copy { flex:1; }
+.chat-title { display:flex; justify-content:space-between; font-size:15px; font-weight:600; margin-bottom:5px; }
+.chat-time { font-size:11px; font-weight:400; color:var(--secondary); }
+.chat-desc { font-size:13px; color:var(--secondary); }
+.tiny-pip { width:7px; height:7px; border-radius:50%; background:var(--blue); }
+.hint-card { background:var(--surface); border:1px solid var(--separator); border-radius:22px; padding:19px; margin-top:28px; }
+.hint-card b { font-size:14px; font-weight:600; }
+.hint-card p { font-size:12px; line-height:18px; color:var(--secondary); margin:6px 0 0; }
+.tabbar { position:absolute; bottom:22px; left:24px; right:24px; border:1px solid var(--separator); background:var(--surface); backdrop-filter:blur(16px); display:flex; align-items:center; justify-content:space-around; height:65px; border-radius:32px; }
+.tabbar svg { width:23px; height:23px; stroke:var(--secondary); fill:none; stroke-width:1.8; }
+.tabbar .active { stroke:var(--blue); }
+.tabbar .camera-button { width:44px; height:44px; border-radius:50%; display:grid; place-items:center; background:var(--text); }
+.tabbar .camera-button svg { stroke:var(--appBg); }
+.homebar { position:absolute; bottom:8px; width:134px; height:5px; left:calc(50% - 67px); background:var(--text); border-radius:4px; }
+.goo { position:absolute; left:0; top:0; z-index:11; pointer-events:none; overflow:visible; }
+.notification { position:absolute; z-index:12; border:0.5px solid var(--separator); border-radius:28px; overflow:hidden; color:var(--text); display:flex; align-items:center; gap:12px; padding:16px; min-height:72px; text-align:left; background:transparent; width:361px; opacity:0; pointer-events:none; touch-action:none; transform-origin:center; -webkit-user-select:none; user-select:none; }
+.notification.ready { pointer-events:auto; }
+.notification-icon { width:40px; height:40px; flex-shrink:0; border-radius:50%; display:grid; place-items:center; background:var(--iconBg); color:var(--semantic); }
+.notification-icon svg { width:25px; height:25px; }
+.notification-copy { flex:1; min-width:0; }
+.notification-title { font-size:calc(17px * var(--fontScale,1)); line-height:calc(22px * var(--fontScale,1)); font-weight:600; overflow-wrap:anywhere; }
+.notification-message { font-size:calc(14px * var(--fontScale,1)); line-height:calc(19px * var(--fontScale,1)); margin-top:3px; color:var(--text); opacity:.7; overflow-wrap:anywhere; }
+.notification-message:empty { display:none; }
+.device-caption { margin:20px 0 0; text-align:center; color:#676777; font-size:12px; line-height:1.6; }
+.device-caption strong { color:#34343B; font-weight:600; }
+.controls { padding-top:9px; }
+.controls h2 { font-size:19px; letter-spacing:-.4px; margin:0 0 7px; }
+.control-intro { color:var(--muted); font-size:13px; line-height:1.6; margin:0 0 23px; }
+.field { margin-bottom:18px; }
+.field-label { display:flex; justify-content:space-between; font-size:12px; font-weight:600; margin-bottom:9px; color:#5D5D68; }
+.field-label output { color:#007AFF; }
+.segment { display:flex; padding:3px; background:#E9E9F0; border-radius:12px; }
+.segment button { flex:1; border:0; padding:9px 8px; border-radius:9px; background:transparent; color:#6E6E79; font-size:13px; font-weight:500; transition:background .16s,box-shadow .16s; }
+.segment button[aria-pressed="true"] { background:#FFF; box-shadow:0 2px 5px #1E1E3C12; color:#15151B; }
+select { border:1px solid #DDDDE6; border-radius:12px; padding:12px 13px; width:100%; background:#FFF; font-size:13px; color:#2C2C34; }
+.two-fields { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+input[type="range"] { width:100%; accent-color:#007AFF; margin:4px 0 0; cursor:pointer; }
+.toggle-line { display:flex; align-items:center; justify-content:space-between; gap:20px; margin:20px 0 22px; }
+.toggle-copy b { font-size:13px; font-weight:500; }
+.toggle-copy p { color:var(--muted); font-size:11px; margin:4px 0 0; line-height:1.4; }
+.toggle { position:relative; flex-shrink:0; width:42px; height:25px; }
+.toggle input { position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; z-index:1; }
+.toggle span { display:block; width:100%; height:100%; border-radius:20px; background:#D4D4DD; transition:background .2s; }
+.toggle span:after { content:""; position:absolute; width:21px; height:21px; background:#FFF; left:2px; top:2px; border-radius:50%; box-shadow:0 1px 3px #0002; transition:transform .2s; }
+.toggle input:checked + span { background:#007AFF; }
+.toggle input:checked + span:after { transform:translateX(17px); }
+.toggle input:focus-visible + span { outline:3px solid #007AFF88; outline-offset:4px; }
+.actions { display:flex; gap:8px; }
+.primary { flex:1; border:0; border-radius:13px; padding:13px; color:#FFF; background:#1B1B21; font-size:13px; font-weight:600; }
+.secondary { border:1px solid #DDDDE6; border-radius:13px; padding:12px 15px; color:#575764; background:#FFF; font-size:13px; }
+.secondary:disabled { opacity:.5; cursor:default; }
+.progress-track { height:3px; background:#E1E1EB; border-radius:2px; overflow:hidden; margin:18px 0 9px; }
+.progress { height:100%; width:0%; background:#007AFF; border-radius:2px; }
+.live-status { font-size:11px; color:#7D7D8A; line-height:1.5; min-height:33px; }
+.details { border-top:1px solid var(--border); padding-top:18px; margin-top:21px; display:flex; flex-direction:column; gap:11px; }
+.detail { display:flex; justify-content:space-between; font-size:12px; color:#747480; }
+.detail b { color:#393941; font-weight:500; }
+.explanation { margin:20px 0 0; font-size:11px; color:#7D7D89; line-height:1.7; }
+.footer { border-top:1px solid #E0E0E8; padding:21px 0 0; margin-top:30px; color:#85858F; font-size:11px; line-height:1.7; }
+.footer a { color:#626274; text-decoration:underline; text-underline-offset:3px; }
+.sr-only { position:absolute; height:1px; width:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+@media(min-width:1100px) { .stage { padding-left:45px; padding-right:45px; } }
+@media(max-width:840px) { .page { padding:28px 23px; } .workbench { grid-template-columns:minmax(250px,1fr) 265px; gap:24px; } .stage { padding:26px 15px 22px; } }
+@media(max-width:650px) { .page { padding:24px 18px; } .workbench { grid-template-columns:1fr; gap:29px; margin-top:25px; } .stage { padding:25px 18px; border-radius:26px; } .controls { padding:0 3px; } h1 { margin-top:28px; letter-spacing:-1px; } .tag { font-size:10px; } .intro { font-size:13px; } .footer { margin-top:25px; } .device-wrap { max-width:355px; } }
+@media(prefers-reduced-motion:reduce) { *,*:before,*:after { transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="page">
+<header>
+  <div class="top"><div class="brand" aria-label="NiX">Ni<span>X</span></div><div class="tag">Podgląd projektu · lokalnie</div></div>
+  <h1>Mały gest. Czytelna informacja.</h1>
+  <p class="intro">Nowe powiadomienia NiX. Płynna animacja, spokojna karta i kolory, które od razu pokazują znaczenie komunikatu.</p>
+</header>
+<main class="workbench">
+  <section class="stage" aria-label="Interaktywny podgląd telefonu">
+    <div class="device-wrap" id="deviceWrap">
+      <div class="device" id="device"><div class="screen" id="screen">
+        <div id="hardware" class="hardware island" aria-hidden="true"></div>
+        <div class="statusbar" aria-hidden="true"><span>9:41</span><div class="status-icons"><svg viewBox="0 0 18 14" fill="currentColor"><rect x="0" y="9" width="3" height="5" rx="1"/><rect x="5" y="6" width="3" height="8" rx="1"/><rect x="10" y="3" width="3" height="11" rx="1"/><rect x="15" y="0" width="3" height="14" rx="1"/></svg><svg viewBox="0 0 18 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4Q9-2 17 4M4 7Q9 3 14 7M7 10Q9 8 11 10"/><circle cx="9" cy="12" r="1" fill="currentColor"/></svg><svg viewBox="0 0 22 12" fill="none" stroke="currentColor"><rect x=".5" y=".5" width="18" height="11" rx="3"/><rect x="2" y="2" width="15" height="8" rx="1.5" fill="currentColor" stroke="none"/><rect x="20" y="4" width="2" height="4" rx="1" fill="currentColor" stroke="none"/></svg></div></div>
+        <div class="app" aria-hidden="true">
+          <div class="app-head"><div class="app-brand">NiX</div><div class="avatar-me">DM</div></div>
+          <h2>Blisko siebie.</h2><p class="app-sub">Chwile, które warto wysłać dalej.</p>
+          <div class="friend-row"><div class="friend"><div class="friend-avatar">AK</div>Ania</div><div class="friend"><div class="friend-avatar">MK</div>Michał</div><div class="friend"><div class="friend-avatar">JW</div>Julia</div><div class="friend"><div class="friend-avatar">+</div>Dodaj</div></div>
+          <div class="section-caption">Rozmowy</div>
+          <div class="chat"><div class="chat-avatar">AK</div><div class="chat-copy"><div class="chat-title">Ania <span class="chat-time">teraz</span></div><div class="chat-desc">Nowa chwila do obejrzenia</div></div><div class="tiny-pip"></div></div>
+          <div class="chat"><div class="chat-avatar">MK</div><div class="chat-copy"><div class="chat-title">Michał <span class="chat-time">12 min</span></div><div class="chat-desc">Wysłano zdjęcie</div></div></div>
+          <div class="chat"><div class="chat-avatar">JW</div><div class="chat-copy"><div class="chat-title">Julia <span class="chat-time">1 godz.</span></div><div class="chat-desc">Obejrzano</div></div></div>
+          <div class="hint-card"><b>Podziel się chwilą</b><p>Otwórz aparat i wyślij coś od siebie.<br>Reszta dzieje się naturalnie.</p></div>
+        </div>
+        <div class="tabbar" aria-hidden="true"><svg class="active" viewBox="0 0 24 24"><path d="M4 5h16v12H10l-5 4v-4H4z"/></svg><span class="camera-button"><svg viewBox="0 0 24 24"><path d="M3 6h5l2-3h4l2 3h5v14H3z"/><circle cx="12" cy="13" r="4"/></svg></span><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/></svg></div>
+        <div class="homebar" aria-hidden="true"></div>
+        <svg class="goo" id="goo" aria-hidden="true"><defs><filter id="gooFilter" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="14.3"/><feColorMatrix id="gooMatrix" type="matrix"/></filter><filter id="cardShadow" x="-30%" y="-50%" width="160%" height="220%"><feDropShadow dx="0" dy="5" stdDeviation="4.5" flood-color="#10131C" flood-opacity=".14"/></filter></defs><rect id="shadowRect" fill="#FFF" filter="url(#cardShadow)"/><g filter="url(#gooFilter)"><rect id="islandInset" fill="#000"/><rect id="neckRect" fill="#000"/><rect id="dropRect"/></g><rect id="islandRect" fill="#000"/></svg>
+        <button class="notification" id="notification" type="button" tabindex="-1" aria-label="Zamknij powiadomienie" aria-hidden="true"><span class="notification-icon" id="notificationIcon" aria-hidden="true"></span><span class="notification-copy"><span class="notification-title" id="notificationTitle" style="display:block"></span><span class="notification-message" id="notificationMessage" style="display:block"></span></span></button>
+      </div></div>
+    </div>
+    <p class="device-caption"><strong id="deviceCaption">Dynamic Island · 393 × 852</strong><br>Dotknij karty lub przesuń ją w górę, aby zamknąć.</p>
+  </section>
+  <aside class="controls" aria-label="Ustawienia podglądu">
+    <h2>Dopasuj powiadomienie</h2><p class="control-intro">Sprawdź wygląd, długość treści i ruch<br>w różnych warunkach.</p>
+    <div class="field"><div class="field-label" id="themeLabel">Motyw aplikacji</div><div class="segment" role="group" aria-labelledby="themeLabel"><button type="button" data-theme="light" aria-pressed="true">Jasny</button><button type="button" data-theme="dark" aria-pressed="false">Ciemny</button></div></div>
+    <div class="field"><label class="field-label" for="kind">Rodzaj komunikatu</label><select id="kind"><option value="success">Sukces</option><option value="error">Błąd</option><option value="warning">Ostrzeżenie</option><option value="info">Informacja</option></select></div>
+    <div class="two-fields"><div class="field"><label class="field-label" for="language">Język</label><select id="language"><option value="pl">Polski</option><option value="en">English</option></select></div><div class="field"><label class="field-label" for="length">Długość treści</label><select id="length"><option value="short">Krótka</option><option value="long">Dłuższa</option><option value="title">Sam tytuł</option></select></div></div>
+    <div class="field"><label class="field-label" for="model">Ekran telefonu</label><select id="model"><option value="island">Dynamic Island</option><option value="notch">Bez wyspy · ekran z notchem</option></select></div>
+    <div class="field"><label class="field-label" for="fontScale"><span>Wielkość tekstu</span><output id="fontOutput" for="fontScale">100%</output></label><input type="range" id="fontScale" min="100" max="165" step="5" value="100"></div>
+    <label class="toggle-line"><span class="toggle-copy"><b>Ograniczenie ruchu</b><p>Krótki fade bez deformacji karty.</p></span><span class="toggle"><input id="reducedMotion" type="checkbox"><span></span></span></label>
+    <div class="actions"><button type="button" class="primary" id="trigger">Pokaż powiadomienie</button><button type="button" class="secondary" id="dismiss" disabled>Zamknij</button></div>
+    <div class="progress-track" aria-hidden="true"><div class="progress" id="progress"></div></div><div class="live-status" id="status" role="status">Gotowe do pokazania.</div>
+    <div class="details"><div class="detail"><span>Karta</span><b id="dimensionsLabel">361 × 72 pkt</b></div><div class="detail"><span>Narożniki</span><b>28 pkt</b></div><div class="detail"><span>Ikona</span><b>40 pkt · kolor znaczenia</b></div><div class="detail"><span>Typografia</span><b>17 / 14 pkt · SF Pro Rounded</b></div></div>
+    <p class="explanation">To interaktywny podgląd projektu, nie zrzut ekranu aplikacji ani wynik natywnego QA. Wykorzystuje geometrię i paletę z kodu NiX. Sprężyny, filtr SVG, symbole oraz dostępność mogą różnić się od ich natywnego renderowania.</p>
+  </aside>
+</main>
+<footer class="footer">Geometria: <a href="https://github.com/rit3zh/expo-dynamic-notifications/tree/5de059a5cbefbe28c14efbe785166665a7c70bc5" target="_blank" rel="noopener noreferrer">expo-dynamic-notifications</a> · commit 5de059a · licencja MIT zachowana w kodzie tego pliku. Tło telefonu jest uproszczonym szkicem NiX; treści są przykładowe. Podgląd działa lokalnie, bez zewnętrznych zasobów i bez wysyłania danych.</footer>
+<div class="sr-only" id="announcement" aria-live="polite" aria-atomic="true"></div>
+</div>
+<script>
+/* Vendored geometry license:
+The MIT License (MIT)
+
+Copyright (c) 2015-present 650 Industries, Inc. (aka Expo)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+const embeddedModules = {
+"src/theme/colors.ts": function(require, exports, module) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.lightColors = exports.darkColors = void 0;
+exports.darkColors = {
+    background: '#000000',
+    surface: '#FFFFFF12', // 7% white for base surface
+    surfaceAlt: '#FFFFFF1A', // 10% white for elevated surfaces
+    textPrimary: '#FFFFFF',
+    textSecondary: '#EBEBF599', // Apple's standard secondary label
+    textMuted: '#EBEBF54D', // Apple's standard tertiary label
+    border: '#FFFFFF1A',
+    borderStrong: '#FFFFFF33',
+    accent: '#0A84FF', // Vibrant Apple Blue
+    success: '#32D74B', // Vibrant Apple Green
+    warning: '#FFD60A', // Vibrant Apple Yellow
+    error: '#FF453A', // Vibrant Apple Red
+    info: '#64D2FF',
+    buttonPrimaryBg: '#FFFFFF',
+    buttonPrimaryText: '#000000',
+    buttonSecondaryBg: '#FFFFFF26', // 15% white
+    buttonSecondaryText: '#FFFFFF',
+    overlay: '#00000066', // 40% black
+    label: '#FFFFFF',
+    secondaryLabel: '#EBEBF599',
+    tertiaryLabel: '#EBEBF54D',
+    systemBackground: '#000000',
+    secondarySystemBackground: '#1C1C1E',
+    tertiarySystemBackground: '#2C2C2E',
+    secondarySystemGroupedBackground: '#1C1C1E',
+    separator: '#54545899',
+    opaqueSeparator: '#38383A',
+    systemFill: '#7878805C',
+    secondarySystemFill: '#78788052',
+    systemBlue: '#0A84FF',
+    chatBubbleOwn: '#0A84FF',
+    chatBubbleIncoming: '#3A3A3C',
+    onChatBubbleOwn: '#FFFFFF',
+    destructive: '#FF453A',
+    cameraControlBackground: '#00000059',
+    cameraControlTint: '#FFFFFF',
+    viewerChromeFill: '#FFFFFF17',
+};
+exports.lightColors = {
+    background: '#F2F2F7',
+    surface: '#FFFFFFB3', // 70% white for translucent effect over light bg
+    surfaceAlt: '#0000000D', // 5% black for alternative surface
+    textPrimary: '#000000',
+    textSecondary: '#3C3C4399', // Apple's standard secondary label
+    textMuted: '#3C3C434D', // Apple's standard tertiary label
+    border: '#3C3C432E',
+    borderStrong: '#3C3C434D',
+    accent: '#007AFF',
+    success: '#34C759',
+    warning: '#FF9F0A',
+    error: '#FF3B30',
+    info: '#0A84FF',
+    buttonPrimaryBg: '#000000',
+    buttonPrimaryText: '#FFFFFF',
+    buttonSecondaryBg: '#0000001A', // 10% black
+    buttonSecondaryText: '#000000',
+    overlay: '#FFFFFF59', // 35% white
+    label: '#000000',
+    secondaryLabel: '#3C3C4399',
+    tertiaryLabel: '#3C3C434D',
+    systemBackground: '#FFFFFF',
+    secondarySystemBackground: '#F2F2F7',
+    tertiarySystemBackground: '#FFFFFF',
+    secondarySystemGroupedBackground: '#FFFFFF',
+    separator: '#3C3C434A',
+    opaqueSeparator: '#C6C6C8',
+    systemFill: '#78788033',
+    secondarySystemFill: '#78788029',
+    systemBlue: '#007AFF',
+    chatBubbleOwn: '#007AFF',
+    chatBubbleIncoming: '#E9E9EB',
+    onChatBubbleOwn: '#FFFFFF',
+    destructive: '#FF3B30',
+    cameraControlBackground: '#00000059',
+    cameraControlTint: '#FFFFFF',
+    viewerChromeFill: '#FFFFFF26',
+};
+
+},
+"src/components/notifications/notificationLayout.ts": function(require, exports, module) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.notificationLayout = notificationLayout;
+/** Geometry hint for portrait iPhones, never used as a hardware capability claim. */
+function notificationLayout(width, insetTop, cardHeight) {
+    const morph = insetTop >= 59;
+    const islandHeight = 37.33;
+    const islandTop = Math.max(12, insetTop - islandHeight - 11);
+    const cardWidth = Math.min(Math.max(width - 32, 0), 396);
+    const cardTop = insetTop + 12;
+    return {
+        morph,
+        width,
+        centerX: width / 2,
+        islandWidth: 126,
+        islandHeight,
+        islandTop,
+        islandBottom: islandTop + islandHeight,
+        islandCenterY: islandTop + islandHeight / 2,
+        islandRadius: islandHeight / 2,
+        cardWidth,
+        cardHeight,
+        cardRadius: 28,
+        cardTop,
+        cardLeft: (width - cardWidth) / 2,
+        cardCenterY: cardTop + cardHeight / 2,
+        dropSize: 52,
+        neckWidth: 60,
+        canvasHeight: cardTop + cardHeight + 96,
+    };
+}
+
+},
+"src/components/notifications/vendor/constants.ts": function(require, exports, module) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.NECK_RISE = exports.NECK_FALL = exports.NECK_BREAK = exports.EDGE_MARGIN = exports.DROP_STRETCH = exports.DROP_GROW_SPAN = exports.DROP_GROW_POWER = void 0;
+// Adapted from rit3zh/expo-dynamic-notifications, commit 5de059a. See LICENSE.
+const EDGE_MARGIN = 10;
+exports.EDGE_MARGIN = EDGE_MARGIN;
+const DROP_GROW_SPAN = 0.7;
+exports.DROP_GROW_SPAN = DROP_GROW_SPAN;
+const DROP_GROW_POWER = 1.25;
+exports.DROP_GROW_POWER = DROP_GROW_POWER;
+const DROP_STRETCH = 0.38;
+exports.DROP_STRETCH = DROP_STRETCH;
+const NECK_BREAK = 0.82;
+exports.NECK_BREAK = NECK_BREAK;
+const NECK_RISE = 1.6;
+exports.NECK_RISE = NECK_RISE;
+const NECK_FALL = 1.4;
+exports.NECK_FALL = NECK_FALL;
+
+},
+"src/components/notifications/vendor/clamp.ts": function(require, exports, module) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.clamp = clamp;
+// Adapted from rit3zh/expo-dynamic-notifications, commit 5de059a. See LICENSE.
+function clamp(value, min, max) {
+    "worklet";
+    return Math.min(Math.max(value, min), max);
+}
+
+},
+"src/components/notifications/vendor/mix.ts": function(require, exports, module) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.mix = mix;
+// Adapted from rit3zh/expo-dynamic-notifications, commit 5de059a. See LICENSE.
+function mix(progress, from, to) {
+    "worklet";
+    return from + (to - from) * progress;
+}
+
+},
+"src/components/notifications/vendor/easeOutPower.ts": function(require, exports, module) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.easeOutPower = easeOutPower;
+// Adapted from rit3zh/expo-dynamic-notifications, commit 5de059a. See LICENSE.
+function easeOutPower(progress, power) {
+    "worklet";
+    const normalized = Math.min(Math.max(progress, 0), 1);
+    return 1 - Math.pow(1 - normalized, power);
+}
+
+},
+"src/components/notifications/vendor/neckProfile.ts": function(require, exports, module) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.neckProfile = neckProfile;
+// Adapted from rit3zh/expo-dynamic-notifications, commit 5de059a. See LICENSE.
+const clamp_1 = require("./clamp");
+function neckProfile(progress, rise, fall) {
+    "worklet";
+    const t = (0, clamp_1.clamp)(progress, 0, 1);
+    if (t <= 0 || t >= 1) {
+        return 0;
+    }
+    const peak = rise / (rise + fall);
+    const normal = Math.pow(peak, rise) * Math.pow(1 - peak, fall);
+    return (Math.pow(t, rise) * Math.pow(1 - t, fall)) / normal;
+}
+
+},
+"src/components/notifications/vendor/geometry.ts": function(require, exports, module) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.buildNotificationGeometry = buildNotificationGeometry;
+// Adapted from rit3zh/expo-dynamic-notifications, commit 5de059a. See LICENSE.
+const constants_1 = require("./constants");
+const clamp_1 = require("./clamp");
+const easeOutPower_1 = require("./easeOutPower");
+const mix_1 = require("./mix");
+const neckProfile_1 = require("./neckProfile");
+function buildNotificationGeometry({ drop, expand, layout, }) {
+    "worklet";
+    const grow = (0, easeOutPower_1.easeOutPower)((0, clamp_1.clamp)(drop / constants_1.DROP_GROW_SPAN, 0, 1), constants_1.DROP_GROW_POWER);
+    const neck = (0, neckProfile_1.neckProfile)(drop / constants_1.NECK_BREAK, constants_1.NECK_RISE, constants_1.NECK_FALL);
+    const stretch = 1 + constants_1.DROP_STRETCH * neck;
+    const droplet = layout.dropSize * grow;
+    const width = Math.min((0, mix_1.mix)(expand, droplet / stretch, layout.cardWidth), layout.width - constants_1.EDGE_MARGIN * 2);
+    const height = (0, mix_1.mix)(expand, droplet * stretch, layout.cardHeight);
+    const radius = Math.min((0, mix_1.mix)(expand, droplet * 0.5, layout.cardRadius), Math.min(width, height) / 2);
+    const originY = layout.islandBottom - layout.islandHeight * 0.34;
+    const centerY = (0, mix_1.mix)(drop, originY, layout.cardCenterY);
+    const neckWidth = Math.min(layout.neckWidth, width) * neck;
+    const neckY = layout.islandBottom - layout.islandHeight * 0.5;
+    return {
+        x: layout.centerX - width / 2,
+        y: centerY - height / 2,
+        width,
+        height,
+        radius,
+        neckX: layout.centerX - neckWidth / 2,
+        neckY,
+        neckWidth,
+        neckHeight: Math.max(centerY - neckY, 0),
+        neckRadius: neckWidth / 2,
+        shadowOpacity: (0, clamp_1.clamp)(expand, 0, 1),
+        offsetY: centerY - layout.cardCenterY,
+        widthRatio: layout.cardWidth > 0 ? width / layout.cardWidth : 0,
+    };
+}
+
+},
+"src/components/notifications/vendor/gooMatrix.ts": function(require, exports, module) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.buildGooMatrix = buildGooMatrix;
+function buildGooMatrix({ gain, threshold }) {
+    return [
+        1, 0, 0, 0, 0,
+        0, 1, 0, 0, 0,
+        0, 0, 1, 0, 0,
+        0, 0, 0, gain, -gain * threshold,
+    ];
+}
+
+}
+};
+const moduleCache = {};
+function importModule(key) {
+  if (moduleCache[key]) return moduleCache[key].exports;
+  const module = { exports: {} }; moduleCache[key] = module;
+  const require = function(specifier) {
+    const parts = key.split('/'); parts.pop();
+    for (const part of specifier.split('/')) { if (part === '..') parts.pop(); else if (part !== '.') parts.push(part); }
+    return importModule(parts.join('/') + '.ts');
+  };
+  embeddedModules[key](require, module.exports, module);
+  return module.exports;
+}
+const { lightColors, darkColors } = importModule('src/theme/colors.ts');
+const { notificationLayout } = importModule('src/components/notifications/notificationLayout.ts');
+const { buildNotificationGeometry } = importModule('src/components/notifications/vendor/geometry.ts');
+const { buildGooMatrix } = importModule('src/components/notifications/vendor/gooMatrix.ts');
+const byId = function(id) { return document.getElementById(id); };
+const elements = {};
+for (const id of ['deviceWrap','device','screen','hardware','goo','notification','notificationIcon','notificationTitle','notificationMessage','deviceCaption','fontScale','fontOutput','kind','language','length','model','reducedMotion','trigger','dismiss','progress','status','dimensionsLabel','announcement']) elements[id] = byId(id);
+let theme = 'light';
+let layout;
+let screenWidth = 393;
+let screenHeight = 852;
+let phase = 'idle';
+let animationId = 0;
+let timeoutId = 0;
+let visibleAt = 0;
+let currentMotion = { drop:0, expand:0, reveal:0, tint:0 };
+let dragStart = null;
+const copy = {
+  pl: {
+    success: { title:'Zdjęcie wysłane', short:'Twoja chwila jest już u Ani.', long:'Twoja chwila została wysłana. Ania będzie mogła obejrzeć ją, gdy otworzy rozmowę.' },
+    error: { title:'Nie udało się wysłać', short:'Spróbuj ponownie za chwilę.', long:'Nie mogliśmy połączyć się z serwerem. Sprawdź połączenie z internetem i spróbuj ponownie.' },
+    warning: { title:'Brak połączenia', short:'Niektóre funkcje są teraz niedostępne.', long:'Nie masz teraz połączenia z internetem. Wysyłanie nowych chwil będzie dostępne po jego przywróceniu.' },
+    info: { title:'Zaproszenie wysłane', short:'Poczekaj, aż Ania je zaakceptuje.', long:'Zaproszenie zostało wysłane do Ani. Możecie dzielić się chwilami, gdy zaakceptuje Twoje zaproszenie.' },
+  },
+  en: {
+    success: { title:'Photo sent', short:'Your moment has reached Anna.', long:'Your moment has been sent. Anna can view it when she opens your conversation.' },
+    error: { title:'Could not send', short:'Please try again in a moment.', long:'We could not connect to the server. Check your internet connection and try again.' },
+    warning: { title:'You are offline', short:'Some features are currently unavailable.', long:'You are not connected to the internet. Sending new moments will be available when your connection returns.' },
+    info: { title:'Invitation sent', short:'Waiting for Anna to accept.', long:'Your invitation has been sent to Anna. You can share moments once she accepts it.' },
+  },
+};
+const iconPaths = {
+  success: '<circle cx="12.5" cy="12.5" r="11.5" fill="currentColor"/><path d="m7 12.5 3.5 3.5 7-7" fill="none" stroke="var(--cardFill)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>',
+  error: '<circle cx="12.5" cy="12.5" r="11.5" fill="currentColor"/><path d="m8.5 8.5 8 8m0-8-8 8" stroke="var(--cardFill)" stroke-width="2.1" stroke-linecap="round"/>',
+  warning: '<path d="M10.3 3.2a2.5 2.5 0 0 1 4.4 0l9 15.6a2.5 2.5 0 0 1-2.2 3.7h-18a2.5 2.5 0 0 1-2.2-3.7Z" fill="currentColor"/><path d="M12.5 8v6" stroke="var(--cardFill)" stroke-width="2.1" stroke-linecap="round"/><circle cx="12.5" cy="18" r="1.2" fill="var(--cardFill)"/>',
+  info: '<circle cx="12.5" cy="12.5" r="11.5" fill="currentColor"/><path d="M12.5 11v7" stroke="var(--cardFill)" stroke-width="2.1" stroke-linecap="round"/><circle cx="12.5" cy="7" r="1.2" fill="var(--cardFill)"/>',
+};
+function colors() { return theme === 'dark' ? darkColors : lightColors; }
+function notificationCopy() { return copy[elements.language.value][elements.kind.value]; }
+function lifetime() { return elements.kind.value === 'error' ? 5000 : 4000; }
+function updateRect(id, x, y, width, height, radius) {
+  const rect = byId(id);
+  for (const entry of Object.entries({ x:x, y:y, width:Math.max(0,width), height:Math.max(0,height), rx:Math.max(0,radius) })) rect.setAttribute(entry[0],entry[1]);
+}
+function mixColor(from,to,amount) {
+  const parse = function(value) { return [1,3,5].map(function(index) { return parseInt(value.slice(index,index+2),16); }); };
+  const a = parse(from), b = parse(to);
+  return 'rgb(' + a.map(function(value,index) { return Math.round(value + (b[index]-value)*Math.min(1,Math.max(0,amount))); }).join(',') + ')';
+}
+function resizePhone() {
+  const logicalWidth = screenWidth + 18;
+  const logicalHeight = screenHeight + 18;
+  const scale = Math.min(1,elements.deviceWrap.clientWidth/logicalWidth);
+  elements.device.style.width = logicalWidth + 'px';
+  elements.device.style.height = logicalHeight + 'px';
+  elements.device.style.transform = 'scale(' + scale + ')';
+  elements.deviceWrap.style.height = logicalHeight * scale + 'px';
+}
+function updateDesign() {
+  const palette = colors();
+  const island = elements.model.value === 'island';
+  screenWidth = island ? 393 : 375;
+  screenHeight = island ? 852 : 812;
+  const inset = island ? 59 : 44;
+  const fontScale = Number(elements.fontScale.value)/100;
+  const text = notificationCopy();
+  const message = elements.length.value === 'title' ? '' : text[elements.length.value];
+  const background = theme === 'dark' ? palette.secondarySystemBackground : palette.systemBackground;
+  const styles = { '--appBg':palette.background, '--surface':palette.secondarySystemBackground, '--text':palette.textPrimary, '--secondary':palette.textSecondary, '--separator':palette.border, '--blue':palette.accent, '--semantic':palette[elements.kind.value], '--iconBg':palette[elements.kind.value]+'18', '--cardFill':background, '--fontScale':fontScale, '--appTop':inset+20+'px' };
+  for (const entry of Object.entries(styles)) elements.screen.style.setProperty(entry[0],entry[1]);
+  elements.screen.style.width = screenWidth+'px'; elements.screen.style.height = screenHeight+'px';
+  elements.hardware.className = 'hardware ' + (island ? 'island' : 'notch');
+  elements.deviceCaption.textContent = (island ? 'Dynamic Island' : 'Ekran bez wyspy') + ' · '+screenWidth+' × '+screenHeight;
+  elements.fontOutput.textContent = elements.fontScale.value + '%';
+  elements.notificationTitle.textContent = text.title;
+  elements.notificationMessage.textContent = message;
+  elements.notificationIcon.innerHTML = '<svg viewBox="0 0 25 25" aria-hidden="true">' + iconPaths[elements.kind.value] + '</svg>';
+  elements.notification.setAttribute('aria-label',text.title + (message ? '. '+message : '') + '. Zamknij powiadomienie.');
+  elements.notification.style.width = Math.min(screenWidth-32,396)+'px';
+  elements.notification.style.height = 'auto';
+  const height = Math.max(72,Math.ceil(elements.notification.offsetHeight));
+  layout = notificationLayout(screenWidth,inset,height);
+  elements.notification.style.left = layout.cardLeft+'px';
+  elements.notification.style.top = layout.cardTop+'px';
+  elements.notification.style.height = height+'px';
+  elements.goo.setAttribute('width',screenWidth); elements.goo.setAttribute('height',layout.canvasHeight);
+  elements.goo.setAttribute('viewBox','0 0 '+screenWidth+' '+layout.canvasHeight);
+  byId('gooMatrix').setAttribute('values',buildGooMatrix({gain:22,threshold:.43}).join(' '));
+  const insetGoo = 14.3*.26;
+  updateRect('islandRect',layout.centerX-63,layout.islandTop,126,37.33,18.665);
+  updateRect('islandInset',layout.centerX-63+insetGoo,layout.islandTop+insetGoo,126-insetGoo*2,37.33-insetGoo*2,18.665-insetGoo);
+  elements.dimensionsLabel.textContent = layout.cardWidth + ' × ' + height + ' pkt';
+  resizePhone();
+  draw(currentMotion);
+}
+function draw(values) {
+  currentMotion = values;
+  const morph = layout.morph && !elements.reducedMotion.checked;
+  const geometry = buildNotificationGeometry({drop:values.drop,expand:values.expand,layout:layout});
+  elements.goo.style.display = morph && phase !== 'idle' ? 'block' : 'none';
+  updateRect('dropRect',geometry.x,geometry.y,geometry.width,geometry.height,geometry.radius);
+  updateRect('shadowRect',geometry.x,geometry.y,geometry.width,geometry.height,geometry.radius);
+  updateRect('neckRect',geometry.neckX,geometry.neckY,geometry.neckWidth,geometry.neckHeight,geometry.neckRadius);
+  const fill = colors()[theme === 'dark' ? 'secondarySystemBackground' : 'systemBackground'];
+  byId('dropRect').setAttribute('fill',mixColor('#000000',fill,(values.tint-.06)/.82));
+  byId('shadowRect').setAttribute('fill',fill);
+  byId('shadowRect').setAttribute('opacity',geometry.shadowOpacity);
+  elements.notification.style.background = morph ? 'transparent' : fill;
+  elements.notification.style.boxShadow = morph ? 'none' : '0 5px 9px '+ (theme === 'dark' ? '#00000066' : '#10131C24');
+  elements.notification.style.opacity = values.reveal;
+  const offset = morph ? geometry.offsetY : elements.reducedMotion.checked ? 0 : (1-values.reveal)*-12;
+  const scale = morph ? .96+values.reveal*.04 : 1;
+  elements.notification.style.transform = 'translateY('+offset+'px) scale('+scale+')';
+}
+function clamp(value) { return Math.min(1,Math.max(0,value)); }
+function ease(progress) { const t = clamp(progress); return 1-Math.pow(1-t,3); }
+function animate(exiting) {
+  cancelAnimationFrame(animationId); clearTimeout(timeoutId);
+  const morph = layout.morph && !elements.reducedMotion.checked;
+  const reduced = elements.reducedMotion.checked;
+  const duration = morph ? 660 : reduced ? 120 : exiting ? 120 : 180;
+  const start = performance.now();
+  phase = exiting ? 'exiting' : 'entering';
+  elements.notification.classList.remove('ready');
+  elements.notification.setAttribute('aria-hidden',exiting ? 'true' : 'false');
+  elements.notification.tabIndex = exiting ? -1 : 0;
+  elements.dismiss.disabled = exiting;
+  elements.status.textContent = exiting ? 'Zamykanie powiadomienia…' : 'Pojawianie się powiadomienia…';
+  const initial = Object.assign({},currentMotion);
+  let announced = false;
+  function frame(now) {
+    const elapsed = now-start;
+    let values;
+    if (exiting) values = { drop:initial.drop*(1-ease((elapsed-160)/500)), expand:initial.expand*(1-ease((elapsed-60)/500)), reveal:initial.reveal*(1-ease(elapsed/120)), tint:initial.tint*(1-ease((elapsed-160)/260)) };
+    else values = morph ? { drop:ease(elapsed/650), expand:ease((elapsed-180)/480), reveal:clamp((elapsed-300)/180), tint:ease((elapsed-60)/360) } : { drop:1,expand:1,reveal:clamp(elapsed/duration),tint:1 };
+    draw(values);
+    if (!exiting && values.reveal >= 1 && !announced) {
+      announced = true; visibleAt = now;
+      elements.announcement.textContent = elements.notification.getAttribute('aria-label').replace('. Zamknij powiadomienie.','');
+      timeoutId = setTimeout(dismiss,lifetime());
+    }
+    if (elapsed < duration) { animationId = requestAnimationFrame(frame); return; }
+    if (exiting) {
+      phase = 'idle'; draw({drop:0,expand:0,reveal:0,tint:0});
+      elements.notification.setAttribute('aria-hidden','true'); elements.notification.tabIndex = -1;
+      elements.progress.style.width = '0%'; elements.status.textContent = 'Powiadomienie zamknięte. Nakładka jest pusta.';
+    } else {
+      phase = 'visible'; draw({drop:1,expand:1,reveal:1,tint:1});
+      elements.notification.classList.add('ready'); elements.dismiss.disabled = false;
+      progressFrame(now);
+    }
+  }
+  animationId = requestAnimationFrame(frame);
+}
+function progressFrame(now) {
+  if (phase !== 'visible') return;
+  const remaining = Math.max(0,lifetime()-(now-visibleAt));
+  elements.progress.style.width = remaining/lifetime()*100+'%';
+  elements.status.textContent = 'Widoczne · automatyczne zamknięcie za '+(remaining/1000).toFixed(1)+' s.';
+  animationId = requestAnimationFrame(progressFrame);
+}
+function dismiss() { if (phase !== 'idle' && phase !== 'exiting') animate(true); }
+function trigger() {
+  cancelAnimationFrame(animationId); clearTimeout(timeoutId);
+  draw({drop:0,expand:0,reveal:0,tint:0}); updateDesign(); animate(false);
+}
+function changeDesign() {
+  const wasActive = phase !== 'idle';
+  cancelAnimationFrame(animationId); clearTimeout(timeoutId);
+  phase = 'idle'; updateDesign();
+  if (wasActive) trigger();
+  else { draw({drop:0,expand:0,reveal:0,tint:0}); elements.status.textContent = 'Gotowe do pokazania.'; }
+}
+for (const button of document.querySelectorAll('[data-theme]')) button.addEventListener('click',function() {
+  theme = button.dataset.theme;
+  for (const sibling of document.querySelectorAll('[data-theme]')) sibling.setAttribute('aria-pressed',String(sibling === button));
+  changeDesign();
+});
+for (const id of ['kind','language','length','model','reducedMotion']) elements[id].addEventListener('change',changeDesign);
+elements.fontScale.addEventListener('input',changeDesign);
+elements.trigger.addEventListener('click',trigger);
+elements.dismiss.addEventListener('click',dismiss);
+elements.notification.addEventListener('click',dismiss);
+elements.notification.addEventListener('pointerdown',function(event) { dragStart = event.clientY; elements.notification.setPointerCapture(event.pointerId); });
+elements.notification.addEventListener('pointerup',function(event) { if (dragStart !== null && event.clientY < dragStart-24) dismiss(); dragStart = null; });
+elements.notification.addEventListener('pointercancel',function() { dragStart = null; });
+document.addEventListener('visibilitychange',function() {
+  if (!document.hidden) return;
+  clearTimeout(timeoutId); cancelAnimationFrame(animationId); phase = 'idle';
+  draw({drop:0,expand:0,reveal:0,tint:0}); elements.notification.classList.remove('ready');
+  elements.notification.setAttribute('aria-hidden','true'); elements.notification.tabIndex = -1; elements.dismiss.disabled = true;
+  elements.status.textContent = 'Podgląd wstrzymany po ukryciu strony.'; elements.progress.style.width = '0%';
+});
+elements.reducedMotion.checked = matchMedia('(prefers-reduced-motion: reduce)').matches;
+new ResizeObserver(resizePhone).observe(elements.deviceWrap);
+updateDesign();
+setTimeout(trigger,250);
+// Public debug handle enables reproducible geometry checks without changing the app.
+window.nixNotificationPreview = { notificationLayout, buildNotificationGeometry, buildGooMatrix, lightColors, darkColors };
+</script>
+</body>
+</html>

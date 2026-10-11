@@ -11,7 +11,8 @@ export function resolveRoadmapFeature(value: string | undefined) {
  * backend rollout has been verified in the internal TestFlight cohort.
  */
 export const iosRoadmapFeatures = {
-  analytics: resolveRoadmapFeature(process.env.EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED),
+  // Keep telemetry off even when a local dotenv or internal roadmap enables it.
+  analytics: false,
   activation: internalRoadmap,
   shareInvites: resolveRoadmapFeature(process.env.EXPO_PUBLIC_SHARE_INVITES_ENABLED),
   communicationControls: resolveRoadmapFeature(

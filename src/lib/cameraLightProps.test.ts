@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getCameraLightProps } from './cameraLightProps';
 
 describe('getCameraLightProps', () => {
-  it('keeps native flash off while still photo flash is only a user preference', () => {
+  it('passes the rear flash preference before capture so the shot can be prepared', () => {
     expect(
       getCameraLightProps({
         captureMode: 'picture',
@@ -13,7 +13,7 @@ describe('getCameraLightProps', () => {
         videoPreparing: false,
         recordingVideo: false,
       })
-    ).toEqual({ flash: 'off', enableTorch: false });
+    ).toEqual({ flash: 'on', enableTorch: false });
   });
 
   it('uses flash for an armed still photo capture without enabling torch', () => {
@@ -41,7 +41,7 @@ describe('getCameraLightProps', () => {
         videoPreparing: false,
         recordingVideo: false,
       })
-    ).toEqual({ flash: 'off', enableTorch: false });
+    ).toEqual({ flash: 'on', enableTorch: false });
   });
 
   it('enables torch from video intent before recording starts', () => {
@@ -110,6 +110,20 @@ describe('getCameraLightProps', () => {
         videoTorchRequested: true,
         videoPreparing: true,
         recordingVideo: true,
+      })
+    ).toEqual({ flash: 'off', enableTorch: false });
+  });
+
+  it('never asks the front camera for a hardware flash (the app lights the screen instead)', () => {
+    expect(
+      getCameraLightProps({
+        captureMode: 'picture',
+        facing: 'front',
+        flash: 'on',
+        stillFlashArmed: true,
+        videoTorchRequested: false,
+        videoPreparing: false,
+        recordingVideo: false,
       })
     ).toEqual({ flash: 'off', enableTorch: false });
   });

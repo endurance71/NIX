@@ -27,35 +27,15 @@ export function clearUserCache() {
   // Auth is read directly from Supabase; there is no cross-account module cache.
 }
 
-function isMissingBioColumnError(error: { code?: string; message?: string } | null): boolean {
-  if (!error) return false;
-  return (
-    error.code === '42703' ||
-    (error.code === 'PGRST204' && error.message?.toLowerCase().includes('bio') === true)
-  );
-}
-
 export async function getCurrentUserProfile(): Promise<CurrentUserProfileRow | null> {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const withBioResult = await supabase
+  const { data, error } = await supabase
     .from('profiles')
     .select('id, username, display_name, bio, is_private, avatar_storage_path, avatar_emoji')
     .eq('id', user.id)
     .maybeSingle();
-
-  let data = withBioResult.data;
-  let error = withBioResult.error;
-  if (isMissingBioColumnError(error)) {
-    const fallbackResult = await supabase
-      .from('profiles')
-      .select('id, username, display_name, is_private, avatar_storage_path, avatar_emoji')
-      .eq('id', user.id)
-      .maybeSingle();
-    data = fallbackResult.data ? { ...fallbackResult.data, bio: null } : null;
-    error = fallbackResult.error;
-  }
 
   if (error) throw error;
   if (!data) return null;
@@ -95,7 +75,8 @@ export async function isUsernameTaken(username: string) {
   return true;
 }
 
-export async function saveUsernameForCurrentUser(username: string) {
+/** Sets the one-time username together with the display name in a single write. */
+export async function saveUsernameForCurrentUser(username: string, displayName?: string | null) {
   const user = await getCurrentUser();
   if (!user) {
     throw new Error('Brak sesji. Zaloguj się ponownie.');
@@ -109,8 +90,13 @@ export async function saveUsernameForCurrentUser(username: string) {
   const { error } = await supabase.from('profiles').upsert({
     id: user.id,
     username,
+    ...(displayName !== undefined ? { display_name: displayName } : {}),
   });
 
+  // The unique index decides races the availability check cannot.
+  if (error?.code === '23505') {
+    throw Object.assign(new Error('USERNAME_TAKEN'), { code: 'USERNAME_TAKEN' });
+  }
   if (error) throw error;
 }
 

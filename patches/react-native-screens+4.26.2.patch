@@ -1,0 +1,228 @@
+diff --git a/node_modules/react-native-screens/ios/RNSFullWindowOverlay.mm b/node_modules/react-native-screens/ios/RNSFullWindowOverlay.mm
+index 1a820b4..8f11c55 100644
+--- a/node_modules/react-native-screens/ios/RNSFullWindowOverlay.mm
++++ b/node_modules/react-native-screens/ios/RNSFullWindowOverlay.mm
+@@ -11,6 +11,99 @@
+ #import <react/renderer/components/rnscreens/RCTComponentViewHelpers.h>
+ #import <rnscreens/RNSFullWindowOverlayComponentDescriptor.h>
+ 
++// NiX patch (NOTIF-6): host the overlay container in its own pass-through UIWindow.
++// Upstream adds the container as a subview of the key window once, so any UIKit presentation
++// shown later (formSheet, image picker, share sheet, UIAlertController) is placed above it and
++// hides in-app banners. The container now lives in a dedicated window in the same UIWindowScene at
++// `UIWindowLevelAlert + 1`: transparent, never key (keyboard focus and first responder stay in
++// the app window), touches outside the overlay's React subviews fall through to the windows below,
++// status bar / orientation queries are forwarded to the app window, and the window is hidden and
++// released when the overlay unmounts or is recycled. Without a window scene (should not happen on
++// iOS 13+) it falls back to the upstream behaviour.
++
++@interface RNSFullWindowOverlayWindow : UIWindow
++@end
++
++@implementation RNSFullWindowOverlayWindow
++
++- (BOOL)canBecomeKeyWindow
++{
++  return NO;
++}
++
++- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
++{
++  UIView *hitView = [super hitTest:point withEvent:event];
++  // Nothing of the overlay content was hit: return nil so UIKit delivers the touch to the
++  // next window below (the app window, a presented sheet, ...).
++  if (hitView == self || hitView == self.rootViewController.view) {
++    return nil;
++  }
++  return hitView;
++}
++
++@end
++
++@interface RNSFullWindowOverlayViewController : UIViewController
++@property (nonatomic, weak) UIWindow *hostWindow;
++@end
++
++@implementation RNSFullWindowOverlayViewController
++
++- (void)loadView
++{
++  UIView *view = [UIView new];
++  view.backgroundColor = UIColor.clearColor;
++  self.view = view;
++}
++
++- (UIViewController *)hostTopViewController
++{
++  UIViewController *controller = self.hostWindow.rootViewController;
++  while (controller.presentedViewController != nil && !controller.presentedViewController.isBeingDismissed) {
++    controller = controller.presentedViewController;
++  }
++  return controller;
++}
++
++- (UIViewController *)hostStatusBarStyleViewController
++{
++  UIViewController *controller = [self hostTopViewController];
++  while (controller.childViewControllerForStatusBarStyle != nil) {
++    controller = controller.childViewControllerForStatusBarStyle;
++  }
++  return controller;
++}
++
++- (UIViewController *)hostStatusBarHiddenViewController
++{
++  UIViewController *controller = [self hostTopViewController];
++  while (controller.childViewControllerForStatusBarHidden != nil) {
++    controller = controller.childViewControllerForStatusBarHidden;
++  }
++  return controller;
++}
++
++- (UIStatusBarStyle)preferredStatusBarStyle
++{
++  UIViewController *controller = [self hostStatusBarStyleViewController];
++  return controller != nil ? controller.preferredStatusBarStyle : [super preferredStatusBarStyle];
++}
++
++- (BOOL)prefersStatusBarHidden
++{
++  UIViewController *controller = [self hostStatusBarHiddenViewController];
++  return controller != nil ? controller.prefersStatusBarHidden : [super prefersStatusBarHidden];
++}
++
++- (UIInterfaceOrientationMask)supportedInterfaceOrientations
++{
++  UIViewController *controller = [self hostTopViewController];
++  return controller != nil ? controller.supportedInterfaceOrientations : [super supportedInterfaceOrientations];
++}
++
++@end
++
+ @implementation RNSFullWindowOverlayContainer
+ 
+ - (instancetype)initWithFrame:(CGRect)frame accessibilityViewIsModal:(BOOL)accessibilityViewIsModal
+@@ -69,6 +162,8 @@ @implementation RNSFullWindowOverlay {
+   RNSFullWindowOverlayContainer *_container;
+   CGRect _reactFrame;
+   RCTSurfaceTouchHandler *_touchHandler;
++  // NiX patch (NOTIF-6): dedicated window hosting `_container`.
++  RNSFullWindowOverlayWindow *_overlayWindow;
+ }
+ 
+ - (instancetype)init
+@@ -92,12 +187,16 @@ - (void)initCommonProps
+ - (void)dealloc
+ {
+   [[NSNotificationCenter defaultCenter] removeObserver:self];
++  [self tearDownOverlayWindow];
+ }
+ 
+ - (void)setAccessibilityContainerViewIsModal:(BOOL)accessibilityContainerViewIsModal
+ {
+   _accessibilityContainerViewIsModal = accessibilityContainerViewIsModal;
+   self.container.accessibilityViewIsModal = accessibilityContainerViewIsModal;
++  // The container is no longer a sibling of the app content, so modality has to be
++  // expressed on the window level too (windows are siblings for VoiceOver).
++  _overlayWindow.accessibilityViewIsModal = accessibilityContainerViewIsModal;
+ }
+ 
+ - (void)addSubview:(UIView *)view
+@@ -122,10 +221,8 @@ - (void)didMoveToSuperview
+       [_container removeFromSuperview];
+       [_touchHandler detachFromView:_container];
+     }
++    [self tearDownOverlayWindow];
+   } else {
+-    if (_container != nil) {
+-      UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, _container);
+-    }
+     if (_touchHandler == nil) {
+       _touchHandler = [RCTSurfaceTouchHandler new];
+     }
+@@ -136,6 +233,11 @@ - (void)didMoveToSuperview
+     // is in presntation. This assumes that this method is called after
+     // `didMoveToWindow`.
+     [self maybeShow];
++
++    // NiX patch (NOTIF-6): posted after the overlay window is visible.
++    if (_container != nil) {
++      UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, _container);
++    }
+   }
+ }
+ 
+@@ -151,15 +253,62 @@ - (void)maybeShow
+ {
+   UIWindow *window = [self window];
+ 
+-  if (window == nil) {
++  if (window == nil || window == _overlayWindow) {
+     // This fallback might return wrong window in case of multi-window
+     // apps e.g. on iPad.
+     window = RCTKeyWindow();
+   }
+ 
+-  if (![[window subviews] containsObject:_container]) {
+-    [window addSubview:_container];
++  if (window == nil) {
++    return;
++  }
++
++  // NiX patch (NOTIF-6): show the container in a dedicated window above presented controllers.
++  UIWindowScene *windowScene = window.windowScene;
++  if (windowScene == nil) {
++    if (![[window subviews] containsObject:_container]) {
++      [window addSubview:_container];
++    }
++    return;
++  }
++
++  if (_overlayWindow == nil) {
++    RNSFullWindowOverlayViewController *rootViewController = [RNSFullWindowOverlayViewController new];
++    rootViewController.hostWindow = window;
++
++    _overlayWindow = [[RNSFullWindowOverlayWindow alloc] initWithWindowScene:windowScene];
++    _overlayWindow.windowLevel = UIWindowLevelAlert + 1;
++    _overlayWindow.backgroundColor = UIColor.clearColor;
++    _overlayWindow.opaque = NO;
++    _overlayWindow.overrideUserInterfaceStyle = window.overrideUserInterfaceStyle;
++    _overlayWindow.accessibilityViewIsModal = _accessibilityContainerViewIsModal;
++    _overlayWindow.rootViewController = rootViewController;
++  } else {
++    if (_overlayWindow.windowScene != windowScene) {
++      _overlayWindow.windowScene = windowScene;
++    }
++    ((RNSFullWindowOverlayViewController *)_overlayWindow.rootViewController).hostWindow = window;
++  }
++
++  UIView *rootView = _overlayWindow.rootViewController.view;
++  if (_container.superview != rootView) {
++    [rootView addSubview:_container];
++  }
++  // `hidden = NO` (not `makeKeyAndVisible`): the overlay window never becomes key.
++  _overlayWindow.hidden = NO;
++}
++
++- (void)tearDownOverlayWindow
++{
++  if (_overlayWindow == nil) {
++    return;
++  }
++  if (_container.superview == _overlayWindow.rootViewController.view) {
++    [_container removeFromSuperview];
+   }
++  _overlayWindow.hidden = YES;
++  _overlayWindow.rootViewController = nil;
++  _overlayWindow = nil;
+ }
+ 
+ #pragma mark - Fabric Specific
+@@ -172,6 +321,7 @@ - (void)maybeShow
+ - (void)prepareForRecycle
+ {
+   [_container removeFromSuperview];
++  [self tearDownOverlayWindow];
+   // Due to view recycling we don't really want to set _container = nil
+   // as it won't be instantiated when the component appears for the second time.
+   // We could consider nulling in here & using container (lazy getter) everywhere else.

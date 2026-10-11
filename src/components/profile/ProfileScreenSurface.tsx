@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Alert } from 'react-native';
 import Constants from 'expo-constants';
 import { Stack, router } from 'expo-router';
 import { useAppTheme } from '../../hooks/useAppTheme';
@@ -8,13 +8,13 @@ import { registerTabScrollToTop } from '../../lib/tabBarScrollActions';
 import { AccentColorSwatch } from '../ui/accent-color-swatch';
 import {
   NativeSettingsCenteredFooter,
+  NativeSettingsCount,
   NativeSettingsRow,
   NativeSettingsSection,
 } from '../ui/native-settings';
 import { SettingsListScreen } from '../ui/settings-list-screen';
 import { iosRoadmapFeatures } from '../../config/iosRoadmapFeatures';
 import { resolveAppIconName } from '../../theme/app-icons';
-import { tap } from '../../lib/haptics';
 
 export default function ProfileScreenSurface() {
   const vm = useProfileScreen();
@@ -38,7 +38,6 @@ export default function ProfileScreenSurface() {
           icon={resolveAppIconName('qrcode')}
           accessibilityLabel={vm.t('profile.myQrCode')}
           onPress={() => {
-            tap('light');
             router.push('/(tabs)/profile/my-code');
           }}
         />
@@ -48,7 +47,6 @@ export default function ProfileScreenSurface() {
           icon={resolveAppIconName('edit')}
           accessibilityLabel={vm.t('profile.editProfileA11y')}
           onPress={() => {
-            tap('light');
             router.push('/(tabs)/profile/edit' as never);
           }}
         />
@@ -57,7 +55,7 @@ export default function ProfileScreenSurface() {
         {/* Top Section: Identity & QR Code */}
         <NativeSettingsSection>
           <NativeSettingsRow
-            title={vm.profileRow?.display_name || vm.t('profile.setDisplayName', 'Ustaw nazwę wyświetlaną')}
+            title={vm.profileRow?.display_name || vm.t('profile.setDisplayName')}
             supportingText={[
               `@${vm.profileUsername ?? vm.t('profile.missingUsername')}`,
               vm.profileRow?.bio?.trim(),
@@ -78,14 +76,14 @@ export default function ProfileScreenSurface() {
         </NativeSettingsSection>
 
         {/* Social / Friends */}
-        <NativeSettingsSection title={vm.t('profile.social', 'Społeczność')}>
+        <NativeSettingsSection title={vm.t('profile.social')}>
           {iosRoadmapFeatures.activation &&
           !vm.activationState?.completed_at &&
           !vm.activationState?.dismissed_at ? (
             <NativeSettingsRow
               title={vm.t('activation.checklistTitle')}
               icon="checkCircle"
-              iconColor={colors.accent}
+              iconColor={colors.accentText}
               showsChevron
               onPress={() => router.push('/activation' as never)}
               testID="profile-activation"
@@ -94,10 +92,21 @@ export default function ProfileScreenSurface() {
           <NativeSettingsRow
             title={vm.t('profile.friendsTitle')}
             icon="friends"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
+            trailing={
+              vm.incomingInviteCount > 0 ? <NativeSettingsCount count={vm.incomingInviteCount} /> : undefined
+            }
             showsChevron
             onPress={() => router.push('/(tabs)/profile/friends')}
             testID="profile-friends"
+          />
+          <NativeSettingsRow
+            title={vm.t('memories.title')}
+            icon="memories"
+            iconColor={colors.accentText}
+            showsChevron
+            onPress={() => router.push('/(tabs)/profile/memories' as never)}
+            testID="profile-memories"
           />
         </NativeSettingsSection>
 
@@ -106,17 +115,17 @@ export default function ProfileScreenSurface() {
           <NativeSettingsRow
             title={vm.t('profile.appearanceTitle')}
             icon="paintpalette"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             trailing={<AccentColorSwatch color={colors.accent} />}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/appearance')}
             testID="profile-appearance"
           />
-          {Platform.OS === 'ios' && iosRoadmapFeatures.communicationControls ? (
+          {iosRoadmapFeatures.communicationControls ? (
             <NativeSettingsRow
               title={vm.t('notifications.title')}
               icon="notification"
-              iconColor={colors.accent}
+              iconColor={colors.accentText}
               showsChevron
               onPress={() => router.push('/(tabs)/profile/notifications' as never)}
               testID="profile-push-notifications"
@@ -125,7 +134,7 @@ export default function ProfileScreenSurface() {
           <NativeSettingsRow
             title={vm.t('profile.privacySectionTitle')}
             icon="privacySecurity"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/privacy-security' as never)}
             testID="profile-privacy-security"
@@ -133,25 +142,25 @@ export default function ProfileScreenSurface() {
         </NativeSettingsSection>
 
         {/* Support & Legal */}
-        <NativeSettingsSection title={vm.t('profile.supportSectionTitle', 'Pomoc i regulaminy')}>
+        <NativeSettingsSection title={vm.t('profile.supportSectionTitle')}>
           <NativeSettingsRow
-            title={vm.t('profile.rateApp', 'Oceń aplikację')}
+            title={vm.t('profile.rateApp')}
             icon="star"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             onPress={() => void vm.handleRateApp()}
             testID="profile-rate-app"
           />
           <NativeSettingsRow
-            title={vm.t('profile.contactSupport', 'Napisz do nas')}
+            title={vm.t('profile.contactSupport')}
             icon="email"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             onPress={vm.handleSupport}
             testID="profile-support"
           />
           <NativeSettingsRow
             title={vm.t('profile.terms')}
             icon="document"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/terms')}
             testID="profile-terms"
@@ -159,7 +168,7 @@ export default function ProfileScreenSurface() {
         </NativeSettingsSection>
 
         {/* Danger Zone */}
-        <NativeSettingsSection title={vm.t('profile.accountActionsSectionTitle', 'Konto')}>
+        <NativeSettingsSection title={vm.t('profile.accountActionsSectionTitle')}>
           <NativeSettingsRow
             title={vm.t('profile.signOut')}
             icon="signOut"
@@ -181,7 +190,7 @@ export default function ProfileScreenSurface() {
             testID="profile-sign-out"
           />
           <NativeSettingsRow
-            title={vm.t('profile.deleteAccount', 'Usuń konto')}
+            title={vm.t('profile.deleteAccount')}
             icon="trash"
             role="destructive"
             showsChevron

@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase';
 const INSTALLATION_ID_KEY = 'nix.push.installation-id.v1';
 const DESIRED_PREFIX = 'nix.push.desired.v1';
 const PROMPTED_PREFIX = 'nix.push.prompted.v1';
+const PROMPTED_AFTER_SEND_PREFIX = 'nix.push.prompted-after-send.v1';
 
 export type PushPermissionState = 'not_determined' | 'denied' | 'granted' | 'unavailable';
 
@@ -37,18 +38,25 @@ export async function setLocalPushDesired(userId: string, enabled: boolean) {
   await SecureStore.setItemAsync(userKey(DESIRED_PREFIX, userId), enabled ? 'true' : 'false');
 }
 
-export async function wasPushPromptOffered(userId: string) {
-  return (await SecureStore.getItemAsync(userKey(PROMPTED_PREFIX, userId))) === 'true';
+/** Onboarding rationale and the single repeat after the first successful send (NOTIF-12). */
+export async function getPushPromptOffers(userId: string) {
+  const [onboarding, afterSend] = await Promise.all([
+    SecureStore.getItemAsync(userKey(PROMPTED_PREFIX, userId)),
+    SecureStore.getItemAsync(userKey(PROMPTED_AFTER_SEND_PREFIX, userId)),
+  ]);
+  return { onboarding: onboarding === 'true', afterSend: afterSend === 'true' };
 }
 
-export async function markPushPromptOffered(userId: string) {
-  await SecureStore.setItemAsync(userKey(PROMPTED_PREFIX, userId), 'true');
+export async function markPushPromptOffers(userId: string, offers: { onboarding: boolean; afterSend: boolean }) {
+  await Promise.all([
+    offers.onboarding ? SecureStore.setItemAsync(userKey(PROMPTED_PREFIX, userId), 'true') : null,
+    offers.afterSend ? SecureStore.setItemAsync(userKey(PROMPTED_AFTER_SEND_PREFIX, userId), 'true') : null,
+  ]);
 }
 
 export function resolvePushPermissionState(
   permissions: Notifications.NotificationPermissionsStatus
 ): PushPermissionState {
-  if (Platform.OS !== 'ios') return permissions.granted ? 'granted' : 'unavailable';
   const status = permissions.ios?.status;
   if (status === Notifications.IosAuthorizationStatus.NOT_DETERMINED) return 'not_determined';
   if (status === Notifications.IosAuthorizationStatus.DENIED) return 'denied';
@@ -83,7 +91,6 @@ export async function requestPushPermission() {
 
 /** Re-request badge option for installs that were granted without allowBadge. */
 export async function ensureBadgePermission() {
-  if (Platform.OS !== 'ios') return;
   const permissions = await Notifications.getPermissionsAsync();
   if (resolvePushPermissionState(permissions) !== 'granted') return;
   if (permissions.ios?.allowsBadge === true) return;
@@ -91,7 +98,6 @@ export async function ensureBadgePermission() {
 }
 
 export async function syncAppIconBadge(count: number) {
-  if (Platform.OS !== 'ios') return;
   try {
     await Notifications.setBadgeCountAsync(Math.max(0, Math.floor(count)));
   } catch (error) {

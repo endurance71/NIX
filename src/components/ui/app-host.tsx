@@ -7,7 +7,8 @@ export type AppHostSafeAreaMode = 'respect' | 'fullBleed' | 'keyboardOnly';
 
 type AppHostProps = PropsWithChildren<{
   style?: StyleProp<ViewStyle>;
-  matchContents?: boolean;
+  /** `{ vertical: true }` sizes the height to the content and keeps the width from RN layout. */
+  matchContents?: boolean | { vertical?: boolean; horizontal?: boolean };
   /** @deprecated Prefer `safeAreaMode`. */
   ignoreSafeArea?: 'all' | 'keyboard';
   safeAreaMode?: AppHostSafeAreaMode;

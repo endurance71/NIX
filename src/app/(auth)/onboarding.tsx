@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { VStack } from '@expo/ui/swift-ui';
-import { isUsernameTaken, getCurrentUserProfile, saveUsernameForCurrentUser, updateCurrentUserProfile } from '../../services/profileService';
+import { isUsernameTaken, getCurrentUserProfile, saveUsernameForCurrentUser } from '../../services/profileService';
+import { getAuthFormErrorKey } from '../../lib/authFormError';
 import {
   AuthErrorText,
   AuthFieldGroup,
@@ -65,7 +66,7 @@ export default function OnboardingScreen() {
     }
     if (!currentProfile?.username) {
       if (cleanedDisplayName.length === 0) {
-        setError(t('auth.displayNameRequired', 'Wpisz nazwę wyświetlaną.'));
+        setError(t('auth.displayNameRequired'));
         return;
       }
       if (cleaned.length < 3) {
@@ -90,8 +91,7 @@ export default function OnboardingScreen() {
             setError(t('auth.onboardingUsernameTaken'));
             return;
           }
-          await saveUsernameForCurrentUser(cleaned);
-          await updateCurrentUserProfile({ display_name: cleanedDisplayName });
+          await saveUsernameForCurrentUser(cleaned, cleanedDisplayName);
         }
         if (iosRoadmapFeatures.analytics) {
           await setProductAnalyticsConsent(analyticsConsent);
@@ -108,8 +108,9 @@ export default function OnboardingScreen() {
         );
       },
       () => setLoading(false)
-    ).catch((err: any) => {
-      setError(t('auth.onboardingFailure', { message: err?.message || t('common.unknown') }));
+    ).catch((err: unknown) => {
+      const key = getAuthFormErrorKey(err instanceof Error ? err : null);
+      setError(key === 'auth.requestFailed' ? t('auth.onboardingSaveFailed') : t(key));
     });
   };
 
@@ -126,7 +127,10 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <AuthFormLayout description={t('auth.onboardingDescription')}>
+    <AuthFormLayout
+      description={
+        currentProfile?.username ? t('auth.ageGateDescription') : t('auth.onboardingDescription')
+      }>
       {!ageAttested ? (
         <AuthFieldGroup
           footer={<AuthTertiaryText>{t('auth.birthDatePrivacyHint')}</AuthTertiaryText>}>
@@ -153,13 +157,13 @@ export default function OnboardingScreen() {
             footer={
               <VStack alignment="leading" spacing={6}>
                 <AuthTertiaryText>
-                  {t('auth.displayNameHint', 'Widoczna dla Twoich znajomych. Możesz ją później zmienić w profilu.')}
+                  {t('auth.displayNameHint')}
                 </AuthTertiaryText>
               </VStack>
             }>
             <AuthTextField
               nativeValue={displayName}
-              placeholder={t('auth.displayNamePlaceholder', 'Nazwa wyświetlana')}
+              placeholder={t('auth.displayNamePlaceholder')}
               autoCapitalize="words"
               autoCorrect={false}
               returnKeyType="next"
@@ -176,13 +180,13 @@ export default function OnboardingScreen() {
             footer={
               <VStack alignment="leading" spacing={6}>
                 <AuthTertiaryText>
-                  {t('auth.onboardingHint', 'Unikalny login (@nazwa). Służy do szukania Cię przez znajomych i nie można go zmienić.')}
+                  {t('auth.onboardingHint')}
                 </AuthTertiaryText>
               </VStack>
             }>
             <AuthTextField
               nativeValue={username}
-              placeholder={t('auth.onboardingPlaceholder', 'Login (@nazwa)')}
+              placeholder={t('auth.onboardingPlaceholder')}
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="go"
@@ -222,6 +226,7 @@ export default function OnboardingScreen() {
       />
       <AuthSecondaryButton
         label={t('auth.onboardingUseOtherAccount')}
+        disabled={busy}
         onPress={() => void handleUseOtherAccount()}
       />
     </AuthFormLayout>

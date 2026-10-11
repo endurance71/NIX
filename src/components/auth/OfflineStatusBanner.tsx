@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { AppIcon } from '../ui/app-icon';
+import { radius } from '../../theme/radius';
+import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 
 export function OfflineStatusBanner({
@@ -32,11 +34,11 @@ export function OfflineStatusBanner({
         },
         style,
       ]}>
-      <AppIcon name="warning" size={compact ? 14 : 16} color={colors.accent} />
+      <AppIcon name="warning" size={compact ? 14 : 16} color={colors.accentText} />
       <Text
         maxFontSizeMultiplier={1.4}
         numberOfLines={compact ? 1 : undefined}
-        style={[styles.label, compact && styles.compactLabel, { color: colors.accent }]}>
+        style={[styles.label, compact && styles.compactLabel, { color: colors.accentText }]}>
         {label}
       </Text>
     </View>
@@ -48,21 +50,22 @@ const styles = StyleSheet.create({
     minHeight: 40,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginVertical: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 13,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
   },
   compact: {
     minHeight: 32,
     alignSelf: 'center',
     marginVertical: 0,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
   },
   label: {
     ...typography.footnote,
@@ -72,7 +75,7 @@ const styles = StyleSheet.create({
   },
   compactLabel: {
     flex: 0,
-    fontSize: 12,
-    lineHeight: 16,
+    ...typography.caption,
+    fontWeight: '600',
   },
 });

@@ -3,6 +3,9 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
 import type { ScreenInsetPolicy } from '../../theme/safeArea';
+import { spacing } from '../../theme/spacing';
+
+const SCREEN_BOTTOM_PADDING = spacing.xxxl + spacing.xs;
 
 type NativeScreenProps = PropsWithChildren<{
   scroll?: boolean;
@@ -20,7 +23,7 @@ export function NativeScreen({ children, scroll = false, insetPolicy = 'stackHea
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 36 + bottomContentInset },
+          { paddingBottom: SCREEN_BOTTOM_PADDING + bottomContentInset },
         ]}>
         {children}
       </ScrollView>
@@ -47,9 +50,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 36,
-    gap: 14,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: SCREEN_BOTTOM_PADDING,
+    gap: spacing.lg,
   },
 });

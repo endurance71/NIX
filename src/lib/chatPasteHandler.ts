@@ -14,7 +14,6 @@ export type ChatPasteHandlerDeps = {
   t: (key: string) => string;
   notifyError: (title: string) => void;
   notifySuccess: (title: string) => void;
-  announce: (message: string) => void;
   openPreview: (recipientId: string) => void;
   pasteIo: ChatPasteIo;
 };
@@ -55,8 +54,8 @@ export async function handleChatPastePayload(
       ownedTemporaryUris: result.ownedTemporaryUris,
     });
     const added = deps.t('chat.pasteImageAdded');
+    // The banner announces itself to VoiceOver; a second announcement would read it twice.
     deps.notifySuccess(added);
-    deps.announce(added);
     deps.openPreview(deps.peerId);
   } finally {
     deps.setImporting(false);

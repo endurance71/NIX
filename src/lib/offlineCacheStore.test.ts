@@ -30,6 +30,18 @@ const backend: OfflineCacheBackend = {
     else rows.push(row);
   },
   async list(ownerId) { return rows.filter((row) => row.owner_id === ownerId); },
+  async listChatScopes(ownerId) {
+    const latest = new Map<string, number>();
+    for (const row of rows) {
+      if (row.owner_id !== ownerId || row.category !== 'chat' || !row.scope_id) continue;
+      latest.set(row.scope_id, Math.max(latest.get(row.scope_id) ?? 0, row.cached_at));
+    }
+    return [...latest].map(([scope_id, cached_at]) => ({ scope_id, cached_at }));
+  },
+  async deleteEntry(ownerId, queryKey) {
+    const index = rows.findIndex((row) => row.owner_id === ownerId && row.query_key === queryKey);
+    if (index >= 0) rows.splice(index, 1);
+  },
   async deleteOwner(ownerId) {
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       if (rows[index].owner_id === ownerId) rows.splice(index, 1);
@@ -65,12 +77,14 @@ describe('offline cache store', () => {
     expect(JSON.stringify(await store.read('user-a'))).not.toContain('secret-b');
   });
 
-  it('clears the account cache after decryption corruption', async () => {
+  it('removes only the corrupt entry and preserves valid account data', async () => {
     const store = createOfflineCacheStore(backend, codec);
     await store.write('user-a', ['acceptedFriends'], [{ id: 'friend' }], 1);
-    corrupt = true;
-    await expect(store.read('user-a')).rejects.toThrow('decrypt failed');
-    expect(await backend.list('user-a')).toEqual([]);
+    await store.write('user-a', ['currentUserProfile', 'user-a'], { username: 'good' }, 2);
+    rows[0].encrypted_payload = 'corrupt';
+    expect(await store.read('user-a')).toHaveLength(1);
+    expect((await store.read('user-a'))[0].data).toEqual({ username: 'good' });
+    expect(await backend.list('user-a')).toHaveLength(1);
   });
 
   it('retains only the 20 most recently written chat scopes', async () => {
@@ -83,5 +97,52 @@ describe('offline cache store', () => {
     expect(scopes.size).toBe(20);
     expect(scopes.has('peer-0')).toBe(false);
     expect(scopes.has('peer-21')).toBe(true);
+  });
+
+  it('prunes chats without loading encrypted payloads', async () => {
+    const list = vi.spyOn(backend, 'list');
+    const store = createOfflineCacheStore(backend, codec);
+    await store.write('user-a', ['textMessagesWithPeer', 'peer-1'], [], 1);
+    expect(list).not.toHaveBeenCalled();
+    list.mockRestore();
+  });
+
+  it('decrypts entries concurrently and keeps their order', async () => {
+    const store = createOfflineCacheStore(backend, codec);
+    await store.write('user-a', ['acceptedFriends'], [{ id: 'friend' }], 1);
+    await store.write('user-a', ['currentUserProfile', 'user-a'], { username: 'good' }, 2);
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const slowCodec: OfflineCacheCodec = { ...codec, async decrypt(...args) {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight -= 1;
+      return codec.decrypt(...args);
+    } };
+    const entries = await createOfflineCacheStore(backend, slowCodec).read('user-a');
+    expect(maxInFlight).toBe(2);
+    expect(entries.map((entry) => entry.queryKey[0])).toEqual(['acceptedFriends', 'currentUserProfile']);
+    expect(await store.read('user-a')).toHaveLength(2);
+  });
+
+  it('cancels a write being encrypted when logout clears the account', async () => {
+    let release!: () => void;
+    const deferredCodec: OfflineCacheCodec = { ...codec, async encrypt(...args) {
+      await new Promise<void>((resolve) => { release = resolve; }); return codec.encrypt(...args);
+    } };
+    const store = createOfflineCacheStore(backend, deferredCodec);
+    const pending = store.write('a', ['acceptedFriends'], [{ id: 'friend' }], 1);
+    const cancelled = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    const clear = store.clear('a'); release(); await cancelled; await clear;
+    expect(await backend.list('a')).toEqual([]);
+  });
+
+  it('destroys the AES key even if SQLite account deletion fails', async () => {
+    const clearKey = vi.fn(async () => {});
+    const store = createOfflineCacheStore({ ...backend, deleteOwner: async () => { throw new Error('disk failure'); } }, { ...codec, clear: clearKey });
+    await expect(store.clear('a')).rejects.toThrow('disk failure');
+    expect(clearKey).toHaveBeenCalledWith('a');
   });
 });

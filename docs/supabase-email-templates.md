@@ -30,7 +30,7 @@ Fallback: angielski, gdy brak locale PL.
 
 | Zmienna | Użycie |
 |---------|--------|
-| `{{ .ConfirmationURL }}` | Link aktywacyjny / reset (deep link `nix://auth/callback`) |
+| `{{ .TokenHash }}` | Link potwierdzenia / resetu: `https://nix.damianmotylinski.pl/auth/confirm?token_hash={{ .TokenHash }}&type=signup\|recovery`. `{{ .ConfirmationURL }}` nie jest używany (niósł tokeny sesji w URL). |
 | `{{ .Token }}` | 6-cyfrowy kod OTP (ekran `check-email`, zmiana hasła) |
 | `{{ .Email }}` | Adres użytkownika |
 | `{{ .NewEmail }}` | Nowy adres (email_change) |
@@ -56,7 +56,7 @@ Wymaga zalogowania do Supabase CLI (`login` otwiera przeglądarkę). Hasło bazy
 
 Po push sprawdź w Dashboard:
 
-- **Authentication → URL Configuration:** `nix://auth/callback` w Redirect URLs
+- **Authentication → URL Configuration:** `nix://auth/callback` w Redirect URLs (pozostaje dla zgodności; szablony go nie używają)
 - **Authentication → Email Templates:** podgląd HTML (6 auth + notifications)
 - **Authentication → Emails:** opcjonalnie Sender name „NiX”
 

@@ -1,9 +1,10 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
-import { Keyboard, TextInput, useWindowDimensions, type KeyboardEvent, type TextStyle } from 'react-native';
+import { AppState, Keyboard, TextInput, useWindowDimensions, type KeyboardEvent, type TextStyle } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
 import {
   Easing,
   cancelAnimation,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -16,10 +17,23 @@ import { appleUiSpring, duration, useMotionEnabled } from '../../theme/motion';
 import type { MediaTextOverlayStyle } from '../../types/mediaTextOverlay';
 import { resolveMediaTextFontFamily } from '../../theme/mediaTextOverlayFonts';
 import {
+  captionMinimumBarHeight,
   clampPreviewTextTopPx,
   previewTextTopAboveObstacle,
 } from '../../lib/mediaTextOverlayGeometry';
 import type { PreviewTextStickerProps } from './PreviewTextSticker.types';
+import { tap } from '../../lib/haptics';
+
+/** How far past its lowest resting spot the sticker can be dragged toward the trash zone. */
+const TRASH_OVERDRAG_PX = 72;
+/** Past this much overdrag the sticker is over the trash zone; releasing deletes it. */
+const TRASH_ACTIVATE_PX = 28;
+export const TRASH_ZONE_SIZE = 56;
+const DROP_SPRING = { duration: 400, dampingRatio: 0.8 } as const;
+
+function trashTick() {
+  tap('light');
+}
 
 const FORMAT_SHEET_FALLBACK_HEIGHT = 380;
 const FORMAT_PARK_REFINE_EPSILON = 10;
@@ -80,6 +94,7 @@ type ControllerArgs = Required<
   Pick<
     PreviewTextStickerProps,
     | 'mode'
+    | 'variant'
     | 'text'
     | 'fontSize'
     | 'textColor'
@@ -98,13 +113,35 @@ type ControllerArgs = Required<
     | 'onTopPxChange'
     | 'onPressDisplay'
     | 'onConfirm'
+    | 'onDelete'
     | 'exiting'
     | 'animateEnter'
   >
 > & Pick<PreviewTextStickerProps, 'onExitComplete'>;
 
+function resolveStickerTextStyle({
+  italic,
+  underline,
+  strikethrough,
+  monospace,
+  fontDesign,
+}: Pick<ControllerArgs, 'italic' | 'underline' | 'strikethrough' | 'monospace' | 'fontDesign'>) {
+  const fontStyle = italic ? 'italic' : 'normal';
+  const textDecorationLine: TextStyle['textDecorationLine'] =
+    underline && strikethrough
+      ? 'underline line-through'
+      : underline
+        ? 'underline'
+        : strikethrough
+          ? 'line-through'
+          : 'none';
+  const fontFamily = resolveMediaTextFontFamily({ monospace, fontDesign });
+  return { fontStyle: fontStyle as TextStyle['fontStyle'], textDecorationLine, fontFamily };
+}
+
 export function usePreviewTextStickerController({
   mode,
+  variant,
   text,
   fontSize,
   textColor,
@@ -123,6 +160,7 @@ export function usePreviewTextStickerController({
   onTopPxChange,
   onPressDisplay,
   onConfirm,
+  onDelete,
   exiting,
   onExitComplete,
   animateEnter,
@@ -147,22 +185,21 @@ export function usePreviewTextStickerController({
   const translateY = useSharedValue(topPx);
   const restTop = useSharedValue(topPx);
   const dragStartY = useSharedValue(topPx);
+  const trashVisible = useSharedValue(0);
+  const overTrash = useSharedValue(false);
   const editProgress = useSharedValue(mode === 'editing' ? 1 : 0);
   const presence = useSharedValue(animateEnter && motionEnabled ? 0 : 1);
   const isEditing = mode === 'editing';
   const actionsReady = useSharedValue(isEditing && !animateEnter ? 1 : 0);
 
   const textAlign = align;
-  const fontStyle = italic ? 'italic' : 'normal';
-  const textDecorationLine: TextStyle['textDecorationLine'] =
-    underline && strikethrough
-      ? 'underline line-through'
-      : underline
-        ? 'underline'
-        : strikethrough
-          ? 'line-through'
-          : 'none';
-  const fontFamily = resolveMediaTextFontFamily({ monospace, fontDesign });
+  const textStyleExtras = resolveStickerTextStyle({
+    italic,
+    underline,
+    strikethrough,
+    monospace,
+    fontDesign,
+  });
   const sheetPresented = isEditing && formatOpen;
   const placeholderText = t('preview.textPlaceholder');
   const emptyEditing = isEditing && text.length === 0;
@@ -170,10 +207,10 @@ export function usePreviewTextStickerController({
     emptyEditing && barInnerWidth > 0 && placeholderWidth > 0
       ? Math.min(
           barInnerWidth - BAR_TEXT_HORIZONTAL_PADDING,
-          Math.max(BAR_TEXT_HORIZONTAL_PADDING, (barInnerWidth + placeholderWidth) / 2)
+          Math.max(BAR_TEXT_HORIZONTAL_PADDING, (barInnerWidth + placeholderWidth) / 2),
         )
       : undefined;
-  const minimumBarHeight = Math.max(44, fontSize + 20);
+  const minimumBarHeight = captionMinimumBarHeight(variant, fontSize);
 
   useEffect(() => {
     formatOpenRef.current = formatOpen;
@@ -189,13 +226,16 @@ export function usePreviewTextStickerController({
         cancelAnimationFrame(formatPresentationFrameRef.current);
       }
     },
-    []
+    [],
   );
 
   useEffect(() => {
     if (formatOpenRef.current) return;
+    // A drop already placed the sticker (and may still be springing back from the trash
+    // overdrag); only outside changes jump it.
+    const fromDrop = Math.abs(restTop.get() - topPx) < 0.5;
     restTop.set(topPx);
-    if (keyboardHeightRef.current >= 1) return;
+    if (keyboardHeightRef.current >= 1 || fromDrop) return;
     translateY.set(topPx);
   }, [restTop, topPx, translateY]);
 
@@ -211,11 +251,11 @@ export function usePreviewTextStickerController({
   }, [animateEnter, motionEnabled, presence]);
 
   useEffect(() => {
-    if (!isEditing) {
-      actionsReady.set(0);
-      return;
-    }
+    // Leaving edit: the confirm / delete row fades out with `editProgress` (zeroing it here cut
+    // the row at once). The next edit re-arms it until the keyboard is up.
+    if (!isEditing) return;
     if (!animateEnter || !motionEnabled) actionsReady.set(1);
+    else if (keyboardHeightRef.current < 1) actionsReady.set(0);
   }, [actionsReady, animateEnter, isEditing, motionEnabled]);
 
   useLayoutEffect(() => {
@@ -245,7 +285,7 @@ export function usePreviewTextStickerController({
             minTopPx,
             maxTopPx,
           }),
-          motionEnabled
+          motionEnabled,
         );
       });
     });
@@ -282,7 +322,7 @@ export function usePreviewTextStickerController({
       editProgress.set(withSpring(1, appleUiSpring));
     } else {
       editProgress.set(
-        withTiming(0, { duration: duration.medium, easing: Easing.out(Easing.cubic) })
+        withTiming(0, { duration: duration.medium, easing: Easing.out(Easing.cubic) }),
       );
     }
   }, [editProgress, isEditing, motionEnabled]);
@@ -298,15 +338,7 @@ export function usePreviewTextStickerController({
     });
     if (Math.abs(translateY.get() - target) < FORMAT_PARK_REFINE_EPSILON) return;
     animateFormatLift(translateY, target, motionEnabled);
-  }, [
-    formatOpen,
-    formatSheetHeight,
-    maxTopPx,
-    minTopPx,
-    motionEnabled,
-    translateY,
-    windowHeight,
-  ]);
+  }, [formatOpen, formatSheetHeight, maxTopPx, minTopPx, motionEnabled, translateY, windowHeight]);
 
   const applyKeyboardFrame = useEffectEvent((event: KeyboardEvent) => {
     if (exitingRef.current || formatOpenRef.current || formatLiftActiveRef.current) return;
@@ -315,7 +347,7 @@ export function usePreviewTextStickerController({
     keyboardHeightRef.current = kb;
     if (kb >= 1 && actionsReady.get() < 1) {
       actionsReady.set(
-        withTiming(1, { duration: duration.fast, easing: Easing.out(Easing.cubic) })
+        withTiming(1, { duration: duration.fast, easing: Easing.out(Easing.cubic) }),
       );
     }
     const target = previewTextTopAboveObstacle({
@@ -335,7 +367,7 @@ export function usePreviewTextStickerController({
       withTiming(target, {
         duration: ms > 0 ? ms : duration.slow,
         easing: Easing.bezier(0.33, 0, 0.2, 1),
-      })
+      }),
     );
   });
 
@@ -352,6 +384,44 @@ export function usePreviewTextStickerController({
       animateFormatLift(translateY, restore, motionEnabled);
     }
   });
+
+  /**
+   * A system sheet presented over the first keyboard (the swipe-typing onboarding, a Face ID or
+   * permission prompt) interrupts the enter animation and steals first responder; the keyboard
+   * frame that reveals the action row may then never arrive. Every return of focus or keyboard
+   * re-asserts the editing state so typed text, placeholder and actions are always visible.
+   */
+  const resyncEditingVisibility = () => {
+    if (exitingRef.current || !isEditing) return;
+    if (presence.get() < 1) {
+      cancelAnimation(presence);
+      presence.set(1);
+    }
+    if (editProgress.get() < 1) {
+      cancelAnimation(editProgress);
+      editProgress.set(1);
+    }
+    if (actionsReady.get() < 1) {
+      cancelAnimation(actionsReady);
+      actionsReady.set(1);
+    }
+  };
+  const resyncFromSystemEvent = useEffectEvent(resyncEditingVisibility);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    const showSub = Keyboard.addListener('keyboardDidShow', () => resyncFromSystemEvent());
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      resyncFromSystemEvent();
+      // The interrupting sheet resigned the input; give it back so typing keeps landing here.
+      if (!formatOpenRef.current && !exitingRef.current) inputRef.current?.focus();
+    });
+    return () => {
+      showSub.remove();
+      appStateSub.remove();
+    };
+  }, [isEditing]);
 
   useEffect(() => {
     if (!isEditing || formatOpen) {
@@ -390,28 +460,59 @@ export function usePreviewTextStickerController({
     presence.set(
       withTiming(0, STICKER_PRESENCE_TIMING, (finished) => {
         if (finished) scheduleOnRN(notifyExitComplete);
-      })
+      }),
     );
   }, [exiting, motionEnabled, presence, translateY]);
 
+  // Only a placed (display-mode) sticker can be dropped on the trash; while typing the trash
+  // button in the action row deletes it.
+  const canTrash = !isEditing && !exiting;
   const pan = Gesture.Pan()
     .enabled(!formatOpen)
     .minDistance(4)
     .onBegin(() => {
       'worklet';
+      cancelAnimation(translateY);
       dragStartY.set(translateY.get());
+    })
+    .onStart(() => {
+      'worklet';
+      if (canTrash) trashVisible.set(motionEnabled ? withTiming(1, { duration: duration.fast }) : 1);
     })
     .onUpdate((event) => {
       'worklet';
       const rawNext = dragStartY.get() + event.translationY;
-      translateY.set(Math.max(minTopPx, Math.min(maxTopPx, rawNext)));
+      const lowest = canTrash ? maxTopPx + TRASH_OVERDRAG_PX : maxTopPx;
+      const next = Math.max(minTopPx, Math.min(lowest, rawNext));
+      translateY.set(next);
+      overTrash.set(canTrash && next - maxTopPx >= TRASH_ACTIVATE_PX);
     })
     .onEnd(() => {
       'worklet';
-      const nextTopPx = translateY.get();
+      if (overTrash.get()) {
+        scheduleOnRN(onDelete);
+        return;
+      }
+      const nextTopPx = Math.min(maxTopPx, translateY.get());
+      if (nextTopPx !== translateY.get()) {
+        translateY.set(motionEnabled ? withSpring(nextTopPx, DROP_SPRING) : nextTopPx);
+      }
       restTop.set(nextTopPx);
       scheduleOnRN(onTopPxChange, nextTopPx);
+    })
+    .onFinalize(() => {
+      'worklet';
+      overTrash.set(false);
+      trashVisible.set(motionEnabled ? withTiming(0, { duration: duration.fast }) : 0);
     });
+
+  // Light tick at the moment the sticker crosses into the trash zone (the visual grows with it).
+  useAnimatedReaction(
+    () => overTrash.get(),
+    (current, previous) => {
+      if (current && previous === false) scheduleOnRN(trashTick);
+    },
+  );
 
   const tapDisplay = Gesture.Tap()
     .enabled(!isEditing)
@@ -427,7 +528,11 @@ export function usePreviewTextStickerController({
     else onConfirm();
   };
 
-  const shellStyle = useAnimatedStyle(() => ({ top: translateY.get() }));
+  // A transform, not `top`: dragging must not re-run layout (and the bar's blur) every frame.
+  const shellStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.get() }],
+    opacity: overTrash.get() ? 0.55 : 1,
+  }));
   const actionsStyle = useAnimatedStyle(() => ({
     opacity: editProgress.get() * presence.get() * actionsReady.get(),
   }));
@@ -447,11 +552,6 @@ export function usePreviewTextStickerController({
     preset,
     align,
   };
-  const textStyleExtras = {
-    fontStyle: fontStyle as TextStyle['fontStyle'],
-    textDecorationLine,
-    fontFamily,
-  };
 
   const handleFormatSheetHeightChange = (height: number) => {
     formatSheetHeightRef.current = height;
@@ -460,6 +560,9 @@ export function usePreviewTextStickerController({
 
   return {
     actionsStyle,
+    trashVisible,
+    trashActive: overTrash,
+    trashZoneTopPx: maxTopPx + TRASH_ACTIVATE_PX,
     composed,
     contentPresenceStyle,
     displayTextStyle,
@@ -468,6 +571,7 @@ export function usePreviewTextStickerController({
     formatStyle,
     handleFormatSheetHeightChange,
     handleBackdropPress,
+    handleInputFocus: resyncEditingVisibility,
     inputRef,
     inputTextStyle,
     isEditing,

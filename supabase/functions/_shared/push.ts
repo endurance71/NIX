@@ -61,31 +61,66 @@ export function reactionGlyph(emoji: string | null | undefined): string {
   return '💬';
 }
 
+/**
+ * Title = who (actor label), body = what, in gender-neutral wording (no
+ * „zareagował(a)”): Polish uses impersonal/3rd-person present forms that do
+ * not inflect for gender.
+ */
 export function pushCopy(
   type: PushEventType,
   actorLabel: string,
   locale: 'pl' | 'en',
   emoji?: string | null
 ) {
-  const actor = actorLabel.trim() || '@nix_user';
+  const title = actorLabel.trim() || '@nix_user';
   if (locale === 'pl') {
-    if (type === 'new_nix') return { title: 'NiX', body: `${actor} wysyła Ci nowy NiX` };
-    if (type === 'new_text_message') return { title: 'Wiadomość', body: `${actor} wysyła Ci wiadomość` };
+    if (type === 'new_nix') return { title, body: 'Wysyła Ci nowy NiX' };
+    if (type === 'new_text_message') return { title, body: 'Wysyła Ci wiadomość' };
     if (type === 'message_reaction') {
-      return { title: 'Wiadomość', body: `${actor} zareagował(a): ${reactionGlyph(emoji)}` };
+      return { title, body: `Reakcja na Twoją wiadomość: ${reactionGlyph(emoji)}` };
     }
-    if (type === 'capture_attempt') return { title: 'NiX', body: `${actor} próbował(a) zrobić zrzut lub nagrać ekran` };
-    if (type === 'friend_request') return { title: 'Nowe zaproszenie', body: `${actor} chce dodać Cię do znajomych` };
-    return { title: 'Nowa znajomość', body: `Ty i ${actor} jesteście teraz znajomymi` };
+    if (type === 'capture_attempt') return { title, body: 'Próba zrobienia zrzutu lub nagrania ekranu' };
+    if (type === 'friend_request') return { title, body: 'Chce dodać Cię do znajomych' };
+    return { title, body: 'Jesteście teraz znajomymi' };
   }
-  if (type === 'new_nix') return { title: 'NiX', body: `${actor} sent you a new NiX` };
-  if (type === 'new_text_message') return { title: 'Message', body: `${actor} sent you a message` };
+  if (type === 'new_nix') return { title, body: 'Sent you a new NiX' };
+  if (type === 'new_text_message') return { title, body: 'Sent you a message' };
   if (type === 'message_reaction') {
-    return { title: 'Message', body: `${actor} reacted: ${reactionGlyph(emoji)}` };
+    return { title, body: `Reacted to your message: ${reactionGlyph(emoji)}` };
   }
-  if (type === 'capture_attempt') return { title: 'NiX', body: `${actor} tried to screenshot or record the screen` };
-  if (type === 'friend_request') return { title: 'New friend request', body: `${actor} wants to add you as a friend` };
-  return { title: 'New friend', body: `You and ${actor} are now friends` };
+  if (type === 'capture_attempt') return { title, body: 'Tried to screenshot or record the screen' };
+  if (type === 'friend_request') return { title, body: 'Wants to add you as a friend' };
+  return { title, body: 'You are now friends' };
+}
+
+/**
+ * Conversation events go stale quickly. Their push lifetime is counted from the
+ * event (job.created_at), not from the send attempt, so a job retried for up to
+ * an hour cannot surface an old message later. Friend events and capture alerts
+ * keep the provider default.
+ */
+export const PUSH_EVENT_TTL_SECONDS: Partial<Record<PushEventType, number>> = {
+  new_nix: 3600,
+  new_text_message: 3600,
+  message_reaction: 3600,
+};
+
+/**
+ * Expo `ttl` for this job: `undefined` when the type has no limit, otherwise the
+ * remaining seconds of the event lifetime. `0` means the event already expired
+ * and must not be sent (Expo treats ttl 0 as "now or never", not as "expired").
+ */
+export function pushTtlSeconds(
+  type: PushEventType,
+  createdAt: string | null | undefined,
+  now = Date.now()
+): number | undefined {
+  const lifetime = PUSH_EVENT_TTL_SECONDS[type];
+  if (lifetime === undefined) return undefined;
+  const created = createdAt ? new Date(createdAt).getTime() : Number.NaN;
+  if (!Number.isFinite(created)) return lifetime;
+  const ageSeconds = Math.max(0, Math.floor((now - created) / 1000));
+  return Math.max(0, lifetime - ageSeconds);
 }
 
 export function retryAt(attempts: number) {

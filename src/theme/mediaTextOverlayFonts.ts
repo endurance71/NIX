@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import type { MediaTextFontDesign } from '../types/mediaTextOverlay';
 
 export const MEDIA_TEXT_FONT_DESIGNS: readonly MediaTextFontDesign[] = [
@@ -22,14 +21,14 @@ export function resolveMediaTextFontFamily(opts: {
   fontDesign?: MediaTextFontDesign;
 }): string | undefined {
   if (opts.monospace) {
-    return Platform.select({ ios: 'Menlo', default: 'monospace' });
+    return 'Menlo';
   }
   switch (opts.fontDesign) {
     case 'serif':
-      return Platform.select({ ios: 'Georgia', default: 'serif' });
+      return 'Georgia';
     case 'rounded':
       // Soft geometric stand-in; bake uses SF Rounded.
-      return Platform.select({ ios: 'Avenir Next', default: undefined });
+      return 'Avenir Next';
     default:
       return undefined;
   }

@@ -4,6 +4,7 @@ import { assertSentryDisabled } from './check-sentry-disabled.mjs';
 const app = JSON.parse(readFileSync(new URL('../app.json', import.meta.url), 'utf8')).expo;
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const plist = readFileSync(new URL('../ios/NiX/Info.plist', import.meta.url), 'utf8');
+const appDelegate = readFileSync(new URL('../ios/NiX/AppDelegate.swift', import.meta.url), 'utf8');
 const widgetPlist = readFileSync(new URL('../ios/ExpoWidgetsTarget/Info.plist', import.meta.url), 'utf8');
 const expoPlist = readFileSync(new URL('../ios/NiX/Supporting/Expo.plist', import.meta.url), 'utf8');
 const en = readFileSync(new URL('../ios/NiX/Supporting/en.lproj/InfoPlist.strings', import.meta.url), 'utf8');
@@ -13,7 +14,16 @@ const project = readFileSync(new URL('../ios/NiX.xcodeproj/project.pbxproj', imp
 const xcodeEnv = readFileSync(new URL('../ios/.xcode.env', import.meta.url), 'utf8');
 const easIgnore = readFileSync(new URL('../.easignore', import.meta.url), 'utf8');
 
-const purposeKeys = ['NSCameraUsageDescription', 'NSMicrophoneUsageDescription', 'NSPhotoLibraryUsageDescription'];
+const purposeKeys = [
+  'NSCameraUsageDescription',
+  'NSMicrophoneUsageDescription',
+  'NSPhotoLibraryUsageDescription',
+  'NSPhotoLibraryAddUsageDescription',
+];
+const localeFiles = {
+  en: JSON.parse(readFileSync(new URL('../src/locales/en/common.json', import.meta.url), 'utf8')),
+  pl: JSON.parse(readFileSync(new URL('../src/locales/pl/common.json', import.meta.url), 'utf8')),
+};
 let failed = false;
 
 function fail(message) {
@@ -31,6 +41,11 @@ for (const key of purposeKeys) {
   if (!plist.includes(plistEntry)) fail(`${key} differs between app.json and native Info.plist`);
   if (!en.includes(`"${key}" = "${expected}";`)) fail(`${key} is missing or stale in English localization`);
   if (!pl.includes(`"${key}" = `)) fail(`${key} is missing in Polish localization`);
+  // Prebuild regenerates the .lproj files from app.json `locales`; keep both sources in step.
+  if (localeFiles.en[key] !== expected) fail(`${key} is missing or stale in src/locales/en/common.json`);
+  if (!localeFiles.pl[key] || !pl.includes(`"${key}" = "${localeFiles.pl[key]}";`)) {
+    fail(`${key} differs between src/locales/pl/common.json and the Polish InfoPlist.strings`);
+  }
 }
 
 for (const forbiddenKey of ['NSFaceIDUsageDescription', 'NSLocalNetworkUsageDescription', 'NSBonjourServices']) {
@@ -109,6 +124,18 @@ if (app.ios.infoPlist.UIBackgroundModes) {
   fail('UIBackgroundModes must remain plugin-managed instead of being duplicated in app.json');
 }
 if (!app.plugins?.includes('expo-notifications')) fail('expo-notifications plugin is missing in app.json');
+const buildProperties = app.plugins?.find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-build-properties')?.[1];
+if (buildProperties?.ios?.enableSceneSupport !== true) {
+  fail('expo-build-properties must enable scene support for Xcode 27');
+}
+if (
+  !plist.includes('<key>UIApplicationSceneManifest</key>')
+  || !plist.includes('<string>EXExpoAppSceneDelegate</string>')
+  || !appDelegate.includes('class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {')
+  || /factory\.startReactNative\(/.test(appDelegate)
+) {
+  fail('native scene support must use ExpoAppSceneDelegate to create the window and start React Native');
+}
 if (!entitlements.includes('<key>aps-environment</key>')) fail('aps-environment is missing from NiX.entitlements');
 if (app.ios.usesAppleSignIn && !entitlements.includes('<key>com.apple.developer.applesignin</key>')) {
   fail('Sign in with Apple entitlement is missing from NiX.entitlements');

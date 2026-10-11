@@ -245,33 +245,33 @@ otp_expiry = 3600
 
 # Custom auth email templates (NiX branded HTML in supabase/templates/)
 [auth.email.template.confirmation]
-subject = "Potwierdź e-mail — NiX"
+subject = "[NIX] Confirm your email / Potwierdź swój adres e-mail"
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]
-subject = "Reset hasła — NiX"
+subject = "[NIX] Reset your password / Zresetuj swoje hasło"
 content_path = "./supabase/templates/recovery.html"
 
 [auth.email.template.magic_link]
-subject = "Zaloguj się — NiX"
+subject = "[NIX] Sign in to NIX / Zaloguj się do NIX"
 content_path = "./supabase/templates/magic_link.html"
 
 [auth.email.template.invite]
-subject = "Zaproszenie do NiX"
+subject = "[NIX] You're invited to join NIX / Zaproszenie do aplikacji NIX"
 content_path = "./supabase/templates/invite.html"
 
 [auth.email.template.email_change]
-subject = "Potwierdź zmianę e-mail — NiX"
+subject = "[NIX] Confirm email change / Potwierdź zmianę e-maila"
 content_path = "./supabase/templates/email_change.html"
 
 [auth.email.template.reauthentication]
-subject = "Kod weryfikacyjny — NiX"
+subject = "[NIX] Verification code / Kod weryfikacyjny"
 content_path = "./supabase/templates/reauthentication.html"
 
 [auth.email.notification.password_changed]
 enabled = true
-subject = "Hasło zostało zmienione — NiX"
-content_path = "./templates/password_changed.html"
+subject = "[NIX] Your password was changed / Hasło zostało zmienione"
+content_path = "./supabase/templates/password_changed.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.

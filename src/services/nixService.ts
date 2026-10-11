@@ -1,8 +1,11 @@
-import { supabase } from '../lib/supabase';
+import { supabase, captureAccountTransport, type AccountTransport } from '../lib/supabase';
+import { encryptedPhotoCache } from '../lib/encryptedPhotoCache';
+import { retainPrivatePhotoForReplay } from './photoCacheService';
 import { getCurrentUser } from './profileService';
 import { DomainError } from './errors';
-import { nowMs, trackDuration } from '../lib/telemetry';
+import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { filterUnreadInboxNixesFromSender } from '../lib/nixUnreadQueue';
+import { createRpcFallbackGate } from '../lib/rpcFallbackGate';
 
 export type InboxNix = {
   id: string;
@@ -39,19 +42,20 @@ export type SentNix = {
   status: 'sent' | 'viewed' | 'cleaned' | 'cleanup_failed';
   viewed_at: string | null;
   cleaned_at: string | null;
+  /** Upload batch that produced this row; lets the inbox match its optimistic upload row. */
+  client_upload_id?: string | null;
+  // Status fields; backends before 20261011160000_message_status_receipts omit them.
+  media_type?: string | null;
+  is_replayed?: boolean | null;
+  replay_expires_at?: string | null;
+  replayed_at?: string | null;
+  unplayable_at?: string | null;
   receiver: {
     username: string;
     display_name?: string | null;
     avatar_storage_path?: string | null;
     avatar_emoji?: string | null;
   } | null;
-};
-
-type CleanupQueueRow = {
-  nix_id: string;
-  media_path: string;
-  receiver_id: string;
-  attempt_count: number;
 };
 
 type NixPageOptions = {
@@ -82,6 +86,123 @@ export async function fetchNixPublicProfiles(profileIds: readonly string[]) {
 }
 
 const DEFAULT_NIX_PAGE_LIMIT = 100;
+/** DB-7: one viewer open plays at most this many unread nixes from a sender (oldest first). */
+export const UNREAD_SENDER_QUEUE_LIMIT = 20;
+
+/** Profile fields embedded in inbox rows (`sender` / `receiver` / `peerProfile`). */
+export type NixPeerProfile = {
+  username: string;
+  display_name?: string | null;
+  avatar_storage_path?: string | null;
+  avatar_emoji?: string | null;
+};
+
+export function toNixPeerProfile(profile: NixPublicProfile | undefined | null): NixPeerProfile | null {
+  if (!profile) return null;
+  return {
+    username: profile.username,
+    display_name: profile.display_name ?? null,
+    avatar_storage_path: profile.avatar_storage_path ?? null,
+    avatar_emoji: profile.avatar_emoji ?? null,
+  };
+}
+
+/** Columns selected for the inbox list (no `thumbnail_b64`); mirrored by `get_inbox_bundle`. */
+export type InboxNixRow = {
+  id: string;
+  sender_id: string;
+  media_path: string;
+  media_type?: string | null;
+  playback_duration_ms?: number | null;
+  created_at: string;
+  is_viewed: boolean;
+  status: InboxNix['status'];
+  view_duration_sec?: number | null;
+};
+
+/** Columns selected for the sent list; mirrored by `get_inbox_bundle`. */
+export type SentNixRow = Omit<SentNix, 'receiver'>;
+
+export function mapInboxNixRow(nix: InboxNixRow, profile?: NixPublicProfile | null): InboxNix {
+  return {
+    ...nix,
+    media_type: typeof nix.media_type === 'string' ? nix.media_type : 'image',
+    playback_duration_ms:
+      typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
+    thumbnail_b64: null,
+    view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
+    sender: toNixPeerProfile(profile),
+  } as InboxNix;
+}
+
+export function mapSentNixRow(nix: SentNixRow, profile?: NixPublicProfile | null): SentNix {
+  return {
+    ...nix,
+    receiver: toNixPeerProfile(profile),
+  };
+}
+
+/** Raw JSON returned by the `get_inbox_bundle` RPC (one round trip for the whole inbox). */
+export type InboxBundleRpcPayload = {
+  inbox: InboxNixRow[];
+  sent: SentNixRow[];
+  texts: unknown[];
+  read_states: { peer_id: string; last_read_at: string }[];
+  profiles: NixPublicProfile[];
+  unread_count: number;
+};
+
+/** PostgREST `PGRST202` / Postgres `42883`: the RPC is not deployed (yet) on this backend. */
+export function isMissingRpcError(error: unknown, functionName: string) {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error && typeof error.code === 'string' ? error.code : '';
+  if (code === 'PGRST202' || code === '42883') return true;
+  const message = dbErrorMessage(error).toLowerCase();
+  return (
+    message.includes(functionName) &&
+    (message.includes('could not find the function') || message.includes('schema cache'))
+  );
+}
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+/**
+ * Inbox bundle from `get_inbox_bundle` (DB-6). Returns `null` when the backend does not have the
+ * RPC yet, so the caller can fall back to the multi-query path. Other errors are thrown.
+ */
+export async function fetchInboxBundleRpc(
+  limit = DEFAULT_NIX_PAGE_LIMIT
+): Promise<InboxBundleRpcPayload | null> {
+  const startedAt = nowMs();
+  const { data, error } = await supabase.rpc('get_inbox_bundle', {
+    p_limit: normalizePageLimit(limit),
+  });
+  if (error) {
+    if (isMissingRpcError(error, 'get_inbox_bundle')) return null;
+    throw mapDatabaseError(error);
+  }
+  const payload = data && typeof data === 'object' && !Array.isArray(data)
+    ? (data as Record<string, unknown>)
+    : {};
+  const result: InboxBundleRpcPayload = {
+    inbox: asArray<InboxNixRow>(payload.inbox),
+    sent: asArray<SentNixRow>(payload.sent),
+    texts: asArray<unknown>(payload.texts),
+    read_states: asArray<{ peer_id: string; last_read_at: string }>(payload.read_states),
+    profiles: asArray<NixPublicProfile>(payload.profiles),
+    unread_count: Number(payload.unread_count) || 0,
+  };
+  trackDuration('inbox_bundle_rpc_ms', startedAt, {
+    status: 'success',
+    inbox_count: result.inbox.length,
+    sent_count: result.sent.length,
+    text_count: result.texts.length,
+  });
+  return result;
+}
+
 
 function normalizePageLimit(limit: number | undefined) {
   return Math.max(1, Math.min(limit ?? DEFAULT_NIX_PAGE_LIMIT, 100));
@@ -93,59 +214,6 @@ function dbErrorMessage(error: unknown) {
     : '';
 }
 
-function isMissingStatusColumnError(error: unknown) {
-  const message = dbErrorMessage(error);
-  return message.includes('column nixes.status does not exist') || message.includes("Could not find the 'status' column");
-}
-
-function isMissingViewDurationColumnError(error: unknown) {
-  const message = dbErrorMessage(error);
-  return (
-    message.includes('column nixes.view_duration_sec does not exist') ||
-    message.includes("Could not find the 'view_duration_sec' column")
-  );
-}
-
-function isMissingPlaybackDurationColumnError(error: unknown) {
-  const message = dbErrorMessage(error);
-  return (
-    message.includes('column nixes.playback_duration_ms does not exist') ||
-    message.includes("Could not find the 'playback_duration_ms' column")
-  );
-}
-
-function isMissingClientUploadColumnError(error: unknown) {
-  const message = dbErrorMessage(error);
-  return (
-    message.includes('column nixes.client_upload_id does not exist') ||
-    message.includes("Could not find the 'client_upload_id' column")
-  );
-}
-
-function isMissingClientUploadConflictTargetError(error: unknown) {
-  const message = dbErrorMessage(error).toLowerCase();
-  return (
-    message.includes('no unique or exclusion constraint') &&
-    message.includes('on conflict')
-  );
-}
-
-function isDuplicateKeyError(error: unknown) {
-  const code =
-    typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
-      ? error.code
-      : '';
-  return code === '23505' || dbErrorMessage(error).toLowerCase().includes('duplicate key value');
-}
-
-function isMissingThumbnailColumnError(error: unknown) {
-  const message = dbErrorMessage(error);
-  return (
-    message.includes('column nixes.thumbnail_b64 does not exist') ||
-    message.includes("Could not find the 'thumbnail_b64' column")
-  );
-}
-
 function isMissingDeleteConversationRpcError(error: unknown) {
   const message = dbErrorMessage(error).toLowerCase();
   return (
@@ -153,18 +221,6 @@ function isMissingDeleteConversationRpcError(error: unknown) {
     (message.includes('could not find the function') || message.includes('schema cache'))
   );
 }
-
-export type InsertNixMediaOptions = {
-  mediaType?: 'image' | 'video';
-  playbackDurationMs?: number | null;
-  clientUploadId?: string;
-  /**
-   * Embedded miniatura jako data URL JPEG (`data:image/jpeg;base64,...`).
-   * Zapisywana wyłącznie dla `mediaType === 'video'`. Pominięta, jeśli kolumna
-   * `nixes.thumbnail_b64` nie istnieje (schema fallback).
-   */
-  thumbnailB64?: string | null;
-};
 
 function mapDatabaseError(error: unknown): DomainError {
   const message =
@@ -191,121 +247,6 @@ function mapDatabaseError(error: unknown): DomainError {
   return new DomainError('UNKNOWN', message);
 }
 
-const ALLOWED_VIEW_DURATIONS = new Set([0, 5, 15, 30, 60, 180]);
-let supportsClientUploadId: boolean | null = null;
-let supportsThumbnailB64: boolean | null = null;
-
-export async function insertNix(
-  receiverId: string,
-  mediaPath: string,
-  viewDurationSec = 5,
-  mediaOptions?: InsertNixMediaOptions
-) {
-  const user = await getCurrentUser();
-  if (!user) throw new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
-
-  const duration =
-    typeof viewDurationSec === 'number' && ALLOWED_VIEW_DURATIONS.has(viewDurationSec)
-      ? viewDurationSec
-      : 5;
-
-  const mediaType = mediaOptions?.mediaType ?? 'image';
-  const playbackMsRaw = mediaOptions?.playbackDurationMs;
-  const playbackMs =
-    typeof playbackMsRaw === 'number' && Number.isFinite(playbackMsRaw)
-      ? Math.max(1, Math.round(playbackMsRaw))
-      : null;
-
-  const minimalBase = {
-    sender_id: user.id,
-    receiver_id: receiverId,
-    media_path: mediaPath,
-    media_type: mediaType,
-    client_upload_id: mediaOptions?.clientUploadId ?? null,
-  };
-
-  let payload: Record<string, unknown> = {
-    ...minimalBase,
-    view_duration_sec: duration,
-    status: 'sent',
-  };
-  if (playbackMs !== null && mediaType === 'video') {
-    payload.playback_duration_ms = playbackMs;
-  }
-  if (
-    mediaType === 'video' &&
-    typeof mediaOptions?.thumbnailB64 === 'string' &&
-    mediaOptions.thumbnailB64.length > 0 &&
-    supportsThumbnailB64 !== false
-  ) {
-    payload.thumbnail_b64 = mediaOptions.thumbnailB64;
-  }
-
-  let useLegacyInsert = supportsClientUploadId === false;
-  const persistNix = async (nextPayload: Record<string, unknown>, legacyMode: boolean) => {
-    if (legacyMode) {
-      const { client_upload_id: _idempotencyKey, ...legacyPayload } = nextPayload;
-      return await supabase.from('nixes').insert(legacyPayload);
-    }
-    const upsertResult = await supabase
-      .from('nixes')
-      .upsert(nextPayload, { onConflict: 'sender_id,receiver_id,client_upload_id', ignoreDuplicates: true });
-
-    if (!upsertResult.error || !isMissingClientUploadConflictTargetError(upsertResult.error)) {
-      return upsertResult;
-    }
-
-    // Starsze środowiska mają częściowy indeks client_upload_id, którego PostgREST
-    // nie może użyć jako arbitra ON CONFLICT. Zwykły INSERT nadal korzysta z tego
-    // indeksu; duplikat oznacza, że poprzednia próba już zapisała tę wiadomość.
-    const insertResult = await supabase.from('nixes').insert(nextPayload);
-    if (insertResult.error && nextPayload.client_upload_id && isDuplicateKeyError(insertResult.error)) {
-      return { ...insertResult, error: null };
-    }
-    return insertResult;
-  };
-
-  let { error } = await persistNix(payload, useLegacyInsert);
-  if (error && isMissingClientUploadColumnError(error)) {
-    useLegacyInsert = true;
-    supportsClientUploadId = false;
-    ({ error } = await persistNix(payload, true));
-  }
-
-  if (error && isMissingThumbnailColumnError(error)) {
-    supportsThumbnailB64 = false;
-    const { thumbnail_b64: _tb, ...rest } = payload;
-    payload = rest;
-    ({ error } = await persistNix(payload, useLegacyInsert));
-  }
-
-  if (error && isMissingPlaybackDurationColumnError(error)) {
-    const { playback_duration_ms: _pb, ...rest } = payload;
-    payload = rest;
-    ({ error } = await persistNix(payload, useLegacyInsert));
-  }
-
-  if (error && isMissingViewDurationColumnError(error)) {
-    const { view_duration_sec: _vd, ...rest } = payload;
-    payload = rest;
-    ({ error } = await persistNix(payload, useLegacyInsert));
-  }
-
-  if (error && isMissingStatusColumnError(error)) {
-    const { status: _st, ...rest } = payload;
-    ({ error } = await persistNix(rest, useLegacyInsert));
-  }
-
-  if (!error && supportsClientUploadId === null && !useLegacyInsert) {
-    supportsClientUploadId = true;
-  }
-  if (!error && supportsThumbnailB64 === null && payload.thumbnail_b64 !== undefined) {
-    supportsThumbnailB64 = true;
-  }
-
-  if (error) throw mapDatabaseError(error);
-}
-
 export async function fetchInboxNixes(options: NixPageOptions = {}) {
   const user = await getCurrentUser();
   if (!user) return [];
@@ -326,27 +267,6 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
       view_duration_sec
     `;
 
-  const inboxSelectNoPlayback = `
-      id,
-      sender_id,
-      media_path,
-      media_type,
-      created_at,
-      is_viewed,
-      status,
-      view_duration_sec
-    `;
-
-  const inboxSelectNoViewDuration = `
-      id,
-      sender_id,
-      media_path,
-      media_type,
-      created_at,
-      is_viewed,
-      status
-    `;
-
   let inboxQuery = supabase
     .from('nixes')
     .select(inboxSelectList)
@@ -354,76 +274,8 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
   if (options.beforeCreatedAt) {
     inboxQuery = inboxQuery.lt('created_at', options.beforeCreatedAt);
   }
-  let { data, error } = await inboxQuery.order('created_at', { ascending: false }).limit(limit);
-
-  if (error && isMissingPlaybackDurationColumnError(error)) {
-    let retryQuery = supabase
-      .from('nixes')
-      .select(inboxSelectNoPlayback)
-      .eq('receiver_id', user.id);
-    if (options.beforeCreatedAt) {
-      retryQuery = retryQuery.lt('created_at', options.beforeCreatedAt);
-    }
-    const retry = await retryQuery.order('created_at', { ascending: false }).limit(limit);
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
-
-  if (error && isMissingViewDurationColumnError(error)) {
-    let retryQuery = supabase
-      .from('nixes')
-      .select(inboxSelectNoViewDuration)
-      .eq('receiver_id', user.id);
-    if (options.beforeCreatedAt) {
-      retryQuery = retryQuery.lt('created_at', options.beforeCreatedAt);
-    }
-    const retry = await retryQuery.order('created_at', { ascending: false }).limit(limit);
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
-
-  /** Stałe pole widoku — część schematów DB bez kolumny `view_duration_sec`. */
-  let inboxRows: any[] | null = null;
-  if (!error && Array.isArray(data)) {
-    inboxRows = data.map((nix: Record<string, unknown>) => ({
-      ...nix,
-      media_type: typeof nix.media_type === 'string' ? nix.media_type : 'image',
-      playback_duration_ms:
-        typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
-      thumbnail_b64: null,
-      view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
-    }));
-  }
-  if (error && isMissingStatusColumnError(error)) {
-    let fallbackQuery = supabase
-      .from('nixes')
-      .select(
-        `
-        id,
-        sender_id,
-        media_path,
-        created_at,
-        is_viewed
-      `
-      )
-      .eq('receiver_id', user.id);
-    if (options.beforeCreatedAt) {
-      fallbackQuery = fallbackQuery.lt('created_at', options.beforeCreatedAt);
-    }
-    const { data: fallbackData, error: fallbackError } = await fallbackQuery
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    if (fallbackError) throw mapDatabaseError(fallbackError);
-    inboxRows = (fallbackData ?? []).map((nix: any) => ({
-      ...nix,
-      media_type: 'image',
-      playback_duration_ms: null,
-      status: nix.is_viewed ? 'viewed' : 'sent',
-      view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
-    }));
-  } else if (error) {
-    throw mapDatabaseError(error);
-  }
+  const { data: inboxRows, error } = await inboxQuery.order('created_at', { ascending: false }).limit(limit);
+  if (error) throw mapDatabaseError(error);
 
   const senderIds = (inboxRows ?? []).map((nix) => nix.sender_id as string);
   const senderMap =
@@ -431,22 +283,9 @@ export async function fetchInboxNixes(options: NixPageOptions = {}) {
       ? new Map<string, NixPublicProfile>()
       : await fetchNixPublicProfiles(senderIds);
 
-  const result = ((inboxRows ?? []).map((nix: any) => ({
-    ...nix,
-    media_type: typeof nix.media_type === 'string' ? nix.media_type : 'image',
-    playback_duration_ms:
-      typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
-    thumbnail_b64: null,
-    view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
-    sender: senderMap.get(nix.sender_id)
-      ? {
-          username: senderMap.get(nix.sender_id)!.username,
-          display_name: senderMap.get(nix.sender_id)!.display_name ?? null,
-          avatar_storage_path: senderMap.get(nix.sender_id)!.avatar_storage_path ?? null,
-          avatar_emoji: senderMap.get(nix.sender_id)!.avatar_emoji ?? null,
-        }
-      : null,
-  })) ?? []) as InboxNix[];
+  const result = (inboxRows ?? []).map((nix) =>
+    mapInboxNixRow(nix as InboxNixRow, senderMap.get(nix.sender_id as string))
+  );
 
   trackDuration('inbox_fetch_ms', startedAt, {
     status: 'success',
@@ -468,62 +307,17 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
     created_at, is_viewed, status, view_duration_sec
   `;
 
-  let { data, error } = await supabase
+  const { data, error } = await supabase
     .from('nixes')
     .select(selectCols)
     .eq('receiver_id', user.id)
     .eq('sender_id', senderId)
     .eq('is_viewed', false)
     .not('status', 'in', '("cleaned","cleanup_failed")')
-    .order('created_at', { ascending: true });
-
-  if (error && isMissingThumbnailColumnError(error)) {
-    const retry = await supabase
-      .from('nixes')
-      .select('id, sender_id, media_path, media_type, playback_duration_ms, created_at, is_viewed, status, view_duration_sec')
-      .eq('receiver_id', user.id)
-      .eq('sender_id', senderId)
-      .eq('is_viewed', false)
-      .order('created_at', { ascending: true });
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
-
-  if (error && isMissingPlaybackDurationColumnError(error)) {
-    const retry = await supabase
-      .from('nixes')
-      .select('id, sender_id, media_path, media_type, created_at, is_viewed, status, view_duration_sec')
-      .eq('receiver_id', user.id)
-      .eq('sender_id', senderId)
-      .eq('is_viewed', false)
-      .order('created_at', { ascending: true });
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
-
-  if (error && isMissingViewDurationColumnError(error)) {
-    const retry = await supabase
-      .from('nixes')
-      .select('id, sender_id, media_path, media_type, created_at, is_viewed, status')
-      .eq('receiver_id', user.id)
-      .eq('sender_id', senderId)
-      .eq('is_viewed', false)
-      .order('created_at', { ascending: true });
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
-
-  if (error && isMissingStatusColumnError(error)) {
-    const retry = await supabase
-      .from('nixes')
-      .select('id, sender_id, media_path, created_at, is_viewed')
-      .eq('receiver_id', user.id)
-      .eq('sender_id', senderId)
-      .eq('is_viewed', false)
-      .order('created_at', { ascending: true });
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
+    .order('created_at', { ascending: true })
+    // DB-7: the poster (`thumbnail_b64`, up to ~60 KB) stays because the viewer shows it as
+    // the first frame, but one open never needs more than a bounded FIFO slice.
+    .limit(UNREAD_SENDER_QUEUE_LIMIT);
 
   if (error) throw mapDatabaseError(error);
 
@@ -558,7 +352,11 @@ export async function fetchSentNixes(options: NixPageOptions = {}) {
       created_at,
       status,
       viewed_at,
-      cleaned_at
+      cleaned_at,
+      client_upload_id,
+      media_type,
+      is_replayed,
+      replay_expires_at
     `
     )
     .eq('sender_id', user.id);
@@ -567,35 +365,8 @@ export async function fetchSentNixes(options: NixPageOptions = {}) {
   }
   const { data, error } = await sentQuery.order('created_at', { ascending: false }).limit(limit);
 
-  let sentRows = data;
-  if (error && isMissingStatusColumnError(error)) {
-    let fallbackQuery = supabase
-      .from('nixes')
-      .select(
-        `
-        id,
-        receiver_id,
-        created_at,
-        is_viewed,
-        viewed_at
-      `
-      )
-      .eq('sender_id', user.id);
-    if (options.beforeCreatedAt) {
-      fallbackQuery = fallbackQuery.lt('created_at', options.beforeCreatedAt);
-    }
-    const { data: fallbackData, error: fallbackError } = await fallbackQuery
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    if (fallbackError) throw mapDatabaseError(fallbackError);
-    sentRows = (fallbackData ?? []).map((nix: any) => ({
-      ...nix,
-      status: nix.is_viewed ? 'viewed' : 'sent',
-      cleaned_at: null,
-    }));
-  } else if (error) {
-    throw mapDatabaseError(error);
-  }
+  if (error) throw mapDatabaseError(error);
+  const sentRows = data;
 
   const receiverIds = (sentRows ?? []).map((nix) => nix.receiver_id as string);
   const receiverMap =
@@ -603,17 +374,9 @@ export async function fetchSentNixes(options: NixPageOptions = {}) {
       ? new Map<string, NixPublicProfile>()
       : await fetchNixPublicProfiles(receiverIds);
 
-  const result = ((sentRows ?? []).map((nix: any) => ({
-    ...nix,
-    receiver: receiverMap.get(nix.receiver_id)
-      ? {
-          username: receiverMap.get(nix.receiver_id)!.username,
-          display_name: receiverMap.get(nix.receiver_id)!.display_name ?? null,
-          avatar_storage_path: receiverMap.get(nix.receiver_id)!.avatar_storage_path ?? null,
-          avatar_emoji: receiverMap.get(nix.receiver_id)!.avatar_emoji ?? null,
-        }
-      : null,
-  })) ?? []) as SentNix[];
+  const result = (sentRows ?? []).map((nix) =>
+    mapSentNixRow(nix as SentNixRow, receiverMap.get(nix.receiver_id as string))
+  );
 
   trackDuration('sent_fetch_ms', startedAt, {
     status: 'success',
@@ -637,18 +400,63 @@ export type ChatNixEvent = {
   view_duration_sec: number;
   playback_duration_ms?: number | null;
   client_upload_id: string | null;
+  // Status timestamps; `undefined` when the backend predates them (see messageStatus).
+  viewed_at?: string | null;
+  replayed_at?: string | null;
+  unplayable_at?: string | null;
 };
 
-/** NiXy w obu kierunkach z danym peerm — do unified czatu. */
-export async function fetchChatNixesWithPeer(
-  peerId: string,
-  limit = 50,
-  currentUserId?: string
-): Promise<ChatNixEvent[]> {
-  const userId = currentUserId || (await getCurrentUser())?.id;
-  if (!userId || !peerId) return [];
-  const pageLimit = normalizePageLimit(limit);
+/** Row shape shared by `get_chat_nixes_with_peer` and the legacy `.or(...)` select (no thumbnail). */
+type ChatNixRow = {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  created_at: string;
+  media_path: string | null;
+  media_type: string | null;
+  is_viewed: boolean | null;
+  is_replayed: boolean | null;
+  replay_expires_at: string | null;
+  status: ChatNixEvent['status'] | null;
+  view_duration_sec: number | null;
+  playback_duration_ms: number | null;
+  client_upload_id: string | null;
+  viewed_at?: string | null;
+  replayed_at?: string | null;
+  unplayable_at?: string | null;
+};
 
+const CHAT_NIXES_RPC = 'get_chat_nixes_with_peer';
+
+const chatNixesRpcGate = createRpcFallbackGate();
+
+/** Test hook: forget the remembered fallback. */
+export function resetChatNixesRpcFallback() {
+  chatNixesRpcGate.reset();
+}
+
+/**
+ * DB-10: two index-ordered branches (me→peer, peer→me) over `idx_nixes_pair_created_at`.
+ * Returns `null` when the RPC is not deployed yet so the caller can use the legacy query.
+ */
+async function fetchChatNixRowsRpc(peerId: string, pageLimit: number): Promise<ChatNixRow[] | null> {
+  const { data, error } = await supabase.rpc(CHAT_NIXES_RPC, {
+    p_peer_id: peerId,
+    p_limit: pageLimit,
+  });
+  if (error) {
+    if (isMissingRpcError(error, CHAT_NIXES_RPC)) return null;
+    throw mapDatabaseError(error);
+  }
+  return asArray<ChatNixRow>(data);
+}
+
+/** Legacy single-filter select; kept as the fallback for backends without the RPC. */
+async function fetchChatNixRowsLegacy(
+  userId: string,
+  peerId: string,
+  pageLimit: number
+): Promise<ChatNixRow[]> {
   const { data, error } = await supabase
     .from('nixes')
     .select(
@@ -659,7 +467,6 @@ export async function fetchChatNixesWithPeer(
       created_at,
       media_path,
       media_type,
-      thumbnail_b64,
       is_viewed,
       is_replayed,
       replay_expires_at,
@@ -676,41 +483,57 @@ export async function fetchChatNixesWithPeer(
     .limit(pageLimit);
 
   if (error) throw mapDatabaseError(error);
+  return (data ?? []) as ChatNixRow[];
+}
 
-  return ((data ?? []) as {
-    id: string;
-    sender_id: string;
-    receiver_id: string;
-    created_at: string;
-    media_path: string | null;
-    media_type: string | null;
-    thumbnail_b64: string | null;
-    is_viewed: boolean | null;
-    is_replayed: boolean | null;
-    replay_expires_at: string | null;
-    status: ChatNixEvent['status'] | null;
-    view_duration_sec: number | null;
-    playback_duration_ms: number | null;
-    client_upload_id: string | null;
-  }[]).map((nix) => {
-    const direction: 'sent' | 'received' = nix.sender_id === userId ? 'sent' : 'received';
-    const isViewed = nix.is_viewed === true || nix.status === 'viewed' || nix.status === 'cleaned';
-    return {
-      id: nix.id,
-      direction,
-      created_at: nix.created_at,
-      media_type: nix.media_type === 'video' ? 'video' : 'image',
-      media_path: nix.media_path,
-      thumbnail_b64: nix.thumbnail_b64 ?? null,
-      is_viewed: isViewed,
-      is_replayed: nix.is_replayed ?? false,
-      replay_expires_at: nix.replay_expires_at ?? null,
-      status: nix.status ?? (isViewed ? 'viewed' : 'sent'),
-      view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
-      playback_duration_ms: typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
-      client_upload_id: nix.client_upload_id ?? null,
-    };
-  });
+function mapChatNixRow(nix: ChatNixRow, userId: string): ChatNixEvent {
+  const direction: 'sent' | 'received' = nix.sender_id === userId ? 'sent' : 'received';
+  const isViewed = nix.is_viewed === true || nix.status === 'viewed' || nix.status === 'cleaned';
+  return {
+    id: nix.id,
+    direction,
+    created_at: nix.created_at,
+    media_type: nix.media_type === 'video' ? 'video' : 'image',
+    media_path: nix.media_path,
+    // Not selected for the chat list (up to ~60 KB each × 50 rows on every refresh); the viewer
+    // loads the poster with the nix itself.
+    thumbnail_b64: null,
+    is_viewed: isViewed,
+    is_replayed: nix.is_replayed ?? false,
+    replay_expires_at: nix.replay_expires_at ?? null,
+    status: nix.status ?? (isViewed ? 'viewed' : 'sent'),
+    view_duration_sec: typeof nix.view_duration_sec === 'number' ? nix.view_duration_sec : 5,
+    playback_duration_ms: typeof nix.playback_duration_ms === 'number' ? nix.playback_duration_ms : null,
+    client_upload_id: nix.client_upload_id ?? null,
+    // Kept `undefined` when the backend does not send them, so status code can tell
+    // "not replayed" from "unknown".
+    viewed_at: nix.viewed_at,
+    replayed_at: nix.replayed_at,
+    unplayable_at: nix.unplayable_at,
+  };
+}
+
+/** NiXy w obu kierunkach z danym peerm — do unified czatu. */
+export async function fetchChatNixesWithPeer(
+  peerId: string,
+  limit = 50,
+  currentUserId?: string
+): Promise<ChatNixEvent[]> {
+  const userId = currentUserId || (await getCurrentUser())?.id;
+  if (!userId || !peerId) return [];
+  const pageLimit = normalizePageLimit(limit);
+
+  let rows: ChatNixRow[] | null = null;
+  if (chatNixesRpcGate.shouldTryRpc()) {
+    rows = await fetchChatNixRowsRpc(peerId, pageLimit);
+    if (rows === null) {
+      chatNixesRpcGate.markUnavailable();
+      trackEvent('chat_nixes_rpc_fallback', { reason: 'missing_rpc' });
+    }
+  }
+  if (rows === null) rows = await fetchChatNixRowsLegacy(userId, peerId, pageLimit);
+
+  return rows.map((nix) => mapChatNixRow(nix, userId));
 }
 
 export async function deleteConversationWithPeer(peerProfileId: string) {
@@ -749,133 +572,70 @@ export async function createSignedNixUrl(path: string, expiresInSec = 60) {
   return data.signedUrl;
 }
 
-async function requestNixCleanup(nixId: string, mediaPath: string) {
-  const { data, error } = await supabase.functions.invoke('cleanup-nix', {
-    body: { nixId, mediaPath },
-  });
-
-  if (error) {
-    throw new DomainError('CLEANUP_FAILED', 'Nie udało się wyczyścić wiadomości.');
-  }
-
-  if (data?.ok !== true) {
-    throw new DomainError('CLEANUP_FAILED', 'Cleanup zwrócił nieoczekiwany rezultat.');
-  }
-}
-
-async function enqueueCleanupJob(nixId: string, mediaPath: string, nextAttemptAt: Date = new Date()) {
-  const user = await getCurrentUser();
-  if (!user) return;
-
-  const { error } = await supabase.from('nix_cleanup_queue').upsert({
-    nix_id: nixId,
-    media_path: mediaPath,
-    receiver_id: user.id,
-    next_attempt_at: nextAttemptAt.toISOString(),
-    updated_at: new Date().toISOString(),
-  });
-
-  if (error) {
-    console.warn('Nie udało się dodać zadania cleanup do kolejki', error);
-  }
-}
-
-async function markCleanupJobDone(nixId: string) {
-  const { error } = await supabase.from('nix_cleanup_queue').delete().eq('nix_id', nixId);
-  if (error) {
-    console.warn('Nie udało się usunąć zadania cleanup z kolejki', error);
-  }
-}
-
-async function markCleanupJobFailed(nixId: string, reason: string) {
-  const { error } = await supabase
-    .from('nix_cleanup_queue')
-    .update({
-      last_error: reason,
-      updated_at: new Date().toISOString(),
-      attempt_count: 1,
-      next_attempt_at: new Date(Date.now() + 60_000).toISOString(),
-    })
-    .eq('nix_id', nixId);
-
-  if (error) {
-    console.warn('Nie udało się zapisać błędu cleanup w kolejce', error);
-  }
+async function requestNixCleanup(nixId: string, transport: AccountTransport) {
+  transport.assertActive();
+  const { data, error } = await transport.client.functions.invoke('cleanup-nix', { body: { nixId } });
+  transport.assertActive();
+  if (error || data?.ok !== true) throw new DomainError('CLEANUP_FAILED', 'Nie udało się wyczyścić wiadomości.');
 }
 
 export async function flushCleanupQueue(limit = 10) {
   const user = await getCurrentUser();
   if (!user) return;
-
-  const { data, error } = await supabase
-    .from('nix_cleanup_queue')
-    .select('nix_id, media_path, receiver_id, attempt_count')
-    .eq('receiver_id', user.id)
-    .lte('next_attempt_at', new Date().toISOString())
-    .order('updated_at', { ascending: true })
-    .limit(limit);
-
-  if (error) {
-    console.warn('Nie udało się odczytać kolejki cleanup', error);
-    return;
+  const transport = await captureAccountTransport(user.id);
+  const { data, error } = await transport.client.from('nix_cleanup_queue')
+    .select('nix_id').eq('receiver_id', transport.ownerId)
+    .lte('next_attempt_at', new Date().toISOString()).order('updated_at', { ascending: true }).limit(limit);
+  transport.assertActive();
+  if (error) throw mapDatabaseError(error);
+  for (const job of data ?? []) {
+    transport.assertActive();
+    await encryptedPhotoCache.remove(transport.ownerId, job.nix_id);
+    try { await requestNixCleanup(job.nix_id, transport); }
+    catch (error) { transport.assertActive(); console.warn('Cleanup zostanie ponowiony przez serwer', error); }
   }
-
-  await Promise.all(
-    ((data ?? []) as CleanupQueueRow[]).map(async (job) => {
-      try {
-        await requestNixCleanup(job.nix_id, job.media_path);
-        await markCleanupJobDone(job.nix_id);
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : 'Unknown cleanup failure';
-        const { error: updateError } = await supabase
-          .from('nix_cleanup_queue')
-          .update({
-            last_error: reason,
-            attempt_count: job.attempt_count + 1,
-            updated_at: new Date().toISOString(),
-            next_attempt_at: new Date(Date.now() + Math.min(15 * 60_000, (job.attempt_count + 1) * 60_000)).toISOString(),
-          })
-          .eq('nix_id', job.nix_id);
-
-        if (updateError) {
-          console.warn('Nie udało się zaktualizować próby cleanup', updateError);
-        }
-      }
-    })
-  );
 }
 
-export async function markNixViewedForReplay(nixId: string) {
-  const { error } = await supabase.rpc('mark_nix_viewed_for_replay', {
-    p_nix_id: nixId,
-  });
+export async function markNixViewedForReplay(nixId: string, capturedTransport?: AccountTransport) {
+  const transport = capturedTransport ?? await captureAccountTransport();
+  transport.assertActive();
+  const { error } = await transport.client.rpc('mark_nix_viewed_for_replay', { p_nix_id: nixId });
+  transport.assertActive();
   if (error) throw mapDatabaseError(error);
+  // The server supplies the replay deadline; ACK retries and viewer exits use the same policy.
+  const { data } = await transport.client.from('nixes').select('media_path,media_type').eq('id', nixId).single();
+  transport.assertActive();
+  if (data?.media_type === 'image') {
+    await retainPrivatePhotoForReplay(nixId, data.media_path, transport.ownerId, transport).catch(() => {});
+    transport.assertActive();
+  }
 }
 
 /** Media missing / unreadable — remove from unread FIFO without a replay window. */
 export async function markNixUnplayable(nixId: string) {
-  const { error } = await supabase.rpc('mark_nix_unplayable', {
-    p_nix_id: nixId,
-  });
+  const transport = await captureAccountTransport();
+  await encryptedPhotoCache.remove(transport.ownerId, nixId);
+  transport.assertActive();
+  const { error } = await transport.client.rpc('mark_nix_unplayable', { p_nix_id: nixId });
+  transport.assertActive();
   if (error) throw mapDatabaseError(error);
 }
 
-export async function markNixReplayedWithCleanup(nixId: string, mediaPath: string) {
-  const { error } = await supabase.rpc('mark_nix_replayed', {
-    p_nix_id: nixId,
-  });
+export async function markNixReplayedWithCleanup(nixId: string, _legacyMediaPath?: string, capturedTransport?: AccountTransport) {
+  const transport = capturedTransport ?? await captureAccountTransport();
+  await encryptedPhotoCache.remove(transport.ownerId, nixId);
+  transport.assertActive();
+  const { error } = await transport.client.rpc('mark_nix_replayed', { p_nix_id: nixId });
+  transport.assertActive();
   if (error) throw mapDatabaseError(error);
-
-  // Zaktualizuj i zawołaj cleanup natychmiast
-  await enqueueCleanupJob(nixId, mediaPath);
-  try {
-    await requestNixCleanup(nixId, mediaPath);
-    await markCleanupJobDone(nixId);
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : 'Unknown cleanup error';
-    await markCleanupJobFailed(nixId, reason);
-    // Cleanup failure is non-critical — nix is already viewed and job is enqueued for retry.
-    console.warn('Cleanup zostanie ponowiony:', reason);
+  const { error: queueError } = await transport.client.rpc('request_nix_cleanup', { p_nix_id: nixId });
+  transport.assertActive();
+  if (queueError) throw mapDatabaseError(queueError);
+  try { await requestNixCleanup(nixId, transport); }
+  catch (error) {
+    transport.assertActive();
+    // The canonical server queue owns retries and derives the media path from the NiX.
+    console.warn('Cleanup zostanie ponowiony przez serwer', error);
   }
 }
 

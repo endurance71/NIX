@@ -1,0 +1,148 @@
+{
+  "date": "2026-10-08",
+  "branch": "codex/nix-stabilization",
+  "baseCommit": "884abe1953e0a20db62a31f2bcfef8365763b404",
+  "candidate": {
+    "version": "1.0.12",
+    "build": "7",
+    "runtime": "1.0.12"
+  },
+  "toolchain": {
+    "node": "24.18.0",
+    "npm": "11.16.0",
+    "deno": "2.9.6",
+    "xcode": "27.0 (27A266a)"
+  },
+  "checks": {
+    "npmCi": {
+      "pass": true,
+      "appliedPatches": 7
+    },
+    "typescript": {
+      "pass": true
+    },
+    "eslint": {
+      "pass": true
+    },
+    "vitest": {
+      "pass": true,
+      "suites": 91,
+      "tests": 503
+    },
+    "knip": {
+      "pass": true
+    },
+    "expoDoctor": {
+      "pass": true,
+      "checks": 20
+    },
+    "expoInstallAlignment": {
+      "pass": true
+    },
+    "reactDoctor": {
+      "pass": true,
+      "scopes": [
+        "full",
+        "changed"
+      ],
+      "reviewedExistingComplexityDiagnostics": 24
+    },
+    "edgeDeno": {
+      "checkPass": true,
+      "testsPass": true,
+      "tests": 94
+    },
+    "moderationWorker": {
+      "pass": true,
+      "tests": 60,
+      "frozenLockfile": true
+    },
+    "c3bNode": {
+      "pass": true,
+      "tests": 71,
+      "note": "Tool, local-database target and Storage-check adapter unit tests; not the real Docker Auth/Storage test"
+    },
+    "releaseEnvironment": {
+      "pass": true,
+      "tests": 11
+    },
+    "uriDecoderCompatibility": {
+      "pass": true,
+      "tests": 2
+    },
+    "swiftUploadPolicy": {
+      "pass": true,
+      "checks": 43
+    },
+    "databaseSql": {
+      "pass": true,
+      "suites": 15,
+      "assertions": 201,
+      "migrations": 48,
+      "evidence": "2026-10-08-sql-results.json",
+      "limitation": "Isolated native PostgreSQL14 with inert provider schema stubs; real PostgreSQL17 Auth/Storage/TUS test requires Docker"
+    },
+    "physicalCacheCap": {
+      "sqliteVersion": "3.53.4",
+      "rows": 79,
+      "rowBytes": 6290434,
+      "peakDatabaseAndRollbackJournalBytes": 504412880,
+      "capBytes": 524288000,
+      "pass": true,
+      "finalDatabaseBytes": 16384,
+      "note": "Synthetic maximum-size ciphertext, one deletion per transaction, journal sampled before commit."
+    },
+    "hermes": {
+      "pass": true,
+      "map": "dist/_expo/static/js/ios/entry-5949b77dc993e6f7664576509117a3eb.hbc.map",
+      "sha256": "2022c45be0e65690cfa62a0d152baff0c976f7924030f3ce22e1c98e7507e23e",
+      "sources": 3062,
+      "excludedToolingSources": [],
+      "decoderSources": [
+        "/node_modules/query-string/index.js",
+        "/node_modules/decode-uri-component/index.js"
+      ]
+    },
+    "reviewedNpmAudit": {
+      "pass": true,
+      "rawFindings": 22,
+      "rawSeverity": "high",
+      "rootExceptions": [
+        "node-forge@1.4.0",
+        "braces@3.0.3"
+      ],
+      "reviewBy": "2026-11-08",
+      "rawAuditHighPass": false
+    },
+    "xcodeSimulator": {
+      "pass": true,
+      "status": "BUILD SUCCEEDED",
+      "configuration": "Debug",
+      "architectures": [
+        "arm64",
+        "x86_64"
+      ],
+      "codeSigning": false,
+      "compiledNewSwiftFiles": [
+        "NativeUploadControl.swift",
+        "PhotoMemoryDownloader.swift"
+      ],
+      "logSha256": "abd0858d7bf233545c6df9ca73d80160533486df372f09e57d627105fe8aa854",
+      "localEnvironment": "Temporary BASH_ENV repaired PATH for incompatible /usr/local/bin/bash; refreshed Pods and SQLite module cache after npm ci"
+    },
+    "cocoaPods": {
+      "pass": true,
+      "dependencies": 154,
+      "pods": 166,
+      "afterCleanNpmInstall": true
+    }
+  },
+  "notPerformed": [
+    "Production or staging deploy",
+    "App Store Connect upload or submission",
+    "Paid Azure calls",
+    "Physical iPhone QA",
+    "Remote CI run",
+    "Real Docker Auth/Storage test"
+  ]
+}

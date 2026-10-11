@@ -1,0 +1,88 @@
+{
+  "date": "2026-10-08",
+  "environment": "isolated PostgreSQL14 UTF8 en_US.UTF-8; inert Auth/Storage/cron/net/vault stubs outside public",
+  "migrationsApplied": 48,
+  "suites": 15,
+  "assertions": 201,
+  "results": [
+    {
+      "suite": "complete_moderation_job_audit_test",
+      "assertions": 11,
+      "failureMarkers": []
+    },
+    {
+      "suite": "content_report_v2_test",
+      "assertions": 17,
+      "failureMarkers": []
+    },
+    {
+      "suite": "enqueue_own_text_moderation_job_test",
+      "assertions": 4,
+      "failureMarkers": []
+    },
+    {
+      "suite": "fix_moderation_materialize_and_media_finalize_test",
+      "assertions": 4,
+      "failureMarkers": []
+    },
+    {
+      "suite": "get_own_media_moderation_job_test",
+      "assertions": 4,
+      "failureMarkers": []
+    },
+    {
+      "suite": "get_own_text_moderation_job_test",
+      "assertions": 4,
+      "failureMarkers": []
+    },
+    {
+      "suite": "ios_roadmap_rls_test",
+      "assertions": 27,
+      "failureMarkers": []
+    },
+    {
+      "suite": "mark_expired_media_uploads_test",
+      "assertions": 7,
+      "failureMarkers": []
+    },
+    {
+      "suite": "media_trust_and_retention_test",
+      "assertions": 39,
+      "failureMarkers": []
+    },
+    {
+      "suite": "moderation_remove_reported_content_test",
+      "assertions": 18,
+      "failureMarkers": []
+    },
+    {
+      "suite": "pre_delivery_moderation_f0_budget_test",
+      "assertions": 23,
+      "failureMarkers": []
+    },
+    {
+      "suite": "pre_delivery_moderation_test",
+      "assertions": 14,
+      "failureMarkers": []
+    },
+    {
+      "suite": "profile_bio_visibility_test",
+      "assertions": 4,
+      "failureMarkers": []
+    },
+    {
+      "suite": "security_definer_grants_test",
+      "assertions": 5,
+      "failureMarkers": []
+    },
+    {
+      "suite": "text_message_safety_filter_test",
+      "assertions": 20,
+      "failureMarkers": []
+    }
+  ],
+  "limitations": [
+    "Not PostgreSQL17 Auth/Storage API/TUS validation",
+    "Historical PostgreSQL17 numeric-underscore literals normalized only in temporary input for PostgreSQL14; repository migrations unchanged"
+  ]
+}

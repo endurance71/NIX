@@ -1,4 +1,3 @@
-import { Platform, StyleSheet, Text } from 'react-native';
 import type { ColorValue } from 'react-native';
 import { Button, HStack, Host, Image as SwiftImage, Text as SwiftText } from '@expo/ui/swift-ui';
 import {
@@ -6,17 +5,17 @@ import {
   background,
   bold,
   buttonStyle,
+  disabled as swiftDisabled,
   foregroundStyle,
   frame,
   glassEffect,
+  lineLimit,
+  opacity,
   padding,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
-import { AppIcon } from './app-icon';
-import { PressableScale } from './pressable-scale';
 import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
-import { typography } from '../../theme/typography';
 import type { ChromeVariant } from './native-chrome-icon-button';
 
 const SEND_BUTTON_HEIGHT = 48;
@@ -31,6 +30,8 @@ type NativePreviewSendButtonProps = {
   tintColor: ColorValue;
   /** `solid` skips Liquid Glass to avoid iOS ambient dimming over fullscreen media. */
   chromeVariant?: ChromeVariant;
+  /** E.g. while a direct send is being secured; the label says why. */
+  disabled?: boolean;
 };
 
 export function NativePreviewSendButton({
@@ -40,20 +41,8 @@ export function NativePreviewSendButton({
   backgroundColor,
   tintColor,
   chromeVariant = 'glass',
+  disabled = false,
 }: NativePreviewSendButtonProps) {
-  if (Platform.OS !== 'ios') {
-    return (
-      <PressableScale
-        accessibilityLabel={accessibilityLabel}
-        accessibilityRole="button"
-        onPress={onPress}
-        style={[styles.fallbackButton, { backgroundColor }]}>
-        <Text style={[styles.fallbackText, { color: tintColor }]}>{label}</Text>
-        <AppIcon name="chevronRight" size={APP_ICON_SIZE.sm} color={tintColor} />
-      </PressableScale>
-    );
-  }
-
   return (
     <Host
       matchContents
@@ -64,10 +53,12 @@ export function NativePreviewSendButton({
         alignSelf: 'flex-end',
       }}>
       <Button
-        onPress={onPress}
+        onPress={disabled ? undefined : onPress}
         modifiers={[
           buttonStyle('plain'),
           swiftAccessibilityLabel(accessibilityLabel),
+          swiftDisabled(disabled),
+          opacity(disabled ? 0.6 : 1),
         ]}>
         <HStack
           spacing={6}
@@ -80,7 +71,9 @@ export function NativePreviewSendButton({
               ? [glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'capsule' as const })]
               : []),
           ]}>
-          <SwiftText modifiers={[foregroundStyle(tintColor as string), bold()]}>{label}</SwiftText>
+          <SwiftText modifiers={[foregroundStyle(tintColor as string), bold(), lineLimit(1)]}>
+            {label}
+          </SwiftText>
           <SwiftImage
             systemName={resolveAppIconName('chevronRight') as SFSymbol}
             size={APP_ICON_SIZE.sm}
@@ -91,21 +84,3 @@ export function NativePreviewSendButton({
     </Host>
   );
 }
-
-const styles = StyleSheet.create({
-  fallbackButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 24,
-    gap: 4,
-    minHeight: SEND_BUTTON_HEIGHT,
-    maxWidth: SEND_BUTTON_MAX_WIDTH,
-  },
-  fallbackText: {
-    ...typography.callout,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-});

@@ -9,20 +9,53 @@
 /* Begin PBXBuildFile section */
 		0648B684E0CD4188A79F1A5C /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 39889058F3634444BEC4D316 /* InfoPlist.strings */; };
 		0CC5378C7A174B5FAB52FB6E /* index.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E0B33CEC4B4F08881AE6D5 /* index.swift */; };
+		12F5C6305A241A7224F7CAA5 /* NixCaptureIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E34076D12A2E1081A577F860 /* NixCaptureIntent.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		27FF4EE48D62C7400F5D50EC /* NixCaptureExtension.appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = C0C6BBBEF9634C5BC4BD1EDE /* NixCaptureExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		38AFAC0A42F44F437A599F9D /* libPods-ExpoWidgetsTarget.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 477C2049D3F1A64DE4CC6FB7 /* libPods-ExpoWidgetsTarget.a */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		4C305A4495BEB39C9C264A34 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E6B6E8723459350410B560D7 /* PrivacyInfo.xcprivacy */; };
 		5B3AB89B9FCD492595566EBB /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 4840F7C0CC29447C8409B9A7 /* InfoPlist.strings */; };
 		608405D6CB7E4A65BB36FD14 /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E555518B0BB34AE1A855D7FF /* ExpoWidgetsTarget.appex */; };
+		6A1E0FCDFE41C1E408FBA181 /* NixNotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E0A66CFC3041DC501BA3C858 /* NixNotificationService.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		7453E0FAB97E7FE598316143 /* NixCaptureIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E34076D12A2E1081A577F860 /* NixCaptureIntent.swift */; };
+		7A11C0DE0000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000002 /* Assets.xcassets */; };
+		7A11C0DE0000000000000004 /* NixInboxWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000005 /* NixInboxWidget.swift */; };
+		7A11C0DE0000000000000006 /* NixCameraControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000007 /* NixCameraControl.swift */; };
+		89336A530A85477D047F0665 /* NixShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C9993DBCD66A157B8BD77431 /* NixShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B78BBD0028F2FFEBC9FB9EDE /* libPods-NiX.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 31C4EA7592169168C441FB62 /* libPods-NiX.a */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
+		BF32AEDADA9B6E72E137409A /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 075BE62A0A46CF0E31CBD004 /* ShareViewController.swift */; };
 		C5E2905293AA6E6B937C8C30 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81B4530A2F2FF6059F546AF /* ExpoModulesProvider.swift */; };
+		CC928EB77430465B06800A1B /* NixCaptureIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E34076D12A2E1081A577F860 /* NixCaptureIntent.swift */; };
+		CEA789648C6A842A857C4ED9 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEF958C51ECD7D6F26A76A32 /* NotificationService.swift */; };
 		D374DE1ECD50B95B4C1FA36B /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CACA2DE2BC8784A3CB350C0 /* ExpoModulesProvider.swift */; };
+		D4D137A6B5263362A8944E6F /* NixCaptureExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = F97B03F0DB9D591791D09E82 /* NixCaptureExtension.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		190CD63DB1CF5EEB86722D0C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7075A8D448E62E23D1AA2053;
+			remoteInfo = NixNotificationService;
+		};
+		214ECD0859432B5394503790 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2699AB351A17FA1D932C268F;
+			remoteInfo = NixShareExtension;
+		};
+		449CC3C7C92A80F312A2E0CA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 458C772E582778C97AF4D3DB;
+			remoteInfo = NixCaptureExtension;
+		};
 		74B3BCAB6AE7456188174D82 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
@@ -40,39 +73,75 @@
 			dstSubfolderSpec = 13;
 			files = (
 				608405D6CB7E4A65BB36FD14 /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */,
+				89336A530A85477D047F0665 /* NixShareExtension.appex in Embed Foundation Extensions */,
+				6A1E0FCDFE41C1E408FBA181 /* NixNotificationService.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0D08065F682D13F8A17151B4 /* Embed ExtensionKit Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				27FF4EE48D62C7400F5D50EC /* NixCaptureExtension.appex in Embed ExtensionKit Extensions */,
+			);
+			name = "Embed ExtensionKit Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		075BE62A0A46CF0E31CBD004 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* NiX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NiX.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = NiX/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = NiX/Info.plist; sourceTree = "<group>"; };
 		1A804FA07C7299C6D4DA1A2D /* Pods-NiX.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-NiX.debug.xcconfig"; path = "Target Support Files/Pods-NiX/Pods-NiX.debug.xcconfig"; sourceTree = "<group>"; };
+		2AA3AF85E35F27E348652CC3 /* NixNotificationService.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NixNotificationService.entitlements; sourceTree = "<group>"; };
+		2B3A162D6BA75469CC0D829C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		31C4EA7592169168C441FB62 /* libPods-NiX.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-NiX.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		39889058F3634444BEC4D316 /* InfoPlist.strings */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		477C2049D3F1A64DE4CC6FB7 /* libPods-ExpoWidgetsTarget.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-ExpoWidgetsTarget.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4840F7C0CC29447C8409B9A7 /* InfoPlist.strings */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = pl.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		4FF1C9B8C6265455E6F57678 /* Pods-ExpoWidgetsTarget.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ExpoWidgetsTarget.debug.xcconfig"; path = "Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget.debug.xcconfig"; sourceTree = "<group>"; };
 		518D5878F5B14D0FB9816431 /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = Info.plist; sourceTree = "<group>"; };
+		7A11C0DE0000000000000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		7A11C0DE0000000000000005 /* NixInboxWidget.swift */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = NixInboxWidget.swift; sourceTree = "<group>"; };
+		7A11C0DE0000000000000007 /* NixCameraControl.swift */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = NixCameraControl.swift; sourceTree = "<group>"; };
 		8221292C6008D8DE7B60C2CE /* Pods-ExpoWidgetsTarget.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ExpoWidgetsTarget.release.xcconfig"; path = "Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget.release.xcconfig"; sourceTree = "<group>"; };
+		823F1DFD475BA8353F44AD07 /* NixShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NixShareExtension.entitlements; sourceTree = "<group>"; };
 		8CACA2DE2BC8784A3CB350C0 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-NiX/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		A3B87F03D320420A8881A0FD /* ExpoWidgetsTarget.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = ExpoWidgetsTarget.entitlements; path = ExpoWidgetsTarget.entitlements; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = NiX/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
+		C0C6BBBEF9634C5BC4BD1EDE /* NixCaptureExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NixCaptureExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C9993DBCD66A157B8BD77431 /* NixShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NixShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D7D137C3422F6F45B7BF5D3B /* NixCaptureExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NixCaptureExtension.entitlements; sourceTree = "<group>"; };
 		D81B4530A2F2FF6059F546AF /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-ExpoWidgetsTarget/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		E0A66CFC3041DC501BA3C858 /* NixNotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NixNotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E1E0B33CEC4B4F08881AE6D5 /* index.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = index.swift; path = index.swift; sourceTree = "<group>"; };
+		E34076D12A2E1081A577F860 /* NixCaptureIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NixCaptureIntent.swift; sourceTree = "<group>"; };
 		E555518B0BB34AE1A855D7FF /* ExpoWidgetsTarget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = undefined; name = ExpoWidgetsTarget.appex; path = ExpoWidgetsTarget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E6B6E8723459350410B560D7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = NiX/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		E88F052510D22DCB57E2FE7D /* Pods-NiX.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-NiX.release.xcconfig"; path = "Target Support Files/Pods-NiX/Pods-NiX.release.xcconfig"; sourceTree = "<group>"; };
+		EADBDD071DA31A0E5777724D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = NiX/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* NiX-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "NiX-Bridging-Header.h"; path = "NiX/NiX-Bridging-Header.h"; sourceTree = "<group>"; };
+		F807F0D50A580BBA6A6724D4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F97B03F0DB9D591791D09E82 /* NixCaptureExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NixCaptureExtension.swift; sourceTree = "<group>"; };
+		FEF958C51ECD7D6F26A76A32 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		12081BEC345877F37EFC9CB6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		13B07F8C1A680F5B00A75B9A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -81,11 +150,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		255D9EAC5ACC4D0469C22F1C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		7223BB0B45D14873BE41791F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				38AFAC0A42F44F437A599F9D /* libPods-ExpoWidgetsTarget.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		970F03EBAE4BD1E374BE908F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -99,6 +182,24 @@
 				3C9361FD89740EFE24EFD6BD /* NiX */,
 			);
 			name = ExpoModulesProviders;
+			sourceTree = "<group>";
+		};
+		03C8FE46775434602588D29D /* NixShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				075BE62A0A46CF0E31CBD004 /* ShareViewController.swift */,
+				F807F0D50A580BBA6A6724D4 /* Info.plist */,
+				823F1DFD475BA8353F44AD07 /* NixShareExtension.entitlements */,
+			);
+			path = NixShareExtension;
+			sourceTree = "<group>";
+		};
+		0C55FFD5AADA32C6E3217A6E /* NiXShared */ = {
+			isa = PBXGroup;
+			children = (
+				E34076D12A2E1081A577F860 /* NixCaptureIntent.swift */,
+			);
+			path = NiXShared;
 			sourceTree = "<group>";
 		};
 		13B07FAE1A68108700A75B9A /* NiX */ = {
@@ -157,9 +258,22 @@
 				A3B87F03D320420A8881A0FD /* ExpoWidgetsTarget.entitlements */,
 				518D5878F5B14D0FB9816431 /* Info.plist */,
 				E1E0B33CEC4B4F08881AE6D5 /* index.swift */,
+				7A11C0DE0000000000000007 /* NixCameraControl.swift */,
+				7A11C0DE0000000000000005 /* NixInboxWidget.swift */,
+				7A11C0DE0000000000000002 /* Assets.xcassets */,
 			);
 			name = ExpoWidgetsTarget;
 			path = ExpoWidgetsTarget;
+			sourceTree = "<group>";
+		};
+		6762331A5A2C55F3848084C0 /* NixCaptureExtension */ = {
+			isa = PBXGroup;
+			children = (
+				F97B03F0DB9D591791D09E82 /* NixCaptureExtension.swift */,
+				EADBDD071DA31A0E5777724D /* Info.plist */,
+				D7D137C3422F6F45B7BF5D3B /* NixCaptureExtension.entitlements */,
+			);
+			path = NixCaptureExtension;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -179,6 +293,10 @@
 				4972BD8C9068443E99455A95 /* ExpoWidgetsTarget */,
 				D37445990F1F0F596468C975 /* Pods */,
 				02F2CFF96B9C3D919A641F44 /* ExpoModulesProviders */,
+				03C8FE46775434602588D29D /* NixShareExtension */,
+				EEC1D4B637423D0371A5F3C9 /* NixNotificationService */,
+				6762331A5A2C55F3848084C0 /* NixCaptureExtension */,
+				0C55FFD5AADA32C6E3217A6E /* NiXShared */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -217,6 +335,16 @@
 			path = Pods;
 			sourceTree = "<group>";
 		};
+		EEC1D4B637423D0371A5F3C9 /* NixNotificationService */ = {
+			isa = PBXGroup;
+			children = (
+				FEF958C51ECD7D6F26A76A32 /* NotificationService.swift */,
+				2B3A162D6BA75469CC0D829C /* Info.plist */,
+				2AA3AF85E35F27E348652CC3 /* NixNotificationService.entitlements */,
+			);
+			path = NixNotificationService;
+			sourceTree = "<group>";
+		};
 		F1E272F12672EE881885B158 /* ExpoWidgetsTarget */ = {
 			isa = PBXGroup;
 			children = (
@@ -243,16 +371,37 @@
 				83E1E403E55D43E7905F2EAA /* Embed Foundation Extensions */,
 				9020F261E29C422E9464077B /* Upload Debug Symbols to Sentry */,
 				8C60F3BF077441689BBFE029 /* [CP] Embed Pods Frameworks */,
+				0D08065F682D13F8A17151B4 /* Embed ExtensionKit Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				79708ED935144BE9BA61B615 /* PBXTargetDependency */,
+				F3026A72E5E46F54216B8988 /* PBXTargetDependency */,
+				C9BBE1CDD6FBEDDF768D61A5 /* PBXTargetDependency */,
+				EDD5239806B092DD5F851AFE /* PBXTargetDependency */,
 			);
 			name = NiX;
 			productName = NiX;
 			productReference = 13B07F961A680F5B00A75B9A /* NiX.app */;
 			productType = "com.apple.product-type.application";
+		};
+		2699AB351A17FA1D932C268F /* NixShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B4B8C76BBE8BFB6FEFB66CCD /* Build configuration list for PBXNativeTarget "NixShareExtension" */;
+			buildPhases = (
+				A9E738EA435DDD3B28C58B0A /* Sources */,
+				255D9EAC5ACC4D0469C22F1C /* Frameworks */,
+				D1BD0906C6EBE8793584B9F4 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NixShareExtension;
+			productName = NixShareExtension;
+			productReference = C9993DBCD66A157B8BD77431 /* NixShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		2CBE8757230A435E85C8BFDE /* ExpoWidgetsTarget */ = {
 			isa = PBXNativeTarget;
@@ -262,6 +411,7 @@
 				4DEA2B44D9C91852C47D065A /* [Expo] Configure project */,
 				5CE9CAF0FC8949F698A21FAF /* Sources */,
 				7223BB0B45D14873BE41791F /* Frameworks */,
+				7A11C0DE0000000000000003 /* Resources */,
 				132063ED19EAC20EBA8C9485 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
@@ -271,6 +421,40 @@
 			name = ExpoWidgetsTarget;
 			productName = ExpoWidgetsTarget;
 			productReference = E555518B0BB34AE1A855D7FF /* ExpoWidgetsTarget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		458C772E582778C97AF4D3DB /* NixCaptureExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4D383ABF0F3F86AA14147E5D /* Build configuration list for PBXNativeTarget "NixCaptureExtension" */;
+			buildPhases = (
+				E93B0CC403286E4615F27429 /* Sources */,
+				970F03EBAE4BD1E374BE908F /* Frameworks */,
+				D6587823404073819884C9D1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NixCaptureExtension;
+			productName = NixCaptureExtension;
+			productReference = C0C6BBBEF9634C5BC4BD1EDE /* NixCaptureExtension.appex */;
+			productType = "com.apple.product-type.extensionkit-extension";
+		};
+		7075A8D448E62E23D1AA2053 /* NixNotificationService */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 919CD0F7E61A7B505B8BCB65 /* Build configuration list for PBXNativeTarget "NixNotificationService" */;
+			buildPhases = (
+				B783CB4FBE3B54BF4A921AB1 /* Sources */,
+				12081BEC345877F37EFC9CB6 /* Frameworks */,
+				5703F4D87D71D838F3C868A0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NixNotificationService;
+			productName = NixNotificationService;
+			productReference = E0A66CFC3041DC501BA3C858 /* NixNotificationService.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -308,6 +492,9 @@
 			targets = (
 				13B07F861A680F5B00A75B9A /* NiX */,
 				2CBE8757230A435E85C8BFDE /* ExpoWidgetsTarget */,
+				2699AB351A17FA1D932C268F /* NixShareExtension */,
+				7075A8D448E62E23D1AA2053 /* NixNotificationService */,
+				458C772E582778C97AF4D3DB /* NixCaptureExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -323,6 +510,35 @@
 				0648B684E0CD4188A79F1A5C /* InfoPlist.strings in Resources */,
 				5B3AB89B9FCD492595566EBB /* InfoPlist.strings in Resources */,
 				4C305A4495BEB39C9C264A34 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5703F4D87D71D838F3C868A0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7A11C0DE0000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A11C0DE0000000000000001 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D1BD0906C6EBE8793584B9F4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D6587823404073819884C9D1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -344,7 +560,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR/..\"\n\n# NiX release environment preflight\nif [[ \"$CONFIGURATION\" != *Debug* ]]; then\n  \"$NODE_BINARY\" \"$PROJECT_ROOT/scripts/validate-release-env.mjs\" --mode production || exit 1\nfi\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.updates\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n/bin/sh \"$(\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('@sentry/react-native/package.json')) + '/scripts/sentry-xcode.sh'\")\" \"$(\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\")\"\n\n";
+			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR/..\"\n\n# NiX release environment preflight\nif [[ \"$CONFIGURATION\" != *Debug* ]]; then\n  \"$NODE_BINARY\" \"$PROJECT_ROOT/scripts/validate-release-env.mjs\" --mode production --project-root \"$PROJECT_ROOT\" || exit 1\nfi\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.updates\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n/bin/sh \"$(\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('@sentry/react-native/package.json')) + '/scripts/sentry-xcode.sh'\")\" \"$(\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\")\"\n\n";
 		};
 		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -378,6 +594,7 @@
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoWidgets/ExpoWidgets.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/GoogleUtilities/GoogleUtilities_Privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/PromisesObjC/FBLPromises_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/PromisesSwift/Promises_Privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RCT-Folly/RCT-Folly_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
@@ -390,6 +607,7 @@
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoWidgets.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleUtilities_Privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FBLPromises_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Promises_Privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RCT-Folly_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
@@ -455,6 +673,7 @@
 			);
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-NiX/Pods-NiX-resources.sh",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EASClient/EASClient_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXApplication/ExpoApplication_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
@@ -467,6 +686,7 @@
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoWidgets/ExpoWidgets.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/GoogleUtilities/GoogleUtilities_Privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/PromisesObjC/FBLPromises_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/PromisesSwift/Promises_Privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RCT-Folly/RCT-Folly_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RNCAsyncStorage/RNCAsyncStorage_resources.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RNImageCropPicker/RNImageCropPickerPrivacyInfo.bundle",
@@ -486,6 +706,7 @@
 			);
 			name = "[CP] Copy Pods Resources";
 			outputPaths = (
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EASClient_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoApplication_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
@@ -498,6 +719,7 @@
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoWidgets.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleUtilities_Privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FBLPromises_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Promises_Privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RCT-Folly_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNCAsyncStorage_resources.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNImageCropPickerPrivacyInfo.bundle",
@@ -601,6 +823,7 @@
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
 				D374DE1ECD50B95B4C1FA36B /* ExpoModulesProvider.swift in Sources */,
+				7453E0FAB97E7FE598316143 /* NixCaptureIntent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -609,7 +832,35 @@
 			buildActionMask = 2147483647;
 			files = (
 				0CC5378C7A174B5FAB52FB6E /* index.swift in Sources */,
+				7A11C0DE0000000000000006 /* NixCameraControl.swift in Sources */,
+				7A11C0DE0000000000000004 /* NixInboxWidget.swift in Sources */,
 				C5E2905293AA6E6B937C8C30 /* ExpoModulesProvider.swift in Sources */,
+				12F5C6305A241A7224F7CAA5 /* NixCaptureIntent.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A9E738EA435DDD3B28C58B0A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BF32AEDADA9B6E72E137409A /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B783CB4FBE3B54BF4A921AB1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CEA789648C6A842A857C4ED9 /* NotificationService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E93B0CC403286E4615F27429 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D4D137A6B5263362A8944E6F /* NixCaptureExtension.swift in Sources */,
+				CC928EB77430465B06800A1B /* NixCaptureIntent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -620,6 +871,21 @@
 			isa = PBXTargetDependency;
 			target = 2CBE8757230A435E85C8BFDE /* ExpoWidgetsTarget */;
 			targetProxy = 74B3BCAB6AE7456188174D82 /* PBXContainerItemProxy */;
+		};
+		C9BBE1CDD6FBEDDF768D61A5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7075A8D448E62E23D1AA2053 /* NixNotificationService */;
+			targetProxy = 190CD63DB1CF5EEB86722D0C /* PBXContainerItemProxy */;
+		};
+		EDD5239806B092DD5F851AFE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 458C772E582778C97AF4D3DB /* NixCaptureExtension */;
+			targetProxy = 449CC3C7C92A80F312A2E0CA /* PBXContainerItemProxy */;
+		};
+		F3026A72E5E46F54216B8988 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2699AB351A17FA1D932C268F /* NixShareExtension */;
+			targetProxy = 214ECD0859432B5394503790 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -632,14 +898,14 @@
 				CODE_SIGN_ENTITLEMENTS = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ExpoWidgetsTarget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ExpoWidgetsTarget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.13;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.damianmotylinski.nixapp.UploadStatusWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -658,7 +924,7 @@
 				CODE_SIGN_ENTITLEMENTS = NiX/NiX.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -672,7 +938,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.4;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.13;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -698,7 +964,7 @@
 				CODE_SIGN_ENTITLEMENTS = NiX/NiX.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				INFOPLIST_FILE = NiX/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
@@ -707,7 +973,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.4;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.13;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -723,6 +989,34 @@
 			};
 			name = Release;
 		};
+		30DCB5A5E21A2249D98D064A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NixShareExtension/NixShareExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 13;
+				DEVELOPMENT_TEAM = 9Q39P5MUT9;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NixShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.13;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.damianmotylinski.nixapp.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 		34AB9C096D7148DDBD00AB2C /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 8221292C6008D8DE7B60C2CE /* Pods-ExpoWidgetsTarget.release.xcconfig */;
@@ -731,20 +1025,75 @@
 				CODE_SIGN_ENTITLEMENTS = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ExpoWidgetsTarget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ExpoWidgetsTarget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.13;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.damianmotylinski.nixapp.UploadStatusWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		455979D16084DA2C0A8C02D4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NixCaptureExtension/NixCaptureExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 13;
+				DEVELOPMENT_TEAM = 9Q39P5MUT9;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NixCaptureExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.13;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = com.damianmotylinski.nixapp.CaptureExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		7DAAC5475F8B97014805477E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NixCaptureExtension/NixCaptureExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 13;
+				DEVELOPMENT_TEAM = 9Q39P5MUT9;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NixCaptureExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.13;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.damianmotylinski.nixapp.CaptureExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -882,6 +1231,90 @@
 			};
 			name = Release;
 		};
+		88FC194F088289E33E11BC4D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NixShareExtension/NixShareExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 13;
+				DEVELOPMENT_TEAM = 9Q39P5MUT9;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NixShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.13;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = com.damianmotylinski.nixapp.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		ACF89312986DEBB708BE91AC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NixNotificationService/NixNotificationService.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 13;
+				DEVELOPMENT_TEAM = 9Q39P5MUT9;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NixNotificationService/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.13;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.damianmotylinski.nixapp.NotificationService;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		FDC3E954C75DC9F285205ADF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NixNotificationService/NixNotificationService.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 13;
+				DEVELOPMENT_TEAM = 9Q39P5MUT9;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NixNotificationService/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.13;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = com.damianmotylinski.nixapp.NotificationService;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -894,11 +1327,38 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		4D383ABF0F3F86AA14147E5D /* Build configuration list for PBXNativeTarget "NixCaptureExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				455979D16084DA2C0A8C02D4 /* Debug */,
+				7DAAC5475F8B97014805477E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "NiX" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,
 				83CBBA211A601CBA00E9B192 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		919CD0F7E61A7B505B8BCB65 /* Build configuration list for PBXNativeTarget "NixNotificationService" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FDC3E954C75DC9F285205ADF /* Debug */,
+				ACF89312986DEBB708BE91AC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B4B8C76BBE8BFB6FEFB66CCD /* Build configuration list for PBXNativeTarget "NixShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				88FC194F088289E33E11BC4D /* Debug */,
+				30DCB5A5E21A2249D98D064A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

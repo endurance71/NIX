@@ -12,8 +12,8 @@ type LegalDocument = {
 export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms: LegalDocument }> = {
   pl: {
     privacy: {
-      version: '2026-09-12',
-      effectiveDate: '12 września 2026 r.',
+      version: '2026-10-08',
+      effectiveDate: '8 października 2026 r.',
       sections: [
         {
           title: 'Administrator danych i kontakt',
@@ -45,7 +45,7 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
         },
         {
           title: 'Odbiorcy danych',
-          body: 'Dane mogą być przetwarzane przez Supabase (uwierzytelnianie, baza, Storage i funkcje serwerowe w UE), Apple (Sign in with Apple i App Store), Expo/EAS (budowa, dystrybucja i powiadomienia push) oraz Microsoft Azure AI Content Safety (skan tekstu, zdjęć i wybranych klatek wideo przed doręczeniem), tylko w zakresie koniecznym do usługi. Zainstalowane SDK Sentry jest w publicznym buildzie twardo wyłączone i nie otrzymuje danych, dopóki nie zostanie jawnie włączone osobną decyzją release.',
+          body: 'Dane mogą być przetwarzane przez Supabase (uwierzytelnianie, baza, Storage i funkcje serwerowe w UE), Apple (Sign in with Apple i App Store), Expo/EAS (budowa, dystrybucja i powiadomienia push), OVHcloud (hosting workera przygotowującego wideo do moderacji) oraz Microsoft Azure AI Content Safety (skan tekstu, zdjęć i wybranych klatek wideo przed doręczeniem), tylko w zakresie koniecznym do usługi. Zainstalowane SDK Sentry jest w publicznym buildzie twardo wyłączone i nie otrzymuje danych, dopóki nie zostanie jawnie włączone osobną decyzją release.',
         },
         {
           title: 'Bezpieczeństwo i moderacja',
@@ -74,8 +74,8 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
       ],
     },
     terms: {
-      version: '2026-09-12',
-      effectiveDate: '12 września 2026 r.',
+      version: '2026-10-08',
+      effectiveDate: '8 października 2026 r.',
       sections: [
         { title: 'Usługodawca', body: 'Usługę NiX świadczy MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, NIP 8393229228. Kontakt: kontakt@damianmotylinski.pl.' },
         { title: 'Usługa', body: 'NiX umożliwia zaakceptowanym znajomym wymianę efemerycznych wiadomości tekstowych, zdjęciowych i wideo. Do korzystania wymagane są kompatybilne urządzenie, dostęp do Internetu oraz konto.' },
@@ -91,8 +91,8 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
   },
   en: {
     privacy: {
-      version: '2026-09-12',
-      effectiveDate: '12 September 2026',
+      version: '2026-10-08',
+      effectiveDate: '8 October 2026',
       sections: [
         {
           title: 'Controller and contact',
@@ -124,7 +124,7 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
         },
         {
           title: 'Recipients',
-          body: 'Data may be processed by Supabase (authentication, database, Storage and server functions in the EU), Apple (Sign in with Apple and App Store), Expo/EAS (builds, distribution and push notifications), and Microsoft Azure AI Content Safety (pre-delivery screening of text, photos and sampled video frames), only as needed. The installed Sentry SDK is hard-disabled in the public build and receives no data until an explicit release decision turns it on.',
+          body: 'Data may be processed by Supabase (authentication, database, Storage and server functions in the EU), Apple (Sign in with Apple and App Store), Expo/EAS (builds, distribution and push notifications), OVHcloud (hosting the worker that prepares video for moderation), and Microsoft Azure AI Content Safety (pre-delivery screening of text, photos and sampled video frames), only as needed. The installed Sentry SDK is hard-disabled in the public build and receives no data until an explicit release decision turns it on.',
         },
         {
           title: 'Safety and moderation',
@@ -153,8 +153,8 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
       ],
     },
     terms: {
-      version: '2026-09-12',
-      effectiveDate: '12 September 2026',
+      version: '2026-10-08',
+      effectiveDate: '8 October 2026',
       sections: [
         { title: 'Provider', body: 'NiX is provided by MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. Contact: kontakt@damianmotylinski.pl.' },
         { title: 'Service', body: 'NiX enables accepted friends to exchange ephemeral text, photo, and video messages. Use requires a compatible device, Internet access and an account.' },

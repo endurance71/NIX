@@ -1,9 +1,7 @@
 # NiX — pakiet prawny przed publikacją
 
-**Wersja:** 2026-09-12
-**Status:** treść zsynchronizowana z in-app (`src/lib/legalDocuments.ts`); HTTPS
-opublikowany 2026-09-12 (`https://nix.damianmotylinski.pl/privacy/`, `/terms/`,
-oraz `/en/`). Public App Review: **WAITING FOR REVIEW** 2026-09-12
+**Wersja pakietu:** 2026-10-08
+**Status:** treść zsynchronizowana z in-app (`src/lib/legalDocuments.ts`); strony HTML PL/EN generowane z tego źródła przez `npm run generate:legal-pages`. Pakiet dodaje informację o istniejącym workerze OVHcloud i pełne publiczne instrukcje pomocy. Nie zmienia okresów retencji ani nie włącza analityki. Przywrócenie HTTPS po stwierdzonym 404 jest częścią przygotowania App Review; wynik bieżącego wdrożenia należy odczytać z kanonu wydania. Public App Review: **Rejected / Information Needed**, sprawdzono 2026-10-08
 (kanon: [`../release/ios-current.md`](../release/ios-current.md)).
 
 Ten katalog jest źródłem wersjonowanych treści dla aplikacji i przyszłej strony HTTPS:

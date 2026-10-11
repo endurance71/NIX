@@ -1,4 +1,9 @@
-import { F0_HARD_BUDGET, F0_MIN_REQUEST_GAP_MS } from "./constants.ts";
+import {
+  F0_HARD_BUDGET,
+  F0_MIN_REQUEST_GAP_MS,
+  TRANSIENT_PROVIDER_ERRORS,
+  WAITING_BUDGET,
+} from "./constants.ts";
 import { createAzureProvider, requireLiveWorkerEnv } from "./azure-provider.ts";
 import { createIntegrationWorker } from "./core.ts";
 import {
@@ -6,12 +11,65 @@ import {
   jobDestPath,
   jobTempDir,
   loadMediaAsset,
+  InputResolutionError,
 } from "./download.ts";
+import { MAX_IMAGE_BYTES, MAX_VIDEO_BYTES } from "../../supabase/functions/_shared/media-limits.ts";
 import { integrationRpcQueue, type Rpc } from "./rpc-queue.ts";
-import { createShutdownController } from "./shutdown.ts";
+import { createShutdownController, type ShutdownController } from "./shutdown.ts";
+import type { ProcessOutcome } from "./process.ts";
 import { sqlBudgetLedger } from "./sql-budget.ts";
 
 const TICK_IDLE_MS = 1000;
+
+/**
+ * Whether the loop may claim the next job right away (DB-8). Only a job that
+ * finished normally qualifies: an empty queue, a budget deferral, or a transient
+ * provider failure (429/5xx/network) all wait TICK_IDLE_MS so an exhausted F0
+ * budget or a throttled Azure endpoint is not hammered. The 5 RPS spacing itself
+ * lives in the provider (gapMs) and is shared across ticks.
+ */
+export function shouldContinueImmediately(
+  outcome: ProcessOutcome | null,
+): boolean {
+  if (!outcome) return false;
+  if (outcome.waitingReason === WAITING_BUDGET) return false;
+  if (
+    outcome.decision === "error" && outcome.error &&
+    TRANSIENT_PROVIDER_ERRORS.has(outcome.error)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export type WorkerLoopOptions = {
+  once?: boolean;
+  idleMs?: number;
+  shutdown: ShutdownController;
+  sleep?: (ms: number) => Promise<void>;
+  onError?: (message: string) => void;
+};
+
+/** Drain due jobs back-to-back; sleep only when idle, deferred or failing. */
+export async function runWorkerLoop(
+  tick: () => Promise<ProcessOutcome | null>,
+  options: WorkerLoopOptions,
+): Promise<void> {
+  const sleep = options.sleep ??
+    ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const onError = options.onError ?? ((message: string) => console.error(message));
+  const idleMs = options.idleMs ?? TICK_IDLE_MS;
+  do {
+    let busy = false;
+    try {
+      busy = shouldContinueImmediately(await tick());
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "tick_failed");
+    }
+    if (options.once) return;
+    if (!busy) await sleep(idleMs);
+  } while (!options.shutdown.isStopping());
+}
 
 export function createSupabaseRpc(
   supabaseUrl: string,
@@ -44,7 +102,7 @@ export async function loadTextPayload(
   fetchImpl: typeof fetch = fetch,
 ): Promise<string> {
   if (typeof payloadId !== "string" || payloadId.length === 0) {
-    throw new Error("text_payload_load_failed");
+    throw new InputResolutionError("text_payload_load_failed", false);
   }
   const base = supabaseUrl.replace(/\/+$/, "");
   const url =
@@ -60,7 +118,7 @@ export async function loadTextPayload(
   });
   const json = await response.json().catch(() => null) as { body?: unknown } | null;
   if (!response.ok || typeof json?.body !== "string") {
-    throw new Error("text_payload_load_failed");
+    throw new InputResolutionError("text_payload_load_failed", response.status === 429 || response.status >= 500);
   }
   return json.body;
 }
@@ -106,6 +164,7 @@ export async function resolveClaimedJob(
       fetchImpl,
       signal: options.signal,
       knownSize: asset.sizeBytes,
+      maxBytes: asset.mediaType === 'image' ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES,
     },
   );
   return { path: downloaded.path, kind: asset.mediaType };
@@ -139,23 +198,17 @@ export async function runLiveWorker(
   const ledger = sqlBudgetLedger(rpc, {
     hardBudget: F0_HARD_BUDGET,
     externalUsed: cfg.externalUsed,
+    externalUsedMonth: cfg.externalUsedMonth,
   });
   const shutdown = createShutdownController();
   const worker = createIntegrationWorker(queue, provider, ledger, { shutdown });
   const once = options.once ?? env.MODERATION_WORKER_ONCE === "1";
 
-  do {
-    try {
-      await worker.tick();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "tick_failed";
-      console.error(message);
-    }
-    if (once) return;
-    await new Promise((resolve) =>
-      setTimeout(resolve, options.sleepMs ?? TICK_IDLE_MS)
-    );
-  } while (!shutdown.isStopping());
+  await runWorkerLoop(worker.tick, {
+    once,
+    idleMs: options.sleepMs,
+    shutdown,
+  });
 }
 
 if (import.meta.main) {

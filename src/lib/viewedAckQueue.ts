@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentUser } from '../services/profileService';
 import { markNixViewedForReplay, markNixReplayedWithCleanup } from '../services/nixService';
 import { trackEvent } from './telemetry';
+import { captureAccountTransport, type AccountTransport } from './supabase';
+import { SessionScopeCancelledError } from './sessionScope';
 
 const STORAGE_PREFIX = 'nix.viewed_ack_queue.v1';
 const MAX_BACKOFF_MS = 15 * 60_000;
@@ -17,13 +19,17 @@ export type PendingViewedAck = {
 
 let storageLock: Promise<void> = Promise.resolve();
 const inFlightFlushes = new Map<string, Promise<number>>();
+const versions = new Map<string, number>();
 
 function storageKey(userId: string) {
   return `${STORAGE_PREFIX}.${userId}`;
 }
 
-export async function clearPendingViewedAcks(userId: string) {
-  await AsyncStorage.removeItem(storageKey(userId));
+export function clearPendingViewedAcks(userId: string) {
+  versions.set(userId, (versions.get(userId) ?? 0) + 1);
+  const operation = storageLock.then(() => AsyncStorage.removeItem(storageKey(userId)));
+  storageLock = operation.catch(() => {});
+  return operation;
 }
 
 export function viewedAckRetryDelayMs(attemptCount: number) {
@@ -73,8 +79,10 @@ function mutateQueue(
   userId: string,
   mutation: (queue: PendingViewedAck[]) => PendingViewedAck[]
 ): Promise<void> {
+  const version = versions.get(userId) ?? 0;
   const operation = storageLock.then(async () => {
     const queue = await readQueue(userId);
+    if ((versions.get(userId) ?? 0) !== version) throw new SessionScopeCancelledError();
     await writeQueue(userId, mutation(queue));
   });
   storageLock = operation.catch(() => {});
@@ -107,17 +115,20 @@ function postponeViewedAck(userId: string, nixId: string, now: number) {
   );
 }
 
-async function deliverViewedAck(userId: string, ack: PendingViewedAck) {
+async function deliverViewedAck(userId: string, ack: PendingViewedAck, transport: AccountTransport) {
   try {
+    transport.assertActive();
     if (ack.ackType === 'viewed') {
-      await markNixViewedForReplay(ack.nixId);
+      await markNixViewedForReplay(ack.nixId, transport);
     } else {
-      await markNixReplayedWithCleanup(ack.nixId, ack.mediaPath);
+      await markNixReplayedWithCleanup(ack.nixId, undefined, transport);
     }
+    transport.assertActive();
     await removeViewedAck(userId, ack.nixId);
     trackEvent('viewed_ack_delivered', { attempt_count: ack.attemptCount, ack_type: ack.ackType });
     return true;
   } catch (error) {
+    transport.assertActive();
     await postponeViewedAck(userId, ack.nixId, Date.now());
     trackEvent('viewed_ack_deferred', {
       attempt_count: ack.attemptCount + 1,
@@ -127,11 +138,11 @@ async function deliverViewedAck(userId: string, ack: PendingViewedAck) {
   }
 }
 
-function deliverViewedAcksSerially(userId: string, acknowledgements: PendingViewedAck[]) {
+function deliverViewedAcksSerially(userId: string, acknowledgements: PendingViewedAck[], transport: AccountTransport) {
   return acknowledgements.reduce<Promise<number>>(
     (deliveredPromise, acknowledgement) =>
       deliveredPromise.then((delivered) =>
-        deliverViewedAck(userId, acknowledgement).then(
+        deliverViewedAck(userId, acknowledgement, transport).then(
           (wasDelivered) => delivered + (wasDelivered ? 1 : 0)
         )
       ),
@@ -142,6 +153,7 @@ function deliverViewedAcksSerially(userId: string, acknowledgements: PendingView
 export async function acknowledgeViewedNix(item: { id: string; media_path: string }, ackType: 'viewed' | 'replayed' = 'viewed') {
   const user = await getCurrentUser();
   if (!user) return false;
+  const transport = await captureAccountTransport(user.id);
   const ack: PendingViewedAck = {
     nixId: item.id,
     mediaPath: item.media_path,
@@ -156,7 +168,8 @@ export async function acknowledgeViewedNix(item: { id: string; media_path: strin
   } catch (error) {
     console.warn('Nie udało się zapisać potwierdzenia odczytu', error);
   }
-  return deliverViewedAck(user.id, ack);
+  transport.assertActive();
+  return deliverViewedAck(user.id, ack, transport).catch(() => false);
 }
 
 export function flushPendingViewedAcks(userId: string, options?: { force?: boolean }) {
@@ -164,10 +177,12 @@ export function flushPendingViewedAcks(userId: string, options?: { force?: boole
   if (existing) return existing;
 
   const flush = (async () => {
+    const transport = await captureAccountTransport(userId);
     const now = Date.now();
     const queue = await readQueue(userId);
+    transport.assertActive();
     const due = queue.filter((ack) => options?.force || ack.nextAttemptAt <= now);
-    return deliverViewedAcksSerially(userId, due);
+    return deliverViewedAcksSerially(userId, due, transport);
   })().finally(() => {
     inFlightFlushes.delete(userId);
   });

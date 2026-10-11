@@ -25,7 +25,7 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.11</string>
+	<string>1.0.13</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleURLTypes</key>
@@ -45,7 +45,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>6</string>
+	<string>13</string>
 	<key>ExpoWidgetsAppGroupIdentifier</key>
 	<string>group.com.damianmotylinski.nixapp.uploads</string>
 	<key>ExpoWidgets_EnablePushNotifications</key>
@@ -66,7 +66,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>NiX uses the camera to take photos and videos that you choose to send to friends.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>NiX uses the microphone to record sound in video messages that you choose to send.</string>
+	<string>NiX uses the microphone to record sound in video messages and voice messages that you choose to send.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>NiX saves photos and videos you choose to keep in your Photos library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
@@ -78,6 +78,8 @@
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
+		<string>INSendMessageIntent</string>
+		<string>NSUserActivityTypeLockedCameraCapture</string>
 	</array>
 	<key>RCTMetroPort</key>
 	<string>$(RCT_METRO_PORT)</string>
@@ -88,6 +90,23 @@
 		<string>fetch</string>
 		<string>processing</string>
 	</array>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>EXExpoAppSceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UILaunchStoryboardName</key>
 	<string>SplashScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>

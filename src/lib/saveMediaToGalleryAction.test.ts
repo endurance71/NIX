@@ -4,6 +4,7 @@ const bakeMediaOverlays = vi.fn();
 const releaseBakedOverlayUris = vi.fn(async (_uris: unknown): Promise<void> => undefined);
 const ensureWritePermission = vi.fn(async () => 'granted');
 const saveLocalUrisToLibrary = vi.fn(async (_uris: unknown) => undefined);
+const showPermissionDeniedAlert = vi.fn();
 
 vi.mock('./bakeMediaTextOverlay', () => ({
   bakeMediaOverlays: (args: unknown) => bakeMediaOverlays(args),
@@ -14,6 +15,10 @@ vi.mock('./saveToMediaLibrary', () => ({
   ensureWritePermission: () => ensureWritePermission(),
   saveLocalUrisToLibrary: (uris: unknown) => saveLocalUrisToLibrary(uris),
   saveRemoteUriToLibrary: vi.fn(async () => undefined),
+}));
+
+vi.mock('./permissionAlert', () => ({
+  showPermissionDeniedAlert: (reason: unknown) => showPermissionDeniedAlert(reason),
 }));
 
 vi.mock('./appNotify', () => ({ notifyError: vi.fn(), notifySuccess: vi.fn() }));
@@ -104,5 +109,24 @@ describe('saveLocalMediaToGallery', () => {
 
     expect(saveLocalUrisToLibrary).not.toHaveBeenCalled();
     expect(releaseBakedOverlayUris).toHaveBeenCalledWith(['file:///temp-first.mp4']);
+  });
+
+  it.each(['denied', 'blocked'])('shows the shared permission alert when access is %s', async (permission) => {
+    ensureWritePermission.mockResolvedValue(permission);
+    const { saveLocalMediaToGallery } = await import('./saveMediaToGalleryAction');
+
+    await expect(
+      saveLocalMediaToGallery({
+        source: 'viewer',
+        uris: ['file:///photo.jpg'],
+        mediaType: 'image',
+        viewportWidth: 390,
+        viewportHeight: 844,
+      })
+    ).resolves.toBe(false);
+
+    expect(showPermissionDeniedAlert).toHaveBeenCalledWith('saveToPhotos');
+    expect(bakeMediaOverlays).not.toHaveBeenCalled();
+    expect(saveLocalUrisToLibrary).not.toHaveBeenCalled();
   });
 });

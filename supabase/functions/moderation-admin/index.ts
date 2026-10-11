@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.5';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import { json, notifySentry } from '../_shared/http.ts';
 import { hasServiceRoleBearer } from '../_shared/service-auth.ts';
 import { readAdminAction, readReportId, statusForRemoveRpcError } from './contract.ts';

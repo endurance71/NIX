@@ -1,64 +1,50 @@
-/**
- * Jedyny punkt wywołań Pretty Toast poza root {@link ToastProvider}.
- * Krótkie komunikaty: tytuł + opcjonalny drugi wiersz (`message`).
- */
-import { toast } from 'react-native-pretty-toast';
-import type { ShowOptions, ToastConfig } from 'react-native-pretty-toast';
-import { toDomainError } from '../services/errors';
+import { isNetworkError, toDomainError } from '../services/errors';
 import i18n from './i18n';
-import { notify as hapticNotify } from './haptics';
+import { appNotificationQueue, type AppNotificationConfig } from './notificationQueue';
 
-const NOTIFY_ERROR_DURATION_MS = 5000;
-const NOTIFY_PLACEHOLDER_MESSAGE = ' ';
+type NotificationDetails = Omit<AppNotificationConfig, 'title' | 'kind'>;
 
-type ExtraToastFields = Omit<ToastConfig, 'title'>;
-
-function normalizeToastFields(extra?: ExtraToastFields): ExtraToastFields {
-  const normalizedMessage = extra?.message?.trim();
-  return {
-    ...extra,
-    // Keep a stable two-line layout so every toast has the same visual height.
-    message: normalizedMessage && normalizedMessage.length > 0 ? normalizedMessage : NOTIFY_PLACEHOLDER_MESSAGE,
-  };
+export function notifySuccess(title: string, details?: NotificationDetails): string {
+  return appNotificationQueue.enqueue({ ...details, title, kind: 'success' });
 }
 
-export function notifySuccess(title: string, extra?: ExtraToastFields, options?: ShowOptions): string {
-  hapticNotify('success');
-  return toast.success(title.trim(), normalizeToastFields(extra), options);
+export function notifyError(title: string, details?: NotificationDetails): string {
+  return appNotificationQueue.enqueue({ ...details, title, kind: 'error' });
 }
 
-export function notifyError(title: string, extra?: ExtraToastFields, options?: ShowOptions): string {
-  hapticNotify('error');
-  return toast.error(title.trim(), { duration: NOTIFY_ERROR_DURATION_MS, ...normalizeToastFields(extra) }, options);
+export function notifyInfo(title: string, details?: NotificationDetails): string {
+  return appNotificationQueue.enqueue({ ...details, title, kind: 'info' });
 }
 
-export function notifyInfo(title: string, extra?: ExtraToastFields, options?: ShowOptions): string {
-  return toast.info(title.trim(), normalizeToastFields(extra), options);
+export function notifyWarning(title: string, details?: NotificationDetails): string {
+  return appNotificationQueue.enqueue({ ...details, title, kind: 'warning' });
 }
 
-export function notifyWarning(title: string, extra?: ExtraToastFields, options?: ShowOptions): string {
-  hapticNotify('warning');
-  return toast.warning(title.trim(), normalizeToastFields(extra), options);
+export function notifyShow(config: AppNotificationConfig): string {
+  return appNotificationQueue.enqueue(config);
 }
 
-export function notifyShow(config: ToastConfig, options?: ShowOptions): string {
-  const normalizedTitle = config.title?.trim();
-  const { title: _title, ...restConfig } = config;
-  return toast.show(
-    {
-      ...restConfig,
-      title: normalizedTitle,
-      ...normalizeToastFields(restConfig),
-    },
-    options
-  );
+/**
+ * Shows a failure in the context of the action that failed (`fallbackMessage`, e.g. „Nie udało się wysłać”).
+ * Raw `err.message` is never shown: unknown errors get a generic retry hint and transport failures a
+ * connection hint, so users don't see „Network request failed” or SQL errors.
+ */
+export function notifyDomainError(err: unknown, fallbackMessage: string): string {
+  const title = fallbackMessage.trim() || i18n.t('domainErrors.UNKNOWN');
+  if (isNetworkError(err)) {
+    return notifyWarning(title, { message: i18n.t('notify.networkHint') });
+  }
+  const domain = toDomainError(err, title);
+  if (domain.code === 'UNKNOWN') {
+    return notifyError(title, { message: i18n.t('notify.tryAgainHint') });
+  }
+  const detail = i18n.t(domain.messageKey, { defaultValue: '', ...domain.messageParams });
+  return notifyError(title, detail && detail !== title ? { message: detail } : undefined);
 }
 
-export function notifyDomainError(err: unknown, fallbackMessage: string, options?: ShowOptions): string {
-  const domainError = toDomainError(err, fallbackMessage);
-  const translatedByCode = i18n.t(domainError.messageKey, {
-    ...(domainError.messageParams ?? {}),
-    defaultValue: domainError.message,
+/** Offline is a state, not a failure: one neutral, deduplicated hint instead of a red error per tap. */
+export function notifyOffline(scope: 'action' | 'media' = 'action'): string {
+  return notifyInfo(i18n.t(scope === 'media' ? 'root.offlineMediaUnavailable' : 'root.offlineActionUnavailable'), {
+    id: `offline-${scope}`,
   });
-  return notifyError(translatedByCode, undefined, options);
 }

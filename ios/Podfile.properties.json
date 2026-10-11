@@ -5,8 +5,9 @@
   "expo.inlineModules.xcodeProjectTargets": "{\"mainTarget\":\"NiX\",\"targets\":[]}",
   "expo-image.disable-libdav1d": "false",
   "ios.forceStaticLinking": "[]",
-  "apple.extraPods": "[{\"name\":\"AppCheckCore\",\"version\":\"11.2.0\"}]",
+  "apple.extraPods": "[{\"name\":\"AppCheckCore\",\"version\":\"11.3.2\",\"modular_headers\":true},{\"name\":\"GoogleUtilities\",\"modular_headers\":true},{\"name\":\"RecaptchaInterop\",\"modular_headers\":true}]",
   "apple.privacyManifestAggregationEnabled": "true",
   "ios.buildReactNativeFromSource": "true",
+  "ios.enableSceneSupport": "true",
   "EXPO_USE_PRECOMPILED_MODULES": "true"
 }

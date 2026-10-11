@@ -204,7 +204,7 @@ SELECT throws_ok(
     )
   $$,
   '42501',
-  'new row violates row-level security policy for table "nixes"',
+  'permission denied for table nixes',
   'NiX insert is rejected for a blocked relationship'
 );
 SELECT is(

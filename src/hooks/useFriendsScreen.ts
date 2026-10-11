@@ -1,28 +1,29 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
+  ACCEPTED_FRIENDS_LIMIT,
   listAcceptedFriends,
   listIncomingFriendRequests,
   listOutgoingFriendRequests,
 } from '../services/friendService';
-import { AVATAR_SIGNED_URL_STALE_TIME_MS, createSignedAvatarUrls } from '../services/avatarService';
-import { listCapturePoliciesForFriends, type CapturePolicy } from '../services/capturePolicyService';
-import { avatarSignedUrlsQueryKey, queryKeys } from '../lib/queryKeys';
+import { queryKeys } from '../lib/queryKeys';
 import { useAppTheme } from './useAppTheme';
-import { notifyError } from '../lib/appNotify';
-import { resolveCapturePolicyForFriend } from '../lib/capturePolicy';
+import { notifyDomainError, notifyError, notifyOffline } from '../lib/appNotify';
 import { runWithFinally } from '../lib/runWithFinally';
 import { useAuth } from './useAuth';
+import { useSignedAvatarUrls } from './useSignedAvatarUrls';
+import { resolveSettingsListState } from '../lib/settingsListState';
 import {
   acceptProfileFriendRequest,
   cancelProfileOutgoingRequest,
   rejectProfileFriendRequest,
   removeProfileFriend,
   sendProfileInvite,
-  toggleProfileFriendCapture,
 } from '../lib/profileScreenActions';
+import { beginBusyKey, endBusyKey, friendActionKey } from '../lib/profileFriendsPresentation';
+import { useFriendshipOverview } from './useFriendshipBadges';
 
 export function useFriendsScreen() {
   const { t } = useTranslation();
@@ -31,7 +32,9 @@ export function useFriendsScreen() {
   const { user, canUseNetworkSession, isOfflineAuthenticated } = useAuth();
   const [searchUsername, setSearchUsername] = useState('');
   const [inviteInputResetKey, setInviteInputResetKey] = useState(0);
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  // Per-row busy state: accepting one invite never clears the spinner of another row.
+  const busyKeysRef = useRef<ReadonlySet<string>>(new Set());
+  const [busyKeys, setBusyKeys] = useState<ReadonlySet<string>>(() => new Set());
 
   const { data: requests = [], isPending: requestsPending } = useQuery({
     queryKey: queryKeys.incomingFriendRequests,
@@ -45,57 +48,30 @@ export function useFriendsScreen() {
     enabled: canUseNetworkSession,
     staleTime: 1000 * 60,
   });
-  const { data: friends = [], isPending: friendsPending } = useQuery({
+  const {
+    data: friendsData,
+    isPending: friendsPending,
+    isError: friendsError,
+    refetch: refetchFriends,
+  } = useQuery({
     queryKey: queryKeys.acceptedFriends,
-    queryFn: () => listAcceptedFriends({ limit: 50 }),
+    queryFn: () => listAcceptedFriends({ limit: ACCEPTED_FRIENDS_LIMIT }),
     enabled: canUseNetworkSession,
     staleTime: 1000 * 60 * 2,
   });
+  const friends = friendsData ?? [];
+  const friendship = useFriendshipOverview();
 
-  const incomingAvatarPaths = Array.from(
-    new Set(
-      requests.flatMap((request) =>
-        request.requester.avatar_storage_path ? [request.requester.avatar_storage_path] : []
-      )
-    )
+  // PERF-17: one per-path cache (shared with the inbox and send-to) signs all three lists in one
+  // batch; the map is keyed by path, so each list reads its own avatars from it.
+  const avatarUrls = useSignedAvatarUrls(
+    [
+      ...requests.map((request) => request.requester.avatar_storage_path),
+      ...outgoingRequests.map((request) => request.recipient.avatar_storage_path),
+      ...friends.map((friend) => friend.avatar_storage_path),
+    ],
+    { enabled: canUseNetworkSession }
   );
-  const outgoingAvatarPaths = Array.from(
-    new Set(
-      outgoingRequests.flatMap((request) =>
-        request.recipient.avatar_storage_path ? [request.recipient.avatar_storage_path] : []
-      )
-    )
-  );
-  const friendAvatarPaths = Array.from(
-    new Set(friends.flatMap((friend) => (friend.avatar_storage_path ? [friend.avatar_storage_path] : [])))
-  );
-  const { data: incomingAvatarUrls = {} } = useQuery({
-    queryKey: avatarSignedUrlsQueryKey(incomingAvatarPaths),
-    queryFn: () => createSignedAvatarUrls(incomingAvatarPaths),
-    enabled: canUseNetworkSession && incomingAvatarPaths.length > 0,
-    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
-  });
-  const { data: outgoingAvatarUrls = {} } = useQuery({
-    queryKey: avatarSignedUrlsQueryKey(outgoingAvatarPaths),
-    queryFn: () => createSignedAvatarUrls(outgoingAvatarPaths),
-    enabled: canUseNetworkSession && outgoingAvatarPaths.length > 0,
-    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
-  });
-  const { data: friendAvatarUrls = {} } = useQuery({
-    queryKey: avatarSignedUrlsQueryKey(friendAvatarPaths),
-    queryFn: () => createSignedAvatarUrls(friendAvatarPaths),
-    enabled: canUseNetworkSession && friendAvatarPaths.length > 0,
-    staleTime: AVATAR_SIGNED_URL_STALE_TIME_MS,
-  });
-
-  const friendIds = friends.map((friend) => friend.id);
-  const friendCapturePoliciesQueryKey = queryKeys.friendCapturePolicies(friendIds);
-  const { data: friendCapturePolicies = {} } = useQuery({
-    queryKey: friendCapturePoliciesQueryKey,
-    queryFn: () => listCapturePoliciesForFriends(friendIds),
-    enabled: canUseNetworkSession && friendIds.length > 0,
-    staleTime: 60_000,
-  });
 
   const invalidateSocialQueries = async () => {
     await Promise.all([
@@ -108,7 +84,7 @@ export function useFriendsScreen() {
 
   const handleListRefresh = async () => {
     if (!canUseNetworkSession) {
-      notifyError(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     try {
@@ -116,6 +92,11 @@ export function useFriendsScreen() {
         queryClient.refetchQueries({ queryKey: queryKeys.incomingFriendRequests, type: 'active' }),
         queryClient.refetchQueries({ queryKey: queryKeys.outgoingFriendRequests, type: 'active' }),
         queryClient.refetchQueries({ queryKey: queryKeys.acceptedFriends, type: 'active' }),
+        // Screenshot permissions are edited on the friend detail screen; refresh any cached ones.
+        queryClient.invalidateQueries({ queryKey: ['friendCapturePolicies'] }),
+        queryClient
+          .refetchQueries({ queryKey: queryKeys.friendStreaks, type: 'active' })
+          .catch(() => undefined),
       ]);
     } catch (err) {
       console.error('Friends refresh failed', err);
@@ -141,128 +122,95 @@ export function useFriendsScreen() {
     });
   });
 
-  const handleSendInvite = async () => {
+  /** Runs one row action with its own busy key; a second tap on the same row is ignored. */
+  const runRowAction = async (
+    key: string,
+    action: () => Promise<void>,
+    failureMessage: string,
+  ) => {
     if (!canUseNetworkSession) {
-      notifyError(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
-    if (actionLoadingId === 'invite') return;
-    setActionLoadingId('invite');
-    await runWithFinally(
+    const started = beginBusyKey(busyKeysRef.current, key);
+    if (!started) return;
+    busyKeysRef.current = started;
+    setBusyKeys(started);
+    await runWithFinally(action, () => {
+      busyKeysRef.current = endBusyKey(busyKeysRef.current, key);
+      setBusyKeys(busyKeysRef.current);
+    }).catch((err: unknown) => {
+      notifyDomainError(err, failureMessage);
+    });
+  };
+
+  const handleSendInvite = () =>
+    runRowAction(
+      friendActionKey.invite,
       () =>
         sendProfileInvite(searchUsername, invalidateSocialQueries, () => {
           setSearchUsername('');
           setInviteInputResetKey((previous) => previous + 1);
         }),
-      () => setActionLoadingId(null)
-    ).catch((err: unknown) => {
-      notifyError((err as { message?: string })?.message ?? t('profile.inviteSendFailure'));
-    });
-  };
+      t('profile.inviteSendFailure'),
+    );
 
-  const handleAccept = async (requestId: string) => {
-    if (!canUseNetworkSession) {
-      notifyError(t('root.offlineActionUnavailable'));
-      return;
-    }
-    if (actionLoadingId === requestId) return;
-    setActionLoadingId(requestId);
-    await runWithFinally(
+  const handleAccept = (requestId: string) =>
+    runRowAction(
+      friendActionKey.incoming(requestId),
       () => acceptProfileFriendRequest(requestId, invalidateSocialQueries),
-      () => setActionLoadingId(null)
-    ).catch((err: unknown) => {
-      notifyError((err as { message?: string })?.message ?? t('profile.inviteAcceptFailure'));
-    });
-  };
+      t('profile.inviteAcceptFailure'),
+    );
 
-  const handleReject = async (requestId: string) => {
-    if (!canUseNetworkSession) {
-      notifyError(t('root.offlineActionUnavailable'));
-      return;
-    }
-    if (actionLoadingId === requestId) return;
-    setActionLoadingId(requestId);
-    await runWithFinally(
+  const handleReject = (requestId: string) =>
+    runRowAction(
+      friendActionKey.incoming(requestId),
       () => rejectProfileFriendRequest(requestId, invalidateSocialQueries),
-      () => setActionLoadingId(null)
-    ).catch((err: unknown) => {
-      notifyError((err as { message?: string })?.message ?? t('profile.inviteRejectFailure'));
-    });
-  };
+      t('profile.inviteRejectFailure'),
+    );
 
-  const handleCancelOutgoing = async (requestId: string) => {
-    if (!canUseNetworkSession) {
-      notifyError(t('root.offlineActionUnavailable'));
-      return;
-    }
-    const loadingId = `outgoing-${requestId}`;
-    if (actionLoadingId === loadingId) return;
-    setActionLoadingId(loadingId);
-    await runWithFinally(
+  const handleCancelOutgoing = (requestId: string) =>
+    runRowAction(
+      friendActionKey.outgoing(requestId),
       () => cancelProfileOutgoingRequest(requestId, invalidateSocialQueries),
-      () => setActionLoadingId(null)
-    ).catch((err: unknown) => {
-      notifyError((err as { message?: string })?.message ?? t('profile.inviteCancelFailure'));
-    });
-  };
+      t('profile.inviteCancelFailure'),
+    );
 
-  const handleRemoveFriend = async (friendId: string, username: string) => {
-    if (!canUseNetworkSession) {
-      notifyError(t('root.offlineActionUnavailable'));
-      return;
-    }
-    const loadingId = `friend-${friendId}`;
-    if (actionLoadingId === loadingId) return;
-    setActionLoadingId(loadingId);
-    await runWithFinally(
+  const handleRemoveFriend = (friendId: string, username: string) =>
+    runRowAction(
+      friendActionKey.friend(friendId),
       () => removeProfileFriend(friendId, username, invalidateSocialQueries),
-      () => setActionLoadingId(null)
-    ).catch((err: unknown) => {
-      notifyError((err as { message?: string })?.message ?? t('profile.friendRemoveFailure'));
-    });
-  };
-
-  const resolveFriendCapturePolicy = (friendId: string): CapturePolicy =>
-    resolveCapturePolicyForFriend(friendCapturePolicies, friendId);
-
-  const handleToggleFriendCapture = async (friendId: string, nextAllowed: boolean) => {
-    if (!canUseNetworkSession) {
-      notifyError(t('root.offlineActionUnavailable'));
-      return;
-    }
-    const nextPolicy: CapturePolicy = nextAllowed ? 'allow' : 'deny';
-    const loadingId = `capture-${friendId}`;
-    if (actionLoadingId === loadingId) return;
-    setActionLoadingId(loadingId);
-    await runWithFinally(
-      () => toggleProfileFriendCapture(friendId, nextPolicy, queryClient, friendCapturePoliciesQueryKey),
-      () => setActionLoadingId(null)
-    ).catch(() => {});
-  };
+      t('profile.friendRemoveFailure'),
+    );
 
   return {
     t,
     colors,
     statusBarStyle,
     loading: canUseNetworkSession && (requestsPending || outgoingPending || friendsPending),
+    friendsListState: resolveSettingsListState({
+      itemCount: friends.length,
+      hasData: friendsData !== undefined,
+      isError: friendsError,
+      canUseNetworkSession,
+    }),
+    retryFriends: () => void refetchFriends(),
     searchUsername,
     setSearchUsername,
     inviteInputResetKey,
-    actionLoadingId,
+    busyKeys,
+    inviteBusy: busyKeys.has(friendActionKey.invite),
     requests,
     outgoingRequests,
     friends,
-    incomingAvatarUrls,
-    outgoingAvatarUrls,
-    friendAvatarUrls,
+    friendshipBadges: friendship.badges,
+    avatarUrls,
     handleListRefresh,
     handleSendInvite,
     handleAccept,
     handleReject,
     handleCancelOutgoing,
     handleRemoveFriend,
-    resolveFriendCapturePolicy,
-    handleToggleFriendCapture,
     canPerformNetworkAction: canUseNetworkSession,
     isOfflineAuthenticated,
   };

@@ -14,7 +14,7 @@ export function AuthLabeledField({ label, children }: AuthLabeledFieldProps) {
 
   return (
     <VStack alignment="leading" spacing={AUTH_LOGIN_FIELD_LABEL_GAP} modifiers={[frame({ maxWidth: Infinity })]}>
-      <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.secondaryLabel)]}>{label}</Text>
+      <Text modifiers={[font({ design: 'rounded', textStyle: 'caption' }), foregroundStyle(colors.secondaryLabel)]}>{label}</Text>
       {children}
     </VStack>
   );

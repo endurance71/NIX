@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- NiX dark app icon: the mark with the indigo glow behind it on transparent; iOS draws the dark
+       backdrop. Same look as the login and welcome stages in dark mode. -->
+  <defs>
+    <radialGradient id="glow" cx="512" cy="512" r="470" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5E5CFF" stop-opacity="0.75"/>
+      <stop offset="0.55" stop-color="#4B4DF0" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#4B4DF0" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rise" x1="272" y1="752" x2="752" y2="272" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.92"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+  <g fill="none" stroke-width="100" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M272 752 L752 272" stroke="url(#rise)"/>
+    <path d="M272 752 L272 272 L512 512" stroke="#FFFFFF"/>
+    <path d="M388 388 L752 752" stroke="#FFFFFF"/>
+  </g>
+</svg>

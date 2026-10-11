@@ -12,6 +12,7 @@ vi.mock('expo-media-library', () => ({
   Asset: { create: assetCreate },
   requestPermissionsAsync,
 }));
+vi.mock('../../modules/nix-background-uploader/src', () => ({ default: { savePhotoToLibrary: vi.fn().mockResolvedValue(undefined) } }));
 
 vi.mock('expo-file-system/legacy', () => ({
   cacheDirectory: 'file:///cache/',
@@ -87,6 +88,15 @@ describe('saveToMediaLibrary', () => {
     await saveRemoteUriToLibrary('file:///local/video.mp4');
     expect(downloadAsync).not.toHaveBeenCalled();
     expect(assetCreate).toHaveBeenCalledWith('file:///local/video.mp4');
+  });
+
+  it('exports a RAM photo directly to Photos without a plaintext app file', async () => {
+    const { default: native } = await import('../../modules/nix-background-uploader/src');
+    await saveRemoteUriToLibrary('data:image/png;base64,cGhvdG8=');
+    expect(native?.savePhotoToLibrary).toHaveBeenCalledWith('cGhvdG8=', 'image/png');
+    expect(downloadAsync).not.toHaveBeenCalled();
+    expect(makeDirectoryAsync).not.toHaveBeenCalled();
+    expect(assetCreate).not.toHaveBeenCalled();
   });
 
   it('saveRemoteUriToLibrary fails when download has no uri', async () => {

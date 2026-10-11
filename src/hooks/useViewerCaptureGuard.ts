@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as ScreenCapture from 'expo-screen-capture';
+import i18n from '../lib/i18n';
 import { notifyWarning } from '../lib/appNotify';
 import { trackEvent } from '../lib/telemetry';
 import {
@@ -36,8 +37,8 @@ export function useViewerCaptureGuard(captureDenied: boolean | null, paramSender
 
         trackEvent('viewer_capture_block_enabled');
         screenshotSubscription = ScreenCapture.addScreenshotListener(() => {
-          notifyWarning('Wykryto próbę zrzutu ekranu.', {
-            message: 'Na tym NiXie ochrona capture jest aktywna.',
+          notifyWarning(i18n.t('notify.captureAttempt'), {
+            message: i18n.t('notify.captureProtection'),
           });
           trackEvent('viewer_capture_attempt');
           if (currentNixIdRef.current) {

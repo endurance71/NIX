@@ -37,7 +37,9 @@ export function LoginCredentialsSection({ vm, passwordRef }: LoginCredentialsSec
           nativeValue={vm.email}
           placeholder={vm.t('auth.emailPlaceholder')}
           keyboardType="email-address"
-          autoComplete="email"
+          // `username` (not `email`) pairs this field with the password for iCloud Keychain
+          // AutoFill and „Save password” (webcredentials associated domain).
+          autoComplete="username"
           returnKeyType="next"
           onSubmitEditing={() => passwordRef.current?.focus()}
           onChangeText={(text) => {
@@ -51,7 +53,7 @@ export function LoginCredentialsSection({ vm, passwordRef }: LoginCredentialsSec
           ref={passwordRef}
           nativeValue={vm.password}
           placeholder={vm.t('auth.passwordPlaceholder')}
-          autoComplete="password"
+          autoComplete="current-password"
           returnKeyType="go"
           onSubmitEditing={() => void vm.handleSignIn()}
           onChangeText={(text) => {

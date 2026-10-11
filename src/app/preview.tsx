@@ -1,5 +1,12 @@
+import {
+  paramFirst,
+  decodeParamUri,
+  routeVideoSegment,
+  resolvePreviewVideoSegments,
+} from '../lib/previewRoute';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import {
+  ActionSheetIOS,
   View,
   StyleSheet,
   Pressable,
@@ -10,13 +17,15 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { Image } from 'expo-image';
 import { useEventListener } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import type { VideoThumbnail } from 'expo-video';
 import { StatusBar } from 'expo-status-bar';
 import Animated, {
+  LayoutAnimationConfig,
+  ReduceMotion,
   useSharedValue,
   useAnimatedStyle,
   cancelAnimation,
@@ -28,8 +37,10 @@ import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { ThemeColors } from '../theme/colors';
+import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { NativeChromeIconButton } from '../components/ui/native-chrome-icon-button';
+import { NativeMediaActions } from '../components/ui/native-media-actions';
 import { NativePreviewSendButton } from '../components/ui/native-preview-send-button';
 import PreviewDurationMenu from '../components/ui/preview-duration-menu';
 import { useScreenInsets } from '../hooks/useScreenInsets';
@@ -38,22 +49,34 @@ import { useVideoDraft, type VideoSegmentDraft } from '../context/videoDraft';
 import { usePhotoDraft } from '../context/photoDraft';
 import { configureForPlayback } from '../lib/audioSession';
 import { trackEvent } from '../lib/telemetry';
-import { tap } from '../lib/haptics';
 import { generateVideoThumbnailAtTime } from '../lib/videoThumbnails';
 import { disableViewerCaptureProtection } from '../lib/viewerCaptureProtection';
 import { saveLocalMediaToGallery } from '../lib/saveMediaToGalleryAction';
-import { runWithFinally } from '../lib/runWithFinally';
+import i18n from '../lib/i18n';
+import { hasPreviewEdits } from '../lib/previewEdits';
+import { setPreviewPlayerMuted } from '../lib/previewPlayback';
 import {
   DEFAULT_NIX_VIEW_DURATION_SEC,
   loadPreferredNixViewDuration,
+  normalizeNixViewDurationSec,
   type NixViewDurationSec,
 } from '../lib/nixViewDuration';
 import { PreviewMarkupTools } from '../components/preview/PreviewMarkupTools';
 import { PreviewMarkupHeaderTransition } from '../components/preview/PreviewMarkupHeaderTransition';
+import { PreviewSaveButton } from '../components/preview/PreviewSaveButton';
+import { usePreviewDirectSend } from '../components/preview/usePreviewDirectSend';
+import type { FriendProfile } from '../services/friendService';
 import type { MediaTextOverlay } from '../types/mediaTextOverlay';
 import { normalizeMediaTextOverlay } from '../types/mediaTextOverlay';
 import type { MediaDrawingOverlay } from '../types/mediaDrawingOverlay';
 import { normalizeMediaDrawingOverlay } from '../types/mediaDrawingOverlay';
+import { flushDraftClearOnPreviewClose } from '../lib/previewDraftLifecycle';
+import { nativeFilterMatrix } from '../lib/mediaFilters';
+import {
+  applyVideoPlayerFilterAsync,
+  supportsMediaFiltersAndStickers,
+} from '../../modules/nix-media-overlay';
+import NixFilteredImage from '../../modules/nix-media-overlay/NixFilteredImage.ios';
 import {
   mediaContentFit,
   mediaEditingViewport,
@@ -72,7 +95,6 @@ const VIDEO_PREVIEW_TIMER_HUD_TOP = 10;
 const VIDEO_PREVIEW_TIMER_HUD_PADDING_V = 8;
 /** Odstęp między dolną krawędzią pill a przyciskiem zamknięcia. */
 const VIDEO_PREVIEW_CLOSE_BELOW_TIMER_GAP = 12;
-const MEDIA_PREVIEW_BACKGROUND = '#000000';
 
 function mediaStageStyle(viewport: MediaViewport): ImageStyle {
   return {
@@ -93,37 +115,40 @@ function previewTimerHudContentHeight() {
   return VIDEO_PREVIEW_TIMER_HUD_PADDING_V * 2 + TIMER_TRACK_HEIGHT;
 }
 
-function paramFirst(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
+
+function discardPreview(clearDraft: () => void) {
+  clearDraft();
+  router.back();
 }
 
-function decodeParamUri(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
+/** Closing with added text or a drawing asks first (native action sheet); otherwise closes. */
+function confirmDiscardPreview(hasEdits: boolean, clearDraft: () => void) {
+  if (!hasEdits) {
+    discardPreview(clearDraft);
+    return;
   }
+  ActionSheetIOS.showActionSheetWithOptions(
+    {
+      title: i18n.t('preview.discardTitle'),
+      message: i18n.t('preview.discardMessage'),
+      options: [i18n.t('preview.discardConfirm'), i18n.t('preview.keepEditing')],
+      destructiveButtonIndex: 0,
+      cancelButtonIndex: 1,
+    },
+    (buttonIndex) => {
+      if (buttonIndex === 0) discardPreview(clearDraft);
+    },
+  );
 }
 
-function discardVideoPreview(clearDraft: () => void) {
-  clearDraft();
-  router.back();
-}
-
-function openSendToVideo() {
-  tap('light');
-  router.push({ pathname: '/send-to', params: { mode: 'video' } });
-}
-
-function discardPhotoPreview(clearDraft: () => void) {
-  clearDraft();
-  router.back();
+function openSendToVideo(recipientId?: string) {
+  router.push({
+    pathname: '/send-to',
+    params: { mode: 'video', ...(recipientId ? { recipientId } : {}) },
+  });
 }
 
 function openSendToPhoto(viewDurationSec: number, recipientId?: string) {
-  tap('light');
   router.push({
     pathname: '/send-to',
     params: {
@@ -133,6 +158,86 @@ function openSendToPhoto(viewDurationSec: number, recipientId?: string) {
     },
   });
 }
+
+/**
+ * The edge swipe back would silently throw edits away (and fights PencilKit strokes near the left
+ * edge), so it is off while drawing/typing, while sending, and whenever there are edits; the X
+ * button asks first instead.
+ */
+function PreviewBackGestureGate({ enabled }: { enabled: boolean }) {
+  return <Stack.Screen options={{ gestureEnabled: enabled }} />;
+}
+
+function PreviewSendControls({
+  recipient,
+  isSending,
+  onSendToRecipient,
+  onOpenSendTo,
+  sendToA11y,
+  colors,
+}: {
+  recipient: FriendProfile | null;
+  isSending: boolean;
+  onSendToRecipient: () => void;
+  onOpenSendTo: () => void;
+  sendToA11y: string;
+  colors: ThemeColors;
+}) {
+  const { t } = useTranslation();
+  if (!recipient) {
+    return (
+      <NativePreviewSendButton
+        label={t('sendTo.title')}
+        accessibilityLabel={sendToA11y}
+        onPress={onOpenSendTo}
+        backgroundColor={colors.cameraControlBackground}
+        tintColor={colors.cameraControlTint}
+        chromeVariant="glass"
+      />
+    );
+  }
+  const label = isSending
+    ? t('sendTo.securing')
+    : t('preview.sendToRecipient', { name: `@${recipient.username}` });
+  return (
+    <View style={sendControlStyles.row}>
+      <NativeChromeIconButton
+        name="friends"
+        accessibilityLabel={t('preview.moreRecipientsA11y')}
+        onPress={onOpenSendTo}
+        disabled={isSending}
+        backgroundColor={colors.cameraControlBackground}
+        tintColor={colors.cameraControlTint}
+        chromeVariant="glass"
+      />
+      <View style={sendControlStyles.sendSlot}>
+        <NativePreviewSendButton
+          label={label}
+          accessibilityLabel={label}
+          onPress={onSendToRecipient}
+          disabled={isSending}
+          backgroundColor={colors.cameraControlBackground}
+          tintColor={colors.cameraControlTint}
+          chromeVariant="glass"
+        />
+      </View>
+    </View>
+  );
+}
+
+const sendControlStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexShrink: 1,
+  },
+  sendSlot: {
+    flexShrink: 1,
+  },
+});
+
+const PREVIEW_TIME_UPDATE_INTERVAL_SEC = 0.25;
 
 type PreviewVideoState = {
   clipIndex: number;
@@ -208,6 +313,9 @@ function PreviewSegmentVideo({
   onDimensions,
   contentFit,
   style,
+  paused,
+  muted,
+  filterMatrix,
 }: {
   uri: string;
   segmentIndex: number;
@@ -218,10 +326,16 @@ function PreviewSegmentVideo({
   onDimensions: (width: number, height: number) => void;
   contentFit: 'contain' | 'cover';
   style: StyleProp<ViewStyle>;
+  paused: boolean;
+  muted: boolean;
+  /** Colour filter for the live preview (empty = original); same matrix as the bake. */
+  filterMatrix: number[];
 }) {
   const player = useVideoPlayer({ uri }, (p) => {
     p.loop = true;
-    p.timeUpdateEventInterval = 1 / 60;
+    // Four samples a second; the HUD interpolates linearly between them on the UI thread instead
+    // of waking JS every frame while the user edits text or draws.
+    p.timeUpdateEventInterval = PREVIEW_TIME_UPDATE_INTERVAL_SEC;
     p.muted = false;
     p.volume = 1;
     p.audioMixingMode = 'auto';
@@ -237,13 +351,14 @@ function PreviewSegmentVideo({
   const segmentIndexRef = useRef(segmentIndex);
   const requestAutoplayRef = useRef<(reason: string) => void>(() => {});
   const markReadyRef = useRef<(status: string) => void>(() => {});
+  const pausedRef = useRef(paused);
 
   useEffect(() => {
     onReadyRef.current = onReady;
     onPlaybackErrorRef.current = onPlaybackError;
     segmentIndexRef.current = segmentIndex;
     requestAutoplayRef.current = (reason: string) => {
-      if (errorEmittedRef.current || playingRef.current) return;
+      if (errorEmittedRef.current || playingRef.current || pausedRef.current) return;
       autoplayAttemptRef.current += 1;
       try {
         player.play();
@@ -274,6 +389,50 @@ function PreviewSegmentVideo({
     };
   }, [onReady, onPlaybackError, player, segmentIndex]);
 
+  // User pause/resume: autoplay retries and the watchdog must not restart a paused clip.
+  useEffect(() => {
+    pausedRef.current = paused;
+    if (paused) {
+      player.pause();
+      playingRef.current = false;
+      // Stop the bar where the clip stopped instead of letting the 250 ms tick run on.
+      cancelAnimation(segmentProgress);
+      const duration = player.duration;
+      if (duration > 0) {
+        segmentProgress.set(Math.max(0, Math.min(1, 1 - player.currentTime / duration)));
+      }
+      return;
+    }
+    // An explicit user resume: play directly. The autoplay path bails out while `playingRef` is
+    // set, and a paused clip that already advanced used to look "playing" to it.
+    if (errorEmittedRef.current) return;
+    try {
+      player.play();
+    } catch {
+      requestAutoplayRef.current('resume');
+    }
+  }, [paused, player, segmentProgress]);
+
+  useEffect(() => {
+    setPreviewPlayerMuted(player, muted);
+  }, [muted, player]);
+
+  // The player item is created asynchronously; `sourceLoad` re-applies once it exists.
+  const filterKey = filterMatrix.join(',');
+  const filterMatrixRef = useRef(filterMatrix);
+  useEffect(() => {
+    filterMatrixRef.current = filterMatrix;
+  }, [filterMatrix]);
+  // Starts as "original": nothing to remove until a filter has been applied.
+  const appliedFilterKeyRef = useRef('');
+  useEffect(() => {
+    if (appliedFilterKeyRef.current === filterKey) return;
+    appliedFilterKeyRef.current = filterKey;
+    void applyVideoPlayerFilterAsync(player, filterMatrixRef.current).catch((error) =>
+      console.warn('[PreviewVideo] Could not apply filter', error)
+    );
+  }, [filterKey, player]);
+
   useEventListener(player, 'statusChange', ({ status: nextStatus }) => {
     if (nextStatus === 'readyToPlay') {
       markReadyRef.current(nextStatus);
@@ -302,18 +461,28 @@ function PreviewSegmentVideo({
   useEventListener(player, 'sourceLoad', ({ availableVideoTracks }) => {
     const size = availableVideoTracks[0]?.size;
     if (size?.width && size?.height) onDimensions(size.width, size.height);
+    if (filterMatrixRef.current.length > 0) {
+      void applyVideoPlayerFilterAsync(player, filterMatrixRef.current).catch((error) =>
+        console.warn('[PreviewVideo] Could not apply filter', error)
+      );
+    }
   });
 
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
-    if (currentTime > 0 && !playingRef.current) {
+    if (currentTime > 0 && !playingRef.current && !pausedRef.current) {
       playingRef.current = true;
     }
     const dur = player.duration;
-    if (dur > 0) {
+    if (dur > 0 && !pausedRef.current) {
       const nextProgress = Math.max(0, Math.min(1, 1 - currentTime / dur));
+      // The clip loops: jump back to full instead of sweeping the bar backwards.
+      if (nextProgress > segmentProgress.get()) {
+        segmentProgress.set(nextProgress);
+        return;
+      }
       segmentProgress.set(
         withTiming(nextProgress, {
-          duration: 90,
+          duration: PREVIEW_TIME_UPDATE_INTERVAL_SEC * 1000,
           easing: Easing.linear,
         })
       );
@@ -424,13 +593,136 @@ function PreviewMediaError({
   onBack: () => void;
   styles: ReturnType<typeof createStyles>;
 }) {
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
   return (
     <View style={styles.container}>
+      <StatusBar style="light" hidden={false} />
       <Text style={styles.errorText}>{message}</Text>
-      <Pressable style={styles.backButton} onPress={onBack}>
-        <Text style={styles.backButtonText}>Wróć</Text>
-      </Pressable>
+      <View style={styles.backButton}>
+        <NativeMediaActions
+          actions={[{ key: 'back', label: t('common.back'), accessibilityLabel: t('common.back'), onPress: onBack }]}
+          tintColor={colors.cameraControlTint}
+        />
+      </View>
     </View>
+  );
+}
+
+function PreviewVideoMedia({
+  videoState,
+  current,
+  clipKey,
+  segmentProgress,
+  handleVideoReady,
+  handleFirstFrameRender,
+  handleVideoPlaybackError,
+  onSegmentDimensions,
+  rotatedStage,
+  stageStyle,
+  firstFrameRendered,
+  poster,
+  videoReady,
+  videoError,
+  advanceClip,
+  canAdvanceClip,
+  clearDraft,
+  paused,
+  muted,
+  filterMatrix,
+  tapHandledByEditor,
+  styles,
+}: {
+  videoState: typeof initialPreviewVideoState;
+  current: VideoSegmentDraft;
+  clipKey: string;
+  segmentProgress: ReturnType<typeof useSharedValue<number>>;
+  handleVideoReady: () => void;
+  handleFirstFrameRender: () => void;
+  handleVideoPlaybackError: () => void;
+  onSegmentDimensions: (index: number, width: number, height: number) => void;
+  rotatedStage: boolean;
+  stageStyle: ReturnType<typeof mediaStageStyle>;
+  firstFrameRendered: boolean;
+  poster: typeof initialPreviewVideoState.poster;
+  videoReady: boolean;
+  videoError: string | null;
+  advanceClip: () => void;
+  canAdvanceClip: boolean;
+  clearDraft: () => void;
+  paused: boolean;
+  muted: boolean;
+  filterMatrix: number[];
+  /** The editor's filter swipe layer handles taps (next segment) itself. */
+  tapHandledByEditor: boolean;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
+  return (
+    <>
+      {videoState.audioReady ? (
+        <PreviewSegmentVideo
+          key={clipKey}
+          uri={current.uri}
+          segmentIndex={videoState.clipIndex}
+          segmentProgress={segmentProgress}
+          onReady={handleVideoReady}
+          onFirstFrameRender={handleFirstFrameRender}
+          onPlaybackError={handleVideoPlaybackError}
+          onDimensions={(width, height) => onSegmentDimensions(videoState.clipIndex, width, height)}
+          contentFit={videoContentFit(current)}
+          style={[styles.image, rotatedStage ? stageStyle : undefined]}
+          paused={paused}
+          muted={muted}
+          filterMatrix={filterMatrix}
+        />
+      ) : null}
+
+      {!firstFrameRendered && poster ? (
+        <Image
+          source={poster}
+          style={[styles.videoPoster, rotatedStage ? stageStyle : undefined]}
+          contentFit={videoContentFit(current)}
+        />
+      ) : null}
+
+      {/* With a single clip, "next" would reset the ready state of the very same player, which
+          never fires onReady again: the picture froze under the loading overlay. */}
+      {canAdvanceClip && videoReady && !videoError && !tapHandledByEditor ? (
+        <Pressable
+          style={styles.dismissArea}
+          onPress={advanceClip}
+          accessibilityLabel={t('preview.nextSegmentA11y')}
+          accessibilityRole="button"
+        />
+      ) : null}
+
+      {(!videoState.audioReady || !videoReady) && !videoError && !poster ? (
+        <View style={styles.loadingOverlaySolid}>
+          <Text style={styles.loadingHint}>{t('preview.loadingPreview')}</Text>
+        </View>
+      ) : null}
+
+      {videoError ? (
+        <View style={styles.errorOverlay}>
+          <Text style={styles.errorText}>{videoError}</Text>
+          <View style={styles.backButton}>
+            <NativeMediaActions
+              actions={[
+                {
+                  key: 'back',
+                  label: t('common.back'),
+                  accessibilityLabel: t('common.back'),
+                  onPress: () => discardPreview(clearDraft),
+                },
+              ]}
+              tintColor={colors.cameraControlTint}
+            />
+          </View>
+        </View>
+      ) : null}
+    </>
   );
 }
 
@@ -442,6 +734,7 @@ function PreviewVideoContent({
   drawingOverlay,
   onChangeDrawingOverlay,
   onSegmentDimensions,
+  recipientId,
 }: {
   segments: VideoSegmentDraft[];
   clearDraft: () => void;
@@ -450,21 +743,30 @@ function PreviewVideoContent({
   drawingOverlay: MediaDrawingOverlay | null;
   onChangeDrawingOverlay: (next: MediaDrawingOverlay | null) => void;
   onSegmentDimensions: (index: number, width: number, height: number) => void;
+  recipientId?: string;
 }) {
   const { t } = useTranslation();
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
-  const { colors, statusBarStyle, isDark } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const insets = useScreenInsets('mediaChrome');
   const styles = createStyles(colors);
-  const [videoState, dispatchVideoState] = useReducer(previewVideoReducer, initialPreviewVideoState);
-  const [isSaving, setIsSaving] = useState(false);
+  const [videoState, dispatchVideoState] = useReducer(
+    previewVideoReducer,
+    initialPreviewVideoState,
+  );
+  const [paused, setPaused] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const directSend = usePreviewDirectSend({ isVideo: true, recipientId });
+  const hasEdits = hasPreviewEdits(textOverlay, drawingOverlay);
+  const layersEnabled = supportsMediaFiltersAndStickers();
+  const filterMatrix = nativeFilterMatrix(drawingOverlay?.filter);
   const segmentProgress = useSharedValue(1);
   const chromeClampTop =
-    insets.topContentInset
-    + VIDEO_PREVIEW_TIMER_HUD_TOP
-    + previewTimerHudContentHeight()
-    + VIDEO_PREVIEW_CLOSE_BELOW_TIMER_GAP
-    + 56;
+    insets.topContentInset +
+    VIDEO_PREVIEW_TIMER_HUD_TOP +
+    previewTimerHudContentHeight() +
+    VIDEO_PREVIEW_CLOSE_BELOW_TIMER_GAP +
+    56;
   const chromeClampBottom = insets.bottomContentInset + 56;
 
   const current = segments[videoState.clipIndex];
@@ -475,15 +777,10 @@ function PreviewVideoContent({
     captureOrientation: current.captureOrientation,
   });
   const rotatedStage = Boolean(mediaViewport.rotationDegrees);
-  const textClampTop = rotatedStage
-    ? 48
-    : Math.max(chromeClampTop, mediaViewport.top);
+  const textClampTop = rotatedStage ? 48 : Math.max(chromeClampTop, mediaViewport.top);
   const textClampBottom = rotatedStage
     ? 48
-    : Math.max(
-        chromeClampBottom,
-        viewportHeight - mediaViewport.top - mediaViewport.height
-      );
+    : Math.max(chromeClampBottom, viewportHeight - mediaViewport.top - mediaViewport.height);
   const stageStyle = mediaStageStyle(mediaViewport);
   const clipKey = `${videoState.clipIndex}:${current.uri}`;
   const videoReady = videoState.readyClipKey === clipKey;
@@ -506,7 +803,8 @@ function PreviewVideoContent({
           dispatchVideoState({ type: 'audioReady' });
           trackEvent('preview_audio_session_ready', {
             status: 'failure',
-            error_message: error instanceof Error ? error.message : 'Unknown preview audio session error',
+            error_message:
+              error instanceof Error ? error.message : 'Unknown preview audio session error',
           });
         }
       });
@@ -534,7 +832,7 @@ function PreviewVideoContent({
   };
 
   const handleVideoPlaybackError = () => {
-    dispatchVideoState({ type: 'error', clipKey, message: 'Nie udało się odtworzyć nagrania.' });
+    dispatchVideoState({ type: 'error', clipKey, message: t('preview.playRecordingFailed') });
   };
 
   useEffect(() => {
@@ -572,7 +870,7 @@ function PreviewVideoContent({
 
   return (
     <View style={styles.container}>
-      <StatusBar style={statusBarStyle} hidden={false} />
+      <StatusBar style="light" hidden={false} />
 
       <PreviewVideoTimerHud
         styles={styles}
@@ -583,54 +881,30 @@ function PreviewVideoContent({
         activeSegmentMaskStyle={activeSegmentMaskStyle}
       />
 
-      {videoState.audioReady ? (
-        <PreviewSegmentVideo
-          key={clipKey}
-          uri={current.uri}
-          segmentIndex={videoState.clipIndex}
-          segmentProgress={segmentProgress}
-          onReady={handleVideoReady}
-          onFirstFrameRender={handleFirstFrameRender}
-          onPlaybackError={handleVideoPlaybackError}
-          onDimensions={(width, height) =>
-            onSegmentDimensions(videoState.clipIndex, width, height)
-          }
-          contentFit={videoContentFit(current)}
-          style={[styles.image, rotatedStage ? stageStyle : undefined]}
-        />
-      ) : null}
-
-      {!firstFrameRendered && poster ? (
-        <Image
-          source={poster}
-          style={[styles.videoPoster, rotatedStage ? stageStyle : undefined]}
-          contentFit={videoContentFit(current)}
-        />
-      ) : null}
-
-      {videoReady && !videoError ? (
-        <Pressable
-          style={styles.dismissArea}
-          onPress={advanceClip}
-          accessibilityLabel="Następny fragment"
-          accessibilityRole="button"
-        />
-      ) : null}
-
-      {(!videoState.audioReady || !videoReady) && !videoError && !poster ? (
-        <View style={styles.loadingOverlaySolid}>
-          <Text style={styles.loadingHint}>Ładowanie podglądu…</Text>
-        </View>
-      ) : null}
-
-      {videoError ? (
-        <View style={styles.errorOverlay}>
-          <Text style={styles.errorText}>{videoError}</Text>
-          <Pressable style={styles.backButton} onPress={() => discardVideoPreview(clearDraft)}>
-            <Text style={styles.backButtonText}>Wróć</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      <PreviewVideoMedia
+        videoState={videoState}
+        current={current}
+        clipKey={clipKey}
+        segmentProgress={segmentProgress}
+        handleVideoReady={handleVideoReady}
+        handleFirstFrameRender={handleFirstFrameRender}
+        handleVideoPlaybackError={handleVideoPlaybackError}
+        onSegmentDimensions={onSegmentDimensions}
+        rotatedStage={rotatedStage}
+        stageStyle={stageStyle}
+        firstFrameRendered={firstFrameRendered}
+        poster={poster}
+        videoReady={videoReady}
+        videoError={videoError}
+        advanceClip={advanceClip}
+        canAdvanceClip={segments.length > 1}
+        clearDraft={clearDraft}
+        paused={paused}
+        muted={muted}
+        filterMatrix={filterMatrix}
+        tapHandledByEditor={layersEnabled}
+        styles={styles}
+      />
 
       <PreviewMarkupTools
         textOverlay={textOverlay}
@@ -641,8 +915,14 @@ function PreviewVideoContent({
         clampBottomPx={textClampBottom}
         drawingViewportStyle={stageStyle}
         editingViewportHeight={rotatedStage ? mediaViewport.height : undefined}
+        textMediaFrame={rotatedStage ? undefined : { top: mediaViewport.top, height: mediaViewport.height }}
         colors={colors}
         chromeVariant="glass"
+        bottomInset={insets.bottomContentInset}
+        onTapMedia={
+          segments.length > 1 && videoReady && !videoError ? advanceClip : undefined
+        }
+        tapMediaA11yLabel={t('preview.nextSegmentA11y')}
         renderChrome={({ normalTools, drawingHeader, isTextEditing, isDrawing }) => (
           <View
             style={[
@@ -666,63 +946,84 @@ function PreviewVideoContent({
               drawingHeader={drawingHeader}
               normalHeader={
                 <>
-                  <NativeChromeIconButton
-                    name="close"
-                    accessibilityLabel="Porzuć nagranie"
-                    onPress={() => discardVideoPreview(clearDraft)}
-                    backgroundColor={colors.cameraControlBackground}
-                    tintColor={colors.cameraControlTint}
-                    chromeVariant="glass"
-                  />
+                  <View style={styles.topLeftCluster}>
+                    <NativeChromeIconButton
+                      name="close"
+                      accessibilityLabel={t('preview.discardRecordingA11y')}
+                      onPress={() => confirmDiscardPreview(hasEdits, clearDraft)}
+                      disabled={directSend.isSending}
+                      backgroundColor={colors.cameraControlBackground}
+                      tintColor={colors.cameraControlTint}
+                      chromeVariant="glass"
+                    />
+                    <NativeChromeIconButton
+                      name={paused ? 'playFill' : 'pauseFill'}
+                      accessibilityLabel={paused ? t('preview.playA11y') : t('preview.pauseA11y')}
+                      onPress={() => setPaused((value) => !value)}
+                      disabled={Boolean(videoError)}
+                      backgroundColor={colors.cameraControlBackground}
+                      tintColor={colors.cameraControlTint}
+                      chromeVariant="glass"
+                    />
+                    <NativeChromeIconButton
+                      name={muted ? 'speakerOff' : 'speakerOn'}
+                      accessibilityLabel={muted ? t('preview.unmuteA11y') : t('preview.muteA11y')}
+                      onPress={() => setMuted((value) => !value)}
+                      disabled={Boolean(videoError)}
+                      backgroundColor={colors.cameraControlBackground}
+                      tintColor={colors.cameraControlTint}
+                      chromeVariant="glass"
+                    />
+                  </View>
                   {normalTools}
                 </>
               }
             />
+            <PreviewBackGestureGate
+              enabled={!hasEdits && !isDrawing && !isTextEditing && !directSend.isSending}
+            />
 
-            {!isDrawing ? (
-              <View
-                style={styles.bottomControls}
-                pointerEvents={isTextEditing ? 'none' : 'auto'}>
-                <NativeChromeIconButton
-                  name="saveToPhotos"
-                  accessibilityLabel={t('media.saveToGalleryA11y')}
-                  onPress={() => {
-                    if (isSaving) return;
-                    setIsSaving(true);
-                    void runWithFinally(
-                      () =>
-                        saveLocalMediaToGallery({
-                          source: 'preview',
-                          uris: segments.map((segment) => segment.uri),
-                          mediaType: 'video',
-                          segmentCount: segments.length,
-                          textOverlay: normalizeMediaTextOverlay(textOverlay),
-                          drawingOverlay: normalizeMediaDrawingOverlay(drawingOverlay),
-                          viewportWidth: mediaViewport.width,
-                          viewportHeight: mediaViewport.height,
-                        }),
-                      () => setIsSaving(false)
-                    );
-                  }}
-                  disabled={isSaving}
-                  backgroundColor={colors.cameraControlBackground}
-                  tintColor={colors.cameraControlTint}
-                  chromeVariant="glass"
-                />
-                <View style={styles.sendButtonSlot}>
-                  <NativePreviewSendButton
-                    label="Wyślij do"
-                    accessibilityLabel="Wyślij nagranie"
-                    onPress={openSendToVideo}
-                    backgroundColor={colors.cameraControlBackground}
-                    tintColor={colors.cameraControlTint}
-                    chromeVariant="glass"
+            <LayoutAnimationConfig skipEntering>
+              {!isDrawing ? (
+                <Animated.View
+                  entering={bottomControlsSlideIn}
+                  exiting={bottomControlsSlideOut}
+                  style={styles.bottomControls}
+                  pointerEvents={isTextEditing ? 'none' : 'auto'}>
+                  <PreviewSaveButton
+                    colors={colors}
+                    disabled={directSend.isSending}
+                    onSave={() =>
+                      saveLocalMediaToGallery({
+                        source: 'preview',
+                        uris: segments.map((segment) => segment.uri),
+                        mediaType: 'video',
+                        segmentCount: segments.length,
+                        textOverlay: normalizeMediaTextOverlay(textOverlay),
+                        drawingOverlay: normalizeMediaDrawingOverlay(drawingOverlay),
+                        viewportWidth: mediaViewport.width,
+                        viewportHeight: mediaViewport.height,
+                      })
+                    }
                   />
-                </View>
-              </View>
-            ) : (
-              <View />
-            )}
+                  <View style={styles.sendButtonSlot}>
+                    <PreviewSendControls
+                      recipient={directSend.recipient}
+                      isSending={directSend.isSending}
+                      // Same duration as the send-to sheet uses for video (no picker on clips).
+                      onSendToRecipient={() =>
+                        directSend.sendToRecipient(normalizeNixViewDurationSec(undefined))
+                      }
+                      onOpenSendTo={() => openSendToVideo(recipientId)}
+                      sendToA11y={t('preview.sendRecordingA11y')}
+                      colors={colors}
+                    />
+                  </View>
+                </Animated.View>
+              ) : (
+                <View />
+              )}
+            </LayoutAnimationConfig>
           </View>
         )}
       />
@@ -730,22 +1031,51 @@ function PreviewVideoContent({
   );
 }
 
+/** Save / Send slide below the edge while drawing and back after; glass inside, so no opacity. */
+const BOTTOM_CONTROLS_SLIDE = {
+  duration: 180,
+  easing: Easing.bezier(0.23, 1, 0.32, 1),
+  reduceMotion: ReduceMotion.System,
+};
+const BOTTOM_CONTROLS_OFFSET = 160;
+
+function bottomControlsSlideIn() {
+  'worklet';
+  return {
+    initialValues: { transform: [{ translateY: BOTTOM_CONTROLS_OFFSET }] },
+    animations: { transform: [{ translateY: withTiming(0, BOTTOM_CONTROLS_SLIDE) }] },
+  };
+}
+
+function bottomControlsSlideOut() {
+  'worklet';
+  return {
+    initialValues: { transform: [{ translateY: 0 }] },
+    animations: { transform: [{ translateY: withTiming(BOTTOM_CONTROLS_OFFSET, BOTTOM_CONTROLS_SLIDE) }] },
+  };
+}
+
 export default function PreviewScreen() {
-  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const { t } = useTranslation();
-  const { colors, statusBarStyle } = useAppTheme();
-  const insets = useScreenInsets('mediaChrome');
+  const { colors } = useAppTheme();
   const styles = createStyles(colors);
-  const raw = useLocalSearchParams<{ uri?: string; viewDurationSec?: string; mode?: string; durationMs?: string; recipientId?: string }>();
+  const raw = useLocalSearchParams<{
+    uri?: string;
+    viewDurationSec?: string;
+    mode?: string;
+    durationMs?: string;
+    recipientId?: string;
+  }>();
   const mode = paramFirst(raw.mode);
   const paramUri = decodeParamUri(paramFirst(raw.uri));
   const rawDurationMs = paramFirst(raw.durationMs);
   const recipientId = paramFirst(raw.recipientId);
 
-  const [viewDurationSec, setViewDurationSec] = useState<NixViewDurationSec>(DEFAULT_NIX_VIEW_DURATION_SEC);
+  const [viewDurationSec, setViewDurationSec] = useState<NixViewDurationSec>(
+    DEFAULT_NIX_VIEW_DURATION_SEC,
+  );
   const [imageLoadError, setImageLoadError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
-  const [isSavingPhoto, setIsSavingPhoto] = useState(false);
 
   const {
     segments,
@@ -757,21 +1087,23 @@ export default function PreviewScreen() {
     drawingOverlay: videoDrawingOverlay,
     setDrawingOverlay,
   } = useVideoDraft();
-  const { draft: draftPhoto, setDraft: setPhotoDraft, clearDraft: clearPhotoDraft } = usePhotoDraft();
+  const {
+    draft: draftPhoto,
+    setDraft: setPhotoDraft,
+    clearDraft: clearPhotoDraft,
+  } = usePhotoDraft();
   const photoUri = draftPhoto?.uri ?? paramUri;
   const photoTextOverlay = draftPhoto?.textOverlay ?? null;
   const photoDrawingOverlay = draftPhoto?.drawingOverlay ?? null;
-  const routeVideoSegment =
-    mode === 'video' && paramUri
-      ? { uri: paramUri, durationMs: Math.round(Math.max(0, Number(rawDurationMs) || 0)) }
-      : null;
-  const routeVideoSegments = routeVideoSegment ? [routeVideoSegment] : null;
-  const previewVideoSegments = segments?.length ? segments : routeVideoSegments;
+  const previewVideoSegments = resolvePreviewVideoSegments(segments, mode, paramUri, rawDurationMs);
 
   useEffect(() => {
     if (mode !== 'video' || segments?.length || !paramUri) return;
-    setSegments([{ uri: paramUri, durationMs: Math.round(Math.max(0, Number(rawDurationMs) || 0)) }]);
+    const segment = routeVideoSegment(mode, paramUri, rawDurationMs);
+    if (segment) setSegments([segment]);
   }, [mode, paramUri, rawDurationMs, segments?.length, setSegments]);
+
+  useEffect(() => () => flushDraftClearOnPreviewClose(), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -800,7 +1132,7 @@ export default function PreviewScreen() {
     if (!previewVideoSegments?.length) {
       return (
         <PreviewMediaError
-          message="Brak nagrań do podglądu"
+          message={t('preview.noRecordings')}
           styles={styles}
           onBack={() => {
             clearSegments();
@@ -818,6 +1150,7 @@ export default function PreviewScreen() {
         drawingOverlay={videoDrawingOverlay}
         onChangeDrawingOverlay={setDrawingOverlay}
         onSegmentDimensions={updateSegmentDimensions}
+        recipientId={recipientId}
       />
     );
   }
@@ -825,7 +1158,7 @@ export default function PreviewScreen() {
   if (!photoUri) {
     return (
       <PreviewMediaError
-        message="Nie przechwycono zdjęcia"
+        message={t('preview.photoNotCaptured')}
         styles={styles}
         onBack={() => router.back()}
       />
@@ -835,7 +1168,7 @@ export default function PreviewScreen() {
   if (imageLoadError) {
     return (
       <PreviewMediaError
-        message="Nie udało się wczytać zdjęcia"
+        message={t('preview.loadPhotoFailed')}
         styles={styles}
         onBack={() => {
           clearPhotoDraft();
@@ -845,6 +1178,60 @@ export default function PreviewScreen() {
     );
   }
 
+  return (
+    <PreviewPhotoContent
+      draftPhoto={draftPhoto}
+      photoUri={photoUri}
+      photoTextOverlay={photoTextOverlay}
+      photoDrawingOverlay={photoDrawingOverlay}
+      setPhotoDraft={setPhotoDraft}
+      clearPhotoDraft={clearPhotoDraft}
+      imageLoading={imageLoading}
+      setImageLoading={setImageLoading}
+      setImageLoadError={setImageLoadError}
+      viewDurationSec={viewDurationSec}
+      setViewDurationSec={setViewDurationSec}
+      recipientId={recipientId}
+    />
+  );
+}
+
+function PreviewPhotoContent({
+  draftPhoto,
+  photoUri,
+  photoTextOverlay,
+  photoDrawingOverlay,
+  setPhotoDraft,
+  clearPhotoDraft,
+  imageLoading,
+  setImageLoading,
+  setImageLoadError,
+  viewDurationSec,
+  setViewDurationSec,
+  recipientId,
+}: {
+  draftPhoto: ReturnType<typeof usePhotoDraft>['draft'];
+  photoUri: string;
+  photoTextOverlay: MediaTextOverlay | null;
+  photoDrawingOverlay: MediaDrawingOverlay | null;
+  setPhotoDraft: ReturnType<typeof usePhotoDraft>['setDraft'];
+  clearPhotoDraft: () => void;
+  imageLoading: boolean;
+  setImageLoading: (value: boolean) => void;
+  setImageLoadError: (value: boolean) => void;
+  viewDurationSec: NixViewDurationSec;
+  setViewDurationSec: (value: NixViewDurationSec) => void;
+  recipientId?: string;
+}) {
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
+  const insets = useScreenInsets('mediaChrome');
+  const styles = createStyles(colors);
+  const directSend = usePreviewDirectSend({ isVideo: false, photoUri, recipientId });
+  const hasEdits = hasPreviewEdits(photoTextOverlay, photoDrawingOverlay);
+  const layersEnabled = supportsMediaFiltersAndStickers();
+  const photoFilterMatrix = nativeFilterMatrix(photoDrawingOverlay?.filter);
   const photoViewport = mediaEditingViewport({
     media: draftPhoto ?? {},
     viewportWidth,
@@ -859,7 +1246,7 @@ export default function PreviewScreen() {
     ? 48
     : Math.max(
         insets.bottomContentInset + 56,
-        viewportHeight - photoViewport.top - photoViewport.height
+        viewportHeight - photoViewport.top - photoViewport.height,
       );
   const photoStageStyle = mediaStageStyle(photoViewport);
 
@@ -891,7 +1278,7 @@ export default function PreviewScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style={statusBarStyle} hidden={false} />
+      <StatusBar style="light" hidden={false} />
 
       <Image
         source={{ uri: photoUri }}
@@ -901,9 +1288,9 @@ export default function PreviewScreen() {
         onLoad={({ source }) => {
           setImageLoading(false);
           if (
-            source.width > 0
-            && source.height > 0
-            && (draftPhoto?.width !== source.width || draftPhoto?.height !== source.height)
+            source.width > 0 &&
+            source.height > 0 &&
+            (draftPhoto?.width !== source.width || draftPhoto?.height !== source.height)
           ) {
             setPhotoDraft({
               uri: photoUri,
@@ -923,6 +1310,17 @@ export default function PreviewScreen() {
         }}
       />
 
+      {/* Same Core Image matrix as the bake; transparent for the original, so the image above
+          shows through and only the filtered copy crossfades in and out. */}
+      {layersEnabled && !imageLoading ? (
+        <NixFilteredImage
+          uri={photoUri}
+          filterMatrix={photoFilterMatrix}
+          contentFit={mediaContentFit(draftPhoto ?? {})}
+          style={photoRotatedStage ? [photoStageStyle, styles.filteredLayer] : styles.filteredImage}
+        />
+      ) : null}
+
       {imageLoading ? (
         <View style={styles.imageLoadingOverlay} pointerEvents="none">
           <ActivityIndicator color={colors.cameraControlTint} size="large" />
@@ -938,8 +1336,10 @@ export default function PreviewScreen() {
         clampBottomPx={photoClampBottom}
         drawingViewportStyle={photoStageStyle}
         editingViewportHeight={photoRotatedStage ? photoViewport.height : undefined}
+        textMediaFrame={photoRotatedStage ? undefined : { top: photoViewport.top, height: photoViewport.height }}
         colors={colors}
         chromeVariant="glass"
+        bottomInset={insets.bottomContentInset}
         renderChrome={({ normalTools, drawingHeader, isTextEditing, isDrawing }) => (
           <View
             style={[
@@ -961,8 +1361,9 @@ export default function PreviewScreen() {
                   <View style={styles.topLeftCluster}>
                     <NativeChromeIconButton
                       name="close"
-                      accessibilityLabel="Odrzuć zdjęcie"
-                      onPress={() => discardPhotoPreview(clearPhotoDraft)}
+                      accessibilityLabel={t('preview.discardPhotoA11y')}
+                      onPress={() => confirmDiscardPreview(hasEdits, clearPhotoDraft)}
+                      disabled={directSend.isSending}
                       backgroundColor={colors.cameraControlBackground}
                       tintColor={colors.cameraControlTint}
                       chromeVariant="glass"
@@ -978,50 +1379,47 @@ export default function PreviewScreen() {
                 </>
               }
             />
+            <PreviewBackGestureGate
+              enabled={!hasEdits && !isDrawing && !isTextEditing && !directSend.isSending}
+            />
 
-            {!isDrawing ? (
-              <View
-                style={styles.bottomControls}
-                pointerEvents={isTextEditing ? 'none' : 'auto'}>
-                <NativeChromeIconButton
-                  name="saveToPhotos"
-                  accessibilityLabel={t('media.saveToGalleryA11y')}
-                  onPress={() => {
-                    if (isSavingPhoto || !photoUri) return;
-                    setIsSavingPhoto(true);
-                    void runWithFinally(
-                      () =>
-                        saveLocalMediaToGallery({
-                          source: 'preview',
-                          uris: [photoUri],
-                          mediaType: 'image',
-                          textOverlay: normalizeMediaTextOverlay(photoTextOverlay),
-                          drawingOverlay: normalizeMediaDrawingOverlay(photoDrawingOverlay),
-                          viewportWidth: photoViewport.width,
-                          viewportHeight: photoViewport.height,
-                        }),
-                      () => setIsSavingPhoto(false)
-                    );
-                  }}
-                  disabled={isSavingPhoto}
-                  backgroundColor={colors.cameraControlBackground}
-                  tintColor={colors.cameraControlTint}
-                  chromeVariant="glass"
-                />
-                <View style={styles.sendButtonSlot}>
-                  <NativePreviewSendButton
-                    label="Wyślij do"
-                    accessibilityLabel="Wybierz odbiorców zdjęcia"
-                    onPress={() => openSendToPhoto(viewDurationSec, recipientId)}
-                    backgroundColor={colors.cameraControlBackground}
-                    tintColor={colors.cameraControlTint}
-                    chromeVariant="glass"
+            <LayoutAnimationConfig skipEntering>
+              {!isDrawing ? (
+                <Animated.View
+                  entering={bottomControlsSlideIn}
+                  exiting={bottomControlsSlideOut}
+                  style={styles.bottomControls}
+                  pointerEvents={isTextEditing ? 'none' : 'auto'}>
+                  <PreviewSaveButton
+                    colors={colors}
+                    disabled={directSend.isSending}
+                    onSave={() =>
+                      saveLocalMediaToGallery({
+                        source: 'preview',
+                        uris: [photoUri],
+                        mediaType: 'image',
+                        textOverlay: normalizeMediaTextOverlay(photoTextOverlay),
+                        drawingOverlay: normalizeMediaDrawingOverlay(photoDrawingOverlay),
+                        viewportWidth: photoViewport.width,
+                        viewportHeight: photoViewport.height,
+                      })
+                    }
                   />
-                </View>
-              </View>
-            ) : (
-              <View />
-            )}
+                  <View style={styles.sendButtonSlot}>
+                    <PreviewSendControls
+                      recipient={directSend.recipient}
+                      isSending={directSend.isSending}
+                      onSendToRecipient={() => directSend.sendToRecipient(viewDurationSec)}
+                      onOpenSendTo={() => openSendToPhoto(viewDurationSec, recipientId)}
+                      sendToA11y={t('preview.choosePhotoRecipientsA11y')}
+                      colors={colors}
+                    />
+                  </View>
+                </Animated.View>
+              ) : (
+                <View />
+              )}
+            </LayoutAnimationConfig>
           </View>
         )}
       />
@@ -1035,30 +1433,32 @@ const createStyles = (colors: ThemeColors) => {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: MEDIA_PREVIEW_BACKGROUND,
+      backgroundColor: colors.cinemaBackground,
     },
+    // Media chrome is always light-on-black, independent of the app's light/dark theme.
     errorText: {
       ...typography.callout,
-      color: colors.label,
+      color: colors.cameraControlTint,
       textAlign: 'center',
       marginTop: 100,
+      paddingHorizontal: 24,
     },
     backButton: {
-      marginTop: 20,
-      alignSelf: 'center',
-      padding: 12,
-      backgroundColor: colors.secondarySystemBackground,
-      borderRadius: 8,
-    },
-    backButtonText: {
-      ...typography.footnote,
-      color: colors.label,
-      fontWeight: '600',
+      marginTop: spacing.xl,
+      // The native button host sizes to its content; without this it hugs the leading edge.
+      alignItems: 'center',
     },
     image: {
       flex: 1,
       width: '100%',
       height: '100%',
+    },
+    filteredImage: {
+      ...StyleSheet.absoluteFill,
+      zIndex: 1,
+    },
+    filteredLayer: {
+      zIndex: 1,
     },
     imageLoadingOverlay: {
       ...StyleSheet.absoluteFill,
@@ -1150,18 +1550,18 @@ const createStyles = (colors: ThemeColors) => {
       ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: MEDIA_PREVIEW_BACKGROUND,
+      backgroundColor: colors.cinemaBackground,
       zIndex: 6,
     },
     loadingHint: {
       ...typography.footnote,
-      color: colors.secondaryLabel,
+      color: colors.cinemaSecondaryLabel,
     },
     errorOverlay: {
       ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: MEDIA_PREVIEW_BACKGROUND,
+      backgroundColor: colors.cinemaBackground,
       paddingHorizontal: 24,
       zIndex: 8,
     },

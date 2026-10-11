@@ -1,7 +1,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
-import NetInfo from '@react-native-community/netinfo';
+import { AppState } from 'react-native';
 import { SUPABASE_AUTH_STORAGE_KEY, supabase } from '../lib/supabase';
 import { authStorage, isSessionAccessTokenExpired, readPersistedSessionCandidate } from '../lib/authStorage';
 import {
@@ -9,12 +9,14 @@ import {
   classifyAuthBootstrap,
   type AuthBootstrapResult,
   type AuthStatus,
+  lookupSessionWithOfflineFallback,
 } from '../lib/authBootstrap';
 import { clearUserCache } from '../services/profileService';
 import {
   signInWithPassword as requestPasswordSignIn,
   signUpWithPassword as requestPasswordSignUp,
   requestPasswordReset as requestPasswordResetEmail,
+  resendSignupConfirmation as requestSignupConfirmationResend,
   updatePassword as requestPasswordUpdate,
   reauthenticatePasswordChange as requestPasswordReauthenticate,
   signOut as requestSignOut,
@@ -26,9 +28,14 @@ import { clearTextOutbox } from '../services/textOutboxService';
 import { clearPendingFriendInviteToken } from '../lib/pendingFriendInvite';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
 import { setReactQueryAuthOnline } from '../lib/reactQueryNetwork';
+import { fetchConnectivity, getConnectivity, subscribeConnectivity } from '../lib/connectivity';
 import { clearRecipientSnapshot } from '../lib/recipientSnapshot';
 import { clearProfileBootstrapSnapshot } from '../lib/profileBootstrapSnapshot';
 import { clearOfflineCache } from '../lib/offlineCacheStore';
+import { setSessionOwner } from '../lib/sessionScope';
+import { clearPhotoCache } from '../lib/encryptedPhotoCache';
+import { clearMediaMemoryCache } from '../lib/mediaCache';
+import { clearPendingViewedAcks } from '../lib/viewedAckQueue';
 
 type AuthState = {
   session: Session | null;
@@ -65,6 +72,11 @@ async function verifyOTP(email: string, token: string, type: 'signup' | 'recover
   return { data, error };
 }
 
+async function resendSignupConfirmation(email: string) {
+  const { data, error } = await requestSignupConfirmationResend(email);
+  return { data, error };
+}
+
 async function requestPasswordReset(email: string) {
   const { data, error } = await requestPasswordResetEmail(email);
   return { data, error };
@@ -81,18 +93,20 @@ async function reauthenticatePasswordChange() {
 }
 
 async function cleanupBeforeLogout(user: User | null) {
+  // Start invalidation synchronously, before a slow push-device network request.
+  const accountCleanup = user ? Promise.all([
+    clearTextOutbox(user.id).catch((error) => console.warn('Text outbox cleanup before sign-out failed', error)),
+    clearOfflineCache(user.id).catch((error) => console.warn('Offline cache cleanup before sign-out failed', error)),
+    clearPhotoCache(user.id).catch((error) => console.warn('Photo cache cleanup before sign-out failed', error)),
+    import('../services/memoriesStore').then(({ clearMemories }) => clearMemories(user.id)).catch((error) => console.warn('Memories cleanup before sign-out failed', error)),
+    clearPendingViewedAcks(user.id).catch(() => {}),
+    clearRecipientSnapshot(user.id).catch(() => {}),
+  ]) : Promise.resolve();
   await disableCurrentPushDeviceBeforeSignOut().catch((error) => {
     console.warn('Push device unregister before sign-out failed', error);
   });
-  if (user) {
-    await clearTextOutbox(user.id).catch((error) => {
-      console.warn('Text outbox cleanup before sign-out failed', error);
-    });
-    await clearRecipientSnapshot(user.id).catch(() => undefined);
-    await clearOfflineCache(user.id).catch((error) => {
-      console.warn('Offline cache cleanup before sign-out failed', error);
-    });
-  }
+  await accountCleanup;
+  await clearMediaMemoryCache();
   await clearPendingFriendInviteToken().catch(() => undefined);
   clearUserCache();
 }
@@ -103,6 +117,7 @@ type AuthContextValue = AuthState & {
   signUp: typeof signUp;
   verifyOTP: typeof verifyOTP;
   requestPasswordReset: typeof requestPasswordReset;
+  resendSignupConfirmation: typeof resendSignupConfirmation;
   updatePassword: typeof updatePassword;
   reauthenticatePasswordChange: typeof reauthenticatePasswordChange;
   signOut: () => Promise<{ error: Error | null }>;
@@ -113,12 +128,14 @@ type AuthContextValue = AuthState & {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const previousUserIdRef = useRef<string | null>(null);
   const localSessionRef = useRef<Session | null>(null);
   const authStatusRef = useRef<AuthStatus>('initializing');
   const operationVersionRef = useRef(0);
+  const loggingOutRef = useRef(false);
   const bootstrapPendingRef = useRef(true);
   const networkOnlineRef = useRef(true);
   const reportedBootstrapFailuresRef = useRef(new Set<string>());
@@ -139,11 +156,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ) => {
     const previousUserId = previousUserIdRef.current;
     const nextUserId = session?.user.id ?? null;
+    setSessionOwner(nextUserId);
     const identityChanged = status === 'anonymous'
       || (nextUserId !== null && previousUserId !== nextUserId);
     if (identityChanged && previousUserId && previousUserId !== nextUserId) {
-      void clearTextOutbox(previousUserId);
-      void clearOfflineCache(previousUserId);
+      void clearTextOutbox(previousUserId).catch(() => {});
+      void clearOfflineCache(previousUserId).catch(() => {});
+      void clearPhotoCache(previousUserId).catch(() => {});
+      void clearPendingViewedAcks(previousUserId).catch(() => {});
+      void clearMediaMemoryCache();
       void clearPendingFriendInviteToken();
       if (nextUserId !== null || status === 'anonymous') {
         void clearRecipientSnapshot(previousUserId);
@@ -221,11 +242,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const netInfo = await NetInfo.fetch().catch(() => null);
-      if (netInfo) {
-        networkOnlineRef.current = netInfo.isConnected !== false && netInfo.isInternetReachable !== false;
-      }
-      const { data, error } = await supabase.auth.getSession();
+      networkOnlineRef.current = (await fetchConnectivity()).online;
+      const { data, error } = await lookupSessionWithOfflineFallback(
+        () => supabase.auth.getSession(),
+        localSession,
+        networkOnlineRef.current
+      );
       const result = classifyAuthBootstrap({
         localSession,
         resolvedSession: data.session,
@@ -287,7 +309,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (!mounted) return;
+      if (!mounted || loggingOutRef.current) return;
       if (event === 'INITIAL_SESSION' && bootstrapPendingRef.current) {
         return;
       }
@@ -317,9 +339,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     });
 
-    const networkSubscription = NetInfo.addEventListener((networkState) => {
-      if (!mounted) return;
-      const online = networkState.isConnected !== false && networkState.isInternetReachable !== false;
+    // The shared store already debounces going offline, so a short reachability blip no longer
+    // demotes the session (which unmounts realtime and the outbox sync).
+    const networkSubscription = subscribeConnectivity(() => {
+      if (!mounted || loggingOutRef.current) return;
+      const { online } = getConnectivity();
       const wasOnline = networkOnlineRef.current;
       networkOnlineRef.current = online;
       const currentSession = localSessionRef.current;
@@ -330,12 +354,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    // A transient refresh failure while the device was online leaves the session offline with no
+    // offline → online transition to wake it up; returning to the app retries the verification.
+    const appStateSubscription = AppState.addEventListener('change', (appState) => {
+      if (!mounted || loggingOutRef.current || appState !== 'active') return;
+      if (authStatusRef.current !== 'authenticatedOffline' || bootstrapPendingRef.current) return;
+      if (!getConnectivity().online) return;
+      void performBootstrap('network');
+    });
+
     void performBootstrap('initial');
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
       networkSubscription();
+      appStateSubscription.remove();
     };
   }, [commitSessionState, performBootstrap]);
 
@@ -345,6 +379,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    loggingOutRef.current = true;
+    setSessionOwner(null);
     operationVersionRef.current += 1;
     const sessionBeforeLogout = localSessionRef.current;
     const user = sessionBeforeLogout?.user ?? null;
@@ -368,6 +404,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localSessionRef.current = null;
       commitSessionState(null, 'anonymous', null, 'anonymous');
     }
+    loggingOutRef.current = false;
     return { error: signOutError ?? storageError };
   }, [commitSessionState]);
 
@@ -378,6 +415,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUp,
     verifyOTP,
     requestPasswordReset,
+    resendSignupConfirmation,
     updatePassword,
     reauthenticatePasswordChange,
     signOut: logout,

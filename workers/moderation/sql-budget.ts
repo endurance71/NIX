@@ -1,14 +1,28 @@
-import type { BudgetLedger, ReserveResult } from "./budget.ts";
+import { type BudgetLedger, monthKeyUtc, type ReserveResult } from "./budget.ts";
 import { F0_HARD_BUDGET, WAITING_BUDGET } from "./constants.ts";
 import type { Rpc } from "./rpc-queue.ts";
 
 /** Durable budget ledger via service_role RPCs (local Supabase / future staging). */
 export function sqlBudgetLedger(
   rpc: Rpc,
-  options: { hardBudget?: number; externalUsed?: number } = {},
+  options: {
+    hardBudget?: number;
+    externalUsed?: number;
+    /** UTC month (YYYY-MM) that `externalUsed` was measured in. */
+    externalUsedMonth?: string | null;
+    now?: () => Date;
+  } = {},
 ): BudgetLedger {
   const hardBudget = options.hardBudget ?? F0_HARD_BUDGET;
   const externalUsed = options.externalUsed ?? 0;
+  const now = options.now ?? (() => new Date());
+
+  // The SQL ledger seeds a new month with p_external_used, so only send it
+  // for the month it belongs to; NULL leaves other months untouched.
+  function externalUsedForCurrentMonth(): number | null {
+    if (externalUsed <= 0 || !options.externalUsedMonth) return null;
+    return options.externalUsedMonth === monthKeyUtc(now()) ? externalUsed : null;
+  }
 
   return {
     async reserve(category, units, jobId, attemptId) {
@@ -18,7 +32,7 @@ export function sqlBudgetLedger(
         p_job_id: jobId,
         p_attempt_id: attemptId,
         p_hard_budget: hardBudget,
-        p_external_used: externalUsed,
+        p_external_used: externalUsedForCurrentMonth(),
       });
       if (error) throw new Error("budget_reserve_failed");
       const row = data as Record<string, unknown> | null;
@@ -53,7 +67,7 @@ export function sqlBudgetLedger(
         imageTxn: -1,
         reservedTxn: -1,
         consumedTxn: -1,
-        externalUsed,
+        externalUsed: externalUsedForCurrentMonth() ?? 0,
         hardBudget,
       };
     },

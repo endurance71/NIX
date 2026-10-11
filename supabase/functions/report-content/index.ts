@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.5';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import { corsHeaders, getBearerToken, json, notifySentry } from '../_shared/http.ts';
 import { statusForRpcError, validateReportPayload } from './contract.ts';
 
@@ -88,12 +88,24 @@ Deno.serve(async (req) => {
         return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
       }
 
+      // An edited message also keeps what the receiver read before (20261014100000); older
+      // backends have no history table, which simply leaves the list empty.
+      const { data: edits } = await serviceClient
+        .from('text_message_edits')
+        .select('previous_body, edited_at')
+        .eq('message_id', textMsg.id)
+        .order('edited_at', { ascending: true });
+
       const evidenceJson = JSON.stringify({
         textMessageId: textMsg.id,
         senderId: textMsg.sender_id,
         receiverId: textMsg.receiver_id,
         body: textMsg.body,
         createdAt: textMsg.created_at,
+        previousBodies: (edits ?? []).map((edit) => ({
+          body: edit.previous_body,
+          replacedAt: edit.edited_at,
+        })),
         reportedAt: new Date().toISOString(),
       });
       const evidencePath = `${report.report_id}/evidence.json`;

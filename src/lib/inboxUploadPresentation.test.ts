@@ -5,7 +5,10 @@ import type { DurableUploadJob, UploadJobState } from '../types/uploadQueue';
 import type { InboxRowModel } from './inboxPresentation';
 import {
   buildRecipientUploadPresentations,
+  createInboxRowIdentityCache,
+  inboxRowsEqual,
   mergeInboxRowsWithUploads,
+  uploadPresentationsEqual,
 } from './inboxUploadPresentation';
 
 function job(
@@ -19,6 +22,7 @@ function job(
     updatedAt = 2_000,
     finishedAt = null,
     mediaType = 'image',
+    batchId = null,
   }: {
     progress?: number;
     bytesTotal?: number;
@@ -27,6 +31,7 @@ function job(
     updatedAt?: number;
     finishedAt?: number | null;
     mediaType?: 'image' | 'video';
+    batchId?: string | null;
   } = {}
 ): DurableUploadJob {
   return {
@@ -45,7 +50,7 @@ function job(
     sourceWidth: null,
     sourceHeight: null,
     thumbnailB64: null,
-    batchId: null,
+    batchId,
     assetId: null,
     storagePath: null,
     uploadUrl: null,
@@ -86,6 +91,8 @@ function row(peerId = 'friend-1', createdAt = '1970-01-01T00:00:00.500Z'): Inbox
     direction: 'received',
     unread: false,
     status: 'opened',
+    messageStatus: 'received',
+    messageKind: 'text',
     createdAt,
     timestampLabel: '00:00',
     avatarStoragePath: null,
@@ -124,18 +131,18 @@ describe('buildRecipientUploadPresentations', () => {
     });
   });
 
-  it('weights progress by bytes only when every segment has a known size', () => {
-    const weighted = buildRecipientUploadPresentations([
+  it('averages segments with equal weight so a size becoming known does not move the ring', () => {
+    const sizesKnown = buildRecipientUploadPresentations([
       job('small', 'uploading', { progress: 1, bytesTotal: 100 }),
       job('large', 'uploading', { progress: 0, bytesTotal: 300 }),
     ], { now: 3_000 });
-    const equalFallback = buildRecipientUploadPresentations([
-      job('known', 'uploading', { progress: 1, bytesTotal: 100 }),
-      job('unknown', 'uploading', { progress: 0, bytesTotal: 0 }),
+    const oneSizeUnknown = buildRecipientUploadPresentations([
+      job('small', 'uploading', { progress: 1, bytesTotal: 100 }),
+      job('large', 'uploading', { progress: 0, bytesTotal: 0 }),
     ], { now: 3_000 });
 
-    expect(weighted.get('friend-1')?.progress).toBe(0.25);
-    expect(equalFallback.get('friend-1')?.progress).toBe(0.5);
+    expect(sizesKnown.get('friend-1')?.progress).toBe(0.5);
+    expect(oneSizeUnknown.get('friend-1')?.progress).toBe(0.5);
   });
 
   it('prioritizes attention states and exposes only safe presentation data', () => {
@@ -167,7 +174,7 @@ describe('buildRecipientUploadPresentations', () => {
 describe('mergeInboxRowsWithUploads', () => {
   it('attaches upload to an existing conversation and moves it to the top', () => {
     const uploads = buildRecipientUploadPresentations([
-      job('active', 'uploading', { updatedAt: 5_000 }),
+      job('active', 'uploading', { createdAt: 5_000, updatedAt: 5_000 }),
     ], { now: 6_000 });
     const merged = mergeInboxRowsWithUploads(
       [row('friend-2', '1970-01-01T00:00:04.000Z'), row('friend-1')],
@@ -222,5 +229,128 @@ describe('mergeInboxRowsWithUploads', () => {
     expect(
       mergeInboxRowsWithUploads([serverRow], uploads, [], mergeOptions)[0].upload
     ).toBeNull();
+  });
+
+  it('shows moderation as confirming instead of an upload stuck near 100%', () => {
+    const uploads = buildRecipientUploadPresentations([job('moderating', 'finalizing', { progress: 0.97 })]);
+    expect(uploads.get('friend-1')?.phase).toBe('confirming');
+  });
+
+  it('prefers an active upload over a sibling that is already confirming', () => {
+    const uploads = buildRecipientUploadPresentations([
+      job('moderating', 'finalizing', { progress: 0.97 }),
+      job('sending', 'uploading', { progress: 0.4 }),
+    ]);
+    expect(uploads.get('friend-1')?.phase).toBe('uploading');
+  });
+
+  it('keeps conversation order stable while uploads report progress', () => {
+    const options = mergeOptions;
+    const order = (updatedA: number, updatedB: number) => mergeInboxRowsWithUploads(
+      [],
+      buildRecipientUploadPresentations([
+        job('a', 'uploading', { recipients: ['friend-a'], createdAt: 1_000, updatedAt: updatedA }),
+        job('b', 'uploading', { recipients: ['friend-b'], createdAt: 2_000, updatedAt: updatedB }),
+      ], { now: 9_000 }),
+      [],
+      options
+    ).map((merged) => merged.peerId);
+
+    expect(order(3_000, 4_000)).toEqual(['friend-b', 'friend-a']);
+    expect(order(8_000, 4_000)).toEqual(['friend-b', 'friend-a']);
+  });
+
+  it('confirms a completed upload by client_upload_id instead of comparing clocks', () => {
+    const uploads = buildRecipientUploadPresentations([
+      job('done', 'completed', { createdAt: 5_000, finishedAt: 6_000, progress: 1, batchId: 'batch-1' }),
+    ], { now: 7_000 });
+    const sentRow = (clientUploadId: string) => ({
+      ...row('friend-1', '1970-01-01T00:00:09.000Z'),
+      kind: 'nix' as const,
+      direction: 'sent' as const,
+      status: 'sent' as const,
+      clientUploadId,
+    });
+
+    expect(mergeInboxRowsWithUploads([sentRow('batch-1')], uploads, [], mergeOptions)[0].upload).toBeNull();
+    // A newer sent NiX from another batch does not confirm this upload yet.
+    expect(mergeInboxRowsWithUploads([sentRow('batch-0')], uploads, [], mergeOptions)[0].upload?.phase)
+      .toBe('completed');
+  });
+
+  it('tolerates a device clock ahead of the server when no client_upload_id is available', () => {
+    const uploads = buildRecipientUploadPresentations([
+      job('done', 'completed', { createdAt: 40_000, finishedAt: 41_000, progress: 1 }),
+    ], { now: 42_000 });
+    const serverRow = {
+      ...row('friend-1', '1970-01-01T00:00:10.000Z'),
+      direction: 'sent' as const,
+    };
+
+    expect(mergeInboxRowsWithUploads([serverRow], uploads, [], mergeOptions)[0].upload).toBeNull();
+  });
+});
+
+describe('createInboxRowIdentityCache', () => {
+  const pipeline = (cache: ReturnType<typeof createInboxRowIdentityCache>, progress: number) =>
+    cache.reconcile(
+      mergeInboxRowsWithUploads(
+        // Fresh objects each time, like `buildInboxRowModel` after any inbox query update.
+        [row('friend-1', '1970-01-01T00:00:04.000Z'), row('friend-2'), row('friend-3')],
+        buildRecipientUploadPresentations(
+          [job('active', 'uploading', { recipients: ['friend-2'], progress, createdAt: 1_000 })],
+          { now: 9_000 },
+        ),
+        [],
+        mergeOptions,
+      ),
+    );
+
+  it('keeps unchanged rows while the uploading row gets a new object', () => {
+    const cache = createInboxRowIdentityCache();
+    const first = pipeline(cache, 0.2);
+    const second = pipeline(cache, 0.6);
+    const byPeer = (rows: InboxRowModel[], peerId: string) =>
+      rows.find((candidate) => candidate.peerId === peerId);
+
+    expect(second).not.toBe(first);
+    expect(byPeer(second, 'friend-1')).toBe(byPeer(first, 'friend-1'));
+    expect(byPeer(second, 'friend-3')).toBe(byPeer(first, 'friend-3'));
+    expect(byPeer(second, 'friend-2')).not.toBe(byPeer(first, 'friend-2'));
+    expect(byPeer(second, 'friend-2')?.upload?.progress).toBe(0.6);
+  });
+
+  it('returns the previous array when nothing changed', () => {
+    const cache = createInboxRowIdentityCache();
+    const first = pipeline(cache, 0.2);
+    expect(pipeline(cache, 0.2)).toBe(first);
+  });
+
+  it('replaces a row whose own fields changed and follows the new order', () => {
+    const cache = createInboxRowIdentityCache();
+    const first = cache.reconcile([row('friend-1'), row('friend-2')]);
+    const renamed = { ...row('friend-2'), username: 'ola' };
+    const second = cache.reconcile([renamed, row('friend-1')]);
+
+    expect(second.map((candidate) => candidate.peerId)).toEqual(['friend-2', 'friend-1']);
+    expect(second[0]).toBe(renamed);
+    expect(second[1]).toBe(first[0]);
+  });
+
+  it('compares upload actions and open params by value', () => {
+    const upload = buildRecipientUploadPresentations([job('a', 'paused')], { now: 3_000 }).get('friend-1')!;
+    const base = { ...row('friend-1'), upload, openParams: null };
+    expect(inboxRowsEqual(base, { ...base, upload: { ...upload, actions: { ...upload.actions } } }))
+      .toBe(true);
+    expect(inboxRowsEqual(base, {
+      ...base,
+      upload: { ...upload, actions: { ...upload.actions, resumeJobIds: [] } },
+    })).toBe(false);
+    expect(uploadPresentationsEqual(upload, null)).toBe(false);
+  });
+
+  it('keeps the server row object when it has no upload to attach', () => {
+    const serverRow = row('friend-1');
+    expect(mergeInboxRowsWithUploads([serverRow], new Map(), [], mergeOptions)[0]).toBe(serverRow);
   });
 });

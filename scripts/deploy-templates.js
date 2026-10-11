@@ -45,6 +45,15 @@ const payload = {
   // Invite User
   mailer_subjects_invite: "[NIX] You're invited to join NIX / Zaproszenie do aplikacji NIX",
   mailer_templates_invite_content: readTemplate('invite.html'),
+
+  // Reauthentication code
+  mailer_subjects_reauthentication: "[NIX] Verification code / Kod weryfikacyjny",
+  mailer_templates_reauthentication_content: readTemplate('reauthentication.html'),
+
+  // Password changed notification (keep subjects in sync with supabase/config.toml)
+  mailer_notifications_password_changed_enabled: true,
+  mailer_subjects_password_changed_notification: "[NIX] Your password was changed / Hasło zostało zmienione",
+  mailer_templates_password_changed_notification_content: readTemplate('password_changed.html'),
 };
 
 console.log(`Deploying templates to Supabase project: \x1b[36m${PROJECT_REF}\x1b[0m...`);

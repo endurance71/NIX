@@ -22,7 +22,7 @@ export type CameraUiState = {
   lensOptionId: string | null;
   isSwitchingCamera: boolean;
   cameraInstanceKey: number;
-  /** Android: ImageCapture jest podpięty tylko w trybie picture; video wymaga osobnego use case. */
+  /** Tryb `CameraView` (`picture` / `video`). */
   captureMode: CameraCaptureMode;
 };
 

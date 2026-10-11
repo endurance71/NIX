@@ -16,7 +16,6 @@ export function getCameraLightProps({
   captureMode,
   facing,
   flash,
-  stillFlashArmed,
   videoTorchRequested,
   videoPreparing,
   recordingVideo,
@@ -24,7 +23,10 @@ export function getCameraLightProps({
   const videoLightActive = captureMode === 'video' && (videoTorchRequested || videoPreparing || recordingVideo);
 
   return {
-    flash: stillFlashArmed && captureMode === 'picture' ? flash : 'off',
+    // The rear flash follows the toggle right away, so the native side can prepare the flash
+    // shot before the shutter (arming it only at capture cost ~1-3 s per photo). The front
+    // camera has no LED; its "flash" is the app's white screen (see useCameraScreen).
+    flash: captureMode === 'picture' && facing === 'back' ? flash : 'off',
     enableTorch: flash === 'on' && facing === 'back' && videoLightActive,
   };
 }

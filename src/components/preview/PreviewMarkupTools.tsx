@@ -3,13 +3,34 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import NixDrawingCanvas from '../../../modules/nix-media-overlay/NixDrawingCanvas.ios';
 import type { NixDrawingCanvasHandle } from '../../../modules/nix-media-overlay/NixDrawingCanvas.types';
+import { supportsMediaFiltersAndStickers } from '../../../modules/nix-media-overlay';
 import type { MediaDrawingOverlay } from '../../types/mediaDrawingOverlay';
-import { normalizeMediaDrawingOverlay } from '../../types/mediaDrawingOverlay';
+import {
+  normalizeMediaDrawingOverlay,
+  withDrawingFilter,
+  withDrawingStickers,
+  withDrawingStrokes,
+} from '../../types/mediaDrawingOverlay';
 import type { MediaTextOverlay } from '../../types/mediaTextOverlay';
+import type { MediaEmojiSticker } from '../../types/mediaStickerOverlay';
+import { DEFAULT_MEDIA_FILTER_ID, type MediaFilterId } from '../../lib/mediaFilters';
+import { canAddSticker, createEmojiSticker } from '../../lib/previewStickers';
 import type { ThemeColors } from '../../theme/colors';
 import { NativeChromeIconButton, type ChromeVariant } from '../ui/native-chrome-icon-button';
 import { NativePreviewToolGroup } from './NativePreviewToolGroup';
 import { PreviewTextTools } from './PreviewTextControls';
+import { PreviewFilterSwipeLayer } from './PreviewFilterSwipeLayer';
+import { PreviewFilterMenu } from './PreviewFilterMenu';
+import { PreviewEmojiStickers } from './PreviewEmojiStickers';
+import { PreviewEmojiPickerSheet } from './PreviewEmojiPickerSheet';
+
+const EMPTY_STICKERS: MediaEmojiSticker[] = [];
+let stickerIdCounter = 0;
+
+function nextStickerId(): string {
+  stickerIdCounter += 1;
+  return `sticker-${Date.now().toString(36)}-${stickerIdCounter}`;
+}
 
 export type PreviewMarkupChromeSlots = {
   normalTools: ReactNode;
@@ -27,9 +48,16 @@ type PreviewMarkupToolsProps = {
   clampBottomPx: number;
   drawingViewportStyle?: StyleProp<ViewStyle>;
   editingViewportHeight?: number;
+  /** Visible media frame in window coordinates (unrotated stage) for the caption position. */
+  textMediaFrame?: { top: number; height: number };
   colors: ThemeColors;
   chromeVariant?: ChromeVariant;
   renderChrome: (slots: PreviewMarkupChromeSlots) => ReactNode;
+  /** Safe-area bottom inset (sticker trash position). */
+  bottomInset: number;
+  /** Tap on the media (next video segment). Swipes on the media change the filter. */
+  onTapMedia?: () => void;
+  tapMediaA11yLabel?: string;
 };
 
 export function PreviewMarkupTools({
@@ -41,12 +69,30 @@ export function PreviewMarkupTools({
   clampBottomPx,
   drawingViewportStyle,
   editingViewportHeight,
+  textMediaFrame,
   colors,
   chromeVariant = 'glass',
   renderChrome,
+  bottomInset,
+  onTapMedia,
+  tapMediaA11yLabel,
 }: PreviewMarkupToolsProps) {
   const { t } = useTranslation();
   const canvasRef = useRef<NixDrawingCanvasHandle>(null);
+  const [emojiSheetOpen, setEmojiSheetOpen] = useState(false);
+  const layersEnabled = supportsMediaFiltersAndStickers();
+  const filter: MediaFilterId = drawingOverlay?.filter ?? DEFAULT_MEDIA_FILTER_ID;
+  const stickers = drawingOverlay?.stickers ?? EMPTY_STICKERS;
+
+  const setFilter = (next: MediaFilterId) =>
+    onChangeDrawingOverlay(withDrawingFilter(drawingOverlay, next));
+  const setStickers = (next: MediaEmojiSticker[]) =>
+    onChangeDrawingOverlay(withDrawingStickers(drawingOverlay, next));
+  const addSticker = (emoji: string) => {
+    setEmojiSheetOpen(false);
+    if (!canAddSticker(stickers)) return;
+    setStickers([...stickers, createEmojiSticker(emoji, stickers, nextStickerId())]);
+  };
   const drawingBeforeEditRef = useRef<MediaDrawingOverlay | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
@@ -87,7 +133,8 @@ export function PreviewMarkupTools({
     setIsCommitting(true);
     void canvas
       .exportDrawing()
-      .then((next) => onChangeDrawingOverlay(normalizeMediaDrawingOverlay(next)))
+      // Only the strokes come back from the canvas; keep the filter and stickers.
+      .then((next) => onChangeDrawingOverlay(withDrawingStrokes(drawingOverlay, next)))
       .catch((error) => console.warn('[PreviewDrawing] Could not export drawing', error))
       .finally(() => {
         setIsDrawing(false);
@@ -138,6 +185,16 @@ export function PreviewMarkupTools({
 
   return (
     <>
+      {layersEnabled ? (
+        <PreviewFilterSwipeLayer
+          filter={filter}
+          onChangeFilter={setFilter}
+          onTap={onTapMedia}
+          tapA11yLabel={tapMediaA11yLabel}
+          enabled={!isDrawing}
+          colors={colors}
+        />
+      ) : null}
       <NixDrawingCanvas
         ref={canvasRef}
         overlay={drawingOverlay}
@@ -148,6 +205,16 @@ export function PreviewMarkupTools({
         }}
         style={[styles.canvas, drawingViewportStyle]}
       />
+      {layersEnabled ? (
+        <PreviewEmojiStickers
+          stickers={stickers}
+          onChangeStickers={setStickers}
+          stageStyle={drawingViewportStyle}
+          bottomInset={bottomInset}
+          enabled={!isDrawing}
+          colors={colors}
+        />
+      ) : null}
       <View style={styles.textLayer} pointerEvents="box-none">
         <PreviewTextTools
           overlay={textOverlay}
@@ -155,7 +222,11 @@ export function PreviewMarkupTools({
           clampTopPx={clampTopPx}
           clampBottomPx={clampBottomPx}
           viewportHeight={editingViewportHeight}
-          stickerViewportStyle={drawingViewportStyle}
+          mediaFrame={textMediaFrame}
+          // Only a rotated stage gives the text its own (stage-relative) coordinates. Otherwise the
+          // clamps, keyboard lift and trash zone are window-relative, so the sticker layer must
+          // span the window — inside a letterboxed stage it would be offset by the stage top.
+          stickerViewportStyle={editingViewportHeight != null ? drawingViewportStyle : undefined}
           colors={colors}
           chromeVariant={chromeVariant}
           stickerPointerEvents={isDrawing ? 'none' : 'box-none'}
@@ -177,6 +248,24 @@ export function PreviewMarkupTools({
                 tintColor={colors.cameraControlTint}
                 chromeVariant={chromeVariant}
               />
+              {layersEnabled ? (
+                <>
+                  <NativeChromeIconButton
+                    name="emojiSticker"
+                    accessibilityLabel={t('preview.addSticker')}
+                    onPress={() => setEmojiSheetOpen(true)}
+                    backgroundColor={colors.cameraControlBackground}
+                    tintColor={colors.cameraControlTint}
+                    chromeVariant={chromeVariant}
+                  />
+                  <PreviewFilterMenu
+                    filter={filter}
+                    onChangeFilter={setFilter}
+                    colors={colors}
+                    chromeVariant={chromeVariant}
+                  />
+                </>
+              ) : null}
             </View>
           )}
           renderChrome={({ textButton, isEditing }) =>
@@ -189,6 +278,14 @@ export function PreviewMarkupTools({
           }
         />
       </View>
+      {layersEnabled ? (
+        <PreviewEmojiPickerSheet
+          isPresented={emojiSheetOpen}
+          onDismiss={() => setEmojiSheetOpen(false)}
+          onPick={addSticker}
+          canAdd={canAddSticker(stickers)}
+        />
+      ) : null}
     </>
   );
 }
@@ -216,8 +313,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  // A vertical column (Snapchat-style): four tools do not fit next to the left cluster.
   normalTools: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     gap: 12,
   },

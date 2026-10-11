@@ -9,7 +9,6 @@ type CameraFlashMode = 'off' | 'on';
 export type VideoTorchSessionState = {
   facing: CameraFacing;
   flash: CameraFlashMode;
-  platform?: string;
 };
 
 export type VideoTorchController = {
@@ -20,12 +19,8 @@ const defaultController: VideoTorchController = {
   setTorchEnabledAsync,
 };
 
-function shouldUseNativeVideoTorch({
-  facing,
-  flash,
-  platform = process.env.EXPO_OS,
-}: VideoTorchSessionState): boolean {
-  return platform === 'ios' && facing === 'back' && flash === 'on';
+function shouldUseNativeVideoTorch({ facing, flash }: VideoTorchSessionState): boolean {
+  return facing === 'back' && flash === 'on';
 }
 
 export async function setNativeVideoTorchForRecording(

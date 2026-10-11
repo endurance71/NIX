@@ -3,7 +3,7 @@ import { canCleanupNixMedia, isValidCleanupPayload, nextCleanupAttemptDelayMs } 
 
 describe('cleanup helpers', () => {
   it('waliduje payload cleanup', () => {
-    expect(isValidCleanupPayload({ nixId: '1', mediaPath: 'nixes/a.jpg' })).toBe(true);
+    expect(isValidCleanupPayload({ nixId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' })).toBe(true);
     expect(isValidCleanupPayload({ nixId: '1' })).toBe(false);
     expect(isValidCleanupPayload({ mediaPath: 'nixes/a.jpg' })).toBe(false);
   });
@@ -17,6 +17,7 @@ describe('cleanup helpers', () => {
   it('pozwala na cleanup po replay', () => {
     expect(
       canCleanupNixMedia({
+        is_viewed: true,
         is_replayed: true,
         replay_expires_at: '2026-07-26T12:10:00.000Z',
       })
@@ -27,6 +28,7 @@ describe('cleanup helpers', () => {
     expect(
       canCleanupNixMedia(
         {
+          is_viewed: true,
           is_replayed: false,
           replay_expires_at: '2026-07-26T12:10:00.000Z',
         },
@@ -39,6 +41,7 @@ describe('cleanup helpers', () => {
     expect(
       canCleanupNixMedia(
         {
+          is_viewed: true,
           is_replayed: false,
           replay_expires_at: '2026-07-26T12:10:00.000Z',
         },
@@ -47,7 +50,8 @@ describe('cleanup helpers', () => {
     ).toBe(true);
   });
 
-  it('pozwala na cleanup legacy bez deadline', () => {
-    expect(canCleanupNixMedia({ is_replayed: false, replay_expires_at: null })).toBe(true);
+  it('blokuje legacy cleanup bez potwierdzonego obejrzenia i deadline', () => {
+    expect(canCleanupNixMedia({ is_replayed: false, replay_expires_at: null })).toBe(false);
+    expect(canCleanupNixMedia({ is_viewed: true, replay_expires_at: 'invalid' })).toBe(false);
   });
 });

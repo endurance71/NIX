@@ -4,26 +4,29 @@ import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
   NativeSettingsActionRow,
-  NativeSettingsEmptyRow,
+  NativeSettingsListStatus,
   NativeSettingsRow,
   NativeSettingsSection,
 } from '../../../components/ui/native-settings';
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
 import { useAppTheme } from '../../../hooks/useAppTheme';
+import { resolveSettingsListState } from '../../../lib/settingsListState';
 import { queryKeys } from '../../../lib/queryKeys';
 import {
   createDataExportDownloadUrl,
   listDataExportJobs,
   requestDataExport,
 } from '../../../services/dataExportService';
-import { notifyDomainError, notifySuccess } from '../../../lib/appNotify';
+import { notifyDomainError, notifyError, notifySuccess } from '../../../lib/appNotify';
 import { useAuth } from '../../../hooks/useAuth';
+import { userHasEmailPasswordIdentity } from '../../../lib/authProviders';
+import { reauthenticateAppleSession } from '../../../services/socialAuthService';
 
 export default function DataExportScreen() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const queryClient = useQueryClient();
-  const { canUseNetworkSession } = useAuth();
+  const { canUseNetworkSession, user, signIn } = useAuth();
   const query = useQuery({
     queryKey: queryKeys.dataExportJobs,
     queryFn: listDataExportJobs,
@@ -59,11 +62,52 @@ export default function DataExportScreen() {
     ]);
   };
 
+  const openDownload = (jobId: string) =>
+    createDataExportDownloadUrl(jobId).then((url) => Linking.openURL(url));
+
+  // The server requires a sign-in from the last ten minutes, so confirm the
+  // user's identity and retry once.
+  const reauthenticateAndDownload = (jobId: string) => {
+    if (!user) return;
+    const retry = () =>
+      openDownload(jobId).catch((error) => notifyDomainError(error, t('dataExport.downloadFailure')));
+    if (userHasEmailPasswordIdentity(user) && user.email) {
+      const email = user.email;
+      Alert.prompt(
+        t('dataExport.reauthTitle'),
+        t('dataExport.reauthMessage'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('dataExport.reauthAction'),
+            onPress: (password?: string) => {
+              if (!password) return;
+              void signIn(email, password).then(({ error }) => {
+                if (error) notifyError(t('dataExport.reauthFailure'));
+                else void retry();
+              });
+            },
+          },
+        ],
+        'secure-text'
+      );
+      return;
+    }
+    void reauthenticateAppleSession(user.id).then(({ error }) => {
+      if (error) notifyError(t('dataExport.reauthFailure'));
+      else void retry();
+    });
+  };
+
   const download = (jobId: string) => {
     if (!canUseNetworkSession) return;
-    void createDataExportDownloadUrl(jobId)
-      .then((url) => Linking.openURL(url))
-      .catch((error) => notifyDomainError(error, t('dataExport.downloadFailure')));
+    void openDownload(jobId).catch((error) => {
+      if (error instanceof Error && error.message === 'REAUTH_REQUIRED') {
+        reauthenticateAndDownload(jobId);
+        return;
+      }
+      notifyDomainError(error, t('dataExport.downloadFailure'));
+    });
   };
 
   return (
@@ -74,7 +118,8 @@ export default function DataExportScreen() {
           if (canUseNetworkSession) await query.refetch();
         }}
       >
-        <NativeSettingsSection title={t('dataExport.title')}>
+        {/* No header: it would only repeat the screen title. */}
+        <NativeSettingsSection>
           <NativeSettingsRow
             title={t('dataExport.description')}
             supportingText={t('dataExport.retention')}
@@ -88,7 +133,16 @@ export default function DataExportScreen() {
         </NativeSettingsSection>
         <NativeSettingsSection title={t('dataExport.history')}>
           {jobs.length === 0 ? (
-            <NativeSettingsEmptyRow text={t('dataExport.empty')} />
+            <NativeSettingsListStatus
+              state={resolveSettingsListState({
+                itemCount: 0,
+                hasData: query.data !== undefined,
+                isError: query.isError,
+                canUseNetworkSession,
+              })}
+              emptyText={t('dataExport.empty')}
+              onRetry={() => void query.refetch()}
+            />
           ) : (
             jobs.map((job) => (
               <NativeSettingsRow

@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 
 const AUTH_REDIRECT_URL = 'nix://auth/callback';
-export const LEGAL_DOCUMENT_VERSION = '2026-09-12';
+export const LEGAL_DOCUMENT_VERSION = '2026-10-08';
 
 export async function signInWithPassword(email: string, password: string) {
   return supabase.auth.signInWithPassword({ email, password });
@@ -48,6 +48,14 @@ export async function recordCurrentLegalAcceptance() {
     user_id: user.id,
     terms_version: LEGAL_DOCUMENT_VERSION,
     privacy_version: LEGAL_DOCUMENT_VERSION,
+  });
+}
+
+export async function resendSignupConfirmation(email: string) {
+  return supabase.auth.resend({
+    type: 'signup',
+    email,
+    options: { emailRedirectTo: AUTH_REDIRECT_URL },
   });
 }
 

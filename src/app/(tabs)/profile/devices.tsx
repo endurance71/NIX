@@ -4,12 +4,13 @@ import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
   NativeSettingsActionRow,
-  NativeSettingsEmptyRow,
+  NativeSettingsListStatus,
   NativeSettingsRow,
   NativeSettingsSection,
 } from '../../../components/ui/native-settings';
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
 import { useAppTheme } from '../../../hooks/useAppTheme';
+import { resolveSettingsListState } from '../../../lib/settingsListState';
 import { queryKeys } from '../../../lib/queryKeys';
 import {
   listAppInstallations,
@@ -17,6 +18,8 @@ import {
 } from '../../../services/appInstallationService';
 import { notifyDomainError, notifySuccess } from '../../../lib/appNotify';
 import { useAuth } from '../../../hooks/useAuth';
+import { formatDeviceLastSeen } from '../../../lib/deviceActivity';
+import { getCurrentLocale } from '../../../lib/i18n';
 
 export default function DevicesScreen() {
   const { t } = useTranslation();
@@ -28,6 +31,8 @@ export default function DevicesScreen() {
     queryFn: listAppInstallations,
     enabled: canUseNetworkSession,
   });
+  // Relative times are measured from when the list was fetched (pure during render; a pull to
+  // refresh updates both).
   const rows = (query.data ?? []) as Awaited<ReturnType<typeof listAppInstallations>>;
   const otherActive = rows.filter((row) => !row.is_current && !row.revoked_at);
 
@@ -60,7 +65,16 @@ export default function DevicesScreen() {
       >
         <NativeSettingsSection title={t('devices.active')}>
           {rows.length === 0 ? (
-            <NativeSettingsEmptyRow text={t('devices.empty')} />
+            <NativeSettingsListStatus
+              state={resolveSettingsListState({
+                itemCount: rows.length,
+                hasData: query.data !== undefined,
+                isError: query.isError,
+                canUseNetworkSession,
+              })}
+              emptyText={t('devices.empty')}
+              onRetry={() => void query.refetch()}
+            />
           ) : (
             rows.map((row) => (
               <NativeSettingsRow
@@ -69,22 +83,25 @@ export default function DevicesScreen() {
                 supportingText={
                   row.revoked_at
                     ? t('devices.revoked')
-                    : t('devices.lastSeen', { date: new Date(row.last_seen_at).toLocaleString() })
+                    : formatDeviceLastSeen(row.last_seen_at, query.dataUpdatedAt, getCurrentLocale(), t)
                 }
                 icon="devices"
                 disabled={Boolean(row.revoked_at)}
               />
             ))
           )}
-          {otherActive.length > 0 ? (
+        </NativeSettingsSection>
+        {otherActive.length > 0 ? (
+          <NativeSettingsSection>
             <NativeSettingsActionRow
               title={t('devices.signOutOthers')}
               destructive
+              appearance="row"
               disabled={!canUseNetworkSession}
               onPress={signOutOthers}
             />
-          ) : null}
-        </NativeSettingsSection>
+          </NativeSettingsSection>
+        ) : null}
       </SettingsListScreen>
       <Stack.Screen.Title style={{ color: colors.label }}>{t('devices.title')}</Stack.Screen.Title>
     </>

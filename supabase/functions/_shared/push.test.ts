@@ -13,31 +13,32 @@ describe('push Edge Function helpers', () => {
 
   it('localizes all transactional event types without exposing media data', () => {
     expect(pushCopy('new_nix', formatPushActorLabel(null, 'ania'), 'pl')).toEqual({
-      title: 'NiX',
-      body: '@ania wysyła Ci nowy NiX',
+      title: '@ania',
+      body: 'Wysyła Ci nowy NiX',
     });
     expect(pushCopy('friend_request', formatPushActorLabel(null, '@john'), 'en')).toEqual({
-      title: 'New friend request',
-      body: '@john wants to add you as a friend',
+      title: '@john',
+      body: 'Wants to add you as a friend',
     });
-    expect(pushCopy('friend_accepted', formatPushActorLabel(null, 'ania'), 'pl').body).toBe(
-      'Ty i @ania jesteście teraz znajomymi'
-    );
+    expect(pushCopy('friend_accepted', formatPushActorLabel(null, 'ania'), 'pl')).toEqual({
+      title: '@ania',
+      body: 'Jesteście teraz znajomymi',
+    });
     expect(pushCopy('message_reaction', formatPushActorLabel(null, 'ania'), 'pl', 'heart')).toEqual({
-      title: 'Wiadomość',
-      body: '@ania zareagował(a): ❤️',
+      title: '@ania',
+      body: 'Reakcja na Twoją wiadomość: ❤️',
     });
     expect(pushCopy('message_reaction', formatPushActorLabel(null, 'ania'), 'en', 'hahaha')).toEqual({
-      title: 'Message',
-      body: '@ania reacted: 😂',
+      title: '@ania',
+      body: 'Reacted to your message: 😂',
     });
     expect(pushCopy('capture_attempt', formatPushActorLabel(null, 'ania'), 'pl')).toEqual({
-      title: 'NiX',
-      body: '@ania próbował(a) zrobić zrzut lub nagrać ekran',
+      title: '@ania',
+      body: 'Próba zrobienia zrzutu lub nagrania ekranu',
     });
     expect(pushCopy('capture_attempt', formatPushActorLabel(null, 'ania'), 'en')).toEqual({
-      title: 'NiX',
-      body: '@ania tried to screenshot or record the screen',
+      title: '@ania',
+      body: 'Tried to screenshot or record the screen',
     });
   });
 
@@ -47,12 +48,13 @@ describe('push Edge Function helpers', () => {
     expect(reactionGlyph(null)).toBe('💬');
   });
 
-  it('uses display name in localized copy when provided', () => {
+  it('uses display name as the push title when provided', () => {
     const label = formatPushActorLabel('Damian Motyliński', 'damian');
-    expect(pushCopy('new_nix', label, 'pl').body).toBe('Damian Motyliński wysyła Ci nowy NiX');
-    expect(pushCopy('friend_request', label, 'en').body).toBe(
-      'Damian Motyliński wants to add you as a friend'
-    );
+    expect(pushCopy('new_nix', label, 'pl')).toEqual({
+      title: 'Damian Motyliński',
+      body: 'Wysyła Ci nowy NiX',
+    });
+    expect(pushCopy('friend_request', label, 'en').title).toBe('Damian Motyliński');
   });
 
   it('uses capped exponential retry delays', () => {

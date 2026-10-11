@@ -38,4 +38,21 @@ describe('resolveBootstrapState', () => {
   it('rozróżnia błąd odczytu snapshotu od jego braku', () => {
     expect(resolveBootstrapState({ ...base, authStatus: 'authenticatedOffline', snapshotError: true }).status).toBe('recoverableError');
   });
+  it('online z ważnym snapshotem nie czeka na profil ani wiek (PERF-1)', () => {
+    expect(resolveBootstrapState({ ...base, profilePending: true, hasValidSnapshot: true }).status).toBe('readyFromSnapshot');
+    expect(resolveBootstrapState({ ...base, agePending: true, hasValidSnapshot: true }).status).toBe('readyFromSnapshot');
+  });
+  it('online bez snapshotu nadal czeka na weryfikację profilu', () => {
+    expect(resolveBootstrapState({ ...base, profilePending: true }).status).toBe('loading');
+    expect(resolveBootstrapState({ ...base, agePending: true }).status).toBe('loading');
+  });
+  it('odpowiedź sieci koryguje stan otwarty ze snapshotu', () => {
+    const revalidated = { ...base, hasValidSnapshot: true };
+    expect(resolveBootstrapState(revalidated).status).toBe('readyOnline');
+    expect(resolveBootstrapState({ ...revalidated, profile: { ...completeProfile, username: null } }).status).toBe('needsOnboarding');
+    expect(resolveBootstrapState({ ...revalidated, ageAttested: false }).status).toBe('needsOnboarding');
+  });
+  it('snapshot w trakcie odczytu nadal wstrzymuje start', () => {
+    expect(resolveBootstrapState({ ...base, profilePending: true, snapshotPending: true }).status).toBe('loading');
+  });
 });

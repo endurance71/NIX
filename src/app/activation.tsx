@@ -5,17 +5,18 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NativeScreen } from '../components/ui/native-screen';
 import { NativeSectionCard } from '../components/ui/native-section-card';
-import { NativeButton } from '../components/ui/native-button';
+import { Button } from '../components/ui/button';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { queryKeys } from '../lib/queryKeys';
 import { getActivationState, updateActivationState } from '../services/activationService';
 import { createFriendInviteShareToken } from '../services/friendService';
 import { buildFriendInviteShareLink } from '../lib/friendInvite';
 import { recordProductEvent } from '../services/productAnalyticsService';
-import { APP_FONT_FAMILY } from '../theme/typography';
+import { spacing } from '../theme/spacing';
+import { typography } from '../theme/typography';
 import { iosRoadmapFeatures } from '../config/iosRoadmapFeatures';
 import { useAuth } from '../hooks/useAuth';
-import { notifyInfo } from '../lib/appNotify';
+import { notifyOffline } from '../lib/appNotify';
 import { OfflineStatusBanner } from '../components/auth/OfflineStatusBanner';
 
 export default function ActivationScreen() {
@@ -39,7 +40,7 @@ export default function ActivationScreen() {
 
   const shareInvite = async () => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     const { token } = await createFriendInviteShareToken();
@@ -56,7 +57,7 @@ export default function ActivationScreen() {
 
   const skip = async () => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     await updateActivationState('skip');
@@ -66,7 +67,7 @@ export default function ActivationScreen() {
 
   const dismissChecklist = async () => {
     if (!canUseNetworkSession) {
-      notifyInfo(t('root.offlineActionUnavailable'));
+      notifyOffline();
       return;
     }
     await updateActivationState('dismiss');
@@ -98,29 +99,43 @@ export default function ActivationScreen() {
         {!data?.has_friend ? (
           <>
             {iosRoadmapFeatures.shareInvites ? (
-              <NativeButton label={t('activation.shareInvite')} disabled={!canUseNetworkSession} onPress={() => void shareInvite()} />
+              <Button
+                size="large"
+                fullWidth
+                title={t('activation.shareInvite')}
+                disabled={!canUseNetworkSession}
+                onPress={() => void shareInvite()}
+              />
             ) : null}
-            <NativeButton
-              label={t('activation.addByUsername')}
+            <Button
+              size="large"
+              fullWidth
+              title={t('activation.addByUsername')}
               variant="secondary"
               onPress={() => router.push('/(tabs)/profile/friends')}
             />
           </>
         ) : (
-          <NativeButton
-            label={t('activation.openCamera')}
+          <Button
+            size="large"
+            fullWidth
+            title={t('activation.openCamera')}
             onPress={() => router.replace('/(tabs)')}
           />
         )}
-        <NativeButton
-          label={t('activation.skip')}
+        <Button
+          size="large"
+          fullWidth
+          title={t('activation.skip')}
           variant="secondary"
           disabled={!canUseNetworkSession || isPending}
           onPress={() => void skip()}
         />
         {data?.skipped_at ? (
-          <NativeButton
-            label={t('activation.dismissChecklist')}
+          <Button
+            size="large"
+            fullWidth
+            title={t('activation.dismissChecklist')}
             variant="secondary"
             disabled={!canUseNetworkSession}
             onPress={() => void dismissChecklist()}
@@ -132,6 +147,6 @@ export default function ActivationScreen() {
 }
 
 const styles = StyleSheet.create({
-  steps: { gap: 10 },
-  step: { fontFamily: APP_FONT_FAMILY, fontSize: 16, lineHeight: 22 },
+  steps: { gap: spacing.sm },
+  step: { ...typography.callout },
 });

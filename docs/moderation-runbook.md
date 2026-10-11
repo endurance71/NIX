@@ -170,3 +170,9 @@ atomowo unieważnia aktywną akcję konta i zapisuje wynik w audit logu. Narusze
 bezpieczeństwa: unieważnij sekrety, sprawdź logi, oceń obowiązek zgłoszenia i
 udokumentuj działania. Co tydzień sprawdź otwarte raporty, usunięcie dowodów po
 30 dniach oraz brak zewnętrznej wysyłki danych diagnostycznych.
+
+## Kolejka moderacji automatycznej (od 2026-10-11)
+
+- `claim_moderation_jobs` pobiera zadania tekstowe przed zadaniami media: `ORDER BY (content_kind <> 'text'), next_attempt_at, created_at` (migracja `20261011110000_moderation_claim_text_priority.sql`, indeks `moderation_jobs_claim_priority_idx`). Jedno długie wideo nie blokuje już wiadomości tekstowych. Przy ciągłym strumieniu tekstów media mogą czekać dłużej, więc monitoruj wiek najstarszego zadania media.
+- Worker (`workers/moderation/main.ts`, `runWorkerLoop`) po przetworzonym zadaniu bierze następne bez uśpienia. `TICK_IDLE_MS` obowiązuje tylko przy pustej kolejce, wyczerpanym budżecie F0, przejściowym błędzie dostawcy (429/5xx/sieć) albo wyjątku. Limit 5 RPS i ledger budżetu się nie zmieniły.
+- Wdrożenie: najpierw migracja (zmienia tylko kolejność, zgodna ze starym workerem), potem nowy obraz workera. Nie wdrażaj ponownie starego obrazu po resecie ledgera; zob. `docs/release/ios-current.md`.

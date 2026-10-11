@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.5';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import { corsHeaders, json } from '../_shared/http.ts';
 
 function isUuid(value: unknown): value is string {
@@ -56,11 +56,13 @@ Deno.serve(async (req) => {
       .eq('id', data.assetId)
       .maybeSingle();
     if (asset?.storage_path) {
-      await serviceClient.storage.from('media-vault').remove([asset.storage_path]);
-      await serviceClient
+      const { error: removeError } = await serviceClient.storage.from('media-vault').remove([asset.storage_path]);
+      if (removeError) return json({ error: 'MEDIA_CLEANUP_RETRY', code: 'MEDIA_CLEANUP_RETRY' }, 503);
+      const { error: ackError } = await serviceClient
         .from('media_assets')
         .update({ status: 'deleted', deleted_at: new Date().toISOString() })
         .eq('id', data.assetId);
+      if (ackError) return json({ error: 'MEDIA_CLEANUP_ACK_FAILED', code: 'MEDIA_CLEANUP_ACK_FAILED' }, 503);
     }
   }
 

@@ -10,13 +10,16 @@ import Animated, {
 import { useTranslation } from 'react-i18next';
 import { NativeChromeIconButton, type ChromeVariant } from '../ui/native-chrome-icon-button';
 import { PreviewTextSticker } from './PreviewTextSticker';
+import { supportsMediaTextCaptionBar } from '../../../modules/nix-media-overlay';
 import { usePreviewTextOverlay } from '../../hooks/usePreviewTextOverlay';
 import {
   DEFAULT_MEDIA_TEXT_BAR_COLOR,
   DEFAULT_MEDIA_TEXT_COLOR,
   DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE,
   DEFAULT_MEDIA_TEXT_OVERLAY_Y,
+  resolveMediaTextRenderStyle,
   type MediaTextOverlay,
+  type MediaTextVariant,
 } from '../../types/mediaTextOverlay';
 import type { ThemeColors } from '../../theme/colors';
 import { appleUiSpring, duration, useMotionEnabled } from '../../theme/motion';
@@ -33,6 +36,8 @@ type PreviewTextToolsProps = {
   clampTopPx: number;
   clampBottomPx: number;
   viewportHeight?: number;
+  /** Visible media frame in the sticker layer's coordinates (see usePreviewTextOverlay). */
+  mediaFrame?: { top: number; height: number };
   stickerViewportStyle?: StyleProp<ViewStyle>;
   colors: ThemeColors;
   chromeVariant?: ChromeVariant;
@@ -42,12 +47,57 @@ type PreviewTextToolsProps = {
   stickerPointerEvents?: 'box-none' | 'none';
 };
 
+function resolveStickerContent(
+  controls: ReturnType<typeof usePreviewTextOverlay>,
+  captionBarAvailable: boolean,
+) {
+  const source = controls.isEditing ? controls.editor : controls.committed;
+  const stickerText = controls.isEditing
+    ? (controls.editor?.draftText ?? '')
+    : (controls.committed?.text ?? '');
+  // Without the native bar bake every caption is shown (and baked) as a sticker.
+  const stickerVariant: MediaTextVariant =
+    captionBarAvailable && source?.variant === 'bar' ? 'bar' : 'sticker';
+  // The bar draws its fixed look; the sticker format stays on the overlay for switching back.
+  const drawn = source ? resolveMediaTextRenderStyle({ ...source, variant: stickerVariant }) : null;
+  const stickerFontSize = drawn?.fontSize ?? DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE;
+  const stickerY = source?.y ?? DEFAULT_MEDIA_TEXT_OVERLAY_Y;
+  const stickerTextColor = drawn?.textColor ?? DEFAULT_MEDIA_TEXT_COLOR;
+  const stickerBarColor = drawn?.barColor ?? DEFAULT_MEDIA_TEXT_BAR_COLOR;
+  const stickerBold = drawn?.bold ?? true;
+  const stickerItalic = drawn?.italic ?? false;
+  const stickerUnderline = drawn?.underline ?? false;
+  const stickerStrikethrough = drawn?.strikethrough ?? false;
+  const stickerMonospace = drawn?.monospace ?? false;
+  const stickerFontDesign = drawn?.fontDesign ?? 'system';
+  const stickerPreset = source?.preset ?? 'title';
+  const stickerAlign = drawn?.align ?? 'center';
+
+  return {
+    stickerVariant,
+    stickerText,
+    stickerFontSize,
+    stickerY,
+    stickerTextColor,
+    stickerBarColor,
+    stickerBold,
+    stickerItalic,
+    stickerUnderline,
+    stickerStrikethrough,
+    stickerMonospace,
+    stickerFontDesign,
+    stickerPreset,
+    stickerAlign,
+  };
+}
+
 export function PreviewTextTools({
   overlay,
   onChangeOverlay,
   clampTopPx,
   clampBottomPx,
   viewportHeight,
+  mediaFrame,
   stickerViewportStyle,
   colors,
   chromeVariant = 'glass',
@@ -57,12 +107,17 @@ export function PreviewTextTools({
 }: PreviewTextToolsProps) {
   const { t } = useTranslation();
   const motionEnabled = useMotionEnabled();
+  const [barHeight, setBarHeight] = useState(0);
+  const captionBarAvailable = supportsMediaTextCaptionBar();
   const controls = usePreviewTextOverlay({
     overlay,
     onChangeOverlay,
     clampTopPx,
     clampBottomPx,
     viewportHeight,
+    mediaFrame,
+    barHeight,
+    captionBarAvailable,
   });
   const [stickerExiting, setStickerExiting] = useState(false);
   const stickerExitActionRef = useRef<'confirm' | 'delete' | null>(null);
@@ -83,7 +138,7 @@ export function PreviewTextTools({
     }
     if (target === 0) {
       textBtnOpacity.set(
-        withTiming(0, { duration: duration.fast, easing: Easing.out(Easing.cubic) })
+        withTiming(0, { duration: duration.fast, easing: Easing.out(Easing.cubic) }),
       );
     } else {
       textBtnOpacity.set(withSpring(1, appleUiSpring));
@@ -127,9 +182,7 @@ export function PreviewTextTools({
   };
 
   const textButton = (
-    <Animated.View
-      style={textButtonStyle}
-      pointerEvents={controls.isEditing ? 'none' : 'auto'}>
+    <Animated.View style={textButtonStyle} pointerEvents={controls.isEditing ? 'none' : 'auto'}>
       {renderTextButton ? (
         renderTextButton(controls.startEditing)
       ) : (
@@ -146,22 +199,22 @@ export function PreviewTextTools({
     </Animated.View>
   );
 
-  const source = controls.isEditing ? controls.editor : controls.committed;
-  const stickerText = controls.isEditing
-    ? (controls.editor?.draftText ?? '')
-    : (controls.committed?.text ?? '');
-  const stickerFontSize = source?.fontSize ?? DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE;
-  const stickerY = source?.y ?? DEFAULT_MEDIA_TEXT_OVERLAY_Y;
-  const stickerTextColor = source?.textColor ?? DEFAULT_MEDIA_TEXT_COLOR;
-  const stickerBarColor = source?.barColor ?? DEFAULT_MEDIA_TEXT_BAR_COLOR;
-  const stickerBold = source?.bold ?? true;
-  const stickerItalic = source?.italic ?? false;
-  const stickerUnderline = source?.underline ?? false;
-  const stickerStrikethrough = source?.strikethrough ?? false;
-  const stickerMonospace = source?.monospace ?? false;
-  const stickerFontDesign = source?.fontDesign ?? 'system';
-  const stickerPreset = source?.preset ?? 'title';
-  const stickerAlign = source?.align ?? 'center';
+  const {
+    stickerVariant,
+    stickerText,
+    stickerFontSize,
+    stickerY,
+    stickerTextColor,
+    stickerBarColor,
+    stickerBold,
+    stickerItalic,
+    stickerUnderline,
+    stickerStrikethrough,
+    stickerMonospace,
+    stickerFontDesign,
+    stickerPreset,
+    stickerAlign,
+  } = resolveStickerContent(controls, captionBarAvailable);
 
   return (
     <>
@@ -171,6 +224,10 @@ export function PreviewTextTools({
         {showSticker ? (
           <PreviewTextSticker
             mode={mode}
+            variant={stickerVariant}
+            onChangeVariant={
+              controls.isEditing && captionBarAvailable ? controls.setDraftVariant : undefined
+            }
             text={stickerText}
             fontSize={stickerFontSize}
             textColor={stickerTextColor}
@@ -187,6 +244,9 @@ export function PreviewTextTools({
             minTopPx={minTop}
             maxTopPx={maxTop}
             animateEnter={animateEnter}
+            onBarHeightChange={(height) => {
+              if (Math.abs(height - barHeight) >= 0.5) setBarHeight(height);
+            }}
             onTopPxChange={(top) =>
               controls.setY(controls.topPxToY(top), controls.isEditing ? 'editor' : 'committed')
             }

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  captionMinimumBarHeight,
+  captionTopPxFromY,
+  captionYFromTopPx,
   clampPreviewTextTopPx,
   previewTextTopAboveObstacle,
 } from './mediaTextOverlayGeometry';
@@ -28,6 +31,7 @@ describe('mediaTextOverlay model', () => {
         fontSize: 36,
       })
     ).toEqual({
+      variant: 'sticker',
       text: 'hello',
       y: 0.25,
       fontSize: 36,
@@ -76,5 +80,43 @@ describe('mediaTextOverlayGeometry', () => {
         gapPx: 32,
       })
     ).toBe(620);
+  });
+});
+
+describe('caption position mapping (preview ↔ native bake)', () => {
+  const frame = { top: 0, height: 874 };
+  it('treats y as the bar centre within the media frame, like the native bake', () => {
+    // Native: centerY = visible.minY + visible.height * y
+    expect(captionTopPxFromY(0.5, frame, 44) + 22).toBe(437);
+    expect(captionYFromTopPx(415, frame, 44)).toBeCloseTo(0.5);
+  });
+  it('round-trips for a letterboxed frame', () => {
+    const letterbox = { top: 230, height: 300 };
+    const y = captionYFromTopPx(300, letterbox, 60);
+    expect(captionTopPxFromY(y, letterbox, 60)).toBeCloseTo(300);
+    expect(y).toBeCloseTo((300 + 30 - 230) / 300);
+  });
+  it('places the baked bar exactly where the preview bar was', () => {
+    const top = 400;
+    const y = captionYFromTopPx(top, frame, 44);
+    expect(frame.top + frame.height * y - 22).toBeCloseTo(top);
+  });
+});
+
+describe('caption minimum height', () => {
+  it('keeps the sticker 44 pt floor and grows with its font', () => {
+    expect(captionMinimumBarHeight('sticker', 14)).toBe(44);
+    expect(captionMinimumBarHeight('sticker', 34)).toBe(54);
+  });
+  it('sizes the bar as one line of its fixed font plus the strip padding (the bake minimum)', () => {
+    // 17 pt × 1.2 line + 2 × 8 pt padding, independent of the stored sticker font size.
+    expect(captionMinimumBarHeight('bar', 34)).toBeCloseTo(36.4);
+    expect(captionMinimumBarHeight('bar', 60)).toBeCloseTo(36.4);
+  });
+  it('maps the bar centre like the sticker so the strip bakes where it was previewed', () => {
+    const frame = { top: 0, height: 874 };
+    const height = captionMinimumBarHeight('bar', 34);
+    const y = captionYFromTopPx(500, frame, height);
+    expect(frame.top + frame.height * y - height / 2).toBeCloseTo(500);
   });
 });

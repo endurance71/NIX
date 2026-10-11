@@ -31,7 +31,11 @@ export function resolveBootstrapState(input: {
   if (input.authStatus === 'authenticatedOffline') {
     return { status: input.hasValidSnapshot ? 'readyFromSnapshot' : 'offlineNeedsVerification' };
   }
-  if (input.profilePending || input.agePending) return { status: 'loading' };
+  if (input.profilePending || input.agePending) {
+    // Stale-while-revalidate: a snapshot of this account's verified profile opens the app at once;
+    // the network answer still corrects it (onboarding redirect, `readyOnline`).
+    return { status: input.hasValidSnapshot ? 'readyFromSnapshot' : 'loading' };
+  }
   if (input.profileError || input.ageError) {
     return { status: input.hasValidSnapshot ? 'readyFromSnapshot' : 'recoverableError' };
   }

@@ -1,70 +1,56 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
+import { json } from '../_shared/http.ts';
+import { handleCleanupTextMessages } from './handler.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const VOICE_BUCKET = 'voice-messages';
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+/** PostgREST: function not found (the voice migration is not deployed on this backend yet). */
+function isMissingFunction(error: { code?: string } | null): boolean {
+  return error?.code === 'PGRST202' || error?.code === '42883';
+}
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+Deno.serve((req) => {
+  const url = Deno.env.get('SUPABASE_URL');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !serviceKey) return json({ error: 'SERVER_CONFIG_MISSING' }, 500);
+  const service = createClient(url, serviceKey);
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    return new Response(JSON.stringify({ error: 'Missing Supabase environment variables' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
-
-  try {
-    let totalDeleted = 0;
-    let batchDeleted = 0;
-    const batchSize = 500;
-
-    do {
-      const { data: expiredBatch, error: selectError } = await serviceClient
+  return handleCleanupTextMessages(req, serviceKey, {
+    async listExpiredIds(limit) {
+      const { data, error } = await service
         .from('text_messages')
         .select('id')
         .lt('expires_at', new Date().toISOString())
-        .limit(batchSize);
-
-      if (selectError) {
-        throw selectError;
-      }
-
-      if (!expiredBatch || expiredBatch.length === 0) {
-        break;
-      }
-
-      const idsToDelete = expiredBatch.map((item) => item.id);
-      const { error: deleteError, count } = await serviceClient
+        .limit(limit);
+      if (error) throw error;
+      return (data ?? []).map((row) => row.id as string);
+    },
+    async deleteIds(ids) {
+      const { error, count } = await service
         .from('text_messages')
         .delete({ count: 'exact' })
-        .in('id', idsToDelete);
-
-      if (deleteError) {
-        throw deleteError;
-      }
-
-      batchDeleted = count ?? idsToDelete.length;
-      totalDeleted += batchDeleted;
-    } while (batchDeleted >= batchSize);
-
-    return new Response(JSON.stringify({ ok: true, deletedCount: totalDeleted }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  } catch (error: any) {
-    console.error('cleanup-text-messages error:', error);
-    return new Response(JSON.stringify({ error: error.message ?? 'Unknown cleanup error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
+        .in('id', ids);
+      if (error) throw error;
+      return count ?? ids.length;
+    },
+    async claimVoiceObjects(limit) {
+      const { data, error } = await service.rpc('claim_voice_message_object_deletions', {
+        p_limit: limit,
+      });
+      if (isMissingFunction(error)) return null;
+      if (error) throw error;
+      return Array.isArray(data) ? data.filter((path): path is string => typeof path === 'string') : [];
+    },
+    async removeVoiceObjects(paths) {
+      // Removing an object that is already gone is not an error for the Storage API.
+      const { error } = await service.storage.from(VOICE_BUCKET).remove(paths);
+      if (error) throw error;
+    },
+    async completeVoiceObjects(paths) {
+      const { error } = await service.rpc('complete_voice_message_object_deletions', {
+        p_paths: paths,
+      });
+      if (error) throw error;
+    },
+  });
 });

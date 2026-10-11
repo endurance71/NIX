@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePushNotificationData, routeForPushNotification } from './pushNotificationPayload';
+import { parsePushNotificationData, routeForPushNotification, shouldSuppressForegroundPush } from './pushNotificationPayload';
 
 describe('push notification payload', () => {
   const base = {
@@ -41,5 +41,16 @@ describe('push notification payload', () => {
       pathname: '/chat/[peerId]',
       params: { peerId: '22222222-2222-2222-2222-222222222222' },
     });
+  });
+
+  it('suppresses foreground pushes from the active chat peer, including new_nix', () => {
+    const peer = base.actorId;
+    for (const type of ['new_nix', 'new_text_message', 'message_reaction', 'capture_attempt'] as const) {
+      expect(shouldSuppressForegroundPush({ ...base, type }, peer)).toBe(true);
+    }
+    expect(shouldSuppressForegroundPush({ ...base, type: 'new_nix' }, 'someone-else')).toBe(false);
+    expect(shouldSuppressForegroundPush({ ...base, type: 'new_nix' }, null)).toBe(false);
+    expect(shouldSuppressForegroundPush({ ...base, type: 'friend_request' }, peer)).toBe(false);
+    expect(shouldSuppressForegroundPush(null, peer)).toBe(false);
   });
 });

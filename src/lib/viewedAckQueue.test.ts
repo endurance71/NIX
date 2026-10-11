@@ -27,6 +27,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 vi.mock('../services/profileService', () => ({ getCurrentUser: mockGetCurrentUser }));
+vi.mock('./supabase', () => ({ captureAccountTransport: async (ownerId: string) => ({ ownerId, assertActive() {} }) }));
 vi.mock('../services/nixService', () => ({
   markNixViewedForReplay: mockMarkViewedForReplay,
   markNixReplayedWithCleanup: mockMarkReplayedWithCleanup,
@@ -91,7 +92,7 @@ describe('viewed acknowledgement queue', () => {
 
     await flushPendingViewedAcks('receiver-1', { force: true });
 
-    expect(mockMarkViewedForReplay).toHaveBeenCalledWith('one');
+    expect(mockMarkViewedForReplay).toHaveBeenCalledWith('one', expect.objectContaining({ ownerId: 'receiver-1' }));
     expect(mockMarkViewedForReplay).not.toHaveBeenCalledWith('two');
     expect(storage.size).toBe(1);
   });
@@ -136,7 +137,7 @@ describe('viewed acknowledgement queue', () => {
     await flushPendingViewedAcks('receiver-1', { force: true });
 
     expect(mockMarkReplayedWithCleanup).toHaveBeenCalledTimes(1);
-    expect(mockMarkReplayedWithCleanup).toHaveBeenCalledWith('nix-replay', 'nixes/receiver-1/nix-replay.jpg');
+    expect(mockMarkReplayedWithCleanup).toHaveBeenCalledWith('nix-replay', undefined, expect.objectContaining({ ownerId: 'receiver-1' }));
     expect(storage.size).toBe(0);
   });
 

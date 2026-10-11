@@ -3,7 +3,7 @@ import {
   type ProviderAnalysis,
 } from "../../supabase/functions/_shared/moderation-policy.ts";
 import type { BudgetLedger } from "./budget.ts";
-import { WAITING_BUDGET } from "./constants.ts";
+import { TRANSIENT_PROVIDER_ERRORS, WAITING_BUDGET } from "./constants.ts";
 import { assertLocalMediaPath } from "./download.ts";
 import type { ModerationProvider } from "./provider.ts";
 import { processVideo } from "./video.ts";
@@ -51,6 +51,9 @@ async function withBudgetedCall(
   try {
     signal.throwIfAborted();
     const analysisPromise = call();
+    // A fast provider failure can settle while confirm() is still in flight;
+    // observe it now (the await below re-throws it) so Deno does not exit.
+    analysisPromise.catch(() => undefined);
     sent = true;
     // Once the attempt has started, uncertain failure must not release budget.
     await ledger.confirm(reserved.reservationId);
@@ -70,6 +73,9 @@ async function withBudgetedCall(
     }
     if (message.includes("5xx") || message.includes("503")) {
       return { ok: false, waiting: false, error: "provider_http_5xx" };
+    }
+    if (message === "provider_network") {
+      return { ok: false, waiting: false, error: "provider_network" };
     }
     return { ok: false, waiting: false, error: "provider_failed" };
   }
@@ -267,6 +273,8 @@ export async function processIntegrationJob(
       maxSeverity: null,
       error: signal.aborted || message === "job_timeout"
         ? "job_timeout"
+        : TRANSIENT_PROVIDER_ERRORS.has(message)
+        ? message
         : message.startsWith("input_") || message.startsWith("duration_") ||
             message.includes("corrupt") || message === "subprocess_failed"
         ? message

@@ -35,7 +35,7 @@ export type BudgetLedger = {
   }>;
 };
 
-function monthKeyUtc(d = new Date()): string {
+export function monthKeyUtc(d = new Date()): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 

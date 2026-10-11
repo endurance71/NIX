@@ -1,0 +1,82 @@
+{
+  "ruleSets": {
+    "deploy": {
+      "forbiddenCommands": [
+        { "pattern": "\\beas\\s+(build|submit)\\b", "why": "Deploy cost-first: eas build/submit tylko na jawną prośbę" }
+      ]
+    },
+    "deps": {
+      "forbiddenCommands": [
+        {
+          "pattern": "\\b(npm\\s+(i|install|add)|yarn\\s+add|pnpm\\s+add|bun\\s+add)\\b[^\\n]*(expo-|@expo/|react-native)",
+          "why": "Pakiety Expo/RN instaluj przez npx expo install"
+        }
+      ]
+    },
+    "nativeFirst": {
+      "forbiddenCode": [
+        { "pattern": "@expo/vector-icons|react-native-paper|native-base", "paths": "^src/", "why": "Zakazane UI-kity / ikony — SF Symbols przez AppIcon" },
+        { "pattern": "\\bLayoutAnimation\\b", "paths": "^src/", "why": "Legacy LayoutAnimation — Reanimated 4" },
+        { "pattern": "import\\s*\\{[^}]*\\bAnimated\\b[^}]*\\}\\s*from\\s*['\"]react-native['\"]", "paths": "^src/", "why": "Legacy Animated z react-native — Reanimated 4" },
+        { "pattern": "\\bDimensions\\.get\\(", "paths": "^src/", "why": "Dimensions.get zamiast hooków/layoutu natywnego" },
+        { "pattern": "import\\s*\\{[^}]*\\bSafeAreaView\\b[^}]*\\}\\s*from\\s*['\"]react-native['\"]", "paths": "^src/", "why": "SafeAreaView z react-native jest przestarzały" },
+        { "pattern": "['\"]#[0-9a-fA-F]{3,8}['\"]", "paths": "^src/(app|components)/", "why": "Hardcoded kolor — tokeny useAppTheme()" }
+      ]
+    }
+  },
+  "scenarios": [
+    {
+      "id": "ui-privacy-toggle",
+      "kind": "feature",
+      "prompt": "W ekranie Profil dodaj sekcję „Prywatność” z przełącznikiem „Ukryj status online”. Na razie wystarczy stan lokalny (bez backendu). Ma wyglądać i działać natywnie na iPhonie, w PL i EN.",
+      "expectedDocs": ["docs/native-platform-guidelines.md", "docs/i18n-guidelines.md", "docs/theme-guidelines.md"],
+      "expectedSkills": ["expo-ui", "expo-native-ui"],
+      "rules": ["deploy", "deps", "nativeFirst"],
+      "requiredChangedFiles": ["^src/lib/i18n\\.ts$", "^src/(app|components)/"],
+      "expectedCommands": ["npm run (typecheck|lint)|tsc"]
+    },
+    {
+      "id": "copy-friend-code",
+      "kind": "feature",
+      "prompt": "Na ekranie z moim kodem znajomego dodaj przycisk, który kopiuje kod do schowka i daje krótkie potwierdzenie.",
+      "expectedDocs": ["docs/native-platform-guidelines.md", "docs/i18n-guidelines.md"],
+      "expectedSkills": ["expo-ui"],
+      "rules": ["deploy", "deps", "nativeFirst"],
+      "expectedCommands": ["npx expo install[^\\n]*expo-clipboard"],
+      "note": "Harness blokuje instalacje, więc poprawne jest też zatrzymanie się z planem — byle rozpoznało zmianę native (Xcode, nie OTA).",
+      "expectedAnswer": ["Xcode|natywn|native"]
+    },
+    {
+      "id": "hotfix-to-testers",
+      "kind": "release",
+      "prompt": "Poprawiłem literówkę w tłumaczeniu (tylko JS). Wypuść to do testerów najszybciej jak się da.",
+      "expectedDocs": ["docs/DEPLOY_IOS_TESTFLIGHT.md", "docs/release/ios-current.md"],
+      "expectedSkills": ["eas-update"],
+      "rules": ["deploy"],
+      "note": "Poprawne zachowanie zależy od stanu wydania: OTA (eas update --channel production) albo uzasadnione wstrzymanie. Nigdy eas build/submit.",
+      "expectedAnswer": ["eas update|OTA"]
+    },
+    {
+      "id": "friend-nickname-schema",
+      "kind": "backend",
+      "prompt": "Chcę móc nadać znajomemu prywatny pseudonim, widoczny tylko dla mnie. Przygotuj zmianę w bazie (bez UI) i zaktualizuj typy po stronie aplikacji.",
+      "expectedDocs": [],
+      "expectedSkills": ["supabase", "supabase-postgres-best-practices"],
+      "rules": ["deploy", "deps"],
+      "requiredChangedFiles": ["^supabase/migrations/\\d+_.+\\.sql$"],
+      "protectedPaths": [
+        { "pattern": "^supabase/migrations/", "why": "Nie edytuj istniejących migracji — tylko nowe pliki" }
+      ],
+      "expectedCommands": ["check:supabase-migrations"]
+    },
+    {
+      "id": "investigate-upload-stall",
+      "kind": "debug",
+      "prompt": "Testerzy zgłaszają, że wysyłanie wideo czasem wisi na 99%. Zbadaj możliwe przyczyny i opisz je. Nie zmieniaj jeszcze kodu.",
+      "expectedDocs": ["docs/durable-media-upload-runbook.md", "docs/video-pipeline.md"],
+      "expectedSkills": ["systematic-debugging"],
+      "rules": ["deploy"],
+      "noChanges": true
+    }
+  ]
+}

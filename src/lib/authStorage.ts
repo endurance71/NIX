@@ -84,34 +84,79 @@ function nextGeneration() {
   return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/**
+ * supabase-js reads the session before every request; without this each one re-read the
+ * Keychain manifest and every chunk. Writes go through `authStorage` in this single app process,
+ * so a write-through cache stays correct. Only present values are cached: a miss always rechecks
+ * the Keychain (and the legacy locations).
+ */
+const cachedValues = new Map<string, string>();
+const pendingReads = new Map<string, Promise<string | null>>();
+const writeVersions = new Map<string, number>();
+
+function invalidateCachedValue(key: string) {
+  cachedValues.delete(key);
+  pendingReads.delete(key);
+  const version = (writeVersions.get(key) ?? 0) + 1;
+  writeVersions.set(key, version);
+  return version;
+}
+
+/** Test helper: forgets every cached value. */
+export function resetAuthStorageCacheForTests() {
+  cachedValues.clear();
+  pendingReads.clear();
+  writeVersions.clear();
+}
+
+async function readStoredValue(key: string): Promise<string | null> {
+  const chunked = await readChunkedValue(key);
+  if (chunked !== null) return chunked;
+
+  const legacySecure = await SecureStore.getItemAsync(key);
+  if (legacySecure !== null) {
+    try {
+      await authStorage.setItem(key, legacySecure);
+      await SecureStore.deleteItemAsync(key);
+    } catch {
+      // The readable legacy value remains the source of truth until migration succeeds.
+    }
+    return legacySecure;
+  }
+
+  const legacyAsync = await AsyncStorage.getItem(key);
+  if (legacyAsync === null) return null;
+  try {
+    await authStorage.setItem(key, legacyAsync);
+    await AsyncStorage.removeItem(key);
+  } catch {
+    // Preserve the readable fallback and retry migration on the next access.
+  }
+  return legacyAsync;
+}
+
 export const authStorage = {
   async getItem(key: string): Promise<string | null> {
-    const chunked = await readChunkedValue(key);
-    if (chunked !== null) return chunked;
-
-    const legacySecure = await SecureStore.getItemAsync(key);
-    if (legacySecure !== null) {
-      try {
-        await authStorage.setItem(key, legacySecure);
-        await SecureStore.deleteItemAsync(key);
-      } catch {
-        // The readable legacy value remains the source of truth until migration succeeds.
-      }
-      return legacySecure;
-    }
-
-    const legacyAsync = await AsyncStorage.getItem(key);
-    if (legacyAsync === null) return null;
-    try {
-      await authStorage.setItem(key, legacyAsync);
-      await AsyncStorage.removeItem(key);
-    } catch {
-      // Preserve the readable fallback and retry migration on the next access.
-    }
-    return legacyAsync;
+    const cached = cachedValues.get(key);
+    if (cached !== undefined) return cached;
+    const pending = pendingReads.get(key);
+    if (pending) return pending;
+    const version = writeVersions.get(key) ?? 0;
+    const read = readStoredValue(key).then((value) => {
+      // A write or removal that started meanwhile owns the cache; this result may be stale.
+      if (value !== null && (writeVersions.get(key) ?? 0) === version) cachedValues.set(key, value);
+      return value;
+    }).finally(() => {
+      if (pendingReads.get(key) === read) pendingReads.delete(key);
+    });
+    pendingReads.set(key, read);
+    return read;
   },
 
   async setItem(key: string, value: string): Promise<void> {
+    // Invalidate first: if the write fails halfway, the next read goes back to the Keychain,
+    // which still holds the previous committed generation.
+    const version = invalidateCachedValue(key);
     const previousManifest = parseManifest(
       await SecureStore.getItemAsync(manifestKey(key), SECURE_OPTIONS)
     );
@@ -141,6 +186,8 @@ export const authStorage = {
       throw error;
     }
 
+    if ((writeVersions.get(key) ?? 0) === version) cachedValues.set(key, value);
+
     await deleteGeneration(key, previousManifest);
     await Promise.allSettled([
       SecureStore.deleteItemAsync(key),
@@ -149,6 +196,7 @@ export const authStorage = {
   },
 
   async removeItem(key: string): Promise<void> {
+    invalidateCachedValue(key);
     let manifest: ChunkManifest | null = null;
     try {
       manifest = parseManifest(

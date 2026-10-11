@@ -4,12 +4,17 @@ import type {
   MediaTextAlign,
   MediaTextFontDesign,
   MediaTextPreset,
+  MediaTextVariant,
 } from '../../types/mediaTextOverlay';
 
 export type PreviewTextStickerMode = 'display' | 'editing';
 
 export type PreviewTextStickerProps = {
   mode: PreviewTextStickerMode;
+  /** `bar`: full-width caption strip (no format options). Defaults to the sticker. */
+  variant?: MediaTextVariant;
+  /** Offers the bar / sticker switch while editing (only when the binary bakes the bar). */
+  onChangeVariant?: (variant: MediaTextVariant) => void;
   text: string;
   fontSize: number;
   textColor?: string;
@@ -34,6 +39,8 @@ export type PreviewTextStickerProps = {
   onDelete: () => void;
   exiting?: boolean;
   onExitComplete?: () => void;
+  /** Reports the caption bar height (the bake centres the caption on its `y`). */
+  onBarHeightChange?: (height: number) => void;
   /** Scale-in when mounting committed sticker in display mode. Skip on "Add text". */
   animateEnter?: boolean;
   style?: StyleProp<ViewStyle>;

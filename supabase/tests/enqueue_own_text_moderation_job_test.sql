@@ -2,6 +2,12 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT plan(4);
 
+-- Upgrade path B deliberately preserves a pre-existing job and its payload.
+-- Check that rejected requests add nothing instead of requiring an empty DB.
+CREATE TEMP TABLE enqueue_before AS SELECT
+  (SELECT COUNT(*)::integer FROM public.moderation_jobs) AS jobs,
+  (SELECT COUNT(*)::integer FROM public.moderation_text_payloads) AS payloads;
+
 SELECT throws_ok(
   $$SELECT public.enqueue_own_text_moderation_job(
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -35,14 +41,14 @@ RESET ROLE;
 
 SELECT is(
   (SELECT COUNT(*)::integer FROM public.moderation_jobs),
-  0,
-  'flag-off enqueue leaves moderation_jobs empty'
+  (SELECT jobs FROM enqueue_before),
+  'flag-off enqueue preserves the moderation_jobs count'
 );
 
 SELECT is(
   (SELECT COUNT(*)::integer FROM public.moderation_text_payloads),
-  0,
-  'flag-off enqueue leaves moderation_text_payloads empty'
+  (SELECT payloads FROM enqueue_before),
+  'flag-off enqueue preserves the moderation_text_payloads count'
 );
 
 SELECT finish();

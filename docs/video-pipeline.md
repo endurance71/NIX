@@ -27,6 +27,10 @@ Po migawce: `setPhotoUri(photo.uri)` + natychmiastowy `router.push('/preview')`.
 - Tryb wideo czyta segmenty z `VideoDraft`.
 - **Nakładka tekstowa (Snapchat-style):** przycisk Tekst → belka z klawiaturą → Gotowe; przeciąganie **góra–dół** (`y` 0–1). Draft: `PhotoDraft.textOverlay` / `VideoDraft.textOverlay`.
 - Przed **Wyślij** / **Zapisz w galerii** tekst jest wypalany w pliku przez lokalny moduł [`modules/nix-media-overlay`](../modules/nix-media-overlay) (`bakeTextOnImageAsync` / `bakeTextOnVideoAsync`) — geometria jak `contentFit: cover`.
+- **Filtry kolorów** (Oryginał, Żywy, Ciepły, Chłodny, Mono, Noir, Retro, Wyblakły): swipe w lewo/prawo po mediach lub menu w pasku narzędzi; VoiceOver — element „Filtr” (adjustable). Jedno źródło prawdy: macierze 4×5 w [`src/lib/mediaFilters.ts`](../src/lib/mediaFilters.ts). Podgląd zdjęcia: `NixFilteredImageView` (Core Image, ta sama ścieżka co bake), podgląd wideo: `applyPlayerFilterAsync` (AVVideoComposition z CIFilter na playerze expo-video); bake: zdjęcie przez `MediaColorFilter.filteredPhoto`, wideo per klatka w eksporcie delivery / Core Image w eksporcie master.
+- **Naklejki emoji**: arkusz z ~60 emoji + pole na dowolne emoji; przeciąganie, pinch, obrót, kosz jak przy tekście; max 20. Pozycja = środek 0–1 względem widocznej ramki cover, `fontSize` w punktach podglądu (skalowany w bake jak tekst), rotacja w radianach.
+- Filtr i naklejki są przechowywane w `drawingOverlay` (`filter`, `stickers`) w `PhotoDraft` / `VideoDraft`, więc pipeline wysyłki/zapisu przenosi je bez zmian sygnatur. Narzędzia są ukryte, gdy binarka nie ma `featureLevel >= 2` (OTA na starszym buildzie nie pokaże warstwy, której natywny bake by nie wypalił).
+- **PencilKit**: płótno i tool picker mają wymuszony jasny wygląd, a rysunek jest renderowany w bake w `UITraitCollection(userInterfaceStyle: .light)` — kolory tuszu na ekranie = w pliku także w trybie ciemnym.
 - Wybór **czasu wyświetlania** u odbiorcy (`view_duration_sec`): 5 / 15 / 30 / 60 / 180 (`ALLOWED_VIEW_DURATIONS` w nixService).
 - Chrome preview: `chromeVariant="glass"` — natywne Liquid Glass (`glassEffect` na SwiftUI `Button`).
 - **Zapisz w galerii** (lewy dół): zawsze dostępne dla nadawcy — `expo-media-library` write-only (`Asset.create`); wymaga native binary. Odbiorca zapisuje dopiero w viewerze przy `capture_policy=allow` — patrz [capture-protection.md](capture-protection.md).
@@ -54,7 +58,7 @@ Po migawce: `setPhotoUri(photo.uri)` + natychmiastowy `router.push('/preview')`.
 ## Upload
 
 - **Obrazy / małe pliki:** standardowa ścieżka uploadu do Storage.
-- **Wideo (resumable):** [`src/services/resumableUploadService.ts`](../src/services/resumableUploadService.ts) — `tus-js-client`, chunk **6 MB** (limit Supabase TUS), odczyt fragmentów przez `expo-file-system/legacy.readAsStringAsync` (base64) aby utrzymać RAM ~14–20 MB szczytowo.
+- **Wideo:** trwała kolejka (`begin-media-upload` → natywny upload w tle z pliku przez `modules/nix-background-uploader` → `finalize-media-upload`). Dawna ścieżka TUS (`tus-js-client`) została usunięta 2026-10-10.
 - Eventy: `resumable_upload_started`, `resumable_upload_success_ms`, `resumable_upload_failure`, `resumable_upload_retry`, `resumable_upload_non_retryable`, `resumable_upload_existing_resource`.
 
 ## Rekord `nixes`

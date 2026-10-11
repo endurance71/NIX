@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { DurableUploadRecipient } from '../types/uploadQueue';
-import { DomainError } from './errors';
+import { DomainError, isNetworkError } from './errors';
+import { sleep } from '../lib/sleep';
 
 export type BeginMediaUploadResponse = {
   batchId: string;
@@ -52,15 +53,25 @@ function errorText(error: { message?: string; code?: string } | null | undefined
   return `${error?.code ?? ''} ${error?.message ?? ''}`;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
 
 function asMediaJobView(data: unknown): MediaModerationJobView | null {
   if (!data || typeof data !== 'object') return null;
   return data as MediaModerationJobView;
+}
+
+/**
+ * The upload already reached the server; only the moderation verdict is not known yet. Callers
+ * must keep waiting rather than mark the send as failed.
+ */
+export class ModerationPendingError extends Error {
+  constructor() {
+    super('Media moderation is still pending.');
+    this.name = 'ModerationPendingError';
+  }
+}
+
+export function isModerationStillUnknown(error: unknown) {
+  return error instanceof ModerationPendingError || isNetworkError(error);
 }
 
 export type SettledMediaModeration = {
@@ -68,9 +79,30 @@ export type SettledMediaModeration = {
   nixId: string | null;
 };
 
-export async function waitForOwnMediaJob(jobId: string): Promise<SettledMediaModeration> {
-  const deadline = Date.now() + MODERATION_POLL_TIMEOUT_MS;
-  while (Date.now() < deadline) {
+/**
+ * Delay before checking a still-pending moderation again. The first window polls quickly (most
+ * verdicts land within seconds); after that the client backs off, so a stalled worker or an
+ * exhausted F0 budget is not hammered by every waiting device.
+ */
+const MODERATION_PENDING_BACKOFF_MS = [5_000, 15_000, 30_000, 60_000] as const;
+
+export function moderationPendingBackoffMs(pendingRounds: number): number {
+  const index = Math.min(Math.max(0, Math.floor(pendingRounds)), MODERATION_PENDING_BACKOFF_MS.length - 1);
+  return MODERATION_PENDING_BACKOFF_MS[index];
+}
+
+/**
+ * Polls the job's verdict. `timeoutMs: 0` performs exactly one check (used for the slow, backed-off
+ * rounds after the first window).
+ */
+export async function waitForOwnMediaJob(
+  jobId: string,
+  { timeoutMs = MODERATION_POLL_TIMEOUT_MS }: { timeoutMs?: number } = {}
+): Promise<SettledMediaModeration> {
+  const deadline = Date.now() + timeoutMs;
+  let firstCheck = true;
+  while (firstCheck || Date.now() < deadline) {
+    firstCheck = false;
     const { data, error } = await supabase.rpc('get_own_media_moderation_job', {
       p_job_id: jobId,
     });
@@ -79,6 +111,7 @@ export async function waitForOwnMediaJob(jobId: string): Promise<SettledMediaMod
       if (text.includes('UNAUTHORIZED')) {
         throw new DomainError('UNAUTHORIZED', 'Wymagane logowanie.');
       }
+      if (isNetworkError(error)) throw new ModerationPendingError();
       throw new DomainError('UNKNOWN', error.message || 'Nie udało się sprawdzić moderacji.');
     }
 
@@ -109,7 +142,7 @@ export async function waitForOwnMediaJob(jobId: string): Promise<SettledMediaMod
     }
   }
 
-  throw new DomainError('UNKNOWN', 'Moderacja trwa zbyt długo. Spróbuj ponownie.');
+  throw new ModerationPendingError();
 }
 
 async function edgeError(
@@ -131,6 +164,8 @@ async function edgeError(
     }
   }
   const message = `${serverCode} ${serverMessage} ${error?.message ?? fallback}`.trim();
+  const sizeError = mediaSizeError(message);
+  if (sizeError) return sizeError;
   if (message.includes('RATE_LIMITED')) return new DomainError('RATE_LIMITED', 'Limit wysyłek został przekroczony.');
   if (message.includes('AUTH_REQUIRED') || message.includes('INVALID_FINALIZE_TOKEN')) {
     return new DomainError('UNAUTHORIZED', 'Sesja użytkownika wygasła.');
@@ -142,6 +177,20 @@ async function edgeError(
   return new DomainError('UNKNOWN', message);
 }
 
+function mediaSizeError(message: string): DomainError | null {
+  if (message.includes('OBJECT_SIZE_MISMATCH')) return new DomainError('OBJECT_SIZE_MISMATCH', 'Rozmiar przesłanego pliku nie zgadza się ze zgłoszonym.');
+  if (message.includes('MEDIA_TOO_LARGE')) return new DomainError('MEDIA_TOO_LARGE', 'Zdjęcie przekracza 4 MiB lub wideo przekracza 100 MiB.');
+  if (message.includes('INVALID_SIZE')) return new DomainError('INVALID_SIZE', 'Nieprawidłowy rozmiar pliku.');
+  return null;
+}
+
+function clientCreatedAtField(createdAtMs: number | null | undefined) {
+  if (createdAtMs == null) return {};
+  const createdAt = new Date(createdAtMs);
+  // Older servers ignore the field; an unusable clock value is simply omitted.
+  return Number.isNaN(createdAt.getTime()) ? {} : { clientCreatedAt: createdAt.toISOString() };
+}
+
 export async function beginMediaUploadBatch(input: {
   idempotencyKey: string;
   mediaType: 'image' | 'video';
@@ -151,6 +200,8 @@ export async function beginMediaUploadBatch(input: {
   playbackDurationMs?: number | null;
   thumbnailB64?: string | null;
   recipients: DurableUploadRecipient[];
+  /** Durable job creation time (epoch ms); the server orders the delivered NiX by it. */
+  clientCreatedAt?: number | null;
 }) {
   const { data, error } = await supabase.functions.invoke<BeginMediaUploadResponse>(
     'begin-media-upload',
@@ -166,6 +217,7 @@ export async function beginMediaUploadBatch(input: {
           : Math.round(input.playbackDurationMs),
         thumbnailB64: input.thumbnailB64 ?? null,
         recipients: input.recipients,
+        ...clientCreatedAtField(input.clientCreatedAt),
       },
     }
   );
@@ -192,10 +244,8 @@ export async function finalizeMediaUploadBatch(input: {
       error?: string;
       code?: string;
     } | null;
-    throw new DomainError(
-      'UNKNOWN',
-      errorPayload?.error || `Finalizacja wysyłki nie powiodła się (${response.status}).`
-    );
+    const message = `${errorPayload?.code ?? ''} ${errorPayload?.error ?? ''}`;
+    throw mediaSizeError(message) ?? new DomainError('UNKNOWN', errorPayload?.error || `Finalizacja wysyłki nie powiodła się (${response.status}).`);
   }
   const payload = await response.json().catch(() => null) as FinalizeMediaUploadResponse | null;
   if (!payload || !('ok' in payload)) {

@@ -93,3 +93,25 @@ Deno.test('cleanup kasuje wyłącznie własny prefiks i ignoruje ścieżki odbio
   );
   assertEquals(removed.some((call) => call.bucket === 'avatars'), false);
 });
+
+Deno.test('cleanup usuwa archiwa eksportu danych użytkownika', async () => {
+  const listed: Array<{ bucket: string; prefix: string }> = [];
+  const removed: Array<{ bucket: string; paths: string[] }> = [];
+  await cleanupUserStorage(
+    {
+      list: async (bucket, prefix, page) => {
+        listed.push({ bucket, prefix });
+        if (bucket !== 'account-exports' || prefix !== 'user-1' || page.offset > 0) return [];
+        return [{ name: 'export-1.zip', id: 'zip-1' }];
+      },
+      remove: async (bucket, paths) => {
+        removed.push({ bucket, paths });
+      },
+    },
+    'user-1',
+  );
+  assertEquals(listed.some((call) => call.bucket === 'account-exports' && call.prefix === 'user-1'), true);
+  assertEquals(removed.filter((call) => call.bucket === 'account-exports'), [
+    { bucket: 'account-exports', paths: ['user-1/export-1.zip'] },
+  ]);
+});

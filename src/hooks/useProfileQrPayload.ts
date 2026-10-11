@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { buildFriendInviteTokenLink } from '../lib/friendInvite';
+import i18n from '../lib/i18n';
 import { createFriendInviteQrToken } from '../services/friendService';
+import { isNetworkError } from '../services/errors';
 
 export function useProfileQrPayload(enabled = true) {
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadTokenRef = useRef<() => Promise<void>>(async () => {});
   const [state, dispatch] = useReducer(
     (
-      current: { payload: string | null; loading: boolean; error: string | null },
+      current: {
+        payload: string | null;
+        expiresAtMs: number | null;
+        loading: boolean;
+        error: string | null;
+      },
       action:
         | { type: 'loading' }
         | { type: 'loaded'; payload: string; expiresAt: string }
@@ -20,16 +27,19 @@ export function useProfileQrPayload(enabled = true) {
         case 'loaded':
           return {
             payload: action.payload,
+            expiresAtMs: Number.isFinite(Date.parse(action.expiresAt))
+              ? Date.parse(action.expiresAt)
+              : null,
             loading: false,
             error: null,
           };
         case 'error':
-          return { payload: null, loading: false, error: action.error };
+          return { payload: null, expiresAtMs: null, loading: false, error: action.error };
         default:
           return current;
       }
     },
-    { payload: null, loading: true, error: null }
+    { payload: null, expiresAtMs: null, loading: true, error: null }
   );
 
   const clearRefreshTimeout = () => {
@@ -54,7 +64,10 @@ export function useProfileQrPayload(enabled = true) {
         void loadTokenRef.current();
       }, refreshInMs);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Nie udało się wygenerować kodu QR.';
+      // Service errors carry internal (English) diagnostics; the UI always shows localized copy.
+      const message = isNetworkError(error)
+        ? i18n.t('notify.networkHint')
+        : i18n.t('profile.qrGenerateFailed');
       dispatch({ type: 'error', error: message });
     }
   };
@@ -76,6 +89,8 @@ export function useProfileQrPayload(enabled = true) {
 
   return {
     payload: state.payload,
+    /** Expiry of the code currently on screen (kept while a background refresh runs). */
+    expiresAtMs: state.expiresAtMs,
     loading: state.loading,
     error: state.error,
     refresh: loadToken,

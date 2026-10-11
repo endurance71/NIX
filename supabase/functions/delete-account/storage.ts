@@ -82,4 +82,7 @@ export async function cleanupUserStorage(
   // another user's object. Physical deletes come only from listing owned prefixes.
   await emptyStoragePrefix(storage, 'media-vault', ownedMediaPrefix(userId));
   await emptyStoragePrefix(storage, 'avatars', userId);
+  // Export archives live under the user's prefix; their job rows cascade away
+  // with the profile, so nothing else would ever remove them.
+  await emptyStoragePrefix(storage, 'account-exports', userId);
 }

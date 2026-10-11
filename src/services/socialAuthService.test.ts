@@ -103,8 +103,8 @@ describe('socialAuthService', () => {
     expect(mockSaveAppleId).toHaveBeenCalledWith('apple-user-123');
     expect(mockLegalAcceptanceInsert).toHaveBeenCalledWith({
       user_id: 'user-1',
-      terms_version: '2026-09-12',
-      privacy_version: '2026-09-12',
+      terms_version: '2026-10-08',
+      privacy_version: '2026-10-08',
     });
   });
 
@@ -151,15 +151,6 @@ describe('socialAuthService', () => {
       token: 'identity-token',
       nonce: 'raw-nonce-123',
     });
-  });
-
-  it('zwraca błąd niedostępności poza iOS', async () => {
-    vi.stubEnv('EXPO_OS', 'android');
-
-    const { error } = await signInWithApple();
-
-    expect(error?.message).toBe(APPLE_SIGN_IN_ERROR_CODES.UNAVAILABLE);
-    expect(mockAppleAuth.isAvailableAsync).not.toHaveBeenCalled();
   });
 
   it('przy usuwaniu konta wymaga authorizationCode i nie zmienia sesji Supabase', async () => {

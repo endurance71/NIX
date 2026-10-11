@@ -2,14 +2,18 @@ import {
   createSupabaseRpc,
   loadTextPayload,
   resolveClaimedJob,
+  runWorkerLoop,
+  shouldContinueImmediately,
 } from "./main.ts";
+import { createShutdownController } from "./shutdown.ts";
+import type { ProcessOutcome } from "./process.ts";
 import {
   assertSafeObjectPath,
   jobTempDir,
   removeLocalJobFile,
   storageObjectUrl,
 } from "./download.ts";
-import { JOB_TEMP_DIRNAME } from "./constants.ts";
+import { JOB_TEMP_DIRNAME, WAITING_BUDGET } from "./constants.ts";
 
 function assert(value: unknown, message = "assertion_failed"): asserts value {
   if (!value) throw new Error(message);
@@ -318,4 +322,87 @@ Deno.test("removeLocalJobFile only deletes worker temp objects", async () => {
 
 Deno.test("jobTempDir uses override without leaking URLs", () => {
   assert(jobTempDir("/tmp/custom").endsWith("/tmp/custom"));
+});
+
+function loopHarness(outcomes: (ProcessOutcome | null | Error)[]) {
+  const shutdown = createShutdownController();
+  const sleeps: number[] = [];
+  let ticks = 0;
+  const tick = () => {
+    const next = outcomes[ticks++];
+    if (ticks >= outcomes.length) shutdown.requestStop();
+    if (next instanceof Error) return Promise.reject(next);
+    return Promise.resolve(next ?? null);
+  };
+  return {
+    shutdown,
+    sleeps,
+    tick,
+    get ticks() {
+      return ticks;
+    },
+  };
+}
+
+const APPROVED: ProcessOutcome = { decision: "approved", maxSeverity: 0, providerCalls: 1 };
+
+Deno.test("runWorkerLoop drains processed jobs without the idle sleep (DB-8)", async () => {
+  const h = loopHarness([APPROVED, APPROVED, { decision: "rejected", maxSeverity: 6, providerCalls: 1 }, null]);
+  await runWorkerLoop(h.tick, {
+    shutdown: h.shutdown,
+    idleMs: 1000,
+    sleep: (ms) => {
+      h.sleeps.push(ms);
+      return Promise.resolve();
+    },
+    onError: () => {},
+  });
+  assert(h.ticks === 4, `ticks ${h.ticks}`);
+  // Only the empty-queue tick sleeps.
+  assert(h.sleeps.length === 1 && h.sleeps[0] === 1000, `sleeps ${h.sleeps}`);
+});
+
+Deno.test("runWorkerLoop still sleeps after budget deferral, transient errors and tick failures", async () => {
+  const h = loopHarness([
+    { decision: "error", maxSeverity: null, providerCalls: 1, error: WAITING_BUDGET, waitingReason: WAITING_BUDGET },
+    { decision: "error", maxSeverity: null, providerCalls: 1, error: "provider_http_429" },
+    new Error("claim_failed"),
+    { decision: "error", maxSeverity: null, providerCalls: 1, error: "provider_invalid_response" },
+    null,
+  ]);
+  const errors: string[] = [];
+  await runWorkerLoop(h.tick, {
+    shutdown: h.shutdown,
+    idleMs: 7,
+    sleep: (ms) => {
+      h.sleeps.push(ms);
+      return Promise.resolve();
+    },
+    onError: (message) => errors.push(message),
+  });
+  assert(h.ticks === 5);
+  // budget, 429, thrown tick, idle → 4 sleeps; terminal provider error continues.
+  assert(h.sleeps.length === 4, `sleeps ${h.sleeps}`);
+  assert(errors.length === 1 && errors[0] === "claim_failed");
+});
+
+Deno.test("runWorkerLoop once mode returns after a single tick", async () => {
+  const h = loopHarness([APPROVED, APPROVED]);
+  await runWorkerLoop(h.tick, {
+    shutdown: h.shutdown,
+    once: true,
+    sleep: () => {
+      throw new Error("must_not_sleep");
+    },
+  });
+  assert(h.ticks === 1);
+});
+
+Deno.test("shouldContinueImmediately only for normally finished jobs", () => {
+  assert(shouldContinueImmediately(APPROVED));
+  assert(shouldContinueImmediately({ decision: "error", maxSeverity: null, providerCalls: 1, error: "payload_missing" }));
+  assert(!shouldContinueImmediately(null));
+  assert(!shouldContinueImmediately({ decision: "error", maxSeverity: null, providerCalls: 1, error: "provider_http_5xx" }));
+  assert(!shouldContinueImmediately({ decision: "error", maxSeverity: null, providerCalls: 1, error: "provider_network" }));
+  assert(!shouldContinueImmediately({ decision: "error", maxSeverity: null, providerCalls: 1, waitingReason: WAITING_BUDGET }));
 });

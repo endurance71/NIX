@@ -1,7 +1,6 @@
-import { Alert, Linking } from 'react-native';
 import i18n from './i18n';
 import { notifyError, notifySuccess } from './appNotify';
-import { tap } from './haptics';
+import { showPermissionDeniedAlert } from './permissionAlert';
 import { trackEvent } from './telemetry';
 import {
   ensureWritePermission,
@@ -32,33 +31,12 @@ type SaveRemoteArgs = {
   extHint?: string;
 };
 
-function permissionBlockedAlert() {
-  Alert.alert(
-    i18n.t('media.savePermissionBlockedTitle'),
-    i18n.t('media.savePermissionBlockedMessage'),
-    [
-      { text: i18n.t('common.cancel'), style: 'cancel' },
-      {
-        text: i18n.t('push.openSettings'),
-        onPress: () => {
-          void Linking.openSettings();
-        },
-      },
-    ]
-  );
-}
-
 async function withWritePermission(run: () => Promise<void>, source: SaveToGallerySource, extra: Record<string, unknown>) {
-  tap('light');
   const permission = await ensureWritePermission();
-  if (permission === 'blocked') {
-    trackEvent(`${source}_save_to_gallery`, { ...extra, outcome: 'blocked' });
-    permissionBlockedAlert();
-    return false;
-  }
-  if (permission === 'denied') {
-    trackEvent(`${source}_save_to_gallery`, { ...extra, outcome: 'denied' });
-    notifyError(i18n.t('media.savePermissionDenied'));
+  if (permission !== 'granted') {
+    // NOTIF-17: denied and blocked get the same shared alert (iOS will not show the prompt again).
+    trackEvent(`${source}_save_to_gallery`, { ...extra, outcome: permission });
+    showPermissionDeniedAlert('saveToPhotos');
     return false;
   }
 

@@ -1,7 +1,8 @@
 # Idle/live moderation worker. Secrets stay outside Git.
 # NIX_MODERATION_ENV_FILE must point at a mode-600 env file with:
 # AZURE_CONTENT_SAFETY_ENDPOINT, AZURE_CONTENT_SAFETY_KEY,
-# SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MODERATION_EXTERNAL_USED
+# SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, optional MODERATION_EXTERNAL_USED
+# (requires MODERATION_EXTERNAL_USED_MONTH=YYYY-MM; applied to that UTC month only)
 #
 # Do not publish ports. Do not set network_mode: none (needs Azure + PostgREST egress).
 # Do not set MODERATION_WORKER_ONCE on a hosted daemon.

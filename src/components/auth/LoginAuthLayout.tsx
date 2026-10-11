@@ -1,57 +1,61 @@
 import { type PropsWithChildren, useMemo } from 'react';
-import { useWindowDimensions } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { ScrollView, VStack } from '@expo/ui/swift-ui';
+import { VStack } from '@expo/ui/swift-ui';
+import { frame } from '@expo/ui/swift-ui/modifiers';
 import { AuthContentWidthContext } from '../ui/auth-content-width';
 import { AppHost } from '../ui/app-host';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import {
-  AUTH_FORM_HORIZONTAL_PADDING,
-  AUTH_LOGIN_TOP_PADDING,
-  getAuthContentWidth,
-} from '../../theme/authLayout';
-import { frame, padding } from '@expo/ui/swift-ui/modifiers';
+import { AUTH_FORM_HORIZONTAL_PADDING, getAuthContentWidth } from '../../theme/authLayout';
 
-function contentColumnModifiers(contentWidth: number) {
-  return [frame({ width: contentWidth, alignment: 'leading' })];
-}
-
-/** Login-only shell: scrollable column for hero + form zones. */
-export function LoginAuthLayout({ children }: PropsWithChildren) {
-  const { colors, statusBarStyle } = useAppTheme();
+/**
+ * Login-only shell: the native form as one content-sized card in a React Native scroll view,
+ * transparent over the `LoginStage`.
+ *
+ * A SwiftUI `ScrollView` here re-applied safe-area and keyboard insets on the first tap anywhere
+ * (and on focus), shifting the whole form down under the hero. The RN scroll view has no
+ * automatic insets; placement comes from `formTop` / `formBottom` (screen edges, insets read
+ * once) and `LoginStage` lifts the form above the keyboard.
+ */
+export function LoginAuthLayout({
+  children,
+  formTop,
+  formBottom,
+}: PropsWithChildren<{ formTop: number; formBottom: number }>) {
+  const { statusBarStyle } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const contentWidth = getAuthContentWidth(windowWidth);
   const contentWidthValue = useMemo(() => ({ contentWidth }), [contentWidth]);
 
   return (
     <AuthContentWidthContext.Provider value={contentWidthValue}>
-      <AppHost
-        style={{ flex: 1, backgroundColor: colors.background }}
-        safeAreaMode="respect"
-        useViewportSizeMeasurement>
-        <StatusBar style={statusBarStyle} />
-        <ScrollView
-          axes="vertical"
-          showsIndicators={false}
-          modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
-          <VStack
-            alignment="center"
-            spacing={0}
-            modifiers={[
-              padding({
-                top: AUTH_LOGIN_TOP_PADDING,
-                leading: AUTH_FORM_HORIZONTAL_PADDING,
-                bottom: AUTH_FORM_HORIZONTAL_PADDING,
-                trailing: AUTH_FORM_HORIZONTAL_PADDING,
-              }),
-              frame({ maxWidth: Infinity, alignment: 'top' }),
-            ]}>
-            <VStack alignment="leading" spacing={0} modifiers={contentColumnModifiers(contentWidth)}>
+      <StatusBar style={statusBarStyle} />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={{ paddingTop: formTop, paddingBottom: formBottom, alignItems: 'center' }}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustKeyboardInsets={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={false}>
+        <AppHost
+          style={{ width: contentWidth + AUTH_FORM_HORIZONTAL_PADDING * 2 }}
+          matchContents={{ vertical: true }}
+          safeAreaMode="fullBleed">
+          <VStack alignment="center" spacing={0} modifiers={[frame({ maxWidth: Infinity })]}>
+            <VStack alignment="leading" spacing={0} modifiers={[frame({ width: contentWidth, alignment: 'leading' })]}>
               {children}
             </VStack>
           </VStack>
-        </ScrollView>
-      </AppHost>
+        </AppHost>
+      </ScrollView>
     </AuthContentWidthContext.Provider>
   );
 }
+
+const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+});

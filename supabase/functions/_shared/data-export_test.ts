@@ -4,6 +4,9 @@ import {
   DATA_EXPORT_REAUTH_MAX_AGE_SECONDS,
   isExportReadyForDownload,
   isRecentAuthentication,
+  latestAuthenticationTime,
+  partitionExportNixes,
+  blockedPeerIdsFor,
 } from './data-export.ts';
 
 Deno.test('data export schema uses the consent fields present in the roadmap migration', () => {
@@ -49,4 +52,28 @@ Deno.test('data export download rejects missing, failed and expired jobs', () =>
     }, now),
     true
   );
+});
+
+Deno.test('reauthentication time comes from amr, not the refreshable iat', () => {
+  assertEquals(latestAuthenticationTime({ iat: 2_000_000 }), null);
+  assertEquals(
+    latestAuthenticationTime({
+      iat: 2_000_000,
+      amr: [{ method: 'password', timestamp: 1_000 }, { method: 'oauth', timestamp: 1_500 }],
+    }),
+    1_500,
+  );
+  assertEquals(latestAuthenticationTime({ amr: 'password' }), null);
+});
+
+Deno.test('export keeps unviewed received media as metadata and skips blocked peers', () => {
+  const rows = [
+    { id: 'sent', sender_id: 'me', receiver_id: 'friend' },
+    { id: 'received', sender_id: 'friend', receiver_id: 'me' },
+    { id: 'blocked', sender_id: 'blocked', receiver_id: 'me' },
+  ];
+  const blocked = blockedPeerIdsFor('me', [{ blocker_id: 'blocked', blocked_id: 'me' }]);
+  const { withMedia, metadataOnly } = partitionExportNixes(rows, 'me', blocked);
+  assertEquals(withMedia.map((row) => row.id), ['sent']);
+  assertEquals(metadataOnly.map((row) => row.id), ['received']);
 });

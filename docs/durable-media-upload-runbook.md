@@ -53,11 +53,26 @@ wstecznie, a istniejące zadania pozostają w kolejce.
 - Finalizator przyjmuje jednorazową, deterministyczną capability ograniczoną
   do batcha; nie przechowuje sesji użytkownika w zadaniu natywnym.
 - Finalizator sprawdza istnienie obiektu, dokładny rozmiar i MIME.
+- Podpisany URL uploadu i token finalizacji są w `nix-upload-queue.db` tylko
+  zaszyfrowane (`secrets_encrypted`, AES-GCM, klucz per konto w Keychain, AAD =
+  właściciel + zadanie; schema 5 szyfruje stare wiersze przy otwarciu). Na czas
+  transferu natywny `URLSessionTask.taskDescription` i plik finalizatora w `tmp/`
+  trzymają te wartości w sandboxie aplikacji; znikają po zakończeniu zadania.
+  Wylogowanie usuwa zadania, anuluje transfery i kasuje klucz.
 - Odbiorca może pobrać współdzielony asset wyłącznie przy aktywnym NiX-ie.
 - Cleanup, retry cleanupu i blokowanie użytkownika usuwają obiekt dopiero po
   zniknięciu ostatniej aktywnej referencji.
 - Live Activity zawiera tylko fazę, procent, liczbę pozostałych zadań i czas
   aktualizacji. Nie zawiera odbiorców, nazw, ścieżek ani miniatur.
+- Live Activity ma jednego zapisującego: na pierwszym planie JS
+  (`src/services/uploadLiveActivity.ts`), w tle moduł natywny. JS przekazuje do
+  App Group (`reportLiveActivityState`) tylko identyfikatory niezakończonych
+  zadań, ich stany i postęp oraz locale. Nie przekazuje odbiorców, ścieżek ani
+  tokenów. Swift kończy aktywność jako „Wysłano” tylko wtedy, gdy w tym stanie
+  nie ma już innej pracy, czyli kompresji kolejnego segmentu ani moderacji.
+- Postęp z URLSession jest ograniczany do ~4 zdarzeń/s (≥1 % zmiany), a
+  snapshoty są trzymane w pamięci i zapisywane na dysk najwyżej co ~1 s oraz
+  przy zmianie stanu albo przejściu do tła.
 
 ## Profile kompresji
 

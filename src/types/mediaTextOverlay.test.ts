@@ -5,11 +5,16 @@ import {
   DEFAULT_MEDIA_TEXT_COLOR,
   DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE,
   MAX_MEDIA_TEXT_OVERLAY_FONT_SIZE,
+  MEDIA_TEXT_CAPTION_BAR_COLOR,
+  MEDIA_TEXT_CAPTION_BAR_FONT_SIZE,
+  MEDIA_TEXT_CAPTION_BAR_TEXT_COLOR,
   MIN_MEDIA_TEXT_OVERLAY_FONT_SIZE,
   createDefaultMediaTextOverlay,
   isDefaultBarColor,
   normalizeMediaTextOverlay,
+  normalizeMediaTextVariant,
   resolveMediaTextBarColor,
+  resolveMediaTextRenderStyle,
 } from './mediaTextOverlay';
 
 describe('normalizeMediaTextOverlay', () => {
@@ -33,6 +38,7 @@ describe('normalizeMediaTextOverlay', () => {
       fontSize: 34,
     });
     expect(next).toEqual({
+      variant: 'sticker',
       text: 'hi',
       y: 0.3,
       fontSize: 34,
@@ -93,5 +99,96 @@ describe('normalizeMediaTextOverlay', () => {
     expect(DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE).toBe(34);
     expect(MIN_MEDIA_TEXT_OVERLAY_FONT_SIZE).toBeLessThan(DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE);
     expect(DEFAULT_MEDIA_TEXT_OVERLAY_FONT_SIZE).toBeLessThan(MAX_MEDIA_TEXT_OVERLAY_FONT_SIZE);
+  });
+});
+
+describe('media text variant', () => {
+  it('normalizes a missing or unknown variant to the sticker (drafts before the bar)', () => {
+    expect(normalizeMediaTextVariant(undefined)).toBe('sticker');
+    expect(normalizeMediaTextVariant('banner')).toBe('sticker');
+    expect(normalizeMediaTextVariant('sticker')).toBe('sticker');
+    expect(normalizeMediaTextVariant('bar')).toBe('bar');
+    expect(normalizeMediaTextOverlay({ text: 'old', y: 0.5, fontSize: 34 })?.variant).toBe(
+      'sticker'
+    );
+  });
+
+  it('keeps the bar variant and the sticker format underneath it', () => {
+    const next = normalizeMediaTextOverlay({
+      variant: 'bar',
+      text: ' caption ',
+      y: 0.6,
+      fontSize: 48,
+      textColor: '#FF9500',
+      bold: false,
+      align: 'left',
+    });
+    expect(next).toMatchObject({
+      variant: 'bar',
+      text: 'caption',
+      y: 0.6,
+      fontSize: 48,
+      textColor: '#FF9500',
+      bold: false,
+      align: 'left',
+    });
+  });
+
+  it('createDefaultMediaTextOverlay defaults to the sticker and accepts the bar', () => {
+    expect(createDefaultMediaTextOverlay('x').variant).toBe('sticker');
+    expect(createDefaultMediaTextOverlay('x', 'bar').variant).toBe('bar');
+  });
+
+  it('draws the bar with its fixed look regardless of the stored sticker format', () => {
+    const overlay = {
+      ...createDefaultMediaTextOverlay('x', 'bar'),
+      fontSize: 52,
+      textColor: '#FF2D55',
+      barColor: '#007AFFCC',
+      bold: true,
+      italic: true,
+      underline: true,
+      strikethrough: true,
+      monospace: true,
+      fontDesign: 'serif' as const,
+      align: 'right' as const,
+    };
+    expect(resolveMediaTextRenderStyle(overlay)).toEqual({
+      fontSize: MEDIA_TEXT_CAPTION_BAR_FONT_SIZE,
+      textColor: MEDIA_TEXT_CAPTION_BAR_TEXT_COLOR,
+      barColor: MEDIA_TEXT_CAPTION_BAR_COLOR,
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: false,
+      monospace: false,
+      fontDesign: 'system',
+      align: 'center',
+    });
+  });
+
+  it('draws the sticker exactly as formatted', () => {
+    const overlay = {
+      ...createDefaultMediaTextOverlay('x'),
+      fontSize: 52,
+      textColor: '#FF2D55',
+      italic: true,
+      fontDesign: 'rounded' as const,
+      align: 'left' as const,
+    };
+    expect(resolveMediaTextRenderStyle(overlay)).toMatchObject({
+      fontSize: 52,
+      textColor: '#FF2D55',
+      barColor: overlay.barColor,
+      bold: true,
+      italic: true,
+      fontDesign: 'rounded',
+      align: 'left',
+    });
+  });
+
+  it('uses a 60% black strip with white text', () => {
+    expect(MEDIA_TEXT_CAPTION_BAR_COLOR).toBe('#00000099');
+    expect(MEDIA_TEXT_CAPTION_BAR_TEXT_COLOR).toBe('#FFFFFF');
   });
 });

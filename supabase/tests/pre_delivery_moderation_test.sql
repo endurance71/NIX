@@ -100,13 +100,13 @@ SELECT is(
 );
 
 SELECT is(
-  has_function_privilege('anon', 'public.enqueue_own_text_moderation_job(uuid, text, text)', 'EXECUTE'),
+  has_function_privilege('anon', 'public.enqueue_own_text_moderation_job(uuid, text, text, uuid, uuid)', 'EXECUTE'),
   FALSE,
   'anon cannot enqueue own text moderation'
 );
 
 SELECT is(
-  has_function_privilege('authenticated', 'public.enqueue_own_text_moderation_job(uuid, text, text)', 'EXECUTE'),
+  has_function_privilege('authenticated', 'public.enqueue_own_text_moderation_job(uuid, text, text, uuid, uuid)', 'EXECUTE'),
   TRUE,
   'authenticated can enqueue own text moderation'
 );
@@ -119,14 +119,15 @@ SELECT is(
 
 SELECT is(
   (
-    SELECT p.pronargs::integer
+    -- 20261013100000 added the trailing p_reply_to_nix_id; the sender is still auth.uid().
+    SELECT NOT ('p_sender_id' = ANY (p.proargnames))
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
       AND p.proname = 'enqueue_own_text_moderation_job'
       AND p.prosecdef
   ),
-  3,
+  TRUE,
   'own enqueue has no p_sender_id argument'
 );
 

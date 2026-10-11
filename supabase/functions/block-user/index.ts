@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.5';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import { corsHeaders, getBearerToken, json } from '../_shared/http.ts';
 
 Deno.serve(async (req) => {
@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
       .from('media-vault')
       .remove(sharedPaths);
     if (storageError) {
-      // Assets already have status=deleting; the hourly orphan sweeper will
+      // Assets already have status=deleting; the 5-minute orphan sweeper will
       // retry physical deletion without affecting remaining recipients.
       return json({ error: 'Block was saved, but shared media cleanup was deferred' }, 500);
     }

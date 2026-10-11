@@ -3,10 +3,13 @@ import { GestureDetector } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { tap } from '../../lib/haptics';
-import { DEFAULT_MEDIA_TEXT_COLOR } from '../../types/mediaTextOverlay';
+import {
+  DEFAULT_MEDIA_TEXT_COLOR,
+  MEDIA_TEXT_CAPTION_BAR_LINE_HEIGHT_FACTOR,
+} from '../../types/mediaTextOverlay';
 import { NativeChromeIconButton } from '../ui/native-chrome-icon-button';
 import { PreviewTextBar } from './PreviewTextBar';
+import { PreviewTextVariantPicker } from './PreviewTextVariantPicker';
 import type { PreviewTextStickerProps } from './PreviewTextSticker.types';
 import { placeholderColorForText } from './previewTextPlaceholder';
 import {
@@ -27,10 +30,139 @@ type PreviewTextStickerContentProps = Pick<
   | 'onConfirm'
   | 'onDelete'
 > &
-  Pick<PreviewTextStickerProps, 'style'> & {
+  Pick<PreviewTextStickerProps, 'style' | 'onBarHeightChange' | 'onChangeVariant'> & {
+    variant: NonNullable<PreviewTextStickerProps['variant']>;
     exiting: boolean;
     controller: ReturnType<typeof usePreviewTextStickerController>;
   };
+
+function StickerTextInput({
+  text,
+  fontSize,
+  textColor,
+  bold,
+  onChangeText,
+  onConfirm,
+  exiting,
+  controller,
+}: Pick<
+  PreviewTextStickerContentProps,
+  | 'text'
+  | 'fontSize'
+  | 'textColor'
+  | 'bold'
+  | 'onChangeText'
+  | 'onConfirm'
+  | 'exiting'
+  | 'controller'
+>) {
+  const {
+    inputRef,
+    inputTextStyle,
+    emptyCaretPaddingLeft,
+    textAlign,
+    textStyleExtras,
+    emptyEditing,
+    isEditing,
+    placeholderText,
+  } = controller;
+  const fontWeight = bold ? '700' : '400';
+  return (
+    <AnimatedTextInput
+      ref={inputRef}
+      value={text}
+      onChangeText={onChangeText}
+      onFocus={controller.handleInputFocus}
+      placeholder=""
+      // The sticker is media content: its size comes from the size slider and is baked into the
+      // file in points, so Dynamic Type must not scale it on screen.
+      allowFontScaling={false}
+      style={[
+        styles.input,
+        styles.inputLayer,
+        inputTextStyle,
+        emptyCaretPaddingLeft != null
+          ? {
+              paddingLeft: emptyCaretPaddingLeft,
+              paddingRight: BAR_TEXT_HORIZONTAL_PADDING,
+            }
+          : null,
+        {
+          color: textColor,
+          fontSize,
+          fontWeight,
+          textAlign: emptyEditing ? 'left' : textAlign,
+          ...textStyleExtras,
+        },
+      ]}
+      editable={isEditing && !controller.sheetPresented}
+      pointerEvents={isEditing && !controller.sheetPresented && !exiting ? 'auto' : 'none'}
+      multiline
+      maxLength={200}
+      textAlign={textAlign}
+      returnKeyType="done"
+      blurOnSubmit
+      onSubmitEditing={onConfirm}
+      accessibilityLabel={placeholderText}
+      showSoftInputOnFocus={isEditing && !controller.sheetPresented && !exiting}
+    />
+  );
+}
+
+/** Edit-mode row above the caption: format (sticker only), bar / sticker switch, delete. */
+function StickerActionsRow({
+  variant,
+  onChangeVariant,
+  onDelete,
+  exiting,
+  controller,
+}: Pick<
+  PreviewTextStickerContentProps,
+  'variant' | 'onChangeVariant' | 'onDelete' | 'exiting' | 'controller'
+>) {
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
+  const { actionsStyle, isEditing, openFormatSheet } = controller;
+  const isBar = variant === 'bar';
+  return (
+    <Animated.View
+      style={[styles.actionsRow, isBar ? styles.actionsRowBar : null, actionsStyle]}
+      pointerEvents={isEditing && !exiting ? 'auto' : 'none'}>
+      <View style={styles.actionSlot}>
+        {/* The bar has a fixed look: no format sheet. The slot stays so the switch is centred. */}
+        {!isBar ? (
+          <NativeChromeIconButton
+            name="textFormat"
+            accessibilityLabel={t('preview.textFormat')}
+            onPress={openFormatSheet}
+            backgroundColor={colors.cameraControlBackground}
+            tintColor={colors.cameraControlTint}
+            chromeVariant="glass"
+          />
+        ) : null}
+      </View>
+      <View pointerEvents={onChangeVariant ? 'box-none' : 'none'} style={styles.actionsSpacer}>
+        {onChangeVariant ? (
+          <PreviewTextVariantPicker
+            variant={variant}
+            onChangeVariant={onChangeVariant}
+            backgroundColor={colors.cameraControlBackground}
+          />
+        ) : null}
+      </View>
+      <View style={styles.actionSlot}>
+        <NativeChromeIconButton
+          name="trash"
+          accessibilityLabel={t('preview.deleteText')}
+          onPress={onDelete}
+          backgroundColor={colors.cameraControlBackground}
+          tintColor={colors.destructive}
+          chromeVariant="glass"
+        />
+      </View>
+    </Animated.View>
+  );
+}
 
 export function PreviewTextStickerContent({
   text,
@@ -43,23 +175,21 @@ export function PreviewTextStickerContent({
   onDelete,
   exiting,
   style,
+  onBarHeightChange,
+  variant,
+  onChangeVariant,
   controller,
 }: PreviewTextStickerContentProps) {
-  const { t } = useTranslation();
-  const { colors } = useAppTheme();
   const fontWeight = bold ? '700' : '400';
+  // The caption bar spans the media edge to edge (like the bake); the sticker keeps 90%.
+  const isBar = variant === 'bar';
   const {
-    actionsStyle,
     composed,
     contentPresenceStyle,
     displayTextStyle,
-    emptyCaretPaddingLeft,
     emptyEditing,
-    inputRef,
-    inputTextStyle,
     isEditing,
     minimumBarHeight,
-    openFormatSheet,
     placeholderText,
     setBarInnerWidth,
     setPlaceholderWidth,
@@ -71,53 +201,42 @@ export function PreviewTextStickerContent({
   return (
     <GestureDetector gesture={composed}>
       <Animated.View
-        style={[styles.shell, shellStyle, style]}
+        style={[styles.shell, isBar ? styles.shellBar : null, shellStyle, style]}
         pointerEvents="box-none"
         accessibilityRole={!isEditing ? 'button' : undefined}
         accessibilityLabel={!isEditing ? text : undefined}>
-        <View style={[styles.stickerWidth, { minHeight: minimumBarHeight }]}>
-          <Animated.View
-            style={[styles.actionsRow, actionsStyle]}
-            pointerEvents={isEditing && !exiting ? 'auto' : 'none'}>
-            <View style={styles.actionSlot}>
-              <NativeChromeIconButton
-                name="textFormat"
-                accessibilityLabel={t('preview.textFormat')}
-                onPress={() => {
-                  tap('light');
-                  openFormatSheet();
-                }}
-                backgroundColor={colors.cameraControlBackground}
-                tintColor={colors.cameraControlTint}
-                chromeVariant="glass"
-              />
-            </View>
-            <View pointerEvents="none" style={styles.actionsSpacer} />
-            <View style={styles.actionSlot}>
-              <NativeChromeIconButton
-                name="trash"
-                accessibilityLabel={t('preview.deleteText')}
-                onPress={() => {
-                  tap('light');
-                  onDelete();
-                }}
-                backgroundColor={colors.cameraControlBackground}
-                tintColor={colors.destructive}
-                chromeVariant="glass"
-              />
-            </View>
-          </Animated.View>
+        <View
+          style={[
+            styles.stickerWidth,
+            isBar ? styles.stripWidth : null,
+            { minHeight: minimumBarHeight },
+          ]}
+          onLayout={(event) => onBarHeightChange?.(event.nativeEvent.layout.height)}>
+          <StickerActionsRow
+            variant={variant}
+            onChangeVariant={onChangeVariant}
+            onDelete={onDelete}
+            exiting={exiting}
+            controller={controller}
+          />
 
           <PreviewTextBar
             style={[styles.barWidth, { minHeight: minimumBarHeight }]}
-            barColor={barColor}>
+            barColor={barColor}
+            variant={variant}
+            contentInsetH={BAR_TEXT_HORIZONTAL_PADDING}>
             <View
-              style={[styles.barInner, { minHeight: fontSize * 1.25 }]}
+              style={[
+                styles.barInner,
+                // The bar's empty line matches the bake's one-line minimum.
+                { minHeight: fontSize * (isBar ? MEDIA_TEXT_CAPTION_BAR_LINE_HEIGHT_FACTOR : 1.25) },
+              ]}
               onLayout={(event) => setBarInnerWidth(event.nativeEvent.layout.width)}>
               <Animated.View style={[styles.barContentLayer, contentPresenceStyle]}>
                 {emptyEditing ? (
                   <Text
                     pointerEvents="none"
+                    allowFontScaling={false}
                     style={[
                       styles.fakePlaceholder,
                       {
@@ -135,6 +254,7 @@ export function PreviewTextStickerContent({
                 {emptyEditing ? (
                   <Text
                     pointerEvents="none"
+                    allowFontScaling={false}
                     onLayout={(event) => setPlaceholderWidth(event.nativeEvent.layout.width)}
                     style={[
                       styles.placeholderMeasure,
@@ -149,6 +269,7 @@ export function PreviewTextStickerContent({
                   </Text>
                 ) : null}
                 <Animated.Text
+                  allowFontScaling={false}
                   style={[
                     styles.displayText,
                     {
@@ -163,43 +284,15 @@ export function PreviewTextStickerContent({
                   pointerEvents={isEditing ? 'none' : 'auto'}>
                   {text || ' '}
                 </Animated.Text>
-                <AnimatedTextInput
-                  ref={inputRef}
-                  value={text}
+                <StickerTextInput
+                  text={text}
+                  fontSize={fontSize}
+                  textColor={textColor}
+                  bold={bold}
                   onChangeText={onChangeText}
-                  placeholder=""
-                  style={[
-                    styles.input,
-                    styles.inputLayer,
-                    inputTextStyle,
-                    emptyCaretPaddingLeft != null
-                      ? {
-                          paddingLeft: emptyCaretPaddingLeft,
-                          paddingRight: BAR_TEXT_HORIZONTAL_PADDING,
-                        }
-                      : null,
-                    {
-                      color: textColor,
-                      fontSize,
-                      fontWeight,
-                      textAlign: emptyEditing ? 'left' : textAlign,
-                      ...textStyleExtras,
-                    },
-                  ]}
-                  editable={isEditing && !controller.sheetPresented}
-                  pointerEvents={
-                    isEditing && !controller.sheetPresented && !exiting ? 'auto' : 'none'
-                  }
-                  multiline
-                  maxLength={200}
-                  textAlign={textAlign}
-                  returnKeyType="done"
-                  blurOnSubmit
-                  onSubmitEditing={onConfirm}
-                  accessibilityLabel={placeholderText}
-                  showSoftInputOnFocus={
-                    isEditing && !controller.sheetPresented && !exiting
-                  }
+                  onConfirm={onConfirm}
+                  exiting={exiting}
+                  controller={controller}
                 />
               </Animated.View>
             </View>
@@ -213,16 +306,23 @@ export function PreviewTextStickerContent({
 const styles = StyleSheet.create({
   shell: {
     position: 'absolute',
+    top: 0,
     left: 0,
     right: 0,
     alignItems: 'center',
     zIndex: 20,
     paddingHorizontal: 16,
   },
+  shellBar: {
+    paddingHorizontal: 0,
+  },
   stickerWidth: {
     width: '90%',
     alignSelf: 'center',
     position: 'relative',
+  },
+  stripWidth: {
+    width: '100%',
   },
   barWidth: {
     width: '100%',
@@ -241,8 +341,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     zIndex: 2,
   },
+  actionsRowBar: {
+    left: 16,
+    right: 16,
+  },
   actionsSpacer: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actionSlot: {
     width: 48,

@@ -1,16 +1,11 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import type { VideoThumbnail } from 'expo-video';
-import { Video as VideoCompressor } from 'react-native-compressor';
-import { supabase } from '../lib/supabase';
 import { generateVideoThumbnailAtTime } from '../lib/videoThumbnails';
-import { insertNix } from './nixService';
-import { getCurrentUser } from './profileService';
-import { DomainError } from './errors';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
-import { uploadResumable } from './resumableUploadService';
 import { withTimeout, getCompressionTimeout } from '../lib/compressionTimeout';
 import { selectVideoCompressionProfile } from '../lib/durableUploadPolicy';
+import { DomainError } from './errors';
 
 export function buildContentType(fileUri: string) {
   const ext = fileUri.split('?')[0].split('.').pop()?.toLowerCase() || 'jpg';
@@ -21,17 +16,9 @@ export function buildContentType(fileUri: string) {
   };
 }
 
-function buildVideoContentType(fileUri: string) {
-  const ext = fileUri.split('?')[0].split('.').pop()?.toLowerCase() || 'mp4';
-  const contentType =
-    ext === 'mov' ? 'video/quicktime' : ext === 'm4v' ? 'video/x-m4v' : 'video/mp4';
-  return { ext, contentType };
-}
-
 export const NIX_ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const NIX_ALLOWED_VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/x-m4v']);
 
-export const MAX_IMAGE_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+export const MAX_IMAGE_FILE_SIZE_BYTES = 4 * 1024 * 1024;
 const TARGET_IMAGE_LONG_EDGE = 1440;
 const TARGET_IMAGE_QUALITY = 0.75;
 /** Skip re-encode when camera/gallery file is already within size + dimension budget. */
@@ -42,10 +29,6 @@ const IMAGE_FAST_PATH_MAX_BYTES = 1.5 * 1024 * 1024;
  * względem 400 MB limitu bucketa.
  */
 export const MAX_VIDEO_FILE_SIZE_BYTES = 100 * 1024 * 1024;
-const MAX_VIDEO_FILE_SIZE_MB = Math.round(MAX_VIDEO_FILE_SIZE_BYTES / (1024 * 1024));
-const BYTES_IN_MB = 1024 * 1024;
-const SUPABASE_MAX_OBJECT_SIZE_ERROR = 'The object exceeded the maximum allowed size';
-const SUPABASE_MISSING_THUMBNAIL_COLUMN_ERROR = "Could not find the 'thumbnail_b64' column";
 
 const THUMBNAIL_TARGET_WIDTH = 240;
 const THUMBNAIL_FALLBACK_WIDTH = 200;
@@ -53,25 +36,6 @@ const THUMBNAIL_TARGET_QUALITY = 0.55;
 const THUMBNAIL_FALLBACK_QUALITY = 0.4;
 /** Maksymalny rozmiar binarki miniatury (≈45 KB) — synchronicznie z CHECK w SQL. */
 const THUMBNAIL_MAX_BINARY_BYTES = 45 * 1024;
-
-function mapStorageUploadError(message: string) {
-  if (message.includes(SUPABASE_MAX_OBJECT_SIZE_ERROR)) {
-    return `Plik wideo przekracza limit uploadu serwera. Utrzymaj plik poniżej ${MAX_VIDEO_FILE_SIZE_MB} MB.`;
-  }
-  return message;
-}
-
-function isMissingThumbnailColumnError(error: unknown) {
-  const message =
-    typeof error === 'object' && error && 'message' in error && typeof error.message === 'string'
-      ? error.message
-      : '';
-  return (
-    message.includes('column nixes.thumbnail_b64 does not exist') ||
-    message.includes(SUPABASE_MISSING_THUMBNAIL_COLUMN_ERROR) ||
-    (message.includes('thumbnail_b64') && message.includes('schema cache'))
-  );
-}
 
 type MediaUploadPhase = 'reading' | 'compressing' | 'thumbnail' | 'uploading' | 'creating_record' | 'cleanup';
 
@@ -116,10 +80,41 @@ function emitProgress(options: MediaUploadOptions | undefined, progress: MediaUp
   options?.onProgress?.(progress);
 }
 
-function assertNotCancelled(signal?: AbortSignal) {
-  if (signal?.aborted) {
-    throw new DomainError('CANCELLED', 'Wysyłka została anulowana.');
-  }
+/**
+ * Video preparation runs several steps (transcode, optional aggressive second pass, thumbnail).
+ * Each owns a slice of 0…1 and the emitted value never decreases, so the upload ring cannot jump
+ * back when the next step starts (SEND-3).
+ */
+const VIDEO_PREPARE_BANDS = {
+  compressing: [0, 0.8],
+  aggressivePass: [0.8, 0.9],
+  thumbnail: [0.9, 1],
+} as const;
+
+function createMonotonicProgressEmitter(options: MediaUploadOptions | undefined) {
+  let last = 0;
+  return (phase: MediaUploadPhase, band: readonly [number, number], fraction: number) => {
+    const clamped = Math.max(0, Math.min(1, Number.isFinite(fraction) ? fraction : 0));
+    const value = band[0] + (band[1] - band[0]) * clamped;
+    if (value < last) return;
+    last = value;
+    emitProgress(options, { phase, progress: value });
+  };
+}
+
+type VideoCompressorModule = typeof import('react-native-compressor');
+let videoCompressorModule: Promise<VideoCompressorModule> | null = null;
+
+/**
+ * react-native-compressor is only needed when a video is actually transcoded; loading it on first
+ * use keeps its native module out of app start (PERF-4).
+ */
+function loadVideoCompressor() {
+  videoCompressorModule ??= import('react-native-compressor').catch((error: unknown) => {
+    videoCompressorModule = null;
+    throw error;
+  });
+  return videoCompressorModule.then((module) => module.Video);
 }
 
 async function getFileSizeBytes(uri: string): Promise<number | null> {
@@ -347,7 +342,8 @@ async function buildThumbnailDataUrl(
 export function isFastPathEligible(
   fileUri: string,
   originalSizeBytes: number | null | undefined,
-  playbackDurationMs: number | null | undefined
+  playbackDurationMs: number | null | undefined,
+  sourceDimensions: { width?: number | null; height?: number | null } = {}
 ): boolean {
   const estimatedBitrate =
     typeof originalSizeBytes === 'number' &&
@@ -358,6 +354,8 @@ export function isFastPathEligible(
   const profile = selectVideoCompressionProfile({
     sourceBitrate: estimatedBitrate,
     sourceSizeBytes: null,
+    sourceWidth: sourceDimensions.width,
+    sourceHeight: sourceDimensions.height,
     hevcEnabled: false,
     hevcSupported: false,
   });
@@ -371,7 +369,8 @@ export function isFastPathEligible(
 export async function prepareVideoForUpload(fileUri: string, options?: MediaUploadOptions): Promise<PreparedMedia> {
   const startedAt = nowMs();
   const originalSizeBytes = await getFileSizeBytes(fileUri);
-  emitProgress(options, { phase: 'compressing', progress: 0.02 });
+  const emitVideoProgress = createMonotonicProgressEmitter(options);
+  emitVideoProgress('compressing', VIDEO_PREPARE_BANDS.compressing, 0.02);
 
   if (isTestRuntime()) {
     return {
@@ -400,6 +399,8 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
   const balancedProfile = selectVideoCompressionProfile({
     sourceBitrate,
     sourceSizeBytes: null,
+    sourceWidth: options?.sourceWidth,
+    sourceHeight: options?.sourceHeight,
     hevcEnabled: false,
     hevcSupported: false,
   });
@@ -413,7 +414,10 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
     : balancedProfile;
 
   const fastPathEligible = !options?.forceAggressiveCompression
-    && isFastPathEligible(fileUri, originalSizeBytes, options?.playbackDurationMs);
+    && isFastPathEligible(fileUri, originalSizeBytes, options?.playbackDurationMs, {
+      width: options?.sourceWidth,
+      height: options?.sourceHeight,
+    });
 
   if (fastPathEligible) {
     const estimatedBitrate = typeof originalSizeBytes === 'number' && typeof options?.playbackDurationMs === 'number' && options.playbackDurationMs > 0
@@ -426,13 +430,14 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
       target_bitrate: balancedProfile.bitrate,
       estimated_bitrate: estimatedBitrate,
     });
-    emitProgress(options, { phase: 'compressing', progress: 0.95 });
+    emitVideoProgress('compressing', VIDEO_PREPARE_BANDS.compressing, 1);
   } else {
     try {
       console.warn('[upload] video compress start', {
         bytes: originalSizeBytes,
         bitrate: selectedProfile.bitrate,
       });
+      const VideoCompressor = await loadVideoCompressor();
       compressedUri = await withTimeout(
         VideoCompressor.compress(
           fileUri,
@@ -445,7 +450,7 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
             progressDivider: 5,
           },
           (progress) => {
-            emitProgress(options, { phase: 'compressing', progress: Math.max(0.02, Math.min(0.95, progress)) });
+            emitVideoProgress('compressing', VIDEO_PREPARE_BANDS.compressing, progress);
           }
         ),
         getCompressionTimeout(originalSizeBytes)
@@ -477,7 +482,7 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
               progressDivider: 5,
             },
             (progress) => {
-              emitProgress(options, { phase: 'compressing', progress: Math.max(0.4, Math.min(0.95, progress)) });
+              emitVideoProgress('compressing', VIDEO_PREPARE_BANDS.aggressivePass, progress);
             }
           ),
           getCompressionTimeout(firstPassSize)
@@ -506,7 +511,7 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
   let thumbnailUri: string | null = null;
   let thumbnailDataUrl: string | null = null;
   try {
-    emitProgress(options, { phase: 'thumbnail', progress: 0.2 });
+    emitVideoProgress('thumbnail', VIDEO_PREPARE_BANDS.thumbnail, 0);
     const thumbRef = await thumbnailPromise;
     if (thumbRef) {
       const previewContext = ImageManipulator.manipulate(thumbRef);
@@ -544,7 +549,7 @@ export async function prepareVideoForUpload(fileUri: string, options?: MediaUplo
         error_message: 'generateVideoThumbnailAtTime returned null',
       });
     }
-    emitProgress(options, { phase: 'thumbnail', progress: 1 });
+    emitVideoProgress('thumbnail', VIDEO_PREPARE_BANDS.thumbnail, 1);
   } catch (error) {
     trackEvent('thumbnail_generation_failed', {
       media_type: 'video',
@@ -621,279 +626,4 @@ export async function getImageBytes(fileUri: string): Promise<Uint8Array> {
     throw new DomainError('INVALID_MEDIA', 'Plik jest pusty lub uszkodzony.');
   }
   return new Uint8Array(buffer);
-}
-
-export async function uploadImageAndCreateNix(
-  fileUri: string,
-  receiverId: string,
-  viewDurationSec = 5,
-  options?: MediaUploadOptions
-) {
-  const user = await getCurrentUser();
-  if (!user) throw new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
-
-  assertNotCancelled(options?.signal);
-  const prepared = await prepareImageForUpload(fileUri, options);
-  emitProgress(options, { phase: 'reading', progress: 0 });
-  const { contentType } = buildContentType(prepared.uri);
-  const ext = 'jpg';
-
-  if (!receiverId) {
-    throw new DomainError('INVALID_RECEIVER', 'Wybierz poprawnego odbiorcę.');
-  }
-
-  if (!NIX_ALLOWED_IMAGE_TYPES.has(contentType)) {
-    throw new DomainError('INVALID_MEDIA', 'Nieobsługiwany format pliku.');
-  }
-
-  const finalSizeBytes = prepared.sizeBytes ?? prepared.originalSizeBytes ?? null;
-  if (typeof finalSizeBytes !== 'number' || finalSizeBytes <= 0) {
-    throw new DomainError('INVALID_MEDIA', 'Plik jest pusty lub uszkodzony.');
-  }
-
-  if (finalSizeBytes > MAX_IMAGE_FILE_SIZE_BYTES) {
-    throw new DomainError('INVALID_MEDIA', 'Plik jest za duży. Maksymalny rozmiar to 10 MB.');
-  }
-
-  const stableUploadId = options?.clientUploadId?.replace(/[^a-zA-Z0-9_-]/g, '');
-  const fileName = `${user.id}/${stableUploadId || `${Date.now()}_${Math.random().toString(36).substring(7)}`}.${ext}`;
-  const filePath = `nixes/${fileName}`;
-
-  const hasExistingNix = async () => {
-    if (typeof (supabase as { from?: unknown }).from !== 'function') return false;
-    const { data } = await supabase
-      .from('nixes')
-      .select('id')
-      .eq('sender_id', user.id)
-      .eq('receiver_id', receiverId)
-      .eq('media_path', filePath)
-      .limit(1)
-      .maybeSingle();
-    return Boolean(data?.id);
-  };
-
-  emitProgress(options, {
-    phase: 'uploading',
-    progress: 0,
-    bytesSent: 0,
-    bytesTotal: finalSizeBytes,
-    attempt: 1,
-  });
-
-  const uploadStartedAt = nowMs();
-  try {
-    await uploadResumable({
-      bucket: 'media-vault',
-      objectPath: filePath,
-      fileUri: prepared.uri,
-      contentType,
-      fileSizeBytes: finalSizeBytes,
-      cacheControl: '3600',
-      upsert: false,
-      signal: options?.signal,
-      onProgress: ({ bytesSent, bytesTotal, attempt }) => {
-        emitProgress(options, {
-          phase: 'uploading',
-          progress: bytesTotal > 0 ? Math.min(0.99, bytesSent / bytesTotal) : 0,
-          bytesSent,
-          bytesTotal,
-          attempt,
-        });
-      },
-    });
-
-    trackDuration('upload_ms', uploadStartedAt, {
-      bucket: 'media-vault',
-      status: 'success',
-      media_bytes: finalSizeBytes,
-      transport: 'resumable',
-    });
-
-    emitProgress(options, {
-      phase: 'uploading',
-      progress: 1,
-      bytesSent: finalSizeBytes,
-      bytesTotal: finalSizeBytes,
-      attempt: 1,
-    });
-
-    emitProgress(options, { phase: 'creating_record', progress: 0.5 });
-    if (!(await hasExistingNix())) {
-      await insertNix(receiverId, filePath, viewDurationSec, {
-        clientUploadId: stableUploadId ?? filePath,
-        thumbnailB64: prepared.thumbnailDataUrl,
-      });
-    }
-    emitProgress(options, { phase: 'creating_record', progress: 1 });
-  } catch (error) {
-    trackDuration('upload_ms', uploadStartedAt, {
-      bucket: 'media-vault',
-      status: 'failure',
-      media_bytes: finalSizeBytes,
-      transport: 'resumable',
-      error_message: error instanceof Error ? error.message : 'Unknown image upload error',
-    });
-    throw error;
-  } finally {
-    emitProgress(options, { phase: 'cleanup', progress: 0 });
-    releasePreparedMedia(prepared.temporaryUris);
-    emitProgress(options, { phase: 'cleanup', progress: 1 });
-  }
-}
-
-export async function uploadVideoAndCreateNix(
-  fileUri: string,
-  receiverId: string,
-  playbackDurationMs: number,
-  viewDurationSec = 5,
-  options?: MediaUploadOptions
-) {
-  const user = await getCurrentUser();
-  if (!user) throw new DomainError('UNAUTHORIZED', 'Brak autoryzacji.');
-
-  assertNotCancelled(options?.signal);
-
-  let fileSizeBytes: number | undefined;
-  if (fileUri.startsWith('file://')) {
-    const info = await FileSystem.getInfoAsync(fileUri);
-    if (info.exists) fileSizeBytes = info.size;
-  }
-
-  const prepared = await withTimeout(
-    prepareVideoForUpload(fileUri, { ...options, playbackDurationMs }),
-    getCompressionTimeout(fileSizeBytes)
-  );
-  emitProgress(options, { phase: 'reading', progress: 0 });
-
-  const { ext, contentType } = buildVideoContentType(prepared.uri);
-
-  if (!receiverId) {
-    throw new DomainError('INVALID_RECEIVER', 'Wybierz poprawnego odbiorcę.');
-  }
-
-  if (!NIX_ALLOWED_VIDEO_TYPES.has(contentType)) {
-    throw new DomainError('INVALID_MEDIA', 'Nieobsługiwany format wideo.');
-  }
-
-  // Walidacja rozmiaru bez wczytywania pliku do RAM. Korzystamy z `prepared.sizeBytes`
-  // (po kompresji) lub `originalSizeBytes` (fast-path / fallback).
-  const finalSizeBytes = prepared.sizeBytes ?? prepared.originalSizeBytes ?? null;
-  if (typeof finalSizeBytes !== 'number' || finalSizeBytes <= 0) {
-    throw new DomainError('INVALID_MEDIA', 'Plik jest pusty lub uszkodzony.');
-  }
-  if (finalSizeBytes > MAX_VIDEO_FILE_SIZE_BYTES) {
-    const finalSizeMb = (finalSizeBytes / BYTES_IN_MB).toFixed(1);
-    throw new DomainError(
-      'INVALID_MEDIA',
-      `Plik nadal jest za duży po kompresji (${finalSizeMb} MB). Maksymalny rozmiar to ${MAX_VIDEO_FILE_SIZE_MB} MB — wybierz krótsze wideo.`
-    );
-  }
-
-  const stableUploadId = options?.clientUploadId?.replace(/[^a-zA-Z0-9_-]/g, '');
-  const fileName = `${user.id}/${stableUploadId || `${Date.now()}_${Math.random().toString(36).substring(7)}`}.${ext}`;
-  const filePath = `nixes/${fileName}`;
-
-  const hasExistingNix = async () => {
-    if (typeof (supabase as { from?: unknown }).from !== 'function') return false;
-    const { data } = await supabase
-      .from('nixes')
-      .select('id')
-      .eq('sender_id', user.id)
-      .eq('receiver_id', receiverId)
-      .eq('media_path', filePath)
-      .limit(1)
-      .maybeSingle();
-    return Boolean(data?.id);
-  };
-
-  emitProgress(options, {
-    phase: 'uploading',
-    progress: 0,
-    bytesSent: 0,
-    bytesTotal: finalSizeBytes,
-    attempt: 1,
-  });
-
-  const uploadStartedAt = nowMs();
-  try {
-    await uploadResumable({
-      bucket: 'media-vault',
-      objectPath: filePath,
-      fileUri: prepared.uri,
-      contentType,
-      fileSizeBytes: finalSizeBytes,
-      cacheControl: '3600',
-      upsert: false,
-      signal: options?.signal,
-      onProgress: ({ bytesSent, bytesTotal, attempt }) => {
-        emitProgress(options, {
-          phase: 'uploading',
-          progress: bytesTotal > 0 ? Math.min(0.99, bytesSent / bytesTotal) : 0,
-          bytesSent,
-          bytesTotal,
-          attempt,
-        });
-      },
-    });
-
-    trackDuration('upload_ms', uploadStartedAt, {
-      bucket: 'media-vault',
-      status: 'success',
-      media_bytes: finalSizeBytes,
-      transport: 'resumable',
-    });
-
-    emitProgress(options, {
-      phase: 'uploading',
-      progress: 1,
-      bytesSent: finalSizeBytes,
-      bytesTotal: finalSizeBytes,
-      attempt: 1,
-    });
-
-    emitProgress(options, { phase: 'creating_record', progress: 0.5 });
-    if (!(await hasExistingNix())) {
-      try {
-        await insertNix(receiverId, filePath, viewDurationSec, {
-          mediaType: 'video',
-          playbackDurationMs,
-          clientUploadId: stableUploadId ?? filePath,
-          thumbnailB64: prepared.thumbnailDataUrl ?? null,
-        });
-      } catch (error) {
-        // Cross-env schema mismatch: jeśli migracja `thumbnail_b64` nie weszła,
-        // ponawiamy insert bez miniatury zamiast failować upload.
-        if (!isMissingThumbnailColumnError(error)) throw error;
-        trackEvent('thumbnail_b64_skipped', {
-          media_type: 'video',
-          reason: 'missing_db_column',
-        });
-        await insertNix(receiverId, filePath, viewDurationSec, {
-          mediaType: 'video',
-          playbackDurationMs,
-          clientUploadId: stableUploadId ?? filePath,
-          thumbnailB64: null,
-        });
-      }
-    }
-    emitProgress(options, { phase: 'creating_record', progress: 1 });
-  } catch (error) {
-    trackDuration('upload_ms', uploadStartedAt, {
-      bucket: 'media-vault',
-      status: 'failure',
-      media_bytes: finalSizeBytes,
-      transport: 'resumable',
-      error_message: error instanceof Error ? error.message : 'Unknown resumable error',
-    });
-    if (error instanceof DomainError) throw error;
-    const message = error instanceof Error ? error.message : 'Nie udało się przesłać pliku.';
-    throw new DomainError('INVALID_MEDIA', mapStorageUploadError(message));
-  } finally {
-    emitProgress(options, { phase: 'cleanup', progress: 0 });
-    releasePreparedMedia([
-      ...prepared.temporaryUris,
-      ...(prepared.thumbnailTemporaryUris ?? []),
-    ]);
-    emitProgress(options, { phase: 'cleanup', progress: 1 });
-  }
 }

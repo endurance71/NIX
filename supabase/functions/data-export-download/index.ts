@@ -1,20 +1,19 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.5';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import { getBearerToken, json } from '../_shared/http.ts';
 import {
   DATA_EXPORT_SIGNED_URL_TTL_SECONDS,
   isExportReadyForDownload,
   isRecentAuthentication,
+  latestAuthenticationTime,
 } from '../_shared/data-export.ts';
 
-function jwtIssuedAt(token: string): number | null {
+function jwtClaims(token: string): unknown {
   try {
-    const parts = token.split('.');
-    const payloadPart = parts[1];
+    const payloadPart = token.split('.')[1];
     if (!payloadPart) return null;
     const payload = payloadPart.replaceAll('-', '+').replaceAll('_', '/');
     const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
-    const decoded = JSON.parse(atob(padded)) as { iat?: unknown };
-    return typeof decoded.iat === 'number' ? decoded.iat : null;
+    return JSON.parse(atob(padded));
   } catch {
     return null;
   }
@@ -33,18 +32,18 @@ Deno.serve(async (req) => {
   }
   if (!token) return json({ error: 'AUTH_REQUIRED', code: 'AUTH_REQUIRED' }, 401);
 
-  // Downloading an account archive is a sensitive action. Require a session
-  // issued during a recent sign-in/reauthentication, not merely a valid old JWT.
-  const issuedAt = jwtIssuedAt(token);
-  if (!isRecentAuthentication(issuedAt)) {
-    return json({ error: 'REAUTH_REQUIRED', code: 'REAUTH_REQUIRED' }, 401);
-  }
-
   const authClient = createClient(url, anonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
   const { data: { user }, error: userError } = await authClient.auth.getUser();
   if (userError || !user) return json({ error: 'AUTH_REQUIRED', code: 'AUTH_REQUIRED' }, 401);
+
+  // Downloading an account archive is a sensitive action. The token is verified
+  // above; its amr claim must show a sign-in within the last ten minutes, which
+  // a routine token refresh does not provide.
+  if (!isRecentAuthentication(latestAuthenticationTime(jwtClaims(token)))) {
+    return json({ error: 'REAUTH_REQUIRED', code: 'REAUTH_REQUIRED' }, 403);
+  }
 
   let body: { job_id?: unknown };
   try {

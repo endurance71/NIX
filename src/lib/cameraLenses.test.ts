@@ -3,7 +3,12 @@ import {
   buildLensSwitcherOptions,
   classifyCameraLens,
   defaultLensOption,
+  effectiveZoomFactor,
+  estimateMaxZoomFactor,
   FALLBACK_WIDE_2X_ZOOM,
+  formatZoomFactorLabel,
+  isZoomedAwayFromPreset,
+  type LensOption,
   lensOptionsFromNativePresets,
   shouldShowLensSwitcher,
 } from './cameraLenses';
@@ -138,5 +143,44 @@ describe('shouldShowLensSwitcher', () => {
     expect(shouldShowLensSwitcher('back', two)).toBe(true);
     expect(shouldShowLensSwitcher('back', one)).toBe(false);
     expect(shouldShowLensSwitcher('front', two)).toBe(false);
+  });
+});
+
+describe('zoom factor label', () => {
+  const wide: LensOption = { id: '1x', kind: 'wide', label: '1×', selectedLensValue: 'Back Camera', zoom: 0, displayFactor: 1 };
+  const crop: LensOption = {
+    id: '2x',
+    kind: 'wideCrop2x',
+    label: '2',
+    selectedLensValue: 'Back Camera',
+    zoom: Math.log(2) / Math.log(64),
+    displayFactor: 2,
+  };
+  const ultra: LensOption = { id: '0.5', kind: 'ultraWide', label: '0,5', selectedLensValue: 'Ultra', zoom: 0, displayFactor: 0.5 };
+  const options = [ultra, wide, crop];
+
+  it('reads the max zoom back from the 2× preset', () => {
+    expect(estimateMaxZoomFactor(options)).toBeCloseTo(64, 5);
+    expect(estimateMaxZoomFactor([wide])).toBe(16);
+  });
+
+  it('combines the lens factor with the pinch zoom', () => {
+    expect(effectiveZoomFactor(wide, 0, options)).toBe(1);
+    expect(effectiveZoomFactor(crop, crop.zoom, options)).toBeCloseTo(2, 5);
+    expect(effectiveZoomFactor(ultra, 0, options)).toBe(0.5);
+    expect(effectiveZoomFactor(wide, 0.5, options)).toBeCloseTo(8, 5);
+  });
+
+  it('only reports a pinch away from the preset', () => {
+    expect(isZoomedAwayFromPreset(wide, 0, options)).toBe(false);
+    expect(isZoomedAwayFromPreset(crop, crop.zoom, options)).toBe(false);
+    expect(isZoomedAwayFromPreset(wide, 0.1, options)).toBe(true);
+  });
+
+  it('formats like the Camera app', () => {
+    expect(formatZoomFactorLabel(1.62, 'en')).toBe('1.6×');
+    expect(formatZoomFactorLabel(1.62, 'pl')).toBe('1,6×');
+    expect(formatZoomFactorLabel(2.01, 'en')).toBe('2×');
+    expect(formatZoomFactorLabel(12.4, 'en')).toBe('12×');
   });
 });
