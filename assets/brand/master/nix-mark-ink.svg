@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- NiX mark in ink for light backgrounds (the drawn logo in light mode). -->
+  <defs>
+    <linearGradient id="rise" x1="272" y1="752" x2="752" y2="272" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#000000" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.92"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke-width="100" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M272 752 L752 272" stroke="url(#rise)"/>
+    <path d="M272 752 L272 272 L512 512" stroke="#000000"/>
+    <path d="M388 388 L752 752" stroke="#000000"/>
+  </g>
+</svg>

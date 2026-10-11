@@ -10,8 +10,9 @@ import { backOut, easeInOut, easeOut, seg } from '../welcome/welcomeMotion';
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 /**
- * The NiX mark from `assets/brand/master/nix-mark-glass.svg` (1024 grid, one 100 px round stroke):
- * an N whose right leg is an X. Lengths are the path lengths, for the draw-on dash.
+ * The NiX mark, the brand source of truth: `assets/brand/master/*.svg` and every icon export
+ * follow it (see assets/brand/README.md). An N whose right leg is an X on a 1024 grid, one 100 px
+ * round stroke. Lengths are the path lengths, for the draw-on dash.
  */
 const STEM = { d: 'M272 752 L272 272 L512 512', length: 480 + 339.41 };
 const FALL = { d: 'M388 388 L752 752', length: 514.77 };

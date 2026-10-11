@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- NiX app icon: the mark (nix-mark.svg) on the indigo tile with a soft light behind it, like the
+       glow the drawn logo blooms into in the app. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7F8CFF"/>
+      <stop offset="0.5" stop-color="#4B4DF0"/>
+      <stop offset="1" stop-color="#2A1A9E"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="512" cy="512" r="470" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.30"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rise" x1="272" y1="752" x2="752" y2="272" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.92"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+  <g fill="none" stroke-width="100" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M272 752 L752 272" stroke="url(#rise)"/>
+    <path d="M272 752 L272 272 L512 512" stroke="#FFFFFF"/>
+    <path d="M388 388 L752 752" stroke="#FFFFFF"/>
+  </g>
+</svg>

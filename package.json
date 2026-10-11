@@ -57,7 +57,8 @@
     "test:agent-evals": "node --test scripts/agent-evals/lib.test.mjs",
     "eval:agents": "node scripts/agent-evals/run.mjs",
     "eval:agents:report": "node scripts/agent-evals/analyze.mjs",
-    "gen:database": "node scripts/generate-database-types.mjs"
+    "gen:database": "node scripts/generate-database-types.mjs",
+    "brand:generate": "bash scripts/brand/generate.sh"
   },
   "dependencies": {
     "@expo/ui": "~57.0.22",
