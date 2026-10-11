@@ -1069,7 +1069,7 @@ export const resources = {
         topBestFriendTitle: 'Numer 1 wśród znajomych',
         topBestFriendHint: 'Od dwóch tygodni to z tą osobą wymieniasz najwięcej NiX-ów i wiadomości.',
         legendFootnote:
-          '🔥 — seria: kolejne dni, w których oboje wysłaliście sobie NiX-a (wiadomości tekstowe się nie liczą); widać ją od 3 dni. ⌛ — seria się kończy: dziś nie było jeszcze NiX-a w obie strony, a do północy zostały mniej niż 4 godziny. 😊 — jedna z 5 osób, z którymi najczęściej wymieniasz NiX-y i wiadomości. 💛 — numer 1 od dwóch tygodni.',
+          '🔥  Seria — kolejne dni, w których oboje wysłaliście sobie NiX-a (tekst się nie liczy). Widać ją od 3 dni.\n\n⌛  Seria się kończy — dziś nie było jeszcze NiX-a w obie strony, a do północy zostały mniej niż 4 godziny.\n\n😊  Jedna z 5 osób, z którymi najczęściej wymieniasz NiX-y i wiadomości.\n\n💛  Numer 1 od dwóch tygodni.',
         bestFriendA11y: 'wśród najlepszych znajomych',
         topBestFriendA11y: 'numer 1 wśród znajomych',
         streakA11y_one: 'seria {{count}} dzień',
@@ -2206,7 +2206,7 @@ export const resources = {
         topBestFriendTitle: 'Your #1 best friend',
         topBestFriendHint: 'For two weeks running, you’ve swapped the most NiXes and messages with this person.',
         legendFootnote:
-          '🔥 — streak: consecutive days on which you both sent each other a NiX (text messages don’t count); shown from 3 days. ⌛ — the streak is about to end: no NiX both ways yet today and less than 4 hours to midnight. 😊 — one of the 5 people you swap the most NiXes and messages with. 💛 — your #1 for two weeks running.',
+          '🔥  Streak — consecutive days on which you both sent each other a NiX (text doesn’t count). Shown from 3 days.\n\n⌛  The streak is about to end — no NiX both ways yet today and less than 4 hours to midnight.\n\n😊  One of the 5 people you swap the most NiXes and messages with.\n\n💛  Your #1 for two weeks running.',
         bestFriendA11y: 'best friend',
         topBestFriendA11y: 'number 1 best friend',
         streakA11y_one: '{{count}}-day streak',
