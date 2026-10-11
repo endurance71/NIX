@@ -2,6 +2,18 @@
 
 Wszystkie dotychczasowe komunikaty `appNotify` korzystają z nowej karty i animacji. Poprzedni pakiet, provider, typy i pod Toast zostały usunięte. Powiadomienia systemowe push, Live Activities i okna potwierdzania zachowują dotychczasową obsługę.
 
+## Aktualizacja z 10–11 października 2026
+
+Te zasady zastępują sprzeczne opisy z dalszej części dokumentu, które dotyczą stanu z 8 października.
+
+- **Szybka karta:** to domyślny wariant. Wejście trwa 300 ms (ease-out), wyjście 220 ms. Przy Reduce Motion jest sam fade 150 ms. Morph z Dynamic Island (Skia, upstream timeline) pojawia się tylko dla komunikatów z `prominent: true`. Skia ładuje się leniwie, przy pierwszej takiej karcie.
+- **Haptyka:** odpala się raz, w chwili `enqueue`, czyli w momencie akcji, a nie przy ujawnieniu treści. Dla `info` haptyki nie ma.
+- **Kolejka:** priorytet to error > warning > success > info. Przy przepełnieniu wypada najmniej ważny oczekujący komunikat, więc błąd nie ginie. Błąd wywłaszcza widoczny komunikat innego rodzaju i wskakuje przed oczekujące. Ponowny `enqueue` z tym samym `id` aktualizuje treść i restartuje czas karty.
+- **Czas i stan aplikacji:** przy VoiceOver karta znika po co najmniej 10 s (2 × zwykły czas), a nie nigdy. Kolejkę czyści tylko przejście do tła, nie stan `inactive` (Control Center, Face ID, prompt uprawnień).
+- **Błędy i offline:** `notifyDomainError` pokazuje czynność, która się nie udała, i podpowiedź. Nigdy nie pokazuje surowego `err.message`. Błąd sieci jest ostrzeżeniem o połączeniu. Brak sieci zgłasza `notifyOffline()`: neutralne info z deduplikacją po `id`.
+- **Nad arkuszami:** karta jest renderowana w `FullWindowOverlay` montowanym na nowo przy każdej karcie (`key={generation}`). Pełne rozwiązanie (własne okno nad arkuszami otwartymi później) wymaga natywnego buildu; zob. patch `react-native-screens` w `patches/`.
+- **Kolory:** cień i kolor wyspy pochodzą z tokenów motywu (`notificationShadow`, `notificationIsland`).
+
 ## Wygląd i obsługa
 
 Karta używa jasnego lub ciemnego motywu NiX, SF Pro Rounded, ikony rodzaju komunikatu po lewej oraz zaokrąglenia 28 pkt. Ma boczne marginesy 16 pkt i maksymalną szerokość 396 pkt. Tytuł ma 17 pkt, opis 14 pkt; opis nie jest zastępowany pustym wierszem. Ukryty pomiar treści wyznacza wysokość; przy bardzo dużym tekście karta mieści się w ekranie i pozwala przewijać treść.

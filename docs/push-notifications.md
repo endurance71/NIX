@@ -13,7 +13,15 @@ NiX używa `expo-notifications`, Expo Push Service oraz dwóch Supabase Edge Fun
 | `friend_accepted` | akceptacja | inicjator | Znajomi |
 | `capture_attempt` | próba nagrania ekranu | nadawca nixa | czat z aktorem |
 
+Treść (`supabase/functions/_shared/push.ts`, `pushCopy`): tytuł to nadawca (nazwa wyświetlana albo `@username`), a treść opisuje akcję w formie neutralnej płciowo, np. „Wysyła Ci wiadomość” albo „Reakcja na Twoją wiadomość: ❤️”. Język wynika z `locale` urządzenia. `new_nix`, `new_text_message` i `message_reaction` mają ważność 1 h, liczoną od `job.created_at` (`PUSH_EVENT_TTL_SECONDS`). Ponowiony job dostaje tylko pozostały czas, a job starszy niż godzina kończy jako `skipped` / `expired_event`. Expo Push nie obsługuje grupowania wątków iOS (`thread-id`), więc wymagałoby to Notification Service Extension.
+
+Na pierwszym planie handler wycisza powiadomienia czatu, reakcji i `new_nix` od rozmówcy, którego czat jest właśnie widoczny (`claimActiveChatPeer`, ustawiane przez `useFocusEffect`). Tap używa `router.navigate`, więc nie dubluje już otwartego czatu.
+
 `message_reaction`: `entity_id` = id reakcji; `event_key` = `message_reaction:{reactionId}:{emoji}` (zmiana emoji = nowy job). Badge ikony **nie** rośnie od reakcji (jak friend events) — nadal tylko nieprzeczytane NiXy.
+
+## Odpowiedź z powiadomienia
+
+`push-dispatch` dodaje `categoryId: 'nix_reply'` do zdarzeń `new_text_message` i `new_nix`. Aplikacja rejestruje tę kategorię na iOS (`PushNotificationsProvider`, akcja `reply` z polem tekstowym, tytuły w języku aplikacji). Odpowiedź trafia do trwałej kolejki tekstów (`sendQuickTextReply`) bez otwierania aplikacji (`opensAppToForeground: false`), więc przy braku sieci zostanie wysłana później. Starsze buildy ignorują nieznaną kategorię: powiadomienie wygląda jak dotąd.
 
 ## Rejestracja urządzenia
 
@@ -21,7 +29,7 @@ NiX używa `expo-notifications`, Expo Push Service oraz dwóch Supabase Edge Fun
 - Konflikt tego samego `expo_push_token` na innej instalacji: tamta instalacja jest wyłączana (`token_reassigned`) bez `DELETE`.
 - Gdy urządzenie jest już `enabled`, klient woła `touch_push_device` (heartbeat `last_seen_at` / locale / app_version) zamiast pełnego register.
 - Pełny register: pierwsze włączenie, rotacja tokenu (`addPushTokenListener`), przejęcie instalacji przez innego usera.
-- Opt-in: jednorazowy rationale po onboardingu (`canNavigate`) oraz ponownie po pierwszym udanym sendzie, jeśli użytkownik wcześniej wybrał „Nie teraz”. Przełącznik w Profil → Powiadomienia.
+- Opt-in: jednorazowy rationale po onboardingu (`canNavigate`) oraz ponownie po pierwszym udanym sendzie, jeśli użytkownik wcześniej wybrał „Nie teraz”. Obie propozycje mają osobne flagi: `nix.push.prompted.v1` i `nix.push.prompted-after-send.v1`; logika jest w `src/lib/pushRationale.ts`. Alert czeka, aż baner w aplikacji skończy animację. Przełącznik jest w Profil → Powiadomienia.
 
 **Uwaga diagnostyczna:** historyczne joby `dispatched` bez wierszy w `push_notification_deliveries` (sprzed UPSERT) to artefakt starego `DELETE` + CASCADE — nie oznaczają odrzucenia przez Expo/APNs. Po deployu UPSERT nowe joby dla recipientów z `enabled` device powinny mieć delivery.
 
@@ -41,6 +49,7 @@ NiX używa `expo-notifications`, Expo Push Service oraz dwóch Supabase Edge Fun
 7. Skonfiguruj Apple Push Notifications key przez `eas credentials`, a następnie wykonaj nowy development build i production/TestFlight build. Push nie należy testować w Expo Go.
 8. Production/TestFlight: potwierdź `aps-environment=production` w podpisanych entitlements IPA (w repo `ios/NiX/NiX.entitlements` może zostać `development` dla lokalnych buildów — EAS nadpisuje przy store/TF).
 9. Reakcje: zastosuj `20260724160000_add_message_reaction_push.sql` i ponownie wdróż `push-dispatch` (`supabase db push` / apply migracji + `supabase functions deploy push-dispatch`).
+10. Crony warunkowe (`20261011111000_push_pipeline_efficiency.sql`): joby `push-dispatch`, `push-receipts` i `cleanup-nix-due` mają te same nazwy i harmonogramy, ale wywołują `private.invoke_*_if_due()`. Funkcja Edge jest wołana tylko wtedy, gdy `private.push_dispatch_has_due_jobs()`, `private.push_receipts_has_due_deliveries()` lub `private.cleanup_nix_has_due_items()` znajdzie pracę. Trigger INSERT na `push_notification_jobs` nadal wysyła od razu. Każda zmiana warunku w `claim_push_notification_jobs` wymaga aktualizacji `push_dispatch_has_due_jobs`.
 
 Nie zapisuj `EXPO_ACCESS_TOKEN` ani service role key w repozytorium. Funkcje wymagają Bearera service-role (dokładny klucz albo JWT z `role=service_role` po weryfikacji bramy).
 
@@ -58,6 +67,6 @@ Nie zapisuj `EXPO_ACCESS_TOKEN` ani service role key w repozytorium. Funkcje wym
 
 ## Monitoring i awaryjne wyłączenie
 
-Monitoruj liczbę zadań `pending/failed`, wiek najstarszego zadania, błędy HTTP Expo i udział `DeviceNotRegistered`. Odpowiedź `push-dispatch` zawiera `processed`, `skippedNoDevice`, `ticketed`. Logi funkcji zawierają wyłącznie identyfikator zadania oraz typ zdarzenia — bez tokenów, nazw i treści.
+Monitoruj liczbę zadań `pending/failed`, udział `skipped` z powodem `expired_event`, wiek najstarszego zadania, błędy HTTP Expo i udział `DeviceNotRegistered`. Odpowiedź `push-dispatch` zawiera `processed`, `skippedNoDevice`, `ticketed`. Logi funkcji zawierają wyłącznie identyfikator zadania oraz typ zdarzenia — bez tokenów, nazw i treści.
 
 Awaryjne zatrzymanie wysyłki: wyłącz webhook i zadanie Cron `push-dispatch`. Outbox pozostanie w bazie; przed ponownym uruchomieniem zdecyduj, czy stare zadania oznaczyć jako `skipped`, aby nie wysłać nieaktualnych komunikatów.

@@ -70,6 +70,39 @@ Przepływ:
 
 **Testy:** wymagane urządzenie fizyczne iOS (symulator często nie obsługuje Apple ID poprawnie).
 
+## Password AutoFill (iCloud Keychain)
+
+- Entitlement + `app.json → ios.associatedDomains`: `webcredentials:nix.damianmotylinski.pl` (obok `applinks:`). To zmiana natywna — wymaga nowego binarium (Xcode Archive), OTA jej nie dostarczy.
+- AASA (`web/invite/.well-known/apple-app-site-association`, hostowany na `https://nix.damianmotylinski.pl/.well-known/apple-app-site-association`) ma sekcję:
+  ```json
+  "webcredentials": { "apps": ["9Q39P5MUT9.com.damianmotylinski.nixapp"] }
+  ```
+  Po wgraniu pliku sprawdź CDN Apple: `https://app-site-association.cdn-apple.com/a/v1/nix.damianmotylinski.pl` (cache do ~24 h). Bez tego iOS nie podpowie zapisanych haseł dla domeny ani nie zaproponuje zapisu.
+- Pola: logowanie `autoComplete="username"` (e-mail jako identyfikator konta) + `current-password`; rejestracja `username` + `new-password` (dwa pola — iOS proponuje silne hasło i zapisuje je pod tym e-mailem); reset hasła `new-password`. `@expo/ui` mapuje to na SwiftUI `textContentType`.
+
+## Klucze dostępu (passkeys)
+
+**Stan:** klient gotowy, domyślnie wyłączony (`EXPO_PUBLIC_PASSKEYS_ENABLED !== 'true'` → przycisk ukryty).
+
+- `@supabase/supabase-js` 2.117.x ma API passkey (`supabase.auth.passkey.startAuthentication / verifyAuthentication / startRegistration / verifyRegistration`, endpointy `/auth/v1/passkeys/*`). `signInWithPasskey()` z biblioteki używa `navigator.credentials`, którego w RN nie ma — dlatego ceremonię WebAuthn wykonuje natywny moduł `modules/nix-passkeys` (ASAuthorization, `ASAuthorizationPlatformPublicKeyCredentialProvider`), a JSON W3C składa `src/lib/passkeys.ts`.
+- Logowanie: przycisk „Zaloguj się kluczem dostępu” na ekranie logowania (`src/services/passkeyAuthService.ts → signInWithPasskey`). `verifyAuthentication` zapisuje sesję i emituje `SIGNED_IN`, więc `AuthProvider` obsługuje to jak logowanie hasłem. Zamknięcie arkusza systemowego nie pokazuje błędu.
+- Stare binaria (bez modułu): `requireOptionalNativeModule` zwraca `null` → przycisk ukryty, OTA bezpieczne.
+- **Do zrobienia przed włączeniem:**
+  1. Supabase (hosted) Auth: włączyć passkeys i WebAuthn RP — odpowiednik `config.toml`:
+     ```toml
+     [auth.passkey]
+     enabled = true
+     [auth.webauthn]
+     rp_display_name = "NiX"
+     rp_id = "nix.damianmotylinski.pl"
+     rp_origins = ["https://nix.damianmotylinski.pl"]
+     ```
+     (iOS podpisuje `clientDataJSON` z originem `https://<rp_id>`.)
+  2. AASA z sekcją `webcredentials` (wyżej) na produkcyjnej domenie + nowe binarium z entitlementem i modułem (`pod install`).
+  3. Punkt rejestracji klucza dla zalogowanego użytkownika: `registerPasskeyForCurrentUser()` jest gotowe, brakuje wiersza w Profil → Prywatność i bezpieczeństwo („Klucze dostępu”: dodaj / lista / usuń przez `supabase.auth.passkey.list/delete`). Bez tego nikt nie ma klucza, którym mógłby się zalogować.
+  4. Build z `EXPO_PUBLIC_PASSKEYS_ENABLED=true`.
+- Błędy (`passkeyErrorKey`): brak modułu → `auth.passkeyUnavailable`; passkeys wyłączone na serwerze → `auth.passkeyNotEnabled`; wygasłe wyzwanie → `auth.passkeyExpired`; nieznany klucz → `auth.passkeyNotRecognized`; reszta → `auth.passkeyFailed`.
+
 ## OAuth — Google (wstrzymane)
 
 Pakiet i wewnętrzny kontrakt pozostają w kodzie, ale ekran logowania nie oferuje

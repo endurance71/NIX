@@ -64,6 +64,15 @@ wstecznie, a istniejące zadania pozostają w kolejce.
   zniknięciu ostatniej aktywnej referencji.
 - Live Activity zawiera tylko fazę, procent, liczbę pozostałych zadań i czas
   aktualizacji. Nie zawiera odbiorców, nazw, ścieżek ani miniatur.
+- Live Activity ma jednego zapisującego: na pierwszym planie JS
+  (`src/services/uploadLiveActivity.ts`), w tle moduł natywny. JS przekazuje do
+  App Group (`reportLiveActivityState`) tylko identyfikatory niezakończonych
+  zadań, ich stany i postęp oraz locale. Nie przekazuje odbiorców, ścieżek ani
+  tokenów. Swift kończy aktywność jako „Wysłano” tylko wtedy, gdy w tym stanie
+  nie ma już innej pracy, czyli kompresji kolejnego segmentu ani moderacji.
+- Postęp z URLSession jest ograniczany do ~4 zdarzeń/s (≥1 % zmiany), a
+  snapshoty są trzymane w pamięci i zapisywane na dysk najwyżej co ~1 s oraz
+  przy zmianie stanu albo przejściu do tła.
 
 ## Profile kompresji
 
