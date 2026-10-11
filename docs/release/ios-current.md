@@ -24,6 +24,8 @@ build 12 (caption bar stays hidden there: no native support).
 Eleventh OTA (2026-10-11): update group `fcc22a09-67fc-4997-8bbb-ddd205aa8249`, source `507fa2a` — bubble tails and
 Tapback badges no longer clipped by the native menu host, inbox avatars stay after a reorder, a pin's menu lifts only
 that pin.
+Twelfth OTA (2026-10-11): update group `76866662-384b-4ca9-8572-f558fa733148`, source `fd2de24` — double tap on a text bubble opens the
+Tapback bar; the message menu lifts a bubble-only preview (no light frame).
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
