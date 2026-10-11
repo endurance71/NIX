@@ -5,7 +5,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { tap } from '../../lib/haptics';
 import { darkColors } from '../../theme/colors';
 import { APP_FONT_FAMILY } from '../../theme/typography';
-import { backOut, easeInOut, easeOut, seg } from './welcomeMotion';
+import { backOut, easeInOut, easeOut, seg } from '../welcome/welcomeMotion';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -25,7 +25,7 @@ const ink = darkColors;
  * stroke across), the accent glow blooms behind it and the wordmark rises letter by letter.
  * `progress` runs 0 → 1; the parent decides the timing.
  */
-export function WelcomeLogo({ progress, size, glowColor }: { progress: SharedValue<number>; size: number; glowColor: string }) {
+export function DrawnLogo({ progress, size, glowColor }: { progress: SharedValue<number>; size: number; glowColor: string }) {
   // A stroke stays hidden until its pen-down: a zero-length dash still paints the round cap.
   const stemProps = useAnimatedProps(() => {
     const p = seg(progress.get(), 0, 0.36);

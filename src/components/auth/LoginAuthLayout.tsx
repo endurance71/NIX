@@ -16,9 +16,12 @@ function contentColumnModifiers(contentWidth: number) {
   return [frame({ width: contentWidth, alignment: 'leading' })];
 }
 
-/** Login-only shell: scrollable column for hero + form zones. */
-export function LoginAuthLayout({ children }: PropsWithChildren) {
-  const { colors, statusBarStyle } = useAppTheme();
+/**
+ * Login-only shell: the scrollable native form column. Transparent, over the `LoginStage`
+ * backdrop; `topSpacing` leaves room for the hero drawn behind it.
+ */
+export function LoginAuthLayout({ children, topSpacing = 0 }: PropsWithChildren<{ topSpacing?: number }>) {
+  const { statusBarStyle } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const contentWidth = getAuthContentWidth(windowWidth);
   const contentWidthValue = useMemo(() => ({ contentWidth }), [contentWidth]);
@@ -26,7 +29,7 @@ export function LoginAuthLayout({ children }: PropsWithChildren) {
   return (
     <AuthContentWidthContext.Provider value={contentWidthValue}>
       <AppHost
-        style={{ flex: 1, backgroundColor: colors.background }}
+        style={{ flex: 1, backgroundColor: 'transparent' }}
         safeAreaMode="respect"
         useViewportSizeMeasurement>
         <StatusBar style={statusBarStyle} />
@@ -39,7 +42,7 @@ export function LoginAuthLayout({ children }: PropsWithChildren) {
             spacing={0}
             modifiers={[
               padding({
-                top: AUTH_LOGIN_TOP_PADDING,
+                top: AUTH_LOGIN_TOP_PADDING + topSpacing,
                 leading: AUTH_FORM_HORIZONTAL_PADDING,
                 bottom: AUTH_FORM_HORIZONTAL_PADDING,
                 trailing: AUTH_FORM_HORIZONTAL_PADDING,

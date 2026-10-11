@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-na
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SymbolView } from 'expo-symbols';
-import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import Animated, {
@@ -19,7 +18,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
-  withRepeat,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -36,7 +34,8 @@ import { darkColors } from '../../theme/colors';
 import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 import { useMotionEnabled } from '../../theme/motion';
 import { APP_FONT_FAMILY, typography } from '../../theme/typography';
-import { WelcomeLogo } from './WelcomeLogo';
+import { AmbientGlow } from '../brand/AmbientGlow';
+import { DrawnLogo } from '../brand/DrawnLogo';
 import { WelcomeSetup, type WelcomeSetupSummary } from './WelcomeSetup';
 import {
   CaptureScene,
@@ -383,7 +382,7 @@ function LogoCurtain({
         accessibilityRole="image"
         accessibilityLabel={outro ? `${label}. ${caption}` : label}>
         <Animated.View style={logoStyle}>
-          <WelcomeLogo progress={logo} size={Math.min(148, width * 0.36)} glowColor={accent} />
+          <DrawnLogo progress={logo} size={Math.min(148, width * 0.36)} glowColor={accent} />
         </Animated.View>
         {outro ? (
           <View style={styles.prepare}>
@@ -456,55 +455,6 @@ function ChecklistRow({
         <SymbolView name={resolveAppIconName('checkmark')} size={14} tintColor={accent} weight="bold" />
       </Animated.View>
       <Text style={[styles.checkText, { color: ink.label }]}>{label}</Text>
-    </Animated.View>
-  );
-}
-
-/**
- * A soft glow of the accent colour behind the scenes: it breathes slowly and drifts against the
- * swipe, so the backdrop has depth without competing with the scene.
- */
-function AmbientGlow({
-  color,
-  width,
-  height,
-  scrollX,
-  motionEnabled,
-}: {
-  color: string;
-  width: number;
-  height: number;
-  scrollX: SharedValue<number>;
-  motionEnabled: boolean;
-}) {
-  const breath = useSharedValue(0);
-  useEffect(() => {
-    if (!motionEnabled) return;
-    breath.set(withRepeat(withTiming(1, { duration: 5200, easing: Easing.inOut(Easing.sin) }), -1, true));
-    return () => cancelAnimation(breath);
-  }, [breath, motionEnabled]);
-  const size = width * 1.6;
-  const style = useAnimatedStyle(() => {
-    const drift = Math.sin((scrollX.get() / Math.max(1, width)) * Math.PI * 0.5) * width * 0.18;
-    return {
-      opacity: 0.55 + breath.get() * 0.25,
-      transform: [{ translateX: -drift }, { scale: 1 + breath.get() * 0.08 }],
-    };
-  });
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[styles.glow, { width: size, height: size, left: (width - size) / 2, top: height * 0.32 - size / 2 }, style]}>
-      <Svg width={size} height={size}>
-        <Defs>
-          <RadialGradient id="welcomeGlow" cx="50%" cy="50%" r="50%">
-            <Stop offset="0" stopColor={color} stopOpacity={0.55} />
-            <Stop offset="0.55" stopColor={color} stopOpacity={0.12} />
-            <Stop offset="1" stopColor={color} stopOpacity={0} />
-          </RadialGradient>
-        </Defs>
-        <Rect width={size} height={size} fill="url(#welcomeGlow)" />
-      </Svg>
     </Animated.View>
   );
 }
@@ -759,9 +709,6 @@ const styles = StyleSheet.create({
   },
   checkText: {
     ...typography.subheadline,
-  },
-  glow: {
-    position: 'absolute',
   },
   stage: {
     position: 'absolute',
