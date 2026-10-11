@@ -34,6 +34,8 @@ Fourth OTA (2026-10-11): update group `c5609d52-c606-414a-9f7e-45018a26a72b`, so
 `20261013100000` (deployed first, see the backend record); without it the text is still delivered, without the header.
 Fifth OTA (2026-10-11): update group `8c2c4a74-01a2-4dc2-bc88-9e10b8ceeb5a`, source `993e4f2` — a typed viewer reply
 marks the NiX opened and the viewer moves on to the next NiX (or closes after the last).
+Sixth OTA (2026-10-11): update group `fc702e2a-5a2f-47ec-9f7d-57023f4ff72c`, source `a4b4140` (published from a clean
+worktree) — an uploaded NiX waiting for moderation reads Sent instead of „Sprawdzanie…"; Delivered follows on approval.
 
 The 1.0.12 App Review track
 (build 11) is unaffected.
