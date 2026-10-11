@@ -1,5 +1,7 @@
+import { useRef } from 'react';
 import { Alert, View } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useNavigation } from 'expo-router';
+import type { SearchBarCommands } from 'react-native-screens';
 import { InboxScreenSurface } from '../../../components/inbox/InboxScreenSurface';
 import { useAppTheme } from '../../../hooks/useAppTheme';
 import { useInboxScreen } from '../../../hooks/useInboxScreen';
@@ -15,6 +17,17 @@ export default function InboxScreen() {
 function OnlineInboxScreen() {
   const vm = useInboxScreen();
   const { colors } = useAppTheme();
+  const navigation = useNavigation();
+  const searchBarRef = useRef<SearchBarCommands>(null);
+
+  // The search button's close (X) on iOS 26 dismisses the field without the cancel or text events,
+  // only a blur. A blur while the inbox stays on screen therefore ends the search; one caused by
+  // opening a conversation from the results keeps it.
+  const handleSearchBlur = () => {
+    if (!navigation.isFocused()) return;
+    searchBarRef.current?.clearText();
+    vm.handleSearchChange('');
+  };
 
   const requestDelete = (row: InboxRowModel) => {
     Alert.alert(
@@ -132,9 +145,12 @@ function OnlineInboxScreen() {
           headerTitle: vm.t('inbox.title'),
           headerSearchBarOptions: {
             placeholder: vm.t('inbox.searchPlaceholder'),
-            // `automatic` lets iOS 26+ fold the field into the toolbar; on a tab's root screen a
-            // UIKit bug then hides it entirely. `stacked` keeps it under the large title.
-            placement: 'stacked',
+            ref: searchBarRef,
+            // A native search button in the navigation bar next to Compose (iOS 26); it expands into
+            // the field on tap. Toolbar integration stays off: on a tab's root screen a UIKit bug
+            // hides a search field folded into the bottom toolbar.
+            placement: 'integratedButton',
+            allowToolbarIntegration: false,
             hideWhenScrolling: false,
             barTintColor: colors.secondarySystemGroupedBackground,
             textColor: colors.label,
@@ -142,6 +158,7 @@ function OnlineInboxScreen() {
             onChangeText: (event) => vm.handleSearchChange(event.nativeEvent.text),
             onSearchButtonPress: vm.handleSearchEnd,
             onCancelButtonPress: () => vm.handleSearchChange(''),
+            onBlur: handleSearchBlur,
           },
         }}
       />
