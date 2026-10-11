@@ -45,6 +45,8 @@ gallery with pinch zoom, drag across the lens switcher, and the remaining QA fix
 keyboard, inbox rows at accessibility sizes, accent text contrast, WYSIWYG text position, viewer copy, reply header,
 chat menu Pin + report confirmation, settings and legal copy). The PL/EN photo-library add purpose strings
 (`InfoPlist.strings`) ship only with the next native build.
+Ninth OTA (2026-10-11): update group `8671109b-334a-4629-b57a-8cb42d5bf6c4`, source `b8cc01c` — no scroll edge band
+over the full-screen Memories gallery.
 
 The 1.0.12 App Review track
 (build 11) is unaffected.
