@@ -32,6 +32,7 @@ import { runWithFinally } from '../../lib/runWithFinally';
 import { saveLocalMediaToGallery } from '../../lib/saveMediaToGalleryAction';
 import { paramFirst } from '../../lib/previewRoute';
 import { formatMemoryDate, type MemoryEntry } from '../../lib/memories';
+import { moveMemoriesZoomFocus } from '../../lib/memoriesZoom';
 import { resolveAppIconName } from '../../theme/app-icons';
 import { typography } from '../../theme/typography';
 import {
@@ -300,6 +301,11 @@ export function MemoryViewerScreen() {
   }, [memoryId, ownerId]);
 
   const entry = entries?.[index] ?? null;
+  // Closing zooms into the grid cell of the memory now on screen, not the one first opened.
+  const entryId = entry?.id ?? null;
+  useEffect(() => {
+    if (entryId) moveMemoriesZoomFocus(entryId);
+  }, [entryId]);
   const loadingList = !failed && entries === null && Boolean(memoryId);
   const title = entry ? formatMemoryDate(entry.createdAt, getCurrentLocale(), true) : t('memories.title');
   const labelFor = (item: MemoryEntry) => t(item.mediaType === 'video' ? 'memories.video' : 'memories.photo');

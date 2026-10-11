@@ -1,25 +1,32 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { Link } from 'expo-router';
+// Expo Router's native zoom source (what Link.AppleZoom renders), driven by our own identifier.
+import { LinkZoomTransitionSource } from 'expo-router/build/link/preview/native';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useMotionEnabled } from '../../theme/motion';
 import { typography } from '../../theme/typography';
 import { AppIcon } from '../ui/app-icon';
 import { formatMemoryDuration, type MemoryEntry } from '../../lib/memories';
 import { loadMemoryThumbnail } from '../../services/memoriesStore';
+import {
+  MEMORIES_ZOOM_SOURCE_ID,
+  getMemoriesZoomFocus,
+  subscribeMemoriesZoomFocus,
+} from '../../lib/memoriesZoom';
 
 type MemoryGridCellProps = {
   entry: MemoryEntry;
   size: number;
   accessibilityLabel: string;
+  onPress: (entry: MemoryEntry) => void;
 };
 
 /**
  * One square of the album grid: the decrypted thumbnail lives in memory only (data URI). Opening
  * it zooms the square into the viewer and back (iOS 18+ zoom transition, like Photos).
  */
-export function MemoryGridCell({ entry, size, accessibilityLabel }: MemoryGridCellProps) {
+export function MemoryGridCell({ entry, size, accessibilityLabel, onPress }: MemoryGridCellProps) {
   const { colors } = useAppTheme();
   const motionEnabled = useMotionEnabled();
   // Keyed by id: FlashList recycles this component for another memory.
@@ -38,55 +45,58 @@ export function MemoryGridCell({ entry, size, accessibilityLabel }: MemoryGridCe
   }, [entry]);
 
   const uri = thumbnail?.id === entry.id ? thumbnail.uri : null;
+  // Only the cell of the memory on screen in the viewer is the zoom source (see memoriesZoom).
+  const zoomSource =
+    useSyncExternalStore(subscribeMemoriesZoomFocus, getMemoriesZoomFocus) === entry.id;
   const duration = entry.mediaType === 'video' ? formatMemoryDuration(entry.durationMs) : null;
 
   return (
-    <Link href={{ pathname: '/memory-viewer', params: { id: entry.id } }} asChild>
-      <Link.AppleZoom>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={accessibilityLabel}
-          // Link's Slot takes one flat style object (no arrays, no pressed-state function).
-          style={StyleSheet.flatten([
-            styles.cell,
-            { width: size, height: size, backgroundColor: colors.secondarySystemBackground },
-          ])}>
-          {uri ? (
-            <Image
-              source={{ uri }}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              // Decrypted pixels must never reach expo-image's disk cache.
-              cachePolicy="none"
-              transition={motionEnabled ? 120 : 0}
-              accessible={false}
+    <LinkZoomTransitionSource identifier={zoomSource ? MEMORIES_ZOOM_SOURCE_ID : ''} animateAspectRatioChange>
+      <Pressable
+        collapsable={false}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        onPress={() => onPress(entry)}
+        style={({ pressed }) => [
+          styles.cell,
+          { width: size, height: size, backgroundColor: colors.secondarySystemBackground },
+          pressed ? styles.pressed : null,
+        ]}>
+        {uri ? (
+          <Image
+            source={{ uri }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            // Decrypted pixels must never reach expo-image's disk cache.
+            cachePolicy="none"
+            transition={motionEnabled ? 120 : 0}
+            accessible={false}
+          />
+        ) : (
+          <View style={styles.placeholder}>
+            <AppIcon
+              name={entry.mediaType === 'video' ? 'statusVideoOpened' : 'statusPhotoOpened'}
+              size={20}
+              color={colors.tertiaryLabel}
             />
-          ) : (
-            <View style={styles.placeholder}>
-              <AppIcon
-                name={entry.mediaType === 'video' ? 'statusVideoOpened' : 'statusPhotoOpened'}
-                size={20}
-                color={colors.tertiaryLabel}
-              />
-            </View>
-          )}
-          {entry.mediaType === 'video' ? (
-            <View style={styles.videoBadge} pointerEvents="none">
-              <AppIcon name="playFill" size={11} color={colors.cameraControlTint} />
-              {duration ? (
-                <Text
-                  style={[
-                    styles.duration,
-                    { color: colors.cameraControlTint, textShadowColor: colors.cinemaScrim },
-                  ]}>
-                  {duration}
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
-        </Pressable>
-      </Link.AppleZoom>
-    </Link>
+          </View>
+        )}
+        {entry.mediaType === 'video' ? (
+          <View style={styles.videoBadge} pointerEvents="none">
+            <AppIcon name="playFill" size={11} color={colors.cameraControlTint} />
+            {duration ? (
+              <Text
+                style={[
+                  styles.duration,
+                  { color: colors.cameraControlTint, textShadowColor: colors.cinemaScrim },
+                ]}>
+                {duration}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+      </Pressable>
+    </LinkZoomTransitionSource>
   );
 }
 
@@ -95,6 +105,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderCurve: 'continuous',
     overflow: 'hidden',
+  },
+  pressed: {
+    opacity: 0.7,
   },
   placeholder: {
     ...StyleSheet.absoluteFill,

@@ -1,5 +1,5 @@
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text as RNText, View, useWindowDimensions } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { FlashList } from '@shopify/flash-list';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +22,8 @@ import {
 import { resolveAppIconName } from '../../theme/app-icons';
 import { typography } from '../../theme/typography';
 import { MemoryGridCell } from './MemoryGridCell';
+import { MEMORIES_ZOOM_SOURCE_ID, moveMemoriesZoomFocus } from '../../lib/memoriesZoom';
+import { INTERNAL_EXPO_ROUTER_ZOOM_TRANSITION_SOURCE_ID_PARAM_NAME } from 'expo-router/build/navigationParams';
 
 const COLUMNS = 3;
 const GRID_GAP = 4;
@@ -64,6 +66,17 @@ export function MemoriesScreen() {
     return entry.recipientNames.length > 0
       ? t('memories.itemA11yTo', { kind, date, names: entry.recipientNames.join(', ') })
       : t('memories.itemA11y', { kind, date });
+  };
+
+  const openMemory = (entry: MemoryEntry) => {
+    // The tapped cell becomes the zoom source first, then the viewer is pushed with the source
+    // identifier Expo Router's zoom transition looks up (what Link.AppleZoom would add).
+    moveMemoriesZoomFocus(entry.id, () => {
+      router.push({
+        pathname: '/memory-viewer',
+        params: { id: entry.id, [INTERNAL_EXPO_ROUTER_ZOOM_TRANSITION_SOURCE_ID_PARAM_NAME]: MEMORIES_ZOOM_SOURCE_ID },
+      });
+    });
   };
 
   const confirmDeleteAll = () => {
@@ -177,7 +190,7 @@ export function MemoriesScreen() {
             // Each column is a third of the inset width; pinning the outer cells to its edges keeps
             // the gaps between all three equal.
             <View style={[styles.cellWrap, { alignItems: CELL_ALIGN[row.column] }]}>
-              <MemoryGridCell entry={row.entry} size={cellSize} accessibilityLabel={cellLabel(row.entry)} />
+              <MemoryGridCell entry={row.entry} size={cellSize} accessibilityLabel={cellLabel(row.entry)} onPress={openMemory} />
             </View>
           )
         }
