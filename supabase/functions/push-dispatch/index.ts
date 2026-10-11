@@ -6,6 +6,7 @@ import {
   pushCopy,
   formatPushActorLabel,
   retryAt,
+  pushTtlSeconds,
   cappedPushBadge,
   isConversationMuteActive,
   isPushCategoryEnabled,
@@ -13,6 +14,18 @@ import {
   type PushJob,
 } from '../_shared/push.ts';
 import { hasServiceRoleBearer } from '../_shared/service-auth.ts';
+
+const REPLYABLE_EVENTS = new Set(['new_text_message', 'new_nix']);
+const COMMUNICATION_EVENTS = new Set(['new_text_message', 'new_nix', 'message_reaction']);
+const AVATAR_URL_TTL_SECONDS = 30 * 60;
+
+// deno-lint-ignore no-explicit-any
+async function signedAvatarUrl(client: any, storagePath: string | null | undefined): Promise<string | null> {
+  const path = storagePath?.trim().replace(/^\/?avatars\//, '');
+  if (!path) return null;
+  const { data, error } = await client.storage.from('avatars').createSignedUrl(path, AVATAR_URL_TTL_SECONDS);
+  return error ? null : data?.signedUrl ?? null;
+}
 
 type ExpoTicket = { status: 'ok'; id: string } | { status: 'error'; details?: { error?: string } };
 
@@ -40,105 +53,125 @@ Deno.serve(async (req) => {
     }).eq('id', job.id);
   };
 
-  const isCurrent = async (job: PushJob) => {
+  /**
+   * Whether the event still exists as described by the job. For reactions it
+   * also returns the validated emoji so the send path does not re-read the row.
+   */
+  const checkCurrent = async (job: PushJob): Promise<{ current: boolean; reactionEmoji?: string | null }> => {
     if (job.event_type === 'new_nix') {
       const { data: row } = await client.from('nixes').select('sender_id, receiver_id, status')
         .eq('id', job.entity_id).maybeSingle();
-      return row?.sender_id === job.actor_id && row?.receiver_id === job.recipient_id && row?.status === 'sent';
+      return { current: row?.sender_id === job.actor_id && row?.receiver_id === job.recipient_id && row?.status === 'sent' };
     }
     if (job.event_type === 'capture_attempt') {
       const { data: row } = await client.from('nixes').select('sender_id, receiver_id')
         .eq('id', job.entity_id).maybeSingle();
       // actor is the receiver who tried to screenshot, recipient is the sender
-      return row?.sender_id === job.recipient_id && row?.receiver_id === job.actor_id;
+      return { current: row?.sender_id === job.recipient_id && row?.receiver_id === job.actor_id };
     }
     if (job.event_type === 'new_text_message') {
       const { data: row } = await client.from('text_messages').select('sender_id, receiver_id, expires_at')
         .eq('id', job.entity_id).maybeSingle();
-      return Boolean(row && row.sender_id === job.actor_id && row.receiver_id === job.recipient_id && new Date(row.expires_at).getTime() > Date.now());
+      return { current: Boolean(row && row.sender_id === job.actor_id && row.receiver_id === job.recipient_id && new Date(row.expires_at).getTime() > Date.now()) };
     }
     if (job.event_type === 'message_reaction') {
       const { data: reaction } = await client.from('message_reactions').select('user_id, message_id, emoji')
         .eq('id', job.entity_id).maybeSingle();
-      if (!reaction || reaction.user_id !== job.actor_id) return false;
+      if (!reaction || reaction.user_id !== job.actor_id) return { current: false };
       const keyRest = job.event_key.startsWith('message_reaction:')
         ? job.event_key.slice('message_reaction:'.length)
         : '';
       const emojiSep = keyRest.lastIndexOf(':');
       const expectedEmoji = emojiSep >= 0 ? keyRest.slice(emojiSep + 1) : '';
       // event_key = message_reaction:{reactionId}:{emoji} — stale if emoji already changed again
-      if (!expectedEmoji || reaction.emoji !== expectedEmoji) return false;
+      if (!expectedEmoji || reaction.emoji !== expectedEmoji) return { current: false };
       const { data: message } = await client.from('text_messages').select('sender_id, expires_at')
         .eq('id', reaction.message_id).maybeSingle();
-      return Boolean(
-        message
-        && message.sender_id === job.recipient_id
-        && new Date(message.expires_at).getTime() > Date.now()
-      );
+      return {
+        current: Boolean(
+          message
+          && message.sender_id === job.recipient_id
+          && new Date(message.expires_at).getTime() > Date.now()
+        ),
+        reactionEmoji: reaction.emoji ?? null,
+      };
     }
     const { data: row } = await client.from('friendships').select('user_id, friend_id, status')
       .eq('id', job.entity_id).maybeSingle();
     if (job.event_type === 'friend_request') {
-      return row?.user_id === job.actor_id && row?.friend_id === job.recipient_id && row?.status === 'pending';
+      return { current: row?.user_id === job.actor_id && row?.friend_id === job.recipient_id && row?.status === 'pending' };
     }
-    return row?.user_id === job.recipient_id && row?.friend_id === job.actor_id && row?.status === 'accepted';
+    return { current: row?.user_id === job.recipient_id && row?.friend_id === job.actor_id && row?.status === 'accepted' };
   };
 
   const processJob = async (job: PushJob) => {
     try {
-      if (!(await isCurrent(job))) {
-        await markJob(job, 'skipped', 'stale_event');
-        return;
-      }
-      const { data: blocks } = await client.from('user_blocks').select('blocker_id')
-        .or(`and(blocker_id.eq.${job.recipient_id},blocked_id.eq.${job.actor_id}),and(blocker_id.eq.${job.actor_id},blocked_id.eq.${job.recipient_id})`)
-        .limit(1);
-      if (blocks?.length) {
-        await markJob(job, 'skipped', 'blocked_relationship');
+      const ttl = pushTtlSeconds(job.event_type, job.created_at);
+      if (ttl === 0) {
+        await markJob(job, 'skipped', 'expired_event');
         return;
       }
 
-      if (job.event_type !== 'capture_attempt') {
-        const { data: preferences } = await client
-          .from('notification_preferences')
-          .select('messages_enabled,reactions_enabled,friends_enabled')
-          .eq('user_id', job.recipient_id)
-          .maybeSingle();
-        const categoryEnabled = isPushCategoryEnabled(job.event_type, preferences);
-        if (!categoryEnabled) {
-          await markJob(job, 'skipped', 'notification_category_disabled');
-          return;
-        }
+      const checksPreferences = job.event_type !== 'capture_attempt';
+      const checksMute = job.event_type === 'new_nix'
+        || job.event_type === 'new_text_message'
+        || job.event_type === 'message_reaction';
 
-        if (
-          job.event_type === 'new_nix'
-          || job.event_type === 'new_text_message'
-          || job.event_type === 'message_reaction'
-        ) {
-          const { data: mute } = await client
-            .from('conversation_mutes')
-            .select('muted_until')
-            .eq('owner_user_id', job.recipient_id)
-            .eq('peer_user_id', job.actor_id)
-            .maybeSingle();
-          if (isConversationMuteActive(mute)) {
-            await markJob(job, 'skipped', 'conversation_muted');
-            return;
-          }
-        }
-      }
-
+      // DB-12: every read below is independent, so they run as one wave instead
+      // of ~7 sequential round trips. The decisions are still applied in the old
+      // order (stale → blocked → category → mute → devices), so outcomes match.
       const [
+        currentCheck,
+        { data: blocks },
+        preferencesResult,
+        muteResult,
         { data: actor },
         { data: deviceRows, error: devicesError },
         { data: completedDeliveries, error: deliveriesError },
       ] = await Promise.all([
-        client.from('profiles').select('username, display_name').eq('id', job.actor_id).maybeSingle(),
+        checkCurrent(job),
+        client.from('user_blocks').select('blocker_id')
+          .or(`and(blocker_id.eq.${job.recipient_id},blocked_id.eq.${job.actor_id}),and(blocker_id.eq.${job.actor_id},blocked_id.eq.${job.recipient_id})`)
+          .limit(1),
+        checksPreferences
+          ? client
+            .from('notification_preferences')
+            .select('messages_enabled,reactions_enabled,friends_enabled')
+            .eq('user_id', job.recipient_id)
+            .maybeSingle()
+          : Promise.resolve({ data: null }),
+        checksMute
+          ? client
+            .from('conversation_mutes')
+            .select('muted_until')
+            .eq('owner_user_id', job.recipient_id)
+            .eq('peer_user_id', job.actor_id)
+            .maybeSingle()
+          : Promise.resolve({ data: null }),
+        client.from('profiles').select('username, display_name, avatar_storage_path').eq('id', job.actor_id).maybeSingle(),
         client.from('push_devices').select('id, expo_push_token, locale')
           .eq('user_id', job.recipient_id).eq('enabled', true),
         client.from('push_notification_deliveries').select('device_id,status')
           .eq('job_id', job.id).in('status', ['ticketed', 'delivered']),
       ]);
+
+      if (!currentCheck.current) {
+        await markJob(job, 'skipped', 'stale_event');
+        return;
+      }
+      if (blocks?.length) {
+        await markJob(job, 'skipped', 'blocked_relationship');
+        return;
+      }
+      if (checksPreferences && !isPushCategoryEnabled(job.event_type, preferencesResult.data)) {
+        await markJob(job, 'skipped', 'notification_category_disabled');
+        return;
+      }
+      if (checksMute && isConversationMuteActive(muteResult.data)) {
+        await markJob(job, 'skipped', 'conversation_muted');
+        return;
+      }
+
       if (devicesError) throw devicesError;
       if (deliveriesError) throw deliveriesError;
       const completedDeviceIds = new Set((completedDeliveries ?? []).map((row) => row.device_id));
@@ -159,12 +192,11 @@ Deno.serve(async (req) => {
       const badge = cappedPushBadge(unreadCount);
 
       const actorLabel = formatPushActorLabel(actor?.display_name, actor?.username);
-      let reactionEmoji: string | null = null;
-      if (job.event_type === 'message_reaction') {
-        const { data: reaction } = await client.from('message_reactions').select('emoji')
-          .eq('id', job.entity_id).maybeSingle();
-        reactionEmoji = reaction?.emoji ?? null;
-      }
+      // Communication notifications (NotificationService extension): sender name and a short-lived
+      // avatar URL. The recipient is a friend, so the avatar is already visible to them.
+      const communication = COMMUNICATION_EVENTS.has(job.event_type);
+      const senderAvatarUrl = communication ? await signedAvatarUrl(client, actor?.avatar_storage_path) : null;
+      const reactionEmoji = currentCheck.reactionEmoji ?? null;
       let retryableFailure: string | null = null;
 
       for (let offset = 0; offset < devices.length; offset += 100) {
@@ -174,7 +206,18 @@ Deno.serve(async (req) => {
           sound: 'default',
           badge,
           ...pushCopy(job.event_type, actorLabel, device.locale, reactionEmoji),
-          data: { version: 1, type: job.event_type, entityId: job.entity_id, actorId: job.actor_id },
+          ...(ttl === undefined ? {} : { ttl }),
+          // Inline "Reply" text field (the app registers the `nix_reply` category on iOS).
+          ...(REPLYABLE_EVENTS.has(job.event_type) ? { categoryId: 'nix_reply' } : {}),
+          ...(communication ? { mutableContent: true } : {}),
+          data: {
+            version: 1,
+            type: job.event_type,
+            entityId: job.entity_id,
+            actorId: job.actor_id,
+            ...(communication ? { senderName: actorLabel } : {}),
+            ...(senderAvatarUrl ? { senderAvatarUrl } : {}),
+          },
         }));
         const response = await fetch(EXPO_PUSH_SEND_URL, {
           method: 'POST',

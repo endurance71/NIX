@@ -54,6 +54,21 @@ const expected = [
   '20261007121000_fix_retention_and_image_limits.sql',
   '20261010120000_pre_review_hardening.sql',
   '20261010121000_reset_october_f0_external_floor.sql',
+  '20261011100000_rls_initplan_wrap.sql',
+  '20261011101000_fk_and_query_indexes.sql',
+  '20261011110000_moderation_claim_text_priority.sql',
+  '20261011111000_push_pipeline_efficiency.sql',
+  '20261011120000_realtime_private_broadcast.sql',
+  '20261011130000_inbox_threads_rpc.sql',
+  '20261011140000_media_client_created_at.sql',
+  '20261011150000_chat_nixes_rpc.sql',
+  '20261011160000_message_status_receipts.sql',
+  '20261011210000_chat_typing_broadcast.sql',
+  '20261011220000_conversation_pins.sql',
+  '20261012100000_text_message_saves.sql',
+  '20261012101000_voice_messages.sql',
+  '20261012110000_nix_reactions.sql',
+  '20261012120000_friend_streaks.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();

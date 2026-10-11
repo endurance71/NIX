@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import { corsHeaders, getBearerToken, json } from '../_shared/http.ts';
 import { MAX_IMAGE_BYTES, MAX_VIDEO_BYTES } from '../_shared/media-limits.ts';
+import { parseClientCreatedAt, verifiedJwtSubject } from './contract.ts';
 
 type RecipientInput = {
   receiverId: string;
@@ -17,6 +18,9 @@ type BeginPayload = {
   playbackDurationMs?: number | null;
   thumbnailB64?: string | null;
   recipients: RecipientInput[];
+  /** Device creation time of the send (ISO or epoch ms); optional for older clients. */
+  clientCreatedAt?: string | number | null;
+  client_created_at?: string | number | null;
 };
 
 function isUuid(value: unknown): value is string {
@@ -119,22 +123,29 @@ Deno.serve(async (req) => {
   if (!isPayload(rawPayload)) return json({ error: 'INVALID_PAYLOAD', code: 'INVALID_PAYLOAD' }, 400);
   const payload = rawPayload;
 
+  // The gateway already verified this JWT (verify_jwt = true), so read `sub`
+  // locally instead of a GoTrue round trip. The RPC below runs with the same
+  // token and still authorizes with auth.uid().
+  const userId = verifiedJwtSubject(bearerToken);
+  if (!userId) return json({ error: 'AUTH_REQUIRED', code: 'AUTH_REQUIRED' }, 401);
+
   const authClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: `Bearer ${bearerToken}` } },
   });
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
-  const { data: userData, error: userError } = await authClient.auth.getUser();
-  if (userError || !userData.user) return json({ error: 'AUTH_REQUIRED', code: 'AUTH_REQUIRED' }, 401);
 
   // Stable per sender/idempotency key so a retried begin request returns the
   // same batch-scoped capability even when the first response was lost.
   const finalizeToken = await deriveFinalizeToken(
     serviceRoleKey,
-    userData.user.id,
+    userId,
     payload.idempotencyKey
   );
   const finalizeTokenHash = await sha256Hex(finalizeToken);
+  const clientCreatedAt = parseClientCreatedAt(payload.clientCreatedAt ?? payload.client_created_at);
 
+  // The signed upload URL needs batch.storage_path, which the RPC creates (or
+  // returns for an idempotent retry), so the two calls stay sequential.
   const { data, error } = await authClient.rpc('begin_media_upload_batch', {
     p_idempotency_key: payload.idempotencyKey,
     p_finalize_token_hash: finalizeTokenHash,
@@ -147,6 +158,8 @@ Deno.serve(async (req) => {
       : Math.round(payload.playbackDurationMs),
     p_thumbnail_b64: payload.thumbnailB64 ?? null,
     p_recipients: payload.recipients,
+    // Omitted rather than null so older clients send the same nine-argument call.
+    ...(clientCreatedAt ? { p_client_created_at: clientCreatedAt } : {}),
   });
   if (error) {
     const code = error.message.match(/[A-Z][A-Z_]+/)?.[0] ?? 'BEGIN_UPLOAD_FAILED';

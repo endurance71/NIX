@@ -2,6 +2,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import { json } from '../_shared/http.ts';
 import { handleCleanupTextMessages } from './handler.ts';
 
+const VOICE_BUCKET = 'voice-messages';
+
+/** PostgREST: function not found (the voice migration is not deployed on this backend yet). */
+function isMissingFunction(error: { code?: string } | null): boolean {
+  return error?.code === 'PGRST202' || error?.code === '42883';
+}
+
 Deno.serve((req) => {
   const url = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -25,6 +32,25 @@ Deno.serve((req) => {
         .in('id', ids);
       if (error) throw error;
       return count ?? ids.length;
+    },
+    async claimVoiceObjects(limit) {
+      const { data, error } = await service.rpc('claim_voice_message_object_deletions', {
+        p_limit: limit,
+      });
+      if (isMissingFunction(error)) return null;
+      if (error) throw error;
+      return Array.isArray(data) ? data.filter((path): path is string => typeof path === 'string') : [];
+    },
+    async removeVoiceObjects(paths) {
+      // Removing an object that is already gone is not an error for the Storage API.
+      const { error } = await service.storage.from(VOICE_BUCKET).remove(paths);
+      if (error) throw error;
+    },
+    async completeVoiceObjects(paths) {
+      const { error } = await service.rpc('complete_voice_message_object_deletions', {
+        p_paths: paths,
+      });
+      if (error) throw error;
     },
   });
 });
