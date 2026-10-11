@@ -25,7 +25,7 @@ import { AppIcon } from '../components/ui/app-icon';
 import { AvatarCircle } from '../components/ui/avatar-circle';
 import { Button } from '../components/ui/button';
 import { NativeChromeIconButton } from '../components/ui/native-chrome-icon-button';
-import { NativeSearchField } from '../components/ui/native-search-field';
+import { NativeSearchField, type NativeSearchFieldHandle } from '../components/ui/native-search-field';
 import { canUseLiquidGlass } from '../lib/liquidGlass';
 import { normalizeNixViewDurationSec } from '../lib/nixViewDuration';
 import { applySuggestedRecipientOnce } from '../lib/suggestedRecipient';
@@ -384,6 +384,7 @@ export default function SendToSheet() {
   const showInitialLoader = canUseNetworkSession && isLoading && profiles.length === 0;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const searchFieldRef = useRef<NativeSearchFieldHandle>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const didPreselectRecipientRef = useRef(false);
   const suggestedRecipientId = paramFirst(rawParams.recipientId);
@@ -434,6 +435,9 @@ export default function SendToSheet() {
 
   const toggleSelection = (id: string) => {
     selection();
+    // Picking a search result is the end of searching: drop the keyboard so the
+    // "Send to …" button below the list is visible (it sat under the keyboard).
+    searchFieldRef.current?.blur();
     setSelectedIds((prev) => toggleSetValue(prev, id));
   };
 
@@ -466,6 +470,7 @@ export default function SendToSheet() {
       <OfflineStatusBanner />
       {profiles.length > 0 ? (
         <NativeSearchField
+          ref={searchFieldRef}
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholder={t('sendTo.searchPlaceholder')}

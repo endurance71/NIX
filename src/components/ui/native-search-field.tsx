@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useImperativeHandle, useRef, type Ref } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { Host } from '@expo/ui';
@@ -39,7 +39,11 @@ type NativeSearchFieldProps = {
   /** VoiceOver label of the clear button. */
   clearAccessibilityLabel: string;
   style?: StyleProp<ViewStyle>;
+  /** Imperative handle, e.g. to dismiss the keyboard after a result is picked. */
+  ref?: Ref<NativeSearchFieldHandle>;
 };
+
+export type NativeSearchFieldHandle = { blur: () => void };
 
 /**
  * A native SwiftUI search field on a Liquid Glass capsule (magnifying glass, text field, clear
@@ -52,9 +56,15 @@ export function NativeSearchField({
   placeholder,
   clearAccessibilityLabel,
   style,
+  ref,
 }: NativeSearchFieldProps) {
   const { colors, colorScheme } = useAppTheme();
   const fieldRef = useRef<TextFieldRef>(null);
+  useImperativeHandle(ref, () => ({
+    blur: () => {
+      void fieldRef.current?.blur();
+    },
+  }), []);
   const text = useNativeState(value);
   const useGlass = canUseLiquidGlass();
 
