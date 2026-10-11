@@ -246,6 +246,8 @@ type DomainRows = {
         metadata: Record<string, unknown> | null;
         /** Read receipt for the sender; absent on backends before 20261011160000. */
         read_at?: string | null;
+        /** NiX this text replies to; absent on backends before 20261013100000. */
+        reply_to_nix_id?: string | null;
     };
     message_reactions: {
         id: string;

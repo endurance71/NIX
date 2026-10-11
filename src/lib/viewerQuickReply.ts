@@ -23,11 +23,13 @@ export async function sendQuickTextReply(params: {
   body: string;
   online: boolean;
   queryClient: QueryClient;
+  /** The NiX being answered: the chat shows the reply attached to it. */
+  replyToNixId?: string | null;
 }): Promise<boolean> {
   const body = normalizeViewerReplyBody(params.body, TEXT_MESSAGE_MAX_LENGTH);
   if (!body) return false;
   const { ownerId, peerId, online, queryClient } = params;
-  await enqueueTextOutbox(ownerId, peerId, body, createClientMessageId());
+  await enqueueTextOutbox(ownerId, peerId, body, createClientMessageId(), params.replyToNixId ?? null);
   await queryClient.invalidateQueries({ queryKey: ['textOutbox'] });
   if (online) {
     void flushTextOutbox(ownerId)

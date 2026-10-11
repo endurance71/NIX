@@ -1309,6 +1309,8 @@ export function useViewerScreen(): ViewerScreenViewModel {
         body,
         online: canUseNetworkSession,
         queryClient,
+        // The NiX on screen; the server ignores it unless this sender sent it to me.
+        replyToNixId: displayedNix?.id ?? null,
       });
       if (sent) notifySuccess(t('viewer.replySent'));
       return sent;

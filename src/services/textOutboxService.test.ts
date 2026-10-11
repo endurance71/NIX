@@ -111,6 +111,23 @@ describe('owner-scoped text outbox races', () => {
     await expect(enqueueTextOutbox('a', 'peer', 'late stale owner', 'late')).rejects.toMatchObject({ name: 'AbortError' });
   });
 
+  it('keeps the replied NiX in the sealed payload and sends it on flush', async () => {
+    await enqueueTextOutbox('a', 'peer', 'nice', 'reply', 'nix-1');
+    await enqueueTextOutbox('a', 'peer', 'plain', 'plain');
+    // Not stored as a readable column: only inside the encrypted payload.
+    expect(Object.values(rows.get('reply') ?? {})).not.toContain('nix-1');
+    expect((await listTextOutbox('a')).map((job) => [job.id, job.replyToNixId])).toEqual([
+      ['reply', 'nix-1'],
+      ['plain', null],
+    ]);
+    send.mockResolvedValue(undefined);
+    await flushTextOutbox('a');
+    expect(send.mock.calls.map(([params]) => [params.clientMessageId, params.replyToNixId])).toEqual([
+      ['reply', 'nix-1'],
+      ['plain', null],
+    ]);
+  });
+
   it('sends a message queued during an in-flight flush within the same flush promise', async () => {
     await enqueueTextOutbox('a', 'peer', 'old', 'old');
     let release!: () => void;

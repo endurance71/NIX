@@ -3,11 +3,14 @@ import { getCurrentUser } from './profileService';
 import { DomainError } from './errors';
 import type { TextMessage } from '../types/database.types';
 import { SessionScopeCancelledError } from '../lib/sessionScope';
+import { createRpcFallbackGate } from '../lib/rpcFallbackGate';
 
 export type SendTextMessageParams = {
   receiverId: string;
   body: string;
   clientMessageId?: string;
+  /** NiX this text answers (20261013100000); dropped on backends without the migration. */
+  replyToNixId?: string | null;
   transport?: AccountTransport;
 };
 
@@ -38,6 +41,22 @@ function sleep(ms: number, transport: AccountTransport): Promise<void> {
     const timer = setTimeout(() => { transport.signal.removeEventListener('abort', abort); resolve(); }, ms);
     transport.signal.addEventListener('abort', abort, { once: true });
   });
+}
+
+/**
+ * Backends without 20261013100000_text_message_reply_to_nix know neither the RPC parameter
+ * (PGRST202) nor the column (PGRST204 / 42703). The text is then sent without its reply context,
+ * and the gate skips the doomed first attempt for a while.
+ */
+const nixReplyGate = createRpcFallbackGate();
+
+export function isMissingNixReplySupportError(
+  error: { message?: string; code?: string } | null | undefined
+): boolean {
+  if (!error) return false;
+  const code = error.code ?? '';
+  if (code === 'PGRST202' || code === '42883') return true;
+  return (code === 'PGRST204' || code === '42703') && (error.message ?? '').includes('reply_to_nix_id');
 }
 
 function asJobView(data: unknown): TextModerationJobView | null {
@@ -114,6 +133,7 @@ export async function sendTextMessage({
   receiverId,
   body,
   clientMessageId,
+  replyToNixId = null,
   transport: suppliedTransport,
 }: SendTextMessageParams): Promise<TextMessage> {
   const trimmedBody = body.trim();
@@ -129,15 +149,25 @@ export async function sendTextMessage({
   const transport = suppliedTransport ?? await captureAccountTransport();
   transport.assertActive();
 
-  const { data: enqueueData, error: enqueueError } = await transport.client.rpc(
-    'enqueue_own_text_moderation_job',
-    {
-      p_receiver_id: receiverId,
-      p_body: trimmedBody,
-      p_client_message_id: clientMessageId ?? null,
-    }
-  );
+  const enqueueArgs = {
+    p_receiver_id: receiverId,
+    p_body: trimmedBody,
+    p_client_message_id: clientMessageId ?? null,
+  };
+  const withReply = Boolean(replyToNixId) && nixReplyGate.shouldTryRpc();
+  const enqueue = (withReplyArg: boolean) =>
+    transport.client.rpc(
+      'enqueue_own_text_moderation_job',
+      withReplyArg ? { ...enqueueArgs, p_reply_to_nix_id: replyToNixId } : enqueueArgs
+    );
+  let enqueued = await enqueue(withReply);
   transport.assertActive();
+  if (withReply && isMissingNixReplySupportError(enqueued.error)) {
+    nixReplyGate.markUnavailable();
+    enqueued = await enqueue(false);
+    transport.assertActive();
+  }
+  const { data: enqueueData, error: enqueueError } = enqueued;
 
   if (enqueueError) {
     const text = errorText(enqueueError);
@@ -175,17 +205,28 @@ export async function sendTextMessage({
   }
 
   transport.assertActive();
-  const { data, error } = await transport.client
-    .from('text_messages')
-    .insert({
-      sender_id: transport.ownerId,
-      receiver_id: receiverId,
-      body: trimmedBody,
-      client_message_id: clientMessageId ?? null,
-    })
-    .select('*')
-    .single();
+  const row = {
+    sender_id: transport.ownerId,
+    receiver_id: receiverId,
+    body: trimmedBody,
+    client_message_id: clientMessageId ?? null,
+  };
+  const insertWithReply = Boolean(replyToNixId) && nixReplyGate.shouldTryRpc();
+  const insertRow = (withReplyColumn: boolean) =>
+    transport.client
+      .from('text_messages')
+      // An undefined key is left out of the JSON body: older backends never see the column.
+      .insert({ ...row, reply_to_nix_id: withReplyColumn ? replyToNixId : undefined })
+      .select('*')
+      .single();
+  let inserted = await insertRow(insertWithReply);
   transport.assertActive();
+  if (insertWithReply && isMissingNixReplySupportError(inserted.error)) {
+    nixReplyGate.markUnavailable();
+    inserted = await insertRow(false);
+    transport.assertActive();
+  }
+  const { data, error } = inserted;
 
   if (error) {
     if (error.code === '23505' && clientMessageId) {

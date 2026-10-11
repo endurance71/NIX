@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setSessionOwner } from '../lib/sessionScope';
 import {
   sendTextMessage,
@@ -9,6 +9,7 @@ import {
   mapRecentTextMessageRow,
   mapRecentTextMessageRpcRow,
   cancelOwnTextMessage,
+  isMissingNixReplySupportError,
 } from './textMessageService';
 
 const {
@@ -148,6 +149,71 @@ describe('textMessageService', () => {
       });
       expect(mockInsert).toHaveBeenCalled();
       expect(result).toEqual({ ...mockResult, metadata: null });
+    });
+
+    describe('reply to a NiX (20261013100000)', () => {
+      // The fallback gate is module state with a 10 min cooldown: each test runs an hour later.
+      let clock = Date.parse('2026-10-13T08:00:00Z');
+      beforeEach(() => {
+        clock += 60 * 60_000;
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(clock);
+        mockInsertSelectSingle.mockResolvedValue({
+          data: { id: 'msg-r', sender_id: 'user-123', receiver_id: 'peer-456', body: 'Super', metadata: null },
+          error: null,
+        });
+      });
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it('sends the NiX id with the enqueue RPC and the direct insert', async () => {
+        await sendTextMessage({ receiverId: 'peer-456', body: 'Super', clientMessageId: 'c-1', replyToNixId: 'nix-1' });
+        expect(mockSupabaseRpc).toHaveBeenCalledWith('enqueue_own_text_moderation_job', {
+          p_receiver_id: 'peer-456',
+          p_body: 'Super',
+          p_client_message_id: 'c-1',
+          p_reply_to_nix_id: 'nix-1',
+        });
+        expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ reply_to_nix_id: 'nix-1' }));
+      });
+
+      it('retries the enqueue without the parameter on a backend without the migration', async () => {
+        mockSupabaseRpc
+          .mockResolvedValueOnce({ data: null, error: { code: 'PGRST202', message: 'Could not find the function' } })
+          .mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'MODERATION_DISABLED' } });
+        await sendTextMessage({ receiverId: 'peer-456', body: 'Super', clientMessageId: 'c-2', replyToNixId: 'nix-1' });
+        expect(mockSupabaseRpc).toHaveBeenLastCalledWith('enqueue_own_text_moderation_job', {
+          p_receiver_id: 'peer-456',
+          p_body: 'Super',
+          p_client_message_id: 'c-2',
+        });
+        // Remembered: the insert and the next send skip the reply column / parameter.
+        expect(mockInsert.mock.calls[0][0].reply_to_nix_id).toBeUndefined();
+        mockSupabaseRpc.mockClear();
+        await sendTextMessage({ receiverId: 'peer-456', body: 'Again', replyToNixId: 'nix-1' });
+        expect(mockSupabaseRpc).toHaveBeenCalledTimes(1);
+        expect(mockSupabaseRpc.mock.calls[0][1]).not.toHaveProperty('p_reply_to_nix_id');
+      });
+
+      it('retries the direct insert without the column when PostgREST does not know it', async () => {
+        mockInsertSelectSingle.mockResolvedValueOnce({
+          data: null,
+          error: { code: 'PGRST204', message: "Could not find the 'reply_to_nix_id' column of 'text_messages'" },
+        });
+        const result = await sendTextMessage({ receiverId: 'peer-456', body: 'Super', replyToNixId: 'nix-1' });
+        expect(mockInsert).toHaveBeenCalledTimes(2);
+        expect(mockInsert.mock.calls[1][0].reply_to_nix_id).toBeUndefined();
+        expect(result.id).toBe('msg-r');
+      });
+    });
+
+    it('isMissingNixReplySupportError only matches a missing parameter or reply column', () => {
+      expect(isMissingNixReplySupportError({ code: 'PGRST202', message: 'x' })).toBe(true);
+      expect(isMissingNixReplySupportError({ code: 'PGRST204', message: "'reply_to_nix_id' column" })).toBe(true);
+      expect(isMissingNixReplySupportError({ code: 'PGRST204', message: "'other' column" })).toBe(false);
+      expect(isMissingNixReplySupportError({ code: 'P0001', message: 'NOT_FRIEND' })).toBe(false);
+      expect(isMissingNixReplySupportError(null)).toBe(false);
     });
 
     it('mapuje naruszenie filtra na CONTENT_NOT_ALLOWED bez treści wiadomości', async () => {

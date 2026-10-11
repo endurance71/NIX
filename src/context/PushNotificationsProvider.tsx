@@ -154,6 +154,8 @@ async function processPushNotificationResponse({
         body: response.userText,
         online: true,
         queryClient,
+        // A „new NiX” push carries the NiX id: the reply is shown attached to it in the chat.
+        replyToNixId: replyTo.type === 'new_nix' ? replyTo.entityId : null,
       }).catch((error) => console.warn('Notification reply failed', error));
       trackEvent('push_notification_replied', { type: replyTo.type });
     }
