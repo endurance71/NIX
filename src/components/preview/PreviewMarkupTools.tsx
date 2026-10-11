@@ -219,7 +219,10 @@ export function PreviewMarkupTools({
           clampTopPx={clampTopPx}
           clampBottomPx={clampBottomPx}
           viewportHeight={editingViewportHeight}
-          stickerViewportStyle={drawingViewportStyle}
+          // Only a rotated stage gives the text its own (stage-relative) coordinates. Otherwise the
+          // clamps, keyboard lift and trash zone are window-relative, so the sticker layer must
+          // span the window — inside a letterboxed stage it would be offset by the stage top.
+          stickerViewportStyle={editingViewportHeight != null ? drawingViewportStyle : undefined}
           colors={colors}
           chromeVariant={chromeVariant}
           stickerPointerEvents={isDrawing ? 'none' : 'box-none'}
