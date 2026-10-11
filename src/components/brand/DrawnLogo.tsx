@@ -25,7 +25,18 @@ const ink = darkColors;
  * stroke across), the accent glow blooms behind it and the wordmark rises letter by letter.
  * `progress` runs 0 → 1; the parent decides the timing.
  */
-export function DrawnLogo({ progress, size, glowColor }: { progress: SharedValue<number>; size: number; glowColor: string }) {
+export function DrawnLogo({
+  progress,
+  size,
+  glowColor,
+  inkColor = ink.label,
+}: {
+  progress: SharedValue<number>;
+  size: number;
+  glowColor: string;
+  /** Stroke and wordmark colour; white on the dark stages, the label colour elsewhere. */
+  inkColor?: string;
+}) {
   // A stroke stays hidden until its pen-down: a zero-length dash still paints the round cap.
   const stemProps = useAnimatedProps(() => {
     const p = seg(progress.get(), 0, 0.36);
@@ -87,8 +98,8 @@ export function DrawnLogo({ progress, size, glowColor }: { progress: SharedValue
             <Defs>
               {/* The rising stroke is a little translucent, as in the icon: it reads as glass. */}
               <LinearGradient id="rise" x1="272" y1="752" x2="752" y2="272" gradientUnits="userSpaceOnUse">
-                <Stop offset="0" stopColor={ink.label} stopOpacity={0.55} />
-                <Stop offset="1" stopColor={ink.label} stopOpacity={0.92} />
+                <Stop offset="0" stopColor={inkColor} stopOpacity={0.55} />
+                <Stop offset="1" stopColor={inkColor} stopOpacity={0.92} />
               </LinearGradient>
             </Defs>
             <G fill="none" strokeWidth={100} strokeLinecap="round" strokeLinejoin="round">
@@ -100,13 +111,13 @@ export function DrawnLogo({ progress, size, glowColor }: { progress: SharedValue
               />
               <AnimatedPath
                 d={STEM.d}
-                stroke={ink.label}
+                stroke={inkColor}
                 strokeDasharray={`${STEM.length} ${STEM.length}`}
                 animatedProps={stemProps}
               />
               <AnimatedPath
                 d={FALL.d}
-                stroke={ink.label}
+                stroke={inkColor}
                 strokeDasharray={`${FALL.length} ${FALL.length}`}
                 animatedProps={fallProps}
               />
@@ -116,7 +127,7 @@ export function DrawnLogo({ progress, size, glowColor }: { progress: SharedValue
       </View>
       <View style={styles.word}>
         {WORD.map((letter, index) => (
-          <WordLetter key={letter} letter={letter} index={index} progress={progress} size={size} />
+          <WordLetter key={letter} letter={letter} index={index} progress={progress} size={size} color={inkColor} />
         ))}
       </View>
     </View>
@@ -128,11 +139,13 @@ function WordLetter({
   index,
   progress,
   size,
+  color,
 }: {
   letter: string;
   index: number;
   progress: SharedValue<number>;
   size: number;
+  color: string;
 }) {
   const style = useAnimatedStyle(() => {
     const p = seg(progress.get(), 0.6 + index * 0.07, 0.8 + index * 0.07);
@@ -142,7 +155,7 @@ function WordLetter({
     };
   });
   return (
-    <Animated.Text style={[styles.letter, { fontSize: size * 0.36, color: ink.label }, style]}>{letter}</Animated.Text>
+    <Animated.Text style={[styles.letter, { fontSize: size * 0.36, color }, style]}>{letter}</Animated.Text>
   );
 }
 

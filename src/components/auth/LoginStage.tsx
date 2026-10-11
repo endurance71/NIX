@@ -42,13 +42,13 @@ function logoSize(width: number) {
 }
 
 /**
- * The login stage, in the welcome tour's language: a dark backdrop with the breathing accent
+ * The login stage, in the welcome tour's language (light or dark with the system): a backdrop with the breathing accent
  * glow and faint moments drifting, the NiX logo drawing itself with the wordmark and tagline,
  * then the native form rising in. The hero steps aside while the keyboard is up.
  */
 export function LoginStage({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const motionEnabled = useMotionEnabled();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -85,9 +85,17 @@ export function LoginStage({ children }: { children: ReactNode }) {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <AmbientGlow color={colors.accent} width={width} height={height} motionEnabled={motionEnabled} centerY={0.2} />
+      <AmbientGlow color={colors.accent} width={width} height={height} motionEnabled={motionEnabled} centerY={0.2} intensity={isDark ? 1 : 0.45} />
       {BACKDROP.map((card, index) => (
-        <BackdropCard key={index} {...card} drift={drift} width={width} top={insets.top} motionEnabled={motionEnabled} />
+        <BackdropCard
+          key={index}
+          {...card}
+          drift={drift}
+          width={width}
+          top={insets.top}
+          opacity={isDark ? 0.32 : 0.22}
+          motionEnabled={motionEnabled}
+        />
       ))}
       {/* Fades the backdrop into the stage under the form. */}
       <LinearGradient
@@ -97,7 +105,7 @@ export function LoginStage({ children }: { children: ReactNode }) {
         style={StyleSheet.absoluteFill}
       />
       <Animated.View pointerEvents="none" style={[styles.hero, { top: insets.top + 28 }, heroStyle]}>
-        <DrawnLogo progress={logo} size={size} glowColor={colors.accent} />
+        <DrawnLogo progress={logo} size={size} glowColor={colors.accent} inkColor={colors.label} />
         <Animated.View style={taglineStyle}>
           <Text style={[styles.tagline, { color: colors.secondaryLabel }]}>{t('auth.tagline')}</Text>
         </Animated.View>
@@ -117,6 +125,7 @@ function BackdropCard({
   drift,
   width,
   top,
+  opacity,
   motionEnabled,
 }: {
   image: ImageSource;
@@ -128,6 +137,7 @@ function BackdropCard({
   drift: SharedValue<number>;
   width: number;
   top: number;
+  opacity: number;
   motionEnabled: boolean;
 }) {
   const w = width * size;
@@ -144,7 +154,14 @@ function BackdropCard({
       pointerEvents="none"
       style={[
         styles.card,
-        { width: w, height: w * 1.3, left: width / 2 + x * width - w / 2, top: top + y * width, borderRadius: w * 0.12 },
+        {
+          width: w,
+          height: w * 1.3,
+          left: width / 2 + x * width - w / 2,
+          top: top + y * width,
+          borderRadius: w * 0.12,
+          opacity,
+        },
         style,
       ]}>
       <Image source={image} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={2} accessible={false} />
@@ -159,7 +176,6 @@ const styles = StyleSheet.create({
   card: {
     position: 'absolute',
     overflow: 'hidden',
-    opacity: 0.32,
   },
   hero: {
     position: 'absolute',

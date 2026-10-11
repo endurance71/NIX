@@ -22,6 +22,7 @@ export function AmbientGlow({
   scrollX,
   motionEnabled,
   centerY = 0.32,
+  intensity = 1,
 }: {
   color: string;
   width: number;
@@ -31,6 +32,8 @@ export function AmbientGlow({
   motionEnabled: boolean;
   /** Vertical centre of the glow, as a fraction of `height`. */
   centerY?: number;
+  /** Peak strength; lower on light backgrounds, where a full glow reads as a stain. */
+  intensity?: number;
 }) {
   const breath = useSharedValue(0);
   useEffect(() => {
@@ -42,7 +45,7 @@ export function AmbientGlow({
   const style = useAnimatedStyle(() => {
     const drift = scrollX ? Math.sin((scrollX.get() / Math.max(1, width)) * Math.PI * 0.5) * width * 0.18 : 0;
     return {
-      opacity: 0.55 + breath.get() * 0.25,
+      opacity: (0.55 + breath.get() * 0.25) * intensity,
       transform: [{ translateX: -drift }, { scale: 1 + breath.get() * 0.08 }],
     };
   });
