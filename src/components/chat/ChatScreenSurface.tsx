@@ -2608,6 +2608,13 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     motionEnabled
   );
   const composerContext = composerContextView(vm.composerContext, t, peerName);
+  // The reply / edit banner makes the composer taller: keep the newest message above it.
+  const composerContextKey = composerContext?.key ?? null;
+  useEffect(() => {
+    if (!composerContextKey || scrolledUp) return;
+    const frame = requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: motionEnabled }));
+    return () => cancelAnimationFrame(frame);
+  }, [composerContextKey, motionEnabled, scrolledUp]);
 
   const renderTimelineItem = useCallback(({ item }: { item: ChatTimelineEntry }) => {
     if (item.type === 'separator') {

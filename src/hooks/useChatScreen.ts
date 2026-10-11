@@ -984,11 +984,15 @@ export function useChatScreen(peerId: string) {
       notifyOffline();
       return false;
     }
-    const original = queryClient.getQueryData<TextMessage[]>(messagesKey)?.find((row) => row.id === messageId);
+    const original =
+      queryClient.getQueryData<TextMessage[]>(messagesKey)?.find((row) => row.id === messageId)
+      ?? messages.find((row) => row.id === messageId);
     if (!original) {
+      // Resolve `true`: the composer must not put the edited text back under a plain composer,
+      // where the next tap on Send would post it as a new message.
       setComposerContext(null);
       notifyError(t('chat.editFailure'));
-      return false;
+      return true;
     }
     if (original.body === body) {
       setComposerContext(null);
