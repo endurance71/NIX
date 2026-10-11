@@ -123,7 +123,7 @@ function FriendRecipientRow({
       <AppIcon
         name={selected ? 'checkCircleFill' : 'circle'}
         size={APP_ICON_SIZE.xxl}
-        color={selected ? colors.accent : colors.tertiaryLabel}
+        color={selected ? colors.accentText : colors.tertiaryLabel}
       />
     </Pressable>
   );
@@ -182,9 +182,9 @@ function EmptyRecipients({
                 <SwiftImage
                   systemName={resolveAppIconName(action.icon) as SFSymbol}
                   size={APP_ICON_SIZE.md}
-                  color={colors.accent}
+                  color={colors.accentText}
                 />
-                <SwiftText modifiers={[font({ textStyle: 'headline' }), foregroundStyle(colors.accent)]}>
+                <SwiftText modifiers={[font({ textStyle: 'headline' }), foregroundStyle(colors.accentText)]}>
                   {t(action.labelKey)}
                 </SwiftText>
               </HStack>

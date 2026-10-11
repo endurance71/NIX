@@ -107,7 +107,7 @@ function NewChatHeader() {
           <Button
             label={t('common.cancel')}
             onPress={() => router.back()}
-            modifiers={[buttonStyle('borderless'), tint(colors.accent)]}
+            modifiers={[buttonStyle('borderless'), tint(colors.accentText)]}
           />
           <Spacer />
         </HStack>

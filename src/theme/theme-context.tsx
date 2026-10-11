@@ -18,6 +18,7 @@ import {
 import {
   DEFAULT_ACCENT_PRESET_ID,
   resolveAccentColor,
+  resolveAccentForeground,
   resolveOnAccentColor,
   type AccentPresetId,
 } from './accent-presets';
@@ -83,6 +84,8 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
     return {
       ...base,
       accent,
+      // Text/glyphs on the background: a darker orange/teal in light mode (WCAG ≥ 4.5:1).
+      accentText: resolveAccentForeground(accent, base.systemBackground),
       systemBlue: accent,
       info: accent,
       onAccent,

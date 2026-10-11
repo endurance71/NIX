@@ -83,7 +83,7 @@ export default function ProfileScreenSurface() {
             <NativeSettingsRow
               title={vm.t('activation.checklistTitle')}
               icon="checkCircle"
-              iconColor={colors.accent}
+              iconColor={colors.accentText}
               showsChevron
               onPress={() => router.push('/activation' as never)}
               testID="profile-activation"
@@ -92,7 +92,7 @@ export default function ProfileScreenSurface() {
           <NativeSettingsRow
             title={vm.t('profile.friendsTitle')}
             icon="friends"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             trailing={
               vm.incomingInviteCount > 0 ? <NativeSettingsCount count={vm.incomingInviteCount} /> : undefined
             }
@@ -103,7 +103,7 @@ export default function ProfileScreenSurface() {
           <NativeSettingsRow
             title={vm.t('memories.title')}
             icon="memories"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/memories' as never)}
             testID="profile-memories"
@@ -115,7 +115,7 @@ export default function ProfileScreenSurface() {
           <NativeSettingsRow
             title={vm.t('profile.appearanceTitle')}
             icon="paintpalette"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             trailing={<AccentColorSwatch color={colors.accent} />}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/appearance')}
@@ -125,7 +125,7 @@ export default function ProfileScreenSurface() {
             <NativeSettingsRow
               title={vm.t('notifications.title')}
               icon="notification"
-              iconColor={colors.accent}
+              iconColor={colors.accentText}
               showsChevron
               onPress={() => router.push('/(tabs)/profile/notifications' as never)}
               testID="profile-push-notifications"
@@ -134,7 +134,7 @@ export default function ProfileScreenSurface() {
           <NativeSettingsRow
             title={vm.t('profile.privacySectionTitle')}
             icon="privacySecurity"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/privacy-security' as never)}
             testID="profile-privacy-security"
@@ -146,21 +146,21 @@ export default function ProfileScreenSurface() {
           <NativeSettingsRow
             title={vm.t('profile.rateApp')}
             icon="star"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             onPress={() => void vm.handleRateApp()}
             testID="profile-rate-app"
           />
           <NativeSettingsRow
             title={vm.t('profile.contactSupport')}
             icon="email"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             onPress={vm.handleSupport}
             testID="profile-support"
           />
           <NativeSettingsRow
             title={vm.t('profile.terms')}
             icon="document"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/terms')}
             testID="profile-terms"

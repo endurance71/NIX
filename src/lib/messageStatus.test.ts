@@ -81,7 +81,7 @@ describe('text and incoming statuses', () => {
 });
 
 describe('messageStatusPresentation', () => {
-  const colors = { accent: 'accent', secondaryLabel: 'gray', destructive: 'danger' };
+  const colors = { accentText: 'accent', secondaryLabel: 'gray', destructive: 'danger' };
 
   it('shows the kind as a symbol, filled until opened', () => {
     expect(messageStatusPresentation('delivered', 'photo').icon).toBe('statusPhoto');

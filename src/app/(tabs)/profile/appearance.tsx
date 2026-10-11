@@ -40,7 +40,7 @@ export default function AppearanceScreen() {
                     <SymbolView
                       name={resolveAppIconName('checkmark') as SFSymbol}
                       size={APP_ICON_SIZE.sm}
-                      tintColor={colors.accent}
+                      tintColor={colors.accentText}
                       fallback={<View style={{ width: APP_ICON_SIZE.sm, height: APP_ICON_SIZE.sm }} />}
                     />
                   ) : undefined

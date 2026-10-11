@@ -425,7 +425,7 @@ function FriendRelationStatus({ relationStatus }: { relationStatus: FriendInvite
       ) : relationStatus === 'outgoing_pending' ? (
         <AppIcon name="clock" size={APP_ICON_SIZE.lg} color={colors.textMuted} />
       ) : (
-        <AppIcon name="personAdd" size={APP_ICON_SIZE.lg} color={colors.accent} />
+        <AppIcon name="personAdd" size={APP_ICON_SIZE.lg} color={colors.accentText} />
       )}
       <Text
         style={[

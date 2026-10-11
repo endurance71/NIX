@@ -194,7 +194,7 @@ function BootstrapMessageBanner({
       ]}
     >
       <View style={bannerStyles.header}>
-        <AppIcon name="warning" size={16} color={colors.accent} />
+        <AppIcon name="warning" size={16} color={colors.accentText} />
         <Text maxFontSizeMultiplier={1.4} style={[bannerStyles.title, { color: colors.label }]}>
           {title}
         </Text>
@@ -211,7 +211,7 @@ function BootstrapMessageBanner({
           </Pressable>
         ) : null}
         <Pressable accessibilityRole="button" hitSlop={8} onPress={onRetry}>
-          <Text maxFontSizeMultiplier={1.4} style={[bannerStyles.action, { color: colors.accent }]}>
+          <Text maxFontSizeMultiplier={1.4} style={[bannerStyles.action, { color: colors.accentText }]}>
             {retryLabel}
           </Text>
         </Pressable>
@@ -305,7 +305,7 @@ function AppStack({
         screenOptions={{
           headerShown: false,
           headerBackButtonDisplayMode: 'minimal',
-          headerTintColor: colors.accent,
+          headerTintColor: colors.accentText,
           headerTitleStyle: { fontFamily: APP_FONT_FAMILY, fontWeight: '700', color: colors.label },
           headerLargeTitleStyle: { fontFamily: APP_FONT_FAMILY, fontWeight: '700', color: colors.label },
           headerStyle: { backgroundColor: colors.background },
@@ -351,7 +351,7 @@ function AppStack({
             headerTransparent: true,
             headerShadowVisible: false,
             headerStyle: { backgroundColor: 'transparent' },
-            headerTintColor: colors.accent,
+            headerTintColor: colors.accentText,
             headerTitleStyle: { fontFamily: APP_FONT_FAMILY, fontWeight: '700', color: colors.label },
             contentStyle: { backgroundColor: colors.background },
           }}
@@ -381,7 +381,7 @@ function AppStack({
             headerShadowVisible: false,
             headerStyle: { backgroundColor: 'transparent' },
             headerBackground: () => null,
-            headerTintColor: colors.accent,
+            headerTintColor: colors.accentText,
             contentStyle: { backgroundColor: colors.systemBackground },
           }}
         />
@@ -394,7 +394,7 @@ function AppStack({
             headerTransparent: true,
             headerShadowVisible: false,
             headerStyle: { backgroundColor: 'transparent' },
-            headerTintColor: colors.accent,
+            headerTintColor: colors.accentText,
             headerTitleStyle: { color: colors.label },
             contentStyle: { backgroundColor: colors.background },
           }}

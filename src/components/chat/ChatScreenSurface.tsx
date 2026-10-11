@@ -686,7 +686,7 @@ function SavedMarker({ savedBy, peerName, isOwn }: { savedBy: 'me' | 'peer'; pee
       <SymbolView
         name={resolveAppIconName('savedMessage')}
         size={APP_ICON_SIZE.xs - 2}
-        tintColor={colors.accent}
+        tintColor={colors.accentText}
         weight="semibold"
       />
       <Text style={[styles.savedText, { color: colors.secondaryLabel }]} numberOfLines={1}>
@@ -1421,7 +1421,7 @@ const NixChip = memo(function NixChip({
     <View style={[styles.bubble, styles.chipLayout, { backgroundColor: bubbleBg }]}>
       <Animated.View
         pointerEvents="none"
-        style={[styles.nixHighlightRing, { borderColor: colors.accent }, highlightStyle]}
+        style={[styles.nixHighlightRing, { borderColor: colors.accentText }, highlightStyle]}
       />
       <SymbolView
         name={resolveAppIconName(statusPresentation.icon)}
@@ -1581,7 +1581,7 @@ function MediaBubbleAccessory({
   if (busy || !icon) {
     return (
       <View style={styles.uploadAccessory}>
-        <MediaProgress progress={progress} color={colors.accent} />
+        <MediaProgress progress={progress} color={colors.accentText} />
       </View>
     );
   }
@@ -1940,7 +1940,7 @@ const ChatComposer = memo(function ChatComposer({
     iconWeight: 'semibold' as const,
     // Pure glass on iOS 26+; the gray capsule below it, where `glassEffect` draws nothing.
     backgroundColor: useGlass ? 'transparent' : colors.secondarySystemFill,
-    tintColor: colors.accent,
+    tintColor: colors.accentText,
     colorScheme,
   };
 

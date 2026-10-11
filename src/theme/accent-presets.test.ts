@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACCENT_PRESETS, contrastRatio, resolveOnAccentColor } from './accent-presets';
+import { ACCENT_PRESETS, contrastRatio, resolveAccentForeground, resolveOnAccentColor } from './accent-presets';
 
 describe('accent contrast', () => {
   it('computes WCAG ratios', () => {
@@ -22,6 +22,27 @@ describe('accent contrast', () => {
       for (const accent of [preset.light, preset.dark]) {
         expect(contrastRatio(resolveOnAccentColor(accent), accent)).toBeGreaterThanOrEqual(3);
       }
+    }
+  });
+});
+
+describe('accent foreground (text and glyphs on the background)', () => {
+  it('darkens faint presets on white to body-text contrast and keeps the rest', () => {
+    for (const preset of ACCENT_PRESETS) {
+      const foreground = resolveAccentForeground(preset.light, '#FFFFFF');
+      if (contrastRatio(preset.light, '#FFFFFF') >= 3) {
+        expect(foreground).toBe(preset.light);
+      } else {
+        expect(contrastRatio(foreground, '#FFFFFF')).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+    expect(resolveAccentForeground('#007AFF', '#FFFFFF')).toBe('#007AFF');
+    expect(resolveAccentForeground('#FF9500', '#FFFFFF')).not.toBe('#FF9500');
+    expect(resolveAccentForeground('#30B0C7', '#FFFFFF')).not.toBe('#30B0C7');
+  });
+  it('leaves every preset unchanged in dark mode', () => {
+    for (const preset of ACCENT_PRESETS) {
+      expect(resolveAccentForeground(preset.dark, '#000000')).toBe(preset.dark);
     }
   });
 });

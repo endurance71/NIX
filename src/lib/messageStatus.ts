@@ -127,9 +127,9 @@ export function messageStatusPresentation(
 
 export function messageStatusColor(
   tone: MessageStatusPresentation['tone'],
-  colors: Pick<ThemeColors, 'accent' | 'secondaryLabel' | 'destructive'>
+  colors: Pick<ThemeColors, 'accentText' | 'secondaryLabel' | 'destructive'>
 ): string {
   if (tone === 'muted') return colors.secondaryLabel;
   if (tone === 'danger') return colors.destructive;
-  return colors.accent;
+  return colors.accentText;
 }

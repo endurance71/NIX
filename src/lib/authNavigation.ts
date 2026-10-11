@@ -1,7 +1,7 @@
 import type { ThemeColors } from '../theme/colors';
 import { SOFT_SCROLL_EDGE_EFFECTS } from '../theme/scrollEdge';
 
-type AuthNavigationColors = Pick<ThemeColors, 'accent' | 'background' | 'label'>;
+type AuthNavigationColors = Pick<ThemeColors, 'accentText' | 'background' | 'label'>;
 
 /**
  * Shared navigation chrome for secondary authentication screens.
@@ -15,7 +15,7 @@ export function getAuthStackScreenOptions(colors: AuthNavigationColors) {
     headerTransparent: true,
     headerShadowVisible: false,
     headerLargeTitleShadowVisible: false,
-    headerTintColor: colors.accent,
+    headerTintColor: colors.accentText,
     headerTitleStyle: { color: colors.label },
     headerStyle: { backgroundColor: 'transparent' },
     contentStyle: { backgroundColor: colors.background },

@@ -16,7 +16,7 @@ export default function ProfileTabLayout() {
         headerShown: true,
         headerBackButtonDisplayMode: 'minimal',
         headerLargeTitleEnabled: true,
-        headerTintColor: colors.accent,
+        headerTintColor: colors.accentText,
         headerTransparent: !isOfflineAuthenticated,
         headerShadowVisible: false,
         headerLargeTitleShadowVisible: false,

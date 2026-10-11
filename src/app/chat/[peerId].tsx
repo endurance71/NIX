@@ -188,7 +188,7 @@ export default function ChatScreen() {
   const headerOptions = useMemo(
     () => ({
       headerBackButtonDisplayMode: 'minimal' as const,
-      headerTintColor: colors.accent,
+      headerTintColor: colors.accentText,
       headerTransparent: !isOfflineAuthenticated,
       headerShadowVisible: false,
       headerStyle: {
@@ -197,7 +197,7 @@ export default function ChatScreen() {
       headerBackground: isOfflineAuthenticated ? undefined : renderNoHeaderBackground,
       headerTitle,
     }),
-    [colors.accent, colors.systemBackground, headerTitle, isOfflineAuthenticated],
+    [colors.accentText, colors.systemBackground, headerTitle, isOfflineAuthenticated],
   );
 
   return (

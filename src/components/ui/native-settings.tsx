@@ -195,7 +195,7 @@ export function NativeSettingsRow({
     ? colors.tertiaryLabel
     : role === 'destructive'
       ? colors.destructive
-      : (iconColor ?? colors.accent);
+      : (iconColor ?? colors.accentText);
   const hasLeading = Boolean(avatar || icon || leading);
   const resolvedLeading = hasLeading ? (
     <NativeSettingsLeading

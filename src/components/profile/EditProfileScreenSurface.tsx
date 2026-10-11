@@ -127,7 +127,7 @@ function ProfileFieldEditorSheet({
           returnKeyType={isDisplayName ? 'done' : 'default'}
           blurOnSubmit={isDisplayName}
           editable={!busy}
-          selectionColor={colors.accent}
+          selectionColor={colors.accentText}
           placeholder={t(
             isDisplayName ? 'profile.displayNamePlaceholder' : 'profile.bioPlaceholder',
           )}
@@ -406,7 +406,7 @@ export default function EditProfileScreenSurface() {
                     hitSlop={8}
                     onPress={openAvatarMenu}
                     style={({ pressed }) => pressed && styles.pressed}>
-                    <Text style={[styles.editPhotoLabel, { color: colors.accent }]}>
+                    <Text style={[styles.editPhotoLabel, { color: colors.accentText }]}>
                       {avatarBusy ? t('profile.changeAvatarLoading') : t('profile.editPhoto')}
                     </Text>
                   </Pressable>

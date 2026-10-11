@@ -8,6 +8,12 @@ export type ThemeColors = {
   border: string;
   borderStrong: string;
   accent: string;
+  /**
+   * Accent for text and glyphs on the screen background. Equals `accent` except where the
+   * accent is too faint there (orange/teal in light mode) — then a darker shade of the hue.
+   * Fills (buttons, bubbles, selection) keep `accent`.
+   */
+  accentText: string;
   success: string;
   warning: string;
   error: string;
@@ -74,6 +80,7 @@ export const darkColors: ThemeColors = {
   border: '#FFFFFF1A',
   borderStrong: '#FFFFFF33',
   accent: '#0A84FF', // Vibrant Apple Blue
+  accentText: '#0A84FF',
   success: '#32D74B', // Vibrant Apple Green
   warning: '#FFD60A', // Vibrant Apple Yellow
   error: '#FF453A', // Vibrant Apple Red
@@ -125,6 +132,7 @@ export const lightColors: ThemeColors = {
   border: '#3C3C432E',
   borderStrong: '#3C3C434D',
   accent: '#007AFF',
+  accentText: '#007AFF',
   success: '#34C759',
   warning: '#FF9F0A',
   error: '#FF3B30',

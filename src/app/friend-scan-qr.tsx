@@ -212,7 +212,7 @@ function ScannerPermissionGate({
       {/* No camera behind the header here: system tint and title colors. */}
       <Stack.Screen
         options={{
-          headerTintColor: colors.accent,
+          headerTintColor: colors.accentText,
           headerTitleStyle: { fontFamily: APP_FONT_FAMILY, fontWeight: '700', color: colors.label },
         }}
       />

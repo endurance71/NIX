@@ -42,11 +42,11 @@ export default function AppTabsLayout() {
       <LockedCaptureIntake />
       <SharedIntakeSync />
       <NativeTabs
-        tintColor={colors.accent}
+        tintColor={colors.accentText}
         backgroundColor={colors.background}
         blurEffect={isDark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}
         disableTransparentOnScrollEdge
-        iconColor={{ default: colors.label, selected: colors.accent }}>
+        iconColor={{ default: colors.label, selected: colors.accentText }}>
         <NativeTabs.Trigger
           name="index"
           accessibilityLabel={t('tabs.camera')}

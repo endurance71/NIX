@@ -4,7 +4,7 @@ import { getAuthStackScreenOptions } from './authNavigation';
 describe('getAuthStackScreenOptions', () => {
   it('uses the same minimal transparent navigation chrome on auth screens', () => {
     const options = getAuthStackScreenOptions({
-      accent: '#007AFF',
+      accentText: '#007AFF',
       background: '#F2F2F7',
       label: '#000000',
     });

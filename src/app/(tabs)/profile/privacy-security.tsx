@@ -25,7 +25,7 @@ export default function PrivacySecurityScreen() {
           <NativeSettingsRow
             title={vm.t('profile.privateAccount')}
             icon="lock"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             switchValue={vm.profileRow?.is_private ?? false}
             onSwitchValueChange={(value) => void vm.handleTogglePrivacy(value)}
             disabled={!vm.canPerformNetworkAction}
@@ -35,7 +35,7 @@ export default function PrivacySecurityScreen() {
             <NativeSettingsRow
               title={vm.t('profile.privateAnalytics')}
               icon="chart"
-              iconColor={colors.accent}
+              iconColor={colors.accentText}
               switchValue={vm.analyticsEnabled}
               onSwitchValueChange={(enabled) => void vm.handleAnalyticsToggle(enabled)}
               disabled={!vm.canPerformNetworkAction || vm.analyticsPending}
@@ -49,7 +49,7 @@ export default function PrivacySecurityScreen() {
             <NativeSettingsRow
               title={vm.t('profile.changePassword')}
               icon="key"
-              iconColor={colors.accent}
+              iconColor={colors.accentText}
               showsChevron
               disabled={!vm.canPerformNetworkAction}
               onPress={() => router.push('/(tabs)/profile/change-password')}
@@ -59,7 +59,7 @@ export default function PrivacySecurityScreen() {
           <NativeSettingsRow
             title={vm.t('profile.safetyCenterSummary')}
             icon="shield"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/safety')}
             testID="profile-safety"
@@ -68,7 +68,7 @@ export default function PrivacySecurityScreen() {
             <NativeSettingsRow
               title={vm.t('devices.title')}
               icon="devices"
-              iconColor={colors.accent}
+              iconColor={colors.accentText}
               showsChevron
               onPress={() => router.push('/(tabs)/profile/devices' as never)}
               testID="profile-devices"
@@ -81,7 +81,7 @@ export default function PrivacySecurityScreen() {
             <NativeSettingsRow
               title={vm.t('dataExport.title')}
               icon="download"
-              iconColor={colors.accent}
+              iconColor={colors.accentText}
               showsChevron
               onPress={() => router.push('/(tabs)/profile/data-export' as never)}
               testID="profile-data-export"
@@ -90,7 +90,7 @@ export default function PrivacySecurityScreen() {
           <NativeSettingsRow
             title={vm.t('profile.privacyPolicy')}
             icon="document"
-            iconColor={colors.accent}
+            iconColor={colors.accentText}
             showsChevron
             onPress={() => router.push('/(tabs)/profile/privacy-policy')}
             testID="profile-privacy-policy"

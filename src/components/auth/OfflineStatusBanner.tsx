@@ -34,11 +34,11 @@ export function OfflineStatusBanner({
         },
         style,
       ]}>
-      <AppIcon name="warning" size={compact ? 14 : 16} color={colors.accent} />
+      <AppIcon name="warning" size={compact ? 14 : 16} color={colors.accentText} />
       <Text
         maxFontSizeMultiplier={1.4}
         numberOfLines={compact ? 1 : undefined}
-        style={[styles.label, compact && styles.compactLabel, { color: colors.accent }]}>
+        style={[styles.label, compact && styles.compactLabel, { color: colors.accentText }]}>
         {label}
       </Text>
     </View>

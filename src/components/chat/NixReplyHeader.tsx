@@ -45,7 +45,7 @@ export function NixReplyHeader({
         <SymbolView
           name={resolveAppIconName(context.kind === 'video' ? 'statusVideo' : 'statusPhoto')}
           size={APP_ICON_SIZE.xs}
-          tintColor={colors.accent}
+          tintColor={colors.accentText}
           weight="semibold"
         />
         <Text numberOfLines={1} style={[styles.label, { color: colors.secondaryLabel }]}>

@@ -117,7 +117,7 @@ function useUploadPhaseColor(phase: RecipientUploadPhase | undefined) {
     case 'passive':
       return colors.secondaryLabel;
     case 'active':
-      return colors.accent;
+      return colors.accentText;
   }
 }
 
@@ -189,7 +189,7 @@ function rowSubtitle(row: InboxRowModel, t: Translate, reactionGlyph: string | n
 function UploadAccessory({ row, t }: { row: InboxRowModel; t: Translate }) {
   const { colors } = useAppTheme();
   const upload = row.upload;
-  const color = useUploadPhaseColor(upload?.phase) ?? colors.accent;
+  const color = useUploadPhaseColor(upload?.phase) ?? colors.accentText;
   if (!upload) return null;
   const percent = `${Math.round(upload.progress * 100)}%`;
   const icon = UPLOAD_PHASE_ICONS[upload.phase];
@@ -470,7 +470,7 @@ function MessageLeadingSwipeActions({
           label={pinned ? t('inbox.unpin') : t('inbox.pin')}
           systemImage={resolveAppIconName(pinned ? 'unpin' : 'pin')}
           onPress={onTogglePin}
-          modifiers={[tint(colors.accent)]}
+          modifiers={[tint(colors.accentText)]}
         />
       ) : null}
       {menu.mute ? (

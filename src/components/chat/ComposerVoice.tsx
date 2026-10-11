@@ -199,7 +199,7 @@ export function VoiceReviewStrip({
         size={STRIP_BUTTON_SIZE}
         iconSize={APP_ICON_SIZE.sm}
         backgroundColor="transparent"
-        tintColor={colors.accent}
+        tintColor={colors.accentText}
         chromeVariant="solid"
         onPress={toggle}
         accessibilityLabel={status.playing ? t('chat.voicePause') : t('chat.voicePlay')}
