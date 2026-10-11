@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,7 +11,9 @@ import {
   useWindowDimensions,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type ScrollViewProps,
 } from 'react-native';
+import { ScrollViewMarker } from 'react-native-screens/experimental';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
@@ -69,9 +71,24 @@ function MemoryVideo({ uri, label }: { uri: string; label: string }) {
   );
 }
 
+/**
+ * Full-screen media has no scroll edge effect (like Photos): iOS 27 would otherwise draw its hard
+ * blurred band under the transparent header and above the bottom toolbar.
+ */
+const NO_SCROLL_EDGE_EFFECTS = { top: 'hidden', bottom: 'hidden', left: 'hidden', right: 'hidden' } as const;
+
+function GalleryScrollView({ ref, ...props }: ScrollViewProps & { ref?: Ref<ScrollView> }) {
+  return (
+    <ScrollViewMarker style={styles.fill} scrollEdgeEffects={NO_SCROLL_EDGE_EFFECTS}>
+      <ScrollView {...props} ref={ref} />
+    </ScrollViewMarker>
+  );
+}
+
 /** A photo the user can pinch to zoom (native UIScrollView zoom), like the Photos app. */
 function ZoomablePhoto({ uri, width, height, label }: { uri: string; width: number; height: number; label: string }) {
   return (
+    <ScrollViewMarker style={StyleSheet.absoluteFill} scrollEdgeEffects={NO_SCROLL_EDGE_EFFECTS}>
     <ScrollView
       style={StyleSheet.absoluteFill}
       contentContainerStyle={{ width, height }}
@@ -91,6 +108,7 @@ function ZoomablePhoto({ uri, width, height, label }: { uri: string; width: numb
         accessibilityLabel={label}
       />
     </ScrollView>
+    </ScrollViewMarker>
   );
 }
 
@@ -365,6 +383,7 @@ export function MemoryViewerScreen() {
           headerTintColor: colors.cameraControlTint,
           headerTitleStyle: { color: colors.cameraControlTint },
           headerStyle: { backgroundColor: 'transparent' },
+          scrollEdgeEffects: NO_SCROLL_EDGE_EFFECTS,
           title,
         }}
       />
@@ -402,6 +421,7 @@ export function MemoryViewerScreen() {
       {entries ? (
         <FlatList
           ref={listRef}
+          renderScrollComponent={(props) => <GalleryScrollView {...props} />}
           data={entries}
           keyExtractor={(item) => item.id}
           horizontal
@@ -452,6 +472,9 @@ export function MemoryViewerScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  fill: {
     flex: 1,
   },
   center: {
