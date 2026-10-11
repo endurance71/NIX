@@ -13,6 +13,7 @@ import {
 import type { InboxBundle } from '../lib/inboxQuery';
 import { runWithFinally } from '../lib/runWithFinally';
 import {
+  cancelOwnTextMessage,
   fetchRecentTextMessagesWithPeer,
   setTextMessageSaved,
 } from '../services/textMessageService';
@@ -68,6 +69,7 @@ import {
 } from '../services/notificationPreferencesService';
 import {
   deleteTextOutboxJob,
+  deleteUnclaimedTextOutboxJob,
   enqueueTextOutbox,
   flushTextOutbox,
   listTextOutbox,
@@ -696,7 +698,33 @@ export function useChatScreen(peerId: string) {
     await outboxQuery.refetch();
   };
 
-  const peerUsername = peerProfileQuery.data?.username ?? null;
+  const handleCancelSendingTextMessage = async (outboxId: string) => {
+    if (!currentUserId) return;
+    if (!canUseNetworkSession) {
+      notifyInfo(t('chat.cancelSendOffline'));
+      return;
+    }
+    try {
+      // Remove the local row first so no later flush can enqueue it again.
+      const removedLocally = await deleteUnclaimedTextOutboxJob(currentUserId, outboxId);
+      // 1:1 chat: every outgoing text goes to the peer.
+      const result = await cancelOwnTextMessage(peerId, outboxId);
+      if (result === 'already_sent') {
+        notifyInfo(t('chat.cancelSendTooLate'));
+      } else if (result === 'not_found' && !removedLocally) {
+        // A flush is sending it right now and the server has no job yet.
+        notifyInfo(t('chat.cancelSendRetry'));
+      } else {
+        await deleteTextOutboxJob(currentUserId, outboxId);
+      }
+    } catch (error) {
+      notifyDomainError(error, t('chat.cancelSendFailed'));
+    } finally {
+      await Promise.all([outboxQuery.refetch(), messagesQuery.refetch()]);
+    }
+  };
+
+    const peerUsername = peerProfileQuery.data?.username ?? null;
 
   const handleReportMessage = async (message: TextMessage, reason: ReportReason) => {
     if (!canUseNetworkSession) {
@@ -1016,6 +1044,7 @@ export function useChatScreen(peerId: string) {
     handleSend,
     handleRetryTextMessage,
     handleDeleteOutboxMessage,
+    handleCancelSendingTextMessage,
     handleReportMessage,
     handleReportPeer,
     handleBlockPeer,

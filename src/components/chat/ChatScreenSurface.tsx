@@ -740,6 +740,7 @@ type MessageBubbleProps = {
   onReport: (messageId: string) => void;
   onRetry: (outboxId: string) => void;
   onDeleteOutbox: (outboxId: string) => void;
+  onCancelSending: (outboxId: string) => void;
   onSetSaved: (messageId: string, saved: boolean) => void;
   onToggleVoice: (messageId: string) => void;
 };
@@ -824,7 +825,7 @@ function runBubbleAccessibilityAction(name: string, handlers: BubbleActionHandle
 type BubbleInteractionMode = {
   /** Tombstone: confirm removal; failed: retry; voice: play / pause; plain text: nothing. */
   press: 'expired' | 'retry' | 'voice' | null;
-  longPress: 'expired' | 'failed' | 'report' | 'none' | 'picker';
+  longPress: 'expired' | 'failed' | 'cancelSending' | 'report' | 'none' | 'picker';
 };
 
 function bubbleInteractionMode(params: {
@@ -836,9 +837,12 @@ function bubbleInteractionMode(params: {
   copyable: boolean;
   canSave: boolean;
   isOwn: boolean;
+  sending: boolean;
 }): BubbleInteractionMode {
   if (params.expired) return { press: 'expired', longPress: 'expired' };
   if (params.failed && params.outboxId) return { press: 'retry', longPress: 'failed' };
+  // Still waiting for moderation / delivery: the sender may cancel it.
+  if (params.sending && params.outboxId) return { press: null, longPress: 'cancelSending' };
   const press = params.isVoice ? 'voice' : null;
   // Offline or still sending: no reactions, but Copy / Save (and Report) stay available.
   if (!params.canReact && !params.copyable && !params.canSave) {
@@ -924,6 +928,7 @@ const MessageBubble = memo(function MessageBubble({
   onReport,
   onRetry,
   onDeleteOutbox,
+  onCancelSending,
   onSetSaved,
   onToggleVoice,
 }: MessageBubbleProps) {
@@ -964,7 +969,17 @@ const MessageBubble = memo(function MessageBubble({
     if (outboxId) confirmExpiredOutbox(t, () => onDeleteOutbox(outboxId));
   };
 
-  const mode = bubbleInteractionMode({ expired, failed, outboxId, isVoice, canReact, copyable, canSave, isOwn });
+  const mode = bubbleInteractionMode({
+    expired,
+    failed,
+    outboxId,
+    isVoice,
+    canReact,
+    copyable,
+    canSave,
+    isOwn,
+    sending: outboxStatus === 'sending',
+  });
 
   const openPickerFromBubble = () => {
     switch (mode.longPress) {
@@ -978,6 +993,14 @@ const MessageBubble = memo(function MessageBubble({
             copy: copyable ? () => onCopy(messageId) : null,
             remove: () => onDeleteOutbox(outboxId),
           });
+        }
+        return;
+      case 'cancelSending':
+        if (outboxId) {
+          Alert.alert(t('chat.sendingTitle'), undefined, [
+            { text: t('chat.cancelSending'), style: 'destructive', onPress: () => onCancelSending(outboxId) },
+            { text: t('common.close'), style: 'cancel' },
+          ]);
         }
         return;
       case 'report':
@@ -2303,6 +2326,9 @@ function useChatTimelineHandlers(
   const onDeleteOutbox = useStableHandler((outboxId: string) => {
     void vm.handleDeleteOutboxMessage(outboxId);
   });
+  const onCancelSending = useStableHandler((outboxId: string) => {
+    void vm.handleCancelSendingTextMessage(outboxId);
+  });
   const onOpenNix = useStableHandler((nixId: string) => {
     const nix = vm.nixes.find((candidate) => candidate.id === nixId);
     if (!nix) return;
@@ -2328,6 +2354,7 @@ function useChatTimelineHandlers(
     onUploadAction,
     onRetryText,
     onDeleteOutbox,
+    onCancelSending,
     onOpenNix,
     onOpenUploadActions,
     onRetryUpload,
@@ -2691,6 +2718,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     onUploadAction,
     onRetryText,
     onDeleteOutbox,
+    onCancelSending,
     onOpenNix,
     onOpenUploadActions,
     onRetryUpload,
@@ -2824,6 +2852,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
         onReport={onReportMessage}
         onRetry={onRetryText}
         onDeleteOutbox={onDeleteOutbox}
+        onCancelSending={onCancelSending}
         onSetSaved={onSetSaved}
         onToggleVoice={onToggleVoice}
       />
@@ -2837,6 +2866,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     currentUserId,
     focusedMessageId,
     locale,
+    onCancelSending,
     onCopyMessage,
     onDeleteOutbox,
     onOpenNix,

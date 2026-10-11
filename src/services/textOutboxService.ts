@@ -258,6 +258,23 @@ export async function deleteTextOutboxJob(ownerId: string, jobId: string) {
   });
 }
 
+/**
+ * Removes a queued text unless a flush has already claimed it for sending,
+ * so a removed row can never be enqueued afterwards.
+ */
+export async function deleteUnclaimedTextOutboxJob(ownerId: string, jobId: string): Promise<boolean> {
+  return operations.run(ownerId, async (assertActive) => {
+    const db = await database();
+    assertActive();
+    const result = await db.runAsync(
+      "DELETE FROM text_outbox WHERE id = ? AND owner_id = ? AND state IN ('pending', 'failed')",
+      jobId,
+      ownerId
+    );
+    return result.changes > 0;
+  });
+}
+
 export async function retryTextOutboxJob(ownerId: string, jobId: string) {
   return operations.run(ownerId, async (assertActive) => {
     const db = await database();

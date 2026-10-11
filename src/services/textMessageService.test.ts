@@ -8,6 +8,7 @@ import {
   fetchRecentTextMessagesWithPeer,
   mapRecentTextMessageRow,
   mapRecentTextMessageRpcRow,
+  cancelOwnTextMessage,
 } from './textMessageService';
 
 const {
@@ -385,5 +386,25 @@ describe('inbox text row mapping', () => {
     expect(
       mapRecentTextMessageRow({ ...row, sender_id: 'me-1', receiver_id: 'peer-2' }, 'me-1').peer_id
     ).toBe('peer-2');
+  });
+});
+
+describe('cancelOwnTextMessage', () => {
+  it('passes the receiver and client id and returns the server outcome', async () => {
+    mockSupabaseRpc.mockReset();
+    mockSupabaseRpc.mockResolvedValueOnce({ data: 'cancelled', error: null });
+
+    await expect(cancelOwnTextMessage('peer', 'outbox-1')).resolves.toBe('cancelled');
+    expect(mockSupabaseRpc).toHaveBeenCalledWith('cancel_own_text_moderation_job', {
+      p_receiver_id: 'peer',
+      p_client_message_id: 'outbox-1',
+    });
+  });
+
+  it('rejects unknown outcomes instead of treating them as cancelled', async () => {
+    mockSupabaseRpc.mockReset();
+    mockSupabaseRpc.mockResolvedValueOnce({ data: 'maybe', error: null });
+
+    await expect(cancelOwnTextMessage('peer', 'outbox-1')).rejects.toMatchObject({ code: 'UNKNOWN' });
   });
 });

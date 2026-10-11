@@ -54,6 +54,7 @@ const expected = [
   '20261007121000_fix_retention_and_image_limits.sql',
   '20261010120000_pre_review_hardening.sql',
   '20261010121000_reset_october_f0_external_floor.sql',
+  '20261010130000_cancel_own_text_moderation_job.sql',
   '20261011100000_rls_initplan_wrap.sql',
   '20261011101000_fk_and_query_indexes.sql',
   '20261011110000_moderation_claim_text_priority.sql',
