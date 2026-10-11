@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { getCurrentLocale } from '../../lib/i18n';
 import { legalDocuments } from '../../lib/legalDocuments';
+import { keepLinksUnbroken } from '../../lib/unbreakableLinks';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { NativeSettingsEmptyRow, NativeSettingsSection } from './native-settings';
 import { SettingsListScreen } from './settings-list-screen';
@@ -14,12 +15,13 @@ export function LegalDocumentScreen({ kind }: { kind: 'privacy' | 'terms' }) {
   return (
     <>
       <SettingsListScreen>
-        <NativeSettingsSection title={`${title} · ${document.version}`}>
-          <NativeSettingsEmptyRow text={document.effectiveDate} />
+        {/* The screen title already names the document; the date is shown once, in words. */}
+        <NativeSettingsSection>
+          <NativeSettingsEmptyRow text={t('profile.legalEffectiveFrom', { date: document.effectiveDate })} />
         </NativeSettingsSection>
         {document.sections.map((section) => (
           <NativeSettingsSection key={section.title} title={section.title}>
-            <NativeSettingsEmptyRow text={section.body} />
+            <NativeSettingsEmptyRow text={keepLinksUnbroken(section.body)} />
           </NativeSettingsSection>
         ))}
       </SettingsListScreen>
