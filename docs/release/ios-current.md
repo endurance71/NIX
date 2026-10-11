@@ -38,6 +38,8 @@ inline title like the other profile screens and its grid shares the 16 pt screen
 Seventeenth OTA (2026-10-11): update group `730173ed-1d47-4371-9b3b-8b59825bd307`, source `be50e89` — close
 animations where only the open was animated (reply / edit banner, focus square, sticker trash, text sticker actions,
 preview Save / Send) and the native zoom from a Memories cell into the viewer.
+Eighteenth OTA (2026-10-11): update group `15071e7f-9e61-460b-a7b6-19de92cdf397`, source `cd783eb` — the Memories
+viewer is pushed instead of presented, so the zoom transition actually runs (it still slid up as a modal).
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
