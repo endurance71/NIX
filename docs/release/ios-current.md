@@ -4,6 +4,33 @@
 > Dated sprint plans and audit snapshots are historical evidence and must link
 > here instead of presenting their old binary state as current.
 
+## App Review candidate — 1.0.13 (15), 2026-10-11
+
+Fixes from the [App Review preflight](APP_REVIEW_PREFLIGHT_2026-10-11.pl.md), step 1. **Runtime 1.0.13**, channel
+production: OTAs for build 14 also apply here. `main` at `dcfee5c` (version bump `bb50249`).
+
+Native changes:
+- the share extension opens NiX only through `extensionContext.open`;
+- a privacy manifest for every extension, and the app manifest gains 1C8F.1 and its collected data types;
+- the `fetch` background mode is removed;
+- the camera purpose string mentions QR codes;
+- the widget description is PL/EN.
+
+JS changes: the `child_safety` report reason and the welcome-tour copy.
+
+Local Release Archive: `~/.nix-ops/release-1.0.13-15/` (ARCHIVE SUCCEEDED; 4 extension manifests present; only the
+`processing` background mode). Uploaded with `xcodebuild -exportArchive` and the „NiX claude” API key. Build id
+`e5fbc2b0-904f-434f-8b8b-1e9485d05f66`: VALID, in **NiX Internal QA** and **Team (Expo)**, with PL/EN What to Test.
+
+**Backend pending.** Migrations `20261015100000` (private accounts), `20261015101000` (audio evidence) and
+`20261015102000` (`child_safety`), plus the `report-content` Edge Function, are not deployed yet. Until they are:
+- a „Child safety” report fails;
+- private accounts are still searchable;
+- a voice-message report secures no audio.
+
+The encrypted pre-deploy backup and dry run (exactly these 3 migrations) are in `~/.nix-ops/review-preflight-2026-10-11/`
+(SHA256 `d1049c4f71c03f8d75ea985d43aee0b9e8972fa3400f2ad4cfedaeb6862381c7`).
+
 ## Feature candidate — 1.0.13 (14), 2026-10-11
 
 Supersedes build 13 (never uploaded). Same **runtime 1.0.13** and channel production, so every OTA up to the
