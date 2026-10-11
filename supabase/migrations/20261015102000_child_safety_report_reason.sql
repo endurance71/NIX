@@ -3,8 +3,20 @@
 -- NiX accepts users from 16, so sexual content can involve minors. A new report reason
 -- `child_safety` ("A minor's safety") is triaged as critical (like violence, self-harm and illegal
 -- content) instead of the normal 24 h / 72 h queue; the moderation runbook describes preserving the
--- evidence and reporting it to the authorities. The function body is otherwise unchanged (copied
--- from the deployed definition); only the critical-reason list grows.
+-- evidence and reporting it to the authorities. The reason is added to the table CHECK and to the
+-- function's own validation; the function body is otherwise unchanged (copied from the deployed
+-- definition) apart from the critical-reason list.
+
+-- Fail fast instead of queueing behind a long transaction on hot tables (retry the push).
+SET lock_timeout = '5s';
+
+ALTER TABLE public.content_reports DROP CONSTRAINT content_reports_reason_check;
+ALTER TABLE public.content_reports ADD CONSTRAINT content_reports_reason_check CHECK (
+  reason = ANY (ARRAY[
+    'sexual_content', 'violence', 'self_harm', 'harassment', 'hate', 'impersonation', 'spam',
+    'privacy', 'illegal_content', 'child_safety', 'other'
+  ])
+);
 
 CREATE OR REPLACE FUNCTION public.create_content_report_v2(p_reason text, p_nix_id uuid DEFAULT NULL::uuid, p_text_message_id uuid DEFAULT NULL::uuid, p_reported_user_id uuid DEFAULT NULL::uuid, p_details text DEFAULT NULL::text)
  RETURNS TABLE(report_id uuid, media_path text, media_type text, reported_user_id uuid, evidence_expires_at timestamp with time zone, text_message_id uuid)
@@ -33,7 +45,7 @@ BEGIN
   END IF;
   IF p_reason NOT IN (
     'sexual_content', 'violence', 'self_harm', 'harassment', 'hate',
-    'impersonation', 'spam', 'privacy', 'illegal_content', 'other'
+    'impersonation', 'spam', 'privacy', 'illegal_content', 'child_safety', 'other'
   ) THEN
     RAISE EXCEPTION 'Invalid report reason';
   END IF;

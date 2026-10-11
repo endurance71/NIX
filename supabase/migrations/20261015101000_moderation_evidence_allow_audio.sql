@@ -5,18 +5,16 @@
 -- AAC/M4A types the `voice-messages` bucket stores. Retention is unchanged (30 days, then the
 -- `cleanup-moderation-evidence` job removes the object).
 
+-- Fail fast instead of queueing behind a long transaction on hot tables (retry the push).
+SET lock_timeout = '5s';
+
+-- Additive: keeps whatever types the bucket already allows.
 UPDATE storage.buckets
-SET allowed_mime_types = ARRAY[
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'video/mp4',
-  'video/quicktime',
-  'video/x-m4v',
-  'application/json',
-  'audio/mp4',
-  'audio/m4a',
-  'audio/x-m4a',
-  'audio/aac'
-]
+SET allowed_mime_types = ARRAY(
+  SELECT DISTINCT mime
+  FROM unnest(
+    COALESCE(allowed_mime_types, ARRAY[]::text[])
+    || ARRAY['audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/aac']
+  ) AS mime
+)
 WHERE id = 'moderation-evidence';
