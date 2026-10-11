@@ -32,13 +32,14 @@ import { queryKeys } from '../../lib/queryKeys';
 import { getCurrentUserProfile, updateCurrentUserProfile } from '../../services/profileService';
 import { darkColors } from '../../theme/colors';
 import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
+import { ACCENT_PRESETS, resolveAccentColor, type AccentPresetId } from '../../theme/accent-presets';
 import { useMotionEnabled } from '../../theme/motion';
 import { APP_FONT_FAMILY, typography } from '../../theme/typography';
 
 const ink = darkColors;
 
-export type WelcomeSetupStep = 'notifications' | 'camera' | 'privacy' | 'memories';
-const STEPS: readonly WelcomeSetupStep[] = ['notifications', 'camera', 'privacy', 'memories'];
+export type WelcomeSetupStep = 'notifications' | 'camera' | 'accent' | 'privacy' | 'memories';
+const STEPS: readonly WelcomeSetupStep[] = ['notifications', 'camera', 'accent', 'privacy', 'memories'];
 
 /** What the user chose, shown back as a checklist while the app gets ready. */
 export type WelcomeSetupSummary = { key: WelcomeSetupStep; label: string; done: boolean }[];
@@ -58,7 +59,7 @@ export function WelcomeSetup({
   onDone: (summary: WelcomeSetupSummary) => void;
 }) {
   const { t } = useTranslation();
-  const { colors } = useAppTheme();
+  const { colors, accentPresetId, setAccentPresetId } = useAppTheme();
   const motionEnabled = useMotionEnabled();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -95,6 +96,13 @@ export function WelcomeSetup({
   const summary = (): WelcomeSetupSummary => [
     { key: 'notifications', label: t('welcome.setup.summary.notifications'), done: push.state === 'enabled' },
     { key: 'camera', label: t('welcome.setup.summary.camera'), done: cameraGranted === true },
+    {
+      key: 'accent',
+      label: t('welcome.setup.summary.accent', {
+        color: t(ACCENT_PRESETS.find((preset) => preset.id === accentPresetId)?.labelKey ?? 'profile.accentPresets.blue'),
+      }),
+      done: true,
+    },
     {
       key: 'privacy',
       label: isPrivate ? t('welcome.setup.summary.private') : t('welcome.setup.summary.public'),
@@ -194,6 +202,16 @@ export function WelcomeSetup({
         <Text style={[styles.text, { color: ink.cinemaSecondaryLabel }]}>{t(`welcome.setup.${step}.body`)}</Text>
         {alreadyOn ? <EnabledBadge label={t('welcome.setup.enabled')} accent={colors.accent} motionEnabled={motionEnabled} /> : null}
 
+        {step === 'accent' ? (
+          <AccentPicker
+            selected={accentPresetId}
+            onSelect={(id) => {
+              if (id === accentPresetId) return;
+              selection();
+              setAccentPresetId(id);
+            }}
+          />
+        ) : null}
         {step === 'privacy' ? (
           <View style={styles.options}>
             <OptionCard
@@ -270,6 +288,48 @@ export function WelcomeSetup({
   );
 }
 
+/**
+ * The accent swatches. Picking one recolours the whole set-up at once (glow, tile, buttons),
+ * which is the preview.
+ */
+function AccentPicker({ selected, onSelect }: { selected: AccentPresetId; onSelect: (id: AccentPresetId) => void }) {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.swatches} accessibilityRole="radiogroup">
+      {ACCENT_PRESETS.map((preset) => (
+        <Swatch
+          key={preset.id}
+          color={resolveAccentColor(preset.id, 'dark')}
+          label={t(preset.labelKey)}
+          selected={preset.id === selected}
+          onPress={() => onSelect(preset.id)}
+        />
+      ))}
+    </View>
+  );
+}
+
+function Swatch({ color, label, selected, onPress }: { color: string; label: string; selected: boolean; onPress: () => void }) {
+  const ring = useSharedValue(selected ? 1 : 0);
+  useEffect(() => {
+    ring.set(withTiming(selected ? 1 : 0, { duration: 260, easing: Easing.bezier(0.23, 1, 0.32, 1) }));
+  }, [ring, selected]);
+  const ringStyle = useAnimatedStyle(() => ({ opacity: ring.get(), transform: [{ scale: 0.8 + 0.2 * ring.get() }] }));
+  const dotStyle = useAnimatedStyle(() => ({ transform: [{ scale: 1 - 0.18 * ring.get() }] }));
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={6}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={label}
+      style={styles.swatch}>
+      <Animated.View style={[styles.swatchRing, { borderColor: color }, ringStyle]} />
+      <Animated.View style={[styles.swatchDot, { backgroundColor: color }, dotStyle]} />
+    </Pressable>
+  );
+}
+
 /** "Turned On" with a check, popping in when a permission is (or becomes) granted. */
 function EnabledBadge({ label, accent, motionEnabled }: { label: string; accent: string; motionEnabled: boolean }) {
   return (
@@ -310,6 +370,7 @@ function ProgressSegment({ filled, accent }: { filled: boolean; accent: string }
 const HERO_ICON: Record<WelcomeSetupStep, AppIconName> = {
   notifications: 'notification',
   camera: 'camera',
+  accent: 'paintpalette',
   privacy: 'privacySecurity',
   memories: 'memories',
 };
@@ -546,6 +607,29 @@ const styles = StyleSheet.create({
   },
   actions: {
     paddingHorizontal: 24,
+  },
+  swatches: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 14,
+  },
+  swatch: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swatchRing: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 24,
+    borderWidth: 3,
+  },
+  swatchDot: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
   },
   enabled: {
     flexDirection: 'row',

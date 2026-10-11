@@ -1262,6 +1262,10 @@ export const resources = {
             body: 'NiX to aparat: potrzebujemy go do zdjęć i filmów, a mikrofonu do dźwięku i głosówek.',
             action: 'Zezwól na dostęp',
           },
+          accent: {
+            title: 'Twój kolor',
+            body: 'Wybierz kolor akcentu NiX-a. Zmienisz go w Profil → Wygląd.',
+          },
           privacy: {
             title: 'Kto może Cię znaleźć?',
             body: 'Zmienisz to w każdej chwili w Profil → Prywatność.',
@@ -1281,6 +1285,7 @@ export const resources = {
           summary: {
             notifications: 'Powiadomienia włączone',
             camera: 'Aparat gotowy',
+            accent: 'Kolor: {{color}}',
             public: 'Konto publiczne',
             private: 'Konto prywatne',
             memories: 'Wspomnienia włączone',
@@ -2540,6 +2545,10 @@ export const resources = {
             body: 'NiX is a camera: it needs the camera for photos and videos, and the microphone for sound and voice messages.',
             action: 'Allow Access',
           },
+          accent: {
+            title: 'Your color',
+            body: 'Pick NiX’s accent color. You can change it in Profile → Appearance.',
+          },
           privacy: {
             title: 'Who can find you?',
             body: 'You can change this anytime in Profile → Privacy.',
@@ -2559,6 +2568,7 @@ export const resources = {
           summary: {
             notifications: 'Notifications on',
             camera: 'Camera ready',
+            accent: 'Color: {{color}}',
             public: 'Public account',
             private: 'Private account',
             memories: 'Memories on',
