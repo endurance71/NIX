@@ -258,11 +258,19 @@ function ViewerHeader({ vm }: { vm: ViewerScreenViewModel }) {
         ) : null}
         <View style={vm.styles.senderText}>
           {sender?.name ? (
-            <Text style={vm.styles.senderName} numberOfLines={1}>
+            <Text
+              style={vm.styles.senderName}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}>
               {sender.name}
             </Text>
           ) : null}
-          {sender?.timeLabel ? <Text style={vm.styles.senderTime}>{sender.timeLabel}</Text> : null}
+          {sender?.timeLabel ? (
+            <Text style={vm.styles.senderTime} numberOfLines={1}>
+              {sender.timeLabel}
+            </Text>
+          ) : null}
         </View>
         {vm.isReplay ? (
           // Spoken through the header's combined label.

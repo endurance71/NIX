@@ -95,12 +95,13 @@ export function createViewerStyles(colors: ThemeColors) {
       alignItems: 'center',
       gap: 8,
     },
+    // Name above the time (Stories-style): the name gets the whole width up to the „Powtórka”
+    // badge instead of sharing a line with the time and truncating to „Damian Mot…”.
     senderText: {
       flexShrink: 1,
       minWidth: 0,
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      gap: 6,
+      flexDirection: 'column',
+      alignItems: 'flex-start',
     },
     senderName: {
       ...typography.headline,
