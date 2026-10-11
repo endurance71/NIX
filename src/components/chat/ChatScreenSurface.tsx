@@ -1821,6 +1821,9 @@ function SystemMessageItem({ message }: { message: OptimisticTextMessage }) {
  * Owns the draft text (PERF-10): a keystroke re-renders only this component, never the screen,
  * the header or the list cells.
  */
+/** From this Dynamic Type scale (the accessibility sizes) the composer uses the short placeholder. */
+const COMPOSER_SHORT_PLACEHOLDER_FONT_SCALE = 1.5;
+
 const ChatComposer = memo(function ChatComposer({
   t,
   keyboardHeight,
@@ -1911,7 +1914,15 @@ const ChatComposer = memo(function ChatComposer({
       key={inputKey}
       ref={inputRef}
       defaultValue={text}
-      placeholder={pasteImporting ? t('chat.pastePreparingImage') : t('chat.typeMessage')}
+      // At accessibility text sizes the full placeholder wrapped to three lines in the pill; the
+      // short form stays on one line (the label below keeps the full wording for VoiceOver).
+      placeholder={
+        pasteImporting
+          ? t('chat.pastePreparingImage')
+          : fontScale >= COMPOSER_SHORT_PLACEHOLDER_FONT_SCALE
+            ? t('chat.typeMessageShort')
+            : t('chat.typeMessage')
+      }
       placeholderTextColor={colors.secondaryLabel}
       onChangeText={changeText}
       onBlur={onDraftBlur}
