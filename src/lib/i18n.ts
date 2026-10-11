@@ -1242,6 +1242,7 @@ export const resources = {
         start: 'Zaczynamy',
         skip: 'Pomiń',
         pageA11y: 'Strona {{current}} z {{total}}',
+        logoA11y: 'NiX',
         demo: {
           sticker: 'Sobota! 🔥',
           sent: 'Wysłano',
@@ -2476,6 +2477,7 @@ export const resources = {
         start: 'Get Started',
         skip: 'Skip',
         pageA11y: 'Page {{current}} of {{total}}',
+        logoA11y: 'NiX',
         demo: {
           sticker: 'Saturday! 🔥',
           sent: 'Sent',

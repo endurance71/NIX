@@ -1,0 +1,146 @@
+import { StyleSheet, View } from 'react-native';
+import Svg, { Defs, G, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Animated, { useAnimatedProps, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import { darkColors } from '../../theme/colors';
+import { APP_FONT_FAMILY } from '../../theme/typography';
+import { backOut, easeInOut, easeOut, seg } from './welcomeMotion';
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+
+/**
+ * The NiX mark from `assets/brand/master/nix-mark-glass.svg` (1024 grid, one 100 px round stroke):
+ * an N whose right leg is an X. Lengths are the path lengths, for the draw-on dash.
+ */
+const STEM = { d: 'M272 752 L272 272 L512 512', length: 480 + 339.41 };
+const FALL = { d: 'M388 388 L752 752', length: 514.77 };
+const RISE = { d: 'M272 752 L752 272', length: 678.82 };
+const WORD = ['N', 'i', 'X'] as const;
+
+const ink = darkColors;
+
+/**
+ * The mark draws itself like a pen writing the N and its X (stem, fall, then the rising
+ * stroke across), the accent glow blooms behind it and the wordmark rises letter by letter.
+ * `progress` runs 0 → 1; the parent decides the timing.
+ */
+export function WelcomeLogo({ progress, size, glowColor }: { progress: SharedValue<number>; size: number; glowColor: string }) {
+  // A stroke stays hidden until its pen-down: a zero-length dash still paints the round cap.
+  const stemProps = useAnimatedProps(() => {
+    const p = seg(progress.get(), 0, 0.36);
+    return { strokeDashoffset: STEM.length * (1 - easeInOut(p)), strokeOpacity: p > 0 ? 1 : 0 };
+  });
+  const fallProps = useAnimatedProps(() => {
+    const p = seg(progress.get(), 0.28, 0.52);
+    return { strokeDashoffset: FALL.length * (1 - easeInOut(p)), strokeOpacity: p > 0 ? 1 : 0 };
+  });
+  const riseProps = useAnimatedProps(() => {
+    const p = seg(progress.get(), 0.44, 0.74);
+    return { strokeDashoffset: RISE.length * (1 - easeInOut(p)), strokeOpacity: p > 0 ? 1 : 0 };
+  });
+  // A small settle once the last stroke lands.
+  const markStyle = useAnimatedStyle(() => {
+    const settle = seg(progress.get(), 0.72, 0.86);
+    return { transform: [{ scale: settle > 0 ? 0.94 + 0.06 * backOut(settle) : 1 }] };
+  });
+  const glowStyle = useAnimatedStyle(() => {
+    const bloom = easeOut(seg(progress.get(), 0.62, 0.9));
+    return { opacity: bloom * 0.9, transform: [{ scale: 0.6 + 0.4 * bloom }] };
+  });
+
+  const glowSize = size * 2.6;
+  return (
+    <View style={styles.root} pointerEvents="none">
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        <Animated.View style={[styles.glow, { width: glowSize, height: glowSize }, glowStyle]}>
+          <Svg width={glowSize} height={glowSize}>
+            <Defs>
+              <RadialGradient id="logoGlow" cx="50%" cy="50%" r="50%">
+                <Stop offset="0" stopColor={glowColor} stopOpacity={0.7} />
+                <Stop offset="0.5" stopColor={glowColor} stopOpacity={0.18} />
+                <Stop offset="1" stopColor={glowColor} stopOpacity={0} />
+              </RadialGradient>
+            </Defs>
+            <Rect width={glowSize} height={glowSize} fill="url(#logoGlow)" />
+          </Svg>
+        </Animated.View>
+        <Animated.View style={markStyle}>
+          <Svg width={size} height={size} viewBox="0 0 1024 1024">
+            <Defs>
+              {/* The rising stroke is a little translucent, as in the icon: it reads as glass. */}
+              <LinearGradient id="rise" x1="272" y1="752" x2="752" y2="272" gradientUnits="userSpaceOnUse">
+                <Stop offset="0" stopColor={ink.label} stopOpacity={0.55} />
+                <Stop offset="1" stopColor={ink.label} stopOpacity={0.92} />
+              </LinearGradient>
+            </Defs>
+            <G fill="none" strokeWidth={100} strokeLinecap="round" strokeLinejoin="round">
+              <AnimatedPath
+                d={RISE.d}
+                stroke="url(#rise)"
+                strokeDasharray={`${RISE.length} ${RISE.length}`}
+                animatedProps={riseProps}
+              />
+              <AnimatedPath
+                d={STEM.d}
+                stroke={ink.label}
+                strokeDasharray={`${STEM.length} ${STEM.length}`}
+                animatedProps={stemProps}
+              />
+              <AnimatedPath
+                d={FALL.d}
+                stroke={ink.label}
+                strokeDasharray={`${FALL.length} ${FALL.length}`}
+                animatedProps={fallProps}
+              />
+            </G>
+          </Svg>
+        </Animated.View>
+      </View>
+      <View style={styles.word}>
+        {WORD.map((letter, index) => (
+          <WordLetter key={letter} letter={letter} index={index} progress={progress} size={size} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function WordLetter({
+  letter,
+  index,
+  progress,
+  size,
+}: {
+  letter: string;
+  index: number;
+  progress: SharedValue<number>;
+  size: number;
+}) {
+  const style = useAnimatedStyle(() => {
+    const p = seg(progress.get(), 0.6 + index * 0.07, 0.8 + index * 0.07);
+    return {
+      opacity: easeOut(p),
+      transform: [{ translateY: (1 - easeOut(p)) * 22 }, { scale: 0.85 + 0.15 * backOut(p) }],
+    };
+  });
+  return (
+    <Animated.Text style={[styles.letter, { fontSize: size * 0.36, color: ink.label }, style]}>{letter}</Animated.Text>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    alignItems: 'center',
+  },
+  glow: {
+    position: 'absolute',
+  },
+  word: {
+    flexDirection: 'row',
+    marginTop: 18,
+  },
+  letter: {
+    fontFamily: APP_FONT_FAMILY,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+});

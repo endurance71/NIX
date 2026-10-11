@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SymbolView } from 'expo-symbols';
@@ -16,6 +16,7 @@ import Animated, {
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withRepeat,
   withTiming,
   type SharedValue,
@@ -32,6 +33,7 @@ import { darkColors } from '../../theme/colors';
 import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 import { useMotionEnabled } from '../../theme/motion';
 import { APP_FONT_FAMILY, typography } from '../../theme/typography';
+import { WelcomeLogo } from './WelcomeLogo';
 import {
   CaptureScene,
   ChatScene,
@@ -60,6 +62,11 @@ const FEATURES: readonly { key: string; icon: AppIconName }[] = [
 
 const PAGE_COUNT = SCENE_PAGES.length + 1;
 const DOT = 7;
+/** The logo plays this long when the tour opens and again as it closes. */
+const LOGO_DRAW_MS = 2100;
+const CURTAIN_EASE = Easing.bezier(0.23, 1, 0.32, 1);
+
+type Curtain = 'intro' | 'outro' | null;
 
 /** Where a page sits relative to the viewport: -1 left of it, 0 centred, 1 right of it. */
 function pageProgress(scrollX: SharedValue<number>, index: number, width: number) {
@@ -83,6 +90,50 @@ export function WelcomeScreen() {
   const [page, setPage] = useState(0);
   const finishingRef = useRef(false);
   const isLast = page === PAGE_COUNT - 1;
+  // The logo curtain: drawn over everything when the tour opens and when it ends.
+  const [curtain, setCurtain] = useState<Curtain>('intro');
+  const logo = useSharedValue(motionEnabled ? 0 : 1);
+  const curtainOpacity = useSharedValue(1);
+
+  const liftCurtain = () => {
+    'worklet';
+    curtainOpacity.set(
+      withTiming(0, { duration: 480, easing: CURTAIN_EASE }, (finished) => {
+        if (finished) scheduleOnRN(setCurtain, null);
+      }),
+    );
+  };
+
+  useEffect(() => {
+    if (!motionEnabled) {
+      const id = setTimeout(() => setCurtain(null), 700);
+      return () => clearTimeout(id);
+    }
+    logo.set(
+      withTiming(1, { duration: LOGO_DRAW_MS, easing: Easing.linear }, (finished) => {
+        if (!finished) return;
+        curtainOpacity.set(
+          withDelay(
+            320,
+            withTiming(0, { duration: 480, easing: CURTAIN_EASE }, (done) => {
+              if (done) scheduleOnRN(setCurtain, null);
+            }),
+          ),
+        );
+      }),
+    );
+    return () => {
+      cancelAnimation(logo);
+      cancelAnimation(curtainOpacity);
+    };
+  }, [curtainOpacity, logo, motionEnabled]);
+
+  const skipIntro = () => {
+    if (curtain !== 'intro') return;
+    cancelAnimation(logo);
+    logo.set(1);
+    liftCurtain();
+  };
 
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -97,13 +148,40 @@ export function WelcomeScreen() {
     },
   );
 
+  const close = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  };
+
+  const closeAfterOutro = () => {
+    notify('success');
+    setTimeout(close, 420);
+  };
+
+  // Ends on the logo drawing itself once more, then closes.
   const finish = () => {
     if (finishingRef.current) return;
     finishingRef.current = true;
-    notify('success');
     void markWelcomeSeen();
-    if (router.canGoBack()) router.back();
-    else router.replace('/');
+    if (!motionEnabled) {
+      notify('success');
+      close();
+      return;
+    }
+    cancelAnimation(logo);
+    logo.set(0);
+    curtainOpacity.set(0);
+    setCurtain('outro');
+    curtainOpacity.set(
+      withTiming(1, { duration: 360, easing: CURTAIN_EASE }, (finished) => {
+        if (!finished) return;
+        logo.set(
+          withTiming(1, { duration: LOGO_DRAW_MS, easing: Easing.linear }, (done) => {
+            if (done) scheduleOnRN(closeAfterOutro);
+          }),
+        );
+      }),
+    );
   };
 
   const goNext = () => {
@@ -142,12 +220,17 @@ export function WelcomeScreen() {
             stageTop={stageTop}
             stageHeight={stageHeight}
             motionEnabled={motionEnabled}>
-            <Scene active={page === index} width={width} height={stageHeight} motionEnabled={motionEnabled} />
+            <Scene
+              active={page === index && curtain === null}
+              width={width}
+              height={stageHeight}
+              motionEnabled={motionEnabled}
+            />
           </ScenePage>
         ))}
         <FeaturesPage
           index={SCENE_PAGES.length}
-          active={isLast}
+          active={isLast && curtain === null}
           scrollX={scrollX}
           width={width}
           height={height}
@@ -195,7 +278,53 @@ export function WelcomeScreen() {
           </Button>
         </Host>
       </View>
+
+      {curtain ? (
+        <LogoCurtain
+          logo={logo}
+          opacity={curtainOpacity}
+          accent={colors.accent}
+          width={width}
+          onPress={curtain === 'intro' ? skipIntro : undefined}
+          label={t('welcome.logoA11y')}
+        />
+      ) : null}
     </View>
+  );
+}
+
+/** Full-screen stage for the logo, over the tour; the intro can be tapped through. */
+function LogoCurtain({
+  logo,
+  opacity,
+  accent,
+  width,
+  onPress,
+  label,
+}: {
+  logo: SharedValue<number>;
+  opacity: SharedValue<number>;
+  accent: string;
+  width: number;
+  onPress?: () => void;
+  label: string;
+}) {
+  // Lifting off, the logo grows slightly as the curtain fades (it "opens" onto the tour).
+  const style = useAnimatedStyle(() => ({ opacity: opacity.get() }));
+  const logoStyle = useAnimatedStyle(() => ({ transform: [{ scale: 1 + (1 - opacity.get()) * 0.12 }] }));
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, styles.curtain, { backgroundColor: ink.cinemaBackground }, style]}>
+      <Pressable
+        style={styles.curtainPress}
+        onPress={onPress}
+        disabled={!onPress}
+        accessibilityRole="image"
+        accessibilityLabel={label}>
+        <Animated.View style={logoStyle}>
+          <WelcomeLogo progress={logo} size={Math.min(148, width * 0.36)} glowColor={accent} />
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -453,6 +582,14 @@ function Dot({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  curtain: {
+    zIndex: 10,
+  },
+  curtainPress: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   glow: {
     position: 'absolute',
