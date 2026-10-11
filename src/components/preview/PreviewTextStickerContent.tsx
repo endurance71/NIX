@@ -67,6 +67,7 @@ function StickerTextInput({
       ref={inputRef}
       value={text}
       onChangeText={onChangeText}
+      onFocus={controller.handleInputFocus}
       placeholder=""
       // The sticker is media content: its size comes from the size slider and is baked into the
       // file in points, so Dynamic Type must not scale it on screen.

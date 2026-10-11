@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
-import { Keyboard, TextInput, useWindowDimensions, type KeyboardEvent, type TextStyle } from 'react-native';
+import { AppState, Keyboard, TextInput, useWindowDimensions, type KeyboardEvent, type TextStyle } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
 import {
   Easing,
@@ -382,6 +382,44 @@ export function usePreviewTextStickerController({
     }
   });
 
+  /**
+   * A system sheet presented over the first keyboard (the swipe-typing onboarding, a Face ID or
+   * permission prompt) interrupts the enter animation and steals first responder; the keyboard
+   * frame that reveals the action row may then never arrive. Every return of focus or keyboard
+   * re-asserts the editing state so typed text, placeholder and actions are always visible.
+   */
+  const resyncEditingVisibility = () => {
+    if (exitingRef.current || !isEditing) return;
+    if (presence.get() < 1) {
+      cancelAnimation(presence);
+      presence.set(1);
+    }
+    if (editProgress.get() < 1) {
+      cancelAnimation(editProgress);
+      editProgress.set(1);
+    }
+    if (actionsReady.get() < 1) {
+      cancelAnimation(actionsReady);
+      actionsReady.set(1);
+    }
+  };
+  const resyncFromSystemEvent = useEffectEvent(resyncEditingVisibility);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    const showSub = Keyboard.addListener('keyboardDidShow', () => resyncFromSystemEvent());
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      resyncFromSystemEvent();
+      // The interrupting sheet resigned the input; give it back so typing keeps landing here.
+      if (!formatOpenRef.current && !exitingRef.current) inputRef.current?.focus();
+    });
+    return () => {
+      showSub.remove();
+      appStateSub.remove();
+    };
+  }, [isEditing]);
+
   useEffect(() => {
     if (!isEditing || formatOpen) {
       keyboardHeightRef.current = 0;
@@ -530,6 +568,7 @@ export function usePreviewTextStickerController({
     formatStyle,
     handleFormatSheetHeightChange,
     handleBackdropPress,
+    handleInputFocus: resyncEditingVisibility,
     inputRef,
     inputTextStyle,
     isEditing,
