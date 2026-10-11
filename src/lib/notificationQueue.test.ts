@@ -150,6 +150,41 @@ describe('session and stale callbacks', () => {
   });
 });
 
+describe('host mount and unmount (startup remount loop regression)', () => {
+  it('does not notify subscribers when the host unmounts', () => {
+    const listener = vi.fn(); queue.subscribe(listener);
+    queue.enqueue({ title: 'A' }); queue.markPresented(token()); listener.mockClear();
+    queue.detach();
+    expect(listener).not.toHaveBeenCalled();
+    expect(queue.getSnapshot()).toMatchObject({ notification: null, phase: 'idle' });
+    expect(vi.getTimerCount()).toBe(0);
+    queue.enqueue({ title: 'While unmounted' });
+    expect(queue.getSnapshot().notification).toBeNull();
+  });
+  it('rejects callbacks of a card dropped by the host unmount', () => {
+    queue.enqueue({ title: 'A', id: 'same' }); const old = token(); queue.detach(); queue.setActive(true);
+    queue.enqueue({ title: 'B', id: 'same' });
+    expect(queue.markPresented(old)).toBe(false);
+    expect(queue.getSnapshot().notification?.title).toBe('B');
+  });
+  it('stays silent across repeated remounts of an idle host', () => {
+    // Mirrors AppNotificationsProvider's layout effects on every mount/unmount of the root tree:
+    // a remounting root must not turn each cycle into a store update (nested sync re-render).
+    const listener = vi.fn(); queue.subscribe(listener);
+    for (let cycle = 0; cycle < 60; cycle += 1) {
+      queue.setOwner(null); queue.setActive(true); queue.setOwner('alice'); queue.detach();
+    }
+    expect(listener).not.toHaveBeenCalled();
+  });
+  it('clears an empty queue without emitting', () => {
+    const listener = vi.fn(); queue.subscribe(listener);
+    queue.clear(); queue.setActive(false); queue.setActive(true);
+    expect(listener).not.toHaveBeenCalled();
+    queue.enqueue({ title: 'A' }); listener.mockClear(); queue.clear();
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('keyed updates, pre-emption and feedback timing', () => {
   it('updates a visible keyed card in place and restarts its lifetime', () => {
     queue.enqueue({ id: 'upload', title: 'Uploading', kind: 'info' }); const shown = token();

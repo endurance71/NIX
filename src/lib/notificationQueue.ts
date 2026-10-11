@@ -257,9 +257,30 @@ export class NotificationQueue {
     if (!active) this.clear();
   };
 
-  clear = () => {
+  /**
+   * Host teardown (the provider unmounting). Drops everything like `setActive(false)` but never
+   * notifies subscribers: the cleanup runs inside React's commit, and a store update scheduled
+   * there (the provider's own `useSyncExternalStore` is still subscribed) is a nested sync update
+   * per remount — a root that remounts repeatedly then hits "Maximum update depth exceeded".
+   * A host that mounts again reads the idle snapshot during its first render.
+   */
+  detach = () => {
+    this.active = false;
     this.clearTimer();
     this.pending = [];
+    if (this.snapshot.notification !== null || this.snapshot.phase !== 'idle') {
+      // New generation: callbacks still holding a token of the dropped card are rejected.
+      this.snapshot = { notification: null, phase: 'idle', generation: this.snapshot.generation + 1, interrupted: false };
+    }
+  };
+
+  clear = () => {
+    this.clearTimer();
+    const hadContent = this.pending.length > 0 || this.snapshot.notification !== null || this.snapshot.phase !== 'idle';
+    this.pending = [];
+    // Already empty: nothing for subscribers to re-render (mount/owner/background transitions
+    // call this often, and each emit is a store update for every subscribed component).
+    if (!hadContent) return;
     this.emit(null, 'idle', this.snapshot.generation + 1);
   };
 }

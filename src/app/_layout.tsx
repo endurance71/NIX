@@ -1,5 +1,5 @@
 import { resolveBootstrapFailure, resolveBootstrapRedirect } from '../lib/bootstrapPresentation';
-import { Stack, router, useSegments } from 'expo-router';
+import { Stack, router, useNavigationContainerRef, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -633,6 +633,7 @@ function RootNavigator() {
     }
   }, [accentReady, appReady]);
 
+  const navigationRef = useNavigationContainerRef();
   useEffect(() => {
     const destination = resolveBootstrapRedirect({
       // The Stack can now stay mounted under a verification prompt; routing must wait for it
@@ -643,8 +644,21 @@ function RootNavigator() {
       needsOnboarding,
       segments,
     });
-    if (destination) router.replace(destination);
-  }, [appReady, blockingStatus, bootstrap.status, needsOnboarding, segments, session]);
+    if (!destination) return;
+    if (navigationRef.isReady()) {
+      router.replace(destination);
+      return;
+    }
+    // A freshly (re)mounted root can run this before the container is ready; `router.replace`
+    // would then throw "Attempted to navigate before mounting the Root Layout", which unmounts
+    // the whole root (no boundary above it) and feeds a remount loop. Navigate once it is ready.
+    const unsubscribe = navigationRef.addListener('state', () => {
+      if (!navigationRef.isReady()) return;
+      unsubscribe();
+      router.replace(destination);
+    });
+    return unsubscribe;
+  }, [appReady, blockingStatus, bootstrap.status, navigationRef, needsOnboarding, segments, session]);
 
   usePendingFriendInviteRedirect(
     appReady && bootstrap.status !== 'recoverableError' && Boolean(session) && canUseNetworkSession && !needsOnboarding,

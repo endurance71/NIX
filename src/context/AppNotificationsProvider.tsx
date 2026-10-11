@@ -29,7 +29,9 @@ export function AppNotificationsProvider({ children }: PropsWithChildren) {
     const subscription = AppState.addEventListener('change', (state) => appNotificationQueue.setActive(state !== 'background'));
     return () => {
       subscription.remove();
-      appNotificationQueue.setActive(false);
+      // Silent teardown: emitting here would schedule a store update in the middle of the
+      // unmount commit (see NotificationQueue.detach).
+      appNotificationQueue.detach();
     };
   }, []);
 
