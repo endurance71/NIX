@@ -914,7 +914,7 @@
 				CODE_SIGN_ENTITLEMENTS = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ExpoWidgetsTarget/Info.plist;
@@ -940,7 +940,7 @@
 				CODE_SIGN_ENTITLEMENTS = NiX/NiX.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -980,7 +980,7 @@
 				CODE_SIGN_ENTITLEMENTS = NiX/NiX.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				INFOPLIST_FILE = NiX/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
@@ -1012,7 +1012,7 @@
 				CODE_SIGN_ENTITLEMENTS = NixShareExtension/NixShareExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = NixShareExtension/Info.plist;
@@ -1041,7 +1041,7 @@
 				CODE_SIGN_ENTITLEMENTS = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ExpoWidgetsTarget/Info.plist;
@@ -1064,7 +1064,7 @@
 				CODE_SIGN_ENTITLEMENTS = NixCaptureExtension/NixCaptureExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = NixCaptureExtension/Info.plist;
@@ -1092,7 +1092,7 @@
 				CODE_SIGN_ENTITLEMENTS = NixCaptureExtension/NixCaptureExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = NixCaptureExtension/Info.plist;
@@ -1254,7 +1254,7 @@
 				CODE_SIGN_ENTITLEMENTS = NixShareExtension/NixShareExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = NixShareExtension/Info.plist;
@@ -1282,7 +1282,7 @@
 				CODE_SIGN_ENTITLEMENTS = NixNotificationService/NixNotificationService.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = NixNotificationService/Info.plist;
@@ -1310,7 +1310,7 @@
 				CODE_SIGN_ENTITLEMENTS = NixNotificationService/NixNotificationService.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 9Q39P5MUT9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = NixNotificationService/Info.plist;
