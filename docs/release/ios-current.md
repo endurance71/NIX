@@ -33,6 +33,8 @@ lifts the bubble and shows the large Tapback bar above the glass action menu (re
 whose emoji palette size is fixed).
 Fifteenth OTA (2026-10-11): update group `6b6cb58c-06b1-4832-88ab-3d94c7b25231`, source `dfc49d4` — the inbox search
 field becomes the native search button next to Compose; closing it restores the pinned grid.
+Sixteenth OTA (2026-10-11): update group `4de0479d-db24-46c8-997f-a9e8571e8732`, source `3ef611f` — Memories uses the
+inline title like the other profile screens and its grid shares the 16 pt screen inset.
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
