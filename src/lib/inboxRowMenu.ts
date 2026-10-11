@@ -84,13 +84,14 @@ export function uploadPhaseTone(phase: RecipientUploadPhase): UploadPhaseTone {
     case 'failed':
       return 'danger';
     case 'completed':
+    // Uploaded and waiting for moderation: shown as sent; only a problem surfaces later.
+    case 'confirming':
       return 'success';
     case 'waiting_network':
     case 'paused':
       return 'passive';
     case 'preparing':
     case 'uploading':
-    case 'confirming':
     case 'retry_scheduled':
       return 'active';
   }

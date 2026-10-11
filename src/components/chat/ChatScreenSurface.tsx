@@ -1514,8 +1514,9 @@ function uploadStatusLabel(job: DurableUploadJob, t: ChatScreenViewModel['t']): 
       return t('chat.uploadPreparing');
     case 'uploading':
       return t('chat.uploadActive');
+    // Uploaded, moderation runs in the background: the sender sees „Wysłano”.
     case 'finalizing':
-      return t('chat.uploadConfirming');
+      return t('chat.uploadCompleted');
     case 'waiting_network':
       return t('chat.uploadWaitingNetwork');
     case 'retry_scheduled':

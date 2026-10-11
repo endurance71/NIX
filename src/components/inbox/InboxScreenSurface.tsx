@@ -100,9 +100,10 @@ const UPLOAD_PHASE_ICONS: Record<RecipientUploadPhase, AppIconName | null> = {
   retry_scheduled: 'retry',
   paused: 'pauseCircleFill',
   completed: 'checkCircleFill',
+  // Moderation runs in the background: the sender sees „Wysłano”, not a separate check step.
+  confirming: 'checkCircleFill',
   preparing: null,
   uploading: null,
-  confirming: null,
 };
 
 function useUploadPhaseColor(phase: RecipientUploadPhase | undefined) {
@@ -165,7 +166,7 @@ function rowSubtitle(row: InboxRowModel, t: Translate, reactionGlyph: string | n
         // The percent is shown once, next to the ring (SEND-14).
         return t('inbox.uploadActive');
       case 'confirming':
-        return t('inbox.uploadConfirming');
+        return t('inbox.uploadCompleted');
       case 'waiting_network':
         return t('inbox.uploadWaitingNetwork');
       case 'retry_scheduled':
@@ -192,9 +193,7 @@ function UploadAccessory({ row, t }: { row: InboxRowModel; t: Translate }) {
   if (!upload) return null;
   const percent = `${Math.round(upload.progress * 100)}%`;
   const icon = UPLOAD_PHASE_ICONS[upload.phase];
-  // Moderation has no measurable progress: an indeterminate spinner instead of a ring stuck at 97%.
-  const indeterminate = upload.phase === 'confirming';
-  const showPercent = icon === null && !indeterminate;
+  const showPercent = icon === null;
   // The label names the phase only, so VoiceOver is not re-announced on every progress tick; the
   // value is rounded to 10% steps for the same reason.
   const accessibilityModifiers = showPercent
@@ -218,7 +217,7 @@ function UploadAccessory({ row, t }: { row: InboxRowModel; t: Translate }) {
         />
       ) : (
         <ProgressView
-          value={indeterminate ? undefined : upload.progress}
+          value={upload.progress}
           modifiers={[
             progressViewStyle('circular'),
             frame({ width: 20, height: 20 }),

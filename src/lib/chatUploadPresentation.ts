@@ -113,7 +113,9 @@ export function chatMediaBubblePresentation(
   const completed =
     nix !== null
     || uploadJob?.state === 'completed'
-    || uploadJob?.state === 'partially_completed';
+    || uploadJob?.state === 'partially_completed'
+    // Uploaded and waiting for moderation: presented as sent (a rejection surfaces separately).
+    || uploadJob?.state === 'finalizing';
   let icon: ChatMediaBubbleIcon | null = null;
   if (actions.includes('retry')) icon = 'retry';
   else if (completed) icon = 'completed';
