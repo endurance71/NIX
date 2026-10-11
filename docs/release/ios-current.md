@@ -26,6 +26,8 @@ Tapback badges no longer clipped by the native menu host, inbox avatars stay aft
 that pin.
 Twelfth OTA (2026-10-11): update group `76866662-384b-4ca9-8572-f558fa733148`, source `fd2de24` — double tap on a text bubble opens the
 Tapback bar; the message menu lifts a bubble-only preview (no light frame).
+Thirteenth OTA (2026-10-11): update group `77f2cf1c-e256-412d-855b-a7f02a776670`, source `cef9ae5` — the Tapback
+bar folds back into the bubble when it closes.
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
