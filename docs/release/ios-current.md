@@ -60,6 +60,8 @@ Twenty-sixth OTA (2026-10-11): update group `ac2cffaa-af77-4ae3-bbe0-627148e506b
 the welcome stage (dark backdrop, accent glow, drawn logo, form rising in).
 Twenty-seventh OTA (2026-10-11): update group `7e7966b6-347e-4d6c-84f5-1be714b888ec`, source `a58f529` — the
 login stage follows the system light / dark appearance.
+Twenty-eighth OTA (2026-10-11): update group `29718d4a-35d6-441d-bdd3-cd327422d6f5`, source `06766aa` — the
+welcome tour follows the system light / dark appearance.
 
 ## Feature candidate — 1.0.13 (12), 2026-10-11
 
