@@ -22,7 +22,7 @@ const publicPages = [
 
 function validatePublicPage(path, text, marker, location) {
   if (!text.includes(marker)) failures.push(`${location} /${path} is missing its version or support content`);
-  if (!text.includes('kontakt@damianmotylinski.pl')) failures.push(`${location} /${path} is missing the contact`);
+  if (!text.includes('nix@shipapp.pl')) failures.push(`${location} /${path} is missing the contact`);
   if (!text.includes('Azure')) failures.push(`${location} /${path} must disclose Azure screening`);
   if (path.startsWith('privacy') && !text.includes('OVHcloud')) failures.push(`${location} /${path} must disclose the video worker hosting`);
   const language = path.includes('/en/') ? 'en' : 'pl';

@@ -5,9 +5,9 @@
 
 ## Provider
 
-NiX is provided by MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a
+NiX is a ShipApp brand, provided by MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a
 lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. Contact:
-kontakt@damianmotylinski.pl.
+nix@shipapp.pl.
 
 ## Service
 
@@ -38,7 +38,7 @@ A recipient can report a message and block its sender. Before delivery we
 automatically screen text, photos, and video (sampled frames for video) with
 Microsoft Azure AI Content Safety. We may warn, suspend, or
 ban an account for safety, the rights of others, or legal compliance. Appeal at
-kontakt@damianmotylinski.pl.
+nix@shipapp.pl.
 
 ## Availability
 
@@ -48,7 +48,7 @@ messages remain available after their ephemeral lifecycle.
 
 ## Complaints and termination
 
-Send complaints with a description of the issue to kontakt@damianmotylinski.pl.
+Send complaints with a description of the issue to nix@shipapp.pl.
 You may end the agreement by deleting the account in the app; deletion is
 irreversible.
 

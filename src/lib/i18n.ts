@@ -752,7 +752,7 @@ export const resources = {
         creatorValue: 'Twórca: {{creator}}',
         privacyPolicyDataTitle: 'Dane konta',
         privacyPolicyDataBody:
-          'Administratorem jest MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, NIP 8393229228. NiX przetwarza dane konta, instalacji i ustawień, aby świadczyć usługę. Dobrowolna analityka działa dopiero po zgodzie, nie zawiera treści wiadomości, ale używa identyfikatora instalacji, który może być powiązany z kontem; surowe zdarzenia są usuwane po 30 dniach.',
+          'NiX jest marką ShipApp. Administratorem jest MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, NIP 8393229228. NiX przetwarza dane konta, instalacji i ustawień, aby świadczyć usługę. Dobrowolna analityka działa dopiero po zgodzie, nie zawiera treści wiadomości, ale używa identyfikatora instalacji, który może być powiązany z kontem; surowe zdarzenia są usuwane po 30 dniach.',
         privacyPolicyMediaTitle: 'Zdjęcia i wideo',
         privacyPolicyMediaBody:
           'Dostęp do kamery, mikrofonu i biblioteki zdjęć służy wyłącznie do tworzenia wiadomości, nagrywania wideo oraz ustawiania awatara. Dane konta przechowujemy do usunięcia konta, a media usuwamy po odczycie zgodnie z funkcją produktu.',
@@ -764,10 +764,10 @@ export const resources = {
           'Wiadomości są dostępne tylko dla wybranych odbiorców. Aplikacja stosuje ograniczenia wyświetlania, czyszczenie wygasłych treści i ustawienia ochrony screenshotów.',
         privacyPolicyContactTitle: 'Kontakt',
         privacyPolicyContactBody:
-          'W sprawach prywatności, dostępu, sprostowania, usunięcia, ograniczenia, sprzeciwu lub przenoszenia danych napisz na kontakt@damianmotylinski.pl. Konto usuniesz w Profil → Konto → Usuń konto, a kopię danych utworzysz w Profil → Eksport danych.',
+          'W sprawach prywatności, dostępu, sprostowania, usunięcia, ograniczenia, sprzeciwu lub przenoszenia danych napisz na nix@shipapp.pl. Konto usuniesz w Profil → Konto → Usuń konto, a kopię danych utworzysz w Profil → Eksport danych.',
         termsAccountTitle: 'Konto',
         termsAccountBody:
-          'NiX jest usługą MT Hub Damian Motyliński. Korzystając z niej, odpowiadasz za bezpieczeństwo konta oraz poprawność danych podanych podczas rejestracji.',
+          'NiX jest marką ShipApp; usługę świadczy MT Hub Damian Motyliński. Korzystając z niej, odpowiadasz za bezpieczeństwo konta oraz poprawność danych podanych podczas rejestracji.',
         termsContentTitle: 'Treści',
         termsContentBody:
           'Wysyłaj tylko treści, do których masz prawo i które nie naruszają prywatności, bezpieczeństwa ani praw innych osób.',
@@ -779,7 +779,7 @@ export const resources = {
           'NiX może okresowo zmieniać funkcje, ograniczać dostęp lub prowadzić prace techniczne potrzebne do utrzymania aplikacji.',
         termsChangesTitle: 'Zmiany regulaminu',
         termsChangesBody:
-          'O istotnej zmianie regulaminu poinformujemy przed jej wejściem w życie. Pytania i reklamacje: kontakt@damianmotylinski.pl.',
+          'O istotnej zmianie regulaminu poinformujemy przed jej wejściem w życie. Pytania i reklamacje: nix@shipapp.pl.',
         passwordSectionTitle: 'Nowe hasło',
         passwordDescription: 'Wybierz bezpieczne hasło. Zmiana może wymagać kodu weryfikacyjnego wysłanego e-mailem.',
         currentPassword: 'Aktualne hasło',
@@ -2039,7 +2039,7 @@ export const resources = {
         creatorValue: 'Creator: {{creator}}',
         privacyPolicyDataTitle: 'Account data',
         privacyPolicyDataBody:
-          'Controller: MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. NiX processes account, installation, and settings data to provide the service. Optional analytics starts only after consent, contains no message content, and uses an installation ID that can be linked to your account; raw events are deleted after 30 days.',
+          'NiX is a ShipApp brand. Controller: MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. NiX processes account, installation, and settings data to provide the service. Optional analytics starts only after consent, contains no message content, and uses an installation ID that can be linked to your account; raw events are deleted after 30 days.',
         privacyPolicyMediaTitle: 'Photos and video',
         privacyPolicyMediaBody:
           'Camera, microphone, and photo-library access are used only to create messages, record video, and set your avatar. Account data is retained until account deletion and media is removed after viewing according to the product feature.',
@@ -2051,10 +2051,10 @@ export const resources = {
           'Messages are available only to selected recipients. The app uses display limits, expired-content cleanup, and screenshot protection settings.',
         privacyPolicyContactTitle: 'Contact',
         privacyPolicyContactBody:
-          'For privacy, access, rectification, erasure, restriction, objection, or portability requests, contact kontakt@damianmotylinski.pl. Delete your account in Profile → Account → Delete account, or create a copy in Profile → Data export.',
+          'For privacy, access, rectification, erasure, restriction, objection, or portability requests, contact nix@shipapp.pl. Delete your account in Profile → Account → Delete account, or create a copy in Profile → Data export.',
         termsAccountTitle: 'Account',
         termsAccountBody:
-          'NiX is a service operated by MT Hub Damian Motyliński. You are responsible for keeping your account secure and providing accurate registration details.',
+          'NiX is a ShipApp brand, operated by MT Hub Damian Motyliński. You are responsible for keeping your account secure and providing accurate registration details.',
         termsContentTitle: 'Content',
         termsContentBody:
           'Send only content you have the right to share and that does not violate another person’s privacy, safety, or rights.',
@@ -2066,7 +2066,7 @@ export const resources = {
           'NiX may occasionally change features, limit access, or perform maintenance needed to keep the app running.',
         termsChangesTitle: 'Changes to these terms',
         termsChangesBody:
-          'We will notify you before material changes take effect. Questions and complaints: kontakt@damianmotylinski.pl.',
+          'We will notify you before material changes take effect. Questions and complaints: nix@shipapp.pl.',
         passwordSectionTitle: 'New password',
         passwordDescription: 'Choose a secure password. The change may require a verification code sent by email.',
         currentPassword: 'Current password',

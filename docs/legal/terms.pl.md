@@ -5,8 +5,8 @@
 
 ## Usługodawca
 
-Usługę NiX świadczy MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a
-lok. 2, 76-200 Słupsk, NIP 8393229228. Kontakt: kontakt@damianmotylinski.pl.
+NiX jest marką ShipApp. Usługę świadczy MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a
+lok. 2, 76-200 Słupsk, NIP 8393229228. Kontakt: nix@shipapp.pl.
 
 ## Usługa
 
@@ -39,7 +39,7 @@ Odbiorca może zgłosić wiadomość i zablokować nadawcę. Przed doręczeniem
 automatycznie skanujemy tekst, zdjęcia i wideo (dla wideo: wybrane klatki)
 przez Microsoft Azure AI Content Safety. Możemy ostrzec, czasowo
 zawiesić lub zablokować konto dla bezpieczeństwa, ochrony innych osób lub zgodności
-z prawem. Odwołanie wyślij na kontakt@damianmotylinski.pl.
+z prawem. Odwołanie wyślij na nix@shipapp.pl.
 
 ## Dostępność
 
@@ -49,7 +49,7 @@ wiadomości po zakończeniu ich cyklu efemerycznego.
 
 ## Reklamacje i rozwiązanie umowy
 
-Reklamacje wyślij na kontakt@damianmotylinski.pl wraz z opisem problemu. Odpowiemy
+Reklamacje wyślij na nix@shipapp.pl wraz z opisem problemu. Odpowiemy
 w terminie przewidzianym przez prawo. Możesz rozwiązać umowę przez usunięcie konta
 w aplikacji; usunięcie jest nieodwracalne.
 

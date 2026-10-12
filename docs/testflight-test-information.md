@@ -37,7 +37,7 @@ Pełny copy (subtitle, description PL/EN, keywords, App Privacy, Review Notes):
 ## Contact — stored in App Store Connect
 
 - First name / last name / phone: App Store Connect Review Information
-- Email: `kontakt@damianmotylinski.pl`
+- Email: `nix@shipapp.pl`
 
 ## App Store Connect checklist
 

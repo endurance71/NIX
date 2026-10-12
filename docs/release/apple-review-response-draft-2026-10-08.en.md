@@ -34,7 +34,7 @@ Use the email/password reviewer account in App Review Information; the second co
 
 4. External services
 
-Supabase provides authentication, database, storage and server functions. Apple provides Sign in with Apple and APNs. The submitted binary is built locally with Xcode; Expo/EAS provides OTA updates and push delivery integration; upload status uses iOS Live Activities. Azure AI Content Safety supports automated pre-delivery checks of text, images and selected video frames. An OVH-hosted worker processes video for that moderation workflow. Selected-frame checks do not constitute full-video scanning. Reporting and blocking complement automated checks. [CONFIRMED HUMAN REPORT-HANDLING PROCESS]. Support: kontakt@damianmotylinski.pl. There are no payment providers, ads or subscriptions.
+Supabase provides authentication, database, storage and server functions. Apple provides Sign in with Apple and APNs. The submitted binary is built locally with Xcode; Expo/EAS provides OTA updates and push delivery integration; upload status uses iOS Live Activities. Azure AI Content Safety supports automated pre-delivery checks of text, images and selected video frames. An OVH-hosted worker processes video for that moderation workflow. Selected-frame checks do not constitute full-video scanning. Reporting and blocking complement automated checks. [CONFIRMED HUMAN REPORT-HANDLING PROCESS]. Support: nix@shipapp.pl. There are no payment providers, ads or subscriptions.
 
 5. Regional behavior
 

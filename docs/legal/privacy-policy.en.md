@@ -5,9 +5,9 @@
 
 ## Controller and contact
 
-The controller is **MT Hub Damian Motyliński**, ul. ks. Józefa Poniatowskiego 27a
+NiX is a ShipApp brand. The controller is **MT Hub Damian Motyliński**, ul. ks. Józefa Poniatowskiego 27a
 lok. 2, 76-200 Słupsk, Poland, tax ID (NIP) 8393229228. Contact
-**kontakt@damianmotylinski.pl** about privacy. You may lodge a complaint with the
+**nix@shipapp.pl** about privacy. You may lodge a complaint with the
 competent data-protection authority (in Poland: the President of the Personal Data
 Protection Office).
 
@@ -76,13 +76,13 @@ Microsoft Azure AI Content Safety solely to block prohibited content. The workin
 copy used for screening is deleted after the decision. A recipient can still
 report a specific message and block its sender. An authorized person reviews
 reports and may warn, suspend, or ban an account. Contact
-kontakt@damianmotylinski.pl about a decision or appeal.
+nix@shipapp.pl about a decision or appeal.
 
 ## Your rights and changes
 
 You may request access, rectification, erasure, restriction of processing,
 objection and portability where applicable, and lodge a complaint with the
 competent supervisory authority. Delete your account in **Profile → Account →
-Delete account**, or contact kontakt@damianmotylinski.pl if you cannot access the
+Delete account**, or contact nix@shipapp.pl if you cannot access the
 app. Material changes are announced before taking effect and carry a new
 version/date.
