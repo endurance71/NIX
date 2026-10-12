@@ -1,6 +1,7 @@
 // Generates the NiX website landing page (PL at /, EN at /en/) into web/site.
-// The privacy, terms and support pages come from scripts/generate-legal-pages.mjs, which writes the
-// same documents the app shows. Run with --check to verify web/site matches this source.
+// The scenes mirror the in-app welcome tour (src/components/welcome/WelcomeScenes.tsx) as CSS motion:
+// the same photos, copy and order. The privacy, terms and support pages come from
+// scripts/generate-legal-pages.mjs. Run with --check to verify web/site matches this source.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 
 const checkOnly = process.argv.includes('--check');
@@ -9,35 +10,41 @@ const ROOT = 'web/site';
 
 // The drawn NiX mark (assets/brand/master/nix-mark.svg, src/components/brand/DrawnLogo.tsx):
 // one continuous N stroke, then the glass rising stroke underneath it.
-const MARK = `<svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true">
-          <defs>
-            <linearGradient id="rise" x1="272" y1="752" x2="752" y2="272" gradientUnits="userSpaceOnUse">
-              <stop offset="0" stop-color="#fff" stop-opacity="0.55" />
-              <stop offset="1" stop-color="#fff" stop-opacity="0.92" />
-            </linearGradient>
-          </defs>
-          <g fill="none" stroke-width="100" stroke-linecap="round" stroke-linejoin="round">
-            <path class="rise" d="M752 272 L272 752" stroke="url(#rise)" pathLength="1" />
-            <path class="stroke" d="M272 752 L272 272 L752 752" stroke="#fff" pathLength="1" />
-          </g>
-        </svg>`;
+function mark(id) {
+  return `<svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true">
+            <defs>
+              <linearGradient id="${id}" x1="272" y1="752" x2="752" y2="272" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#fff" stop-opacity="0.55" />
+                <stop offset="1" stop-color="#fff" stop-opacity="0.92" />
+              </linearGradient>
+            </defs>
+            <g fill="none" stroke-width="100" stroke-linecap="round" stroke-linejoin="round">
+              <path class="rise" d="M752 272 L272 752" stroke="url(#${id})" pathLength="1" />
+              <path class="stroke" d="M272 752 L272 272 L752 752" stroke="#fff" pathLength="1" />
+            </g>
+          </svg>`;
+}
 
 // SF Symbols-like line icons, 24 pt grid.
 const ICONS = {
-  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5"/>',
-  chat: '<path d="M4 5.5h16v10H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.7 2.7L16 9.6"/>',
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
   lock: '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',
-  qr: '<rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1.2"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM14 20.5h1M20.5 14v1"/>',
-  widget: '<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="2"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="2"/><rect x="3.5" y="13" width="17" height="7.5" rx="2"/>',
-  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><path d="M4 20 20 4"/>',
   shield: '<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V6z"/><path d="m8.8 12 2.2 2.2 4.2-4.4"/>',
+  shieldSlash: '<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V6z"/><path d="M4 20 20 4"/>',
+  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5"/>',
   flag: '<path d="M5 21V4M5 4h11.5l-2 4 2 4H5"/>',
   hand: '<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
   person: '<circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5c1-3.8 4-5.8 7.5-5.8s6.5 2 7.5 5.8"/>',
+  camera: '<path d="M4 8.5h3l1.6-2.5h6.8L17 8.5h3v10.5H4z"/><circle cx="12" cy="13.5" r="3.5"/>',
 };
 
-function icon(name) {
-  return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+function icon(name, extra = '') {
+  return `<svg class="icon${extra}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+}
+
+function pill(name, label, extra = '') {
+  return `<span class="pill${extra}">${icon(name)}${escape(label)}</span>`;
 }
 
 const copy = {
@@ -52,15 +59,55 @@ const copy = {
     lead: 'Prywatne zdjęcia, filmy, wiadomości i głosówki — tylko z ludźmi, których sam zaprosisz.',
     cta: 'Wkrótce w App Store',
     contact: 'Napisz do nas',
-    featuresTitle: 'Wszystko, czego potrzeba do bliskich rozmów',
-    features: [
-      ['timer', 'Znika po obejrzeniu', 'Ty decydujesz, jak długo widać NiX-a. Zrzuty ekranu NiX-ów są domyślnie zablokowane.'],
-      ['chat', 'Rozmowy po Twojemu', 'Odpowiadaj na konkretne wiadomości, reaguj, edytuj, cofaj wysłane i nagrywaj głosówki.'],
-      ['lock', 'Wspomnienia tylko na Twoim iPhonie', 'Wysłane NiX-y możesz zachować w zaszyfrowanym albumie na iPhonie — nigdy na naszych serwerach.'],
-      ['qr', 'Znajomi w sekundę', 'Dodawaj przez kod QR albo wyślij zaproszenie. Bez listy kontaktów i bez obcych.'],
-      ['widget', 'Widżety i aparat z blokady', 'Nowe NiX-y na ekranie początkowym, aparat w Centrum sterowania i na zablokowanym ekranie.'],
-      ['eye', 'Konto prywatne', 'Prywatnego konta nie da się wyszukać po nazwie — znajdą Cię tylko osoby z Twoim kodem lub zaproszeniem.'],
+    demo: {
+      sticker: 'Sobota! 🔥',
+      sent: 'Wysłano',
+      opened: 'Otwarto',
+      screenshotBlocked: 'Zrzut ekranu zablokowany',
+      chatName: 'Ola',
+      message1: 'Widziałaś ten zachód? 🌅',
+      message2: 'Wysłałam Ci NiX-a!',
+      reply: 'Bajka 😍',
+      encrypted: 'Zaszyfrowane, tylko na tym iPhonie',
+      checking: 'Kontrola bezpieczeństwa…',
+      delivered: 'Doręczono',
+      memories: 'Wspomnienia',
+      widget: 'Nowe NiX-y',
+      widgetCount: '3 od znajomych',
+      scan: 'Zeskanuj, by dodać',
+    },
+    stories: [
+      {
+        id: 'capture',
+        kicker: 'Aparat',
+        title: 'Zrób zdjęcie. Dodaj naklejkę. Wyślij.',
+        body: 'NiX otwiera się prosto na aparacie. Jedno stuknięcie i Twoja chwila leci do wybranych znajomych — nikogo więcej.',
+      },
+      {
+        id: 'ephemeral',
+        kicker: 'Znika po obejrzeniu',
+        title: 'Widać tylko tyle, ile zechcesz.',
+        body: 'Ty decydujesz, jak długo widać NiX-a. Potem znika, a zrzuty ekranu NiX-ów są domyślnie zablokowane.',
+      },
+      {
+        id: 'chat',
+        kicker: 'Czat',
+        title: 'Rozmowy po Twojemu.',
+        body: 'Odpowiadaj na konkretne wiadomości, reaguj Tapbackiem, edytuj, cofaj wysłane i nagrywaj głosówki.',
+      },
+      {
+        id: 'memories',
+        kicker: 'Wspomnienia',
+        title: 'Najlepsze chwile zostają na Twoim iPhonie.',
+        body: 'Wysłane NiX-y możesz zachować w zaszyfrowanym albumie na iPhonie — nigdy na naszych serwerach.',
+      },
     ],
+    extrasTitle: 'I wszystko, czego jeszcze potrzebujesz',
+    extras: {
+      qr: ['Znajomi w sekundę', 'Kod QR albo link z zaproszeniem. Bez wgrywania kontaktów i bez obcych.'],
+      widget: ['Widżety i aparat z blokady', 'Nowe NiX-y na ekranie początkowym, aparat w Centrum sterowania i na zablokowanym ekranie.'],
+      private: ['Konto prywatne', 'Prywatnego konta nie da się wyszukać po nazwie — znajdą Cię tylko osoby z Twoim kodem lub zaproszeniem.'],
+    },
     safetyTitle: 'Bezpieczeństwo na pierwszym miejscu',
     safetyLead: 'NiX jest dla osób od 16 lat. Chronimy rozmowy, zanim cokolwiek dotrze do odbiorcy.',
     safety: [
@@ -69,6 +116,8 @@ const copy = {
       ['hand', 'Blokowanie', 'Zablokowana osoba nie może do Ciebie pisać ani wysyłać zaproszeń.'],
       ['person', 'Twoje konto, Twoje dane', 'Konto usuniesz w aplikacji w kilka chwil. Co i kiedy usuwamy, opisuje polityka prywatności.'],
     ],
+    finalTitle: 'NiX. Tylko dla Twoich ludzi.',
+    finalLead: 'Już wkrótce w App Store na iPhone’a.',
     brand: 'NiX jest marką ShipApp',
     legal: { privacy: 'Polityka prywatności', terms: 'Regulamin', support: 'Pomoc' },
     paths: { privacy: '/privacy/', terms: '/terms/', support: '/support/' },
@@ -84,15 +133,55 @@ const copy = {
     lead: 'Private photos, videos, messages and voice notes — only with people you invite.',
     cta: 'Coming soon to the App Store',
     contact: 'Contact us',
-    featuresTitle: 'Everything you need for close conversations',
-    features: [
-      ['timer', 'Gone once viewed', 'You decide how long a NiX stays visible. Screenshots of NiXes are blocked by default.'],
-      ['chat', 'Chat your way', 'Reply to a specific message, react, edit, undo send and record voice notes.'],
-      ['lock', 'Memories only on your iPhone', 'Keep NiXes you sent in an encrypted album on your iPhone — never on our servers.'],
-      ['qr', 'Friends in a second', 'Add friends with a QR code or an invite link. No contact upload, no strangers.'],
-      ['widget', 'Widgets and Lock Screen camera', 'New NiXes on your Home Screen, the camera in Control Center and on the Lock Screen.'],
-      ['eye', 'Private account', 'A private account cannot be found by username — only people with your code or invite can reach you.'],
+    demo: {
+      sticker: 'Saturday! 🔥',
+      sent: 'Sent',
+      opened: 'Opened',
+      screenshotBlocked: 'Screenshot blocked',
+      chatName: 'Ola',
+      message1: 'Did you see that sunset? 🌅',
+      message2: 'Just sent you a NiX!',
+      reply: 'Unreal 😍',
+      encrypted: 'Encrypted, only on this iPhone',
+      checking: 'Safety check…',
+      delivered: 'Delivered',
+      memories: 'Memories',
+      widget: 'New NiXes',
+      widgetCount: '3 from friends',
+      scan: 'Scan to add',
+    },
+    stories: [
+      {
+        id: 'capture',
+        kicker: 'Camera',
+        title: 'Snap it. Add a sticker. Send.',
+        body: 'NiX opens straight to the camera. One tap and your moment goes to the friends you pick — nobody else.',
+      },
+      {
+        id: 'ephemeral',
+        kicker: 'Gone once viewed',
+        title: 'Visible only as long as you want.',
+        body: 'You decide how long a NiX stays visible. Then it’s gone, and screenshots of NiXes are blocked by default.',
+      },
+      {
+        id: 'chat',
+        kicker: 'Chat',
+        title: 'Chat your way.',
+        body: 'Reply to a specific message, react with a Tapback, edit, undo send and record voice notes.',
+      },
+      {
+        id: 'memories',
+        kicker: 'Memories',
+        title: 'The best moments stay on your iPhone.',
+        body: 'Keep NiXes you sent in an encrypted album on your iPhone — never on our servers.',
+      },
     ],
+    extrasTitle: 'And everything else you need',
+    extras: {
+      qr: ['Friends in a second', 'A QR code or an invite link. No contact upload, no strangers.'],
+      widget: ['Widgets and Lock Screen camera', 'New NiXes on your Home Screen, the camera in Control Center and on the Lock Screen.'],
+      private: ['Private account', 'A private account cannot be found by username — only people with your code or invite can reach you.'],
+    },
     safetyTitle: 'Safety comes first',
     safetyLead: 'NiX is for people aged 16 and over. We protect conversations before anything reaches the recipient.',
     safety: [
@@ -101,6 +190,8 @@ const copy = {
       ['hand', 'Blocking', 'A blocked person cannot message you or send you invites.'],
       ['person', 'Your account, your data', 'Delete your account in the app in moments. The privacy policy explains what we delete and when.'],
     ],
+    finalTitle: 'NiX. Only for your people.',
+    finalLead: 'Coming soon to the App Store for iPhone.',
     brand: 'NiX is a ShipApp brand',
     legal: { privacy: 'Privacy policy', terms: 'Terms of service', support: 'Support' },
     paths: { privacy: '/privacy/en/', terms: '/terms/en/', support: '/support/en/' },
@@ -111,18 +202,130 @@ function escape(value) {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 }
 
-function card([name, title, body]) {
-  return `<article class="card">
-          ${icon(name)}
-          <h3>${escape(title)}</h3>
-          <p>${escape(body)}</p>
-        </article>`;
+// #region Scenes (CSS keyframes in site.css, one loop each; they play while on screen)
+
+function heroScene() {
+  return `<div class="scene hero-scene" aria-hidden="true">
+          <div class="fan fan-left"><img src="/img/memories.jpg" alt="" /></div>
+          <div class="fan fan-right"><img src="/img/capture.jpg" alt="" /></div>
+          <div class="fan fan-center"><img src="/img/welcome.jpg" alt="" /></div>
+          <span class="float-emoji e1">❤️</span>
+          <span class="float-emoji e2">🔥</span>
+          <span class="float-emoji e3">😂</span>
+          <div class="app-badge">${mark('rise-hero')}</div>
+        </div>`;
 }
 
+function phone(inner, extra = '') {
+  return `<div class="phone${extra}">
+            <div class="screen">
+              ${inner}
+              <span class="island"></span>
+            </div>
+          </div>`;
+}
+
+function captureScene(d) {
+  return `<div class="scene capture-scene" aria-hidden="true">
+          ${phone(`<div class="viewfinder"><img src="/img/capture.jpg" alt="" /></div>
+              <span class="sticker">${escape(d.sticker)}</span>
+              <span class="shutter"><span></span></span>
+              <span class="flash"></span>`)}
+          <div class="shot"><img src="/img/capture.jpg" alt="" /><span class="sticker">${escape(d.sticker)}</span></div>
+          <div class="send-row"><span class="avatar a1">O</span><span class="avatar a2">K</span><span class="avatar a3">M</span></div>
+          ${pill('check', d.sent, ' sent-pill')}
+        </div>`;
+}
+
+function ephemeralScene(d) {
+  return `<div class="scene ephemeral-scene" aria-hidden="true">
+          <div class="nix-card">
+            <img src="/img/ephemeral.jpg" alt="" />
+            <span class="dissolve"></span>
+            <svg class="ring" viewBox="0 0 58 58"><circle class="track" cx="29" cy="29" r="26.5" /><circle class="run" cx="29" cy="29" r="26.5" pathLength="1" /></svg>
+            ${icon('timer', ' ring-icon')}
+          </div>
+          ${pill('shieldSlash', d.screenshotBlocked, ' toast')}
+          ${pill('eye', d.opened, ' opened-pill')}
+        </div>`;
+}
+
+const WAVE = [0.45, 0.8, 0.55, 1, 0.7, 0.4, 0.9, 0.6, 0.35, 0.75, 0.5, 0.85, 0.45, 0.6];
+
+function chatScene(d) {
+  const bars = WAVE.map((h, i) => `<i style="--h:${h};--i:${i}"></i>`).join('');
+  return `<div class="scene chat-scene" aria-hidden="true">
+          ${phone(`<div class="chat-header"><img src="/img/chat.jpg" alt="" /><span>${escape(d.chatName)}</span></div>
+              <div class="thread">
+                <div class="bubble in b1">${escape(d.message1)}</div>
+                <div class="bubble own b2">${escape(d.message2)}<span class="tapback">❤️</span></div>
+                <div class="bubble in b3 voice"><span class="voice-play"></span><span class="wave">${bars}</span></div>
+                <div class="bubble own b4"><span class="quote">${escape(d.message1)}</span>${escape(d.reply)}</div>
+                <div class="typing"><i></i><i></i><i></i></div>
+              </div>`, ' light')}
+        </div>`;
+}
+
+function memoriesScene(d) {
+  const photos = ['welcome', 'capture', 'chat', 'memories', 'ephemeral', 'welcome', 'chat', 'memories', 'capture', 'ephemeral', 'welcome', 'chat'];
+  const cells = photos
+    .map((p, i) => `<span class="cell" style="--i:${i}"><img src="/img/${p}.jpg" alt="" /></span>`)
+    .join('');
+  return `<div class="scene memories-scene" aria-hidden="true">
+          ${phone(`<div class="memories-title">${escape(d.memories)}</div>
+              <div class="memories-grid">${cells}</div>`, ' light')}
+          ${pill('lock', d.encrypted, ' lock-pill')}
+        </div>`;
+}
+
+const SCENES = { capture: captureScene, ephemeral: ephemeralScene, chat: chatScene, memories: memoriesScene };
+
+// A QR-like pattern (decorative, not a real code).
+function qr() {
+  const size = 21;
+  let rects = '';
+  const finder = (x, y) => (x < 7 && y < 7) || (x >= size - 7 && y < 7) || (x < 7 && y >= size - 7);
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      if (finder(x, y)) continue;
+      if ((x * 7 + y * 13 + x * y) % 5 < 2) rects += `<rect x="${x}" y="${y}" width="1" height="1"/>`;
+    }
+  }
+  const eye = (x, y) =>
+    `<rect x="${x + 0.5}" y="${y + 0.5}" width="6" height="6" rx="1.6" fill="none" stroke="currentColor"/><rect x="${x + 2}" y="${y + 2}" width="3" height="3" rx="0.8"/>`;
+  return `<svg class="qr" viewBox="-1 -1 ${size + 2} ${size + 2}">${rects}${eye(0, 0)}${eye(size - 7, 0)}${eye(0, size - 7)}</svg>`;
+}
+
+// #endregion
+
 function landing(t) {
+  const d = t.demo;
   const legalLinks = Object.entries(t.legal)
     .map(([key, label]) => `<a href="${t.paths[key]}">${escape(label)}</a>`)
     .join('\n          ');
+  const stories = t.stories
+    .map(
+      (story, index) => `<section class="story${index % 2 ? ' flip' : ''}" id="${index === 0 ? 'features' : story.id}">
+        <div class="story-text reveal">
+          <p class="kicker">${escape(story.kicker)}</p>
+          <h2>${escape(story.title)}</h2>
+          <p>${escape(story.body)}</p>
+        </div>
+        <div class="stage reveal">
+          ${SCENES[story.id](d)}
+        </div>
+      </section>`,
+    )
+    .join('\n      ');
+  const safety = t.safety
+    .map(
+      ([name, title, body], index) => `<article class="card reveal" style="--delay:${index * 80}ms">
+          ${icon(name)}
+          <h3>${escape(title)}</h3>
+          <p>${escape(body)}</p>
+        </article>`,
+    )
+    .join('\n        ');
   return `<!doctype html>
 <html lang="${t.lang}">
   <head>
@@ -140,6 +343,7 @@ function landing(t) {
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="/site.css" />
+    <script src="/site.js" defer></script>
   </head>
   <body>
     <header class="top">
@@ -155,29 +359,63 @@ function landing(t) {
     </header>
     <main>
       <section class="hero">
-        <div class="tile">
-          ${MARK}
+        <div class="glow" aria-hidden="true"></div>
+        <div class="hero-text">
+          <p class="eyebrow">${escape(t.eyebrow)}</p>
+          <h1>${escape(t.tagline)}</h1>
+          <p class="lead">${escape(t.lead)}</p>
+          <div class="actions">
+            <span class="button primary" aria-disabled="true">${escape(t.cta)}</span>
+            <a class="button" href="mailto:${contact}">${escape(t.contact)}</a>
+          </div>
         </div>
-        <p class="eyebrow">${escape(t.eyebrow)}</p>
-        <h1>${escape(t.tagline)}</h1>
-        <p class="lead">${escape(t.lead)}</p>
-        <div class="actions">
-          <span class="button primary" aria-disabled="true">${escape(t.cta)}</span>
-          <a class="button" href="mailto:${contact}">${escape(t.contact)}</a>
-        </div>
+        ${heroScene()}
       </section>
-      <section id="features" class="section">
-        <h2>${escape(t.featuresTitle)}</h2>
-        <div class="grid">
-        ${t.features.map(card).join('\n        ')}
+      ${stories}
+      <section class="section extras">
+        <h2 class="reveal">${escape(t.extrasTitle)}</h2>
+        <div class="extras-grid">
+          <article class="tile-card reveal">
+            <div class="tile-art qr-art" aria-hidden="true">${qr()}<span class="scanline"></span></div>
+            <h3>${escape(t.extras.qr[0])}</h3>
+            <p>${escape(t.extras.qr[1])}</p>
+          </article>
+          <article class="tile-card reveal" style="--delay:80ms">
+            <div class="tile-art widget-art" aria-hidden="true">
+              <div class="widget"><img src="/icon.svg" alt="" /><strong>${escape(d.widget)}</strong><span>${escape(d.widgetCount)}</span><b class="count">3</b></div>
+              <div class="control">${icon('camera')}</div>
+            </div>
+            <h3>${escape(t.extras.widget[0])}</h3>
+            <p>${escape(t.extras.widget[1])}</p>
+          </article>
+          <article class="tile-card reveal" style="--delay:160ms">
+            <div class="tile-art private-art" aria-hidden="true">
+              <div class="search"><span>@ola</span><i></i></div>
+              <div class="lock-badge">${icon('lock')}</div>
+            </div>
+            <h3>${escape(t.extras.private[0])}</h3>
+            <p>${escape(t.extras.private[1])}</p>
+          </article>
         </div>
       </section>
       <section id="safety" class="section safety">
-        <h2>${escape(t.safetyTitle)}</h2>
-        <p class="section-lead">${escape(t.safetyLead)}</p>
-        <div class="grid two">
-        ${t.safety.map(card).join('\n        ')}
+        <div class="safety-head reveal">
+          <h2>${escape(t.safetyTitle)}</h2>
+          <p class="section-lead">${escape(t.safetyLead)}</p>
         </div>
+        <div class="check-demo reveal" aria-hidden="true">
+          <div class="check-bubble"><img src="/img/welcome.jpg" alt="" /><span class="scan"></span></div>
+          ${pill('shield', d.checking, ' checking')}
+          ${pill('check', d.delivered, ' delivered')}
+        </div>
+        <div class="grid">
+        ${safety}
+        </div>
+      </section>
+      <section class="final reveal">
+        <div class="final-icon">${mark('rise-final')}</div>
+        <h2>${escape(t.finalTitle)}</h2>
+        <p>${escape(t.finalLead)}</p>
       </section>
     </main>
     <footer>
