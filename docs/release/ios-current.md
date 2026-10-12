@@ -31,6 +31,11 @@ and 15. NiX is introduced as a ShipApp brand (the controller and provider stay M
 moves to `nix@shipapp.pl` in the in-app documents, the consent copy and Profile → Contact. The web pages in
 `web/invite/` are regenerated but not uploaded yet.
 
+Thirty-eighth OTA (2026-10-12): update group `0ec10f1e-f37b-4683-a69d-04fd73ad3fb4`, source `2b22911`, for builds 14
+and 15. The welcome tour and the login backdrop use the AI-generated photo set (light copies exported from
+`assets/onboarding/source/`, 1.6 MB in total). The Memories scene shows nine different moments, and the capture scene
+sends to three photo avatars.
+
 **Backend pending.** Migrations `20261015100000` (private accounts), `20261015101000` (audio evidence) and
 `20261015102000` (`child_safety`), plus the `report-content` Edge Function, are not deployed yet. Until they are:
 - a „Child safety” report fails;
