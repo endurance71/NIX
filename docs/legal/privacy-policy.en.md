@@ -41,10 +41,10 @@ c) complying with legal obligations, including providing information to competen
 
 1. Text and voice Messages are deleted automatically 24 hours after they are sent.  
 2. Either participant in a conversation may mark a Message as saved. A saved Message is kept until either participant removes the save (after which it is deleted 24 hours later) or until the conversation is deleted.  
-3. The photo or video file of a NiX is deleted from the server approximately 10 minutes after the recipient first views it (the replay period). An unviewed NiX remains available to its recipient. The conversation retains the NiX's metadata and, for a video, its thumbnail until the conversation is deleted.  
+3. The photo or video file of a NiX, together with its thumbnail, is deleted from the server approximately 10 minutes after the recipient first views it (the replay period). A NiX not viewed by its recipient is deleted 30 days after sending. Once the file is deleted, only the NiX's metadata remains in the conversation until the conversation is deleted.  
 4. The sender may edit a text Message within 15 minutes of sending (no more than five times) and undo sending within 5 minutes. Earlier versions of an edited Message are kept with it solely for the purpose of handling any report and are not made available to Users.  
 5. Forwarding a Message creates a new, separate Message whose availability period runs from the time it is sent.  
-6. Deleting a conversation deletes the Messages and NiXes of that pair of Users for both participants. Blocking a User hides the conversation; its content is deleted when the conversation or the Account is deleted.
+6. Deleting a conversation deletes the Messages and NiXes of that pair of Users for both participants. Blocking a User hides the conversation and removes the save marker from that pair's Messages, which are then deleted 24 hours later.
 
 ## 6. Protection against capture
 
@@ -101,13 +101,13 @@ Users' personal data is stored within the European Economic Area. In connection 
 ## 14. Retention periods
 
 Personal data is kept for the following periods:  
-a) Account, profile, relationship, block, age-confirmation, document-acceptance and device data, pinned and muted conversations and streak counters — until the Account is deleted;  
+a) Account, profile, relationship, block, age-confirmation and document-acceptance data, pinned and muted conversations and streak counters — until the Account is deleted; device data — until the Account is deleted or after 180 days of inactivity;  
 b) Messages and NiXes — in accordance with section 5;  
 c) working copies used for automated content checks — until a decision is made, no longer than 24 hours;  
 d) evidence secured in connection with a report — 30 days; resolved reports — 365 days from resolution; moderation decisions concerning Accounts — for as long as necessary to keep the service secure;  
-e) notification delivery history — 30 days; the notification token is deactivated on sign-out and deleted together with the Account;  
+e) notification delivery history — 30 days; the notification token is deleted on sign-out or Account deletion, and remains inactive when notifications are turned off in the App;  
 f) data export archives — 24 hours from preparation;  
-g) technical metadata concerning media uploads and content checks — until the Account is deleted;  
+g) technical metadata concerning media uploads and deletion — 30 days; metadata of automated content checks — 30 days, or 90 days for content classified as prohibited;  
 h) data kept for longer where necessary to establish, exercise or defend legal claims or where required by law — for the period resulting from those grounds.
 
 ## 15. Users' rights

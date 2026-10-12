@@ -41,10 +41,10 @@ c) wypełnienia obowiązków prawnych, w tym udzielania informacji uprawnionym o
 
 1. Wiadomości tekstowe i głosowe są automatycznie usuwane po upływie 24 godzin od ich wysłania.  
 2. Każdy z uczestników rozmowy może oznaczyć Wiadomość jako zapisaną. Zapisana Wiadomość jest przechowywana do czasu cofnięcia zapisania przez któregokolwiek z uczestników (po czym zostaje usunięta po upływie 24 godzin) albo do usunięcia rozmowy.  
-3. Plik zdjęcia lub nagrania wideo stanowiący NiX jest usuwany z serwera około 10 minut po pierwszym wyświetleniu przez odbiorcę (okres umożliwiający ponowne odtworzenie). NiX niewyświetlony pozostaje dostępny dla odbiorcy. W rozmowie przechowywane są metadane NiX-a, a w przypadku nagrania wideo — także jego miniatura, do czasu usunięcia rozmowy.  
+3. Plik zdjęcia lub nagrania wideo stanowiący NiX, wraz z jego miniaturą, jest usuwany z serwera około 10 minut po pierwszym wyświetleniu przez odbiorcę (okres umożliwiający ponowne odtworzenie). NiX niewyświetlony przez odbiorcę jest usuwany po upływie 30 dni od wysłania. Po usunięciu pliku w rozmowie pozostają wyłącznie metadane NiX-a, do czasu usunięcia rozmowy.  
 4. Nadawca może edytować Wiadomość tekstową w ciągu 15 minut od wysłania (nie więcej niż pięciokrotnie) oraz cofnąć wysłanie Wiadomości w ciągu 5 minut. Poprzednie wersje edytowanej Wiadomości są przechowywane wraz z nią wyłącznie na potrzeby rozpatrzenia ewentualnego zgłoszenia i nie są udostępniane Użytkownikom.  
 5. Przekazanie Wiadomości tworzy nową, odrębną Wiadomość, której okres dostępności liczy się od chwili jej wysłania.  
-6. Usunięcie rozmowy powoduje usunięcie Wiadomości i NiX-ów danej pary Użytkowników po obu stronach. Zablokowanie Użytkownika powoduje ukrycie rozmowy; jej treści są usuwane wraz z usunięciem rozmowy lub Konta.
+6. Usunięcie rozmowy powoduje usunięcie Wiadomości i NiX-ów danej pary Użytkowników po obu stronach. Zablokowanie Użytkownika powoduje ukrycie rozmowy oraz cofnięcie zapisania Wiadomości tej pary Użytkowników, które są następnie usuwane po upływie 24 godzin.
 
 ## § 6. Ochrona przed utrwalaniem treści
 
@@ -101,13 +101,13 @@ Dane osobowe Użytkowników są przechowywane na terytorium Europejskiego Obszar
 ## § 14. Okresy przechowywania danych
 
 Dane osobowe są przechowywane przez okres:  
-a) dane Konta, profilu, relacji, blokad, potwierdzenia wieku, akceptacji dokumentów, urządzeń, rozmów przypiętych i wyciszonych oraz liczniki serii — do usunięcia Konta;  
+a) dane Konta, profilu, relacji, blokad, potwierdzenia wieku, akceptacji dokumentów, rozmów przypiętych i wyciszonych oraz liczniki serii — do usunięcia Konta; dane urządzenia — do usunięcia Konta lub po upływie 180 dni bez aktywności;  
 b) Wiadomości i NiX-y — zgodnie z § 5;  
 c) kopie robocze wykorzystywane do automatycznej kontroli treści — do podjęcia decyzji, nie dłużej niż 24 godziny;  
 d) dowody zabezpieczone w związku ze zgłoszeniem — 30 dni; rozstrzygnięte zgłoszenia — 365 dni od rozstrzygnięcia; decyzje moderacyjne dotyczące Kont — przez okres niezbędny do zapewnienia bezpieczeństwa usługi;  
-e) historia doręczania powiadomień — 30 dni; token powiadomień jest dezaktywowany z chwilą wylogowania i usuwany wraz z Kontem;  
+e) historia doręczania powiadomień — 30 dni; token powiadomień jest usuwany z chwilą wylogowania lub usunięcia Konta, a po wyłączeniu powiadomień w Aplikacji pozostaje nieaktywny;  
 f) archiwum eksportu danych — 24 godziny od jego przygotowania;  
-g) metadane techniczne dotyczące przesyłania multimediów i kontroli treści — do usunięcia Konta;  
+g) metadane techniczne dotyczące przesyłania i usuwania multimediów — 30 dni; metadane automatycznej kontroli treści — 30 dni, a w przypadku treści zakwalifikowanych jako niedozwolone — 90 dni;  
 h) dane przetwarzane dłużej, jeżeli jest to niezbędne do ustalenia, dochodzenia lub obrony roszczeń albo wymagają tego przepisy prawa — przez okres wynikający z tych podstaw.
 
 ## § 15. Prawa Użytkownika
