@@ -27,7 +27,12 @@ function page(locale, kind, sections, meta = '') {
   const text = labels[locale];
   const links = ['privacy', 'terms', 'support'].map((key) => `<a href="${pathFor(key, locale)}">${text[key]}</a>`).join('');
   const otherLocale = locale === 'pl' ? 'en' : 'pl';
-  const content = sections.map(({ title, body }) => `<section><h2>${escape(title)}</h2><p>${escape(body).replaceAll(contact, `<a href="mailto:${contact}">${contact}</a>`)}</p></section>`).join('\n      ');
+  const content = sections
+    .map(({ title, body }) => {
+      const html = escape(body).replaceAll(contact, `<a href="mailto:${contact}">${contact}</a>`).replaceAll('\n', '<br />');
+      return `<section><h2>${escape(title)}</h2><p>${html}</p></section>`;
+    })
+    .join('\n      ');
   return `<!doctype html>
 <html lang="${locale}">
   <head>
@@ -93,12 +98,37 @@ async function save(path, page) {
   }
 }
 
+// docs/legal/*.md are generated from the same source, so the repo copy never drifts from the app.
+const markdownTitles = {
+  pl: { privacy: 'Polityka prywatności NiX', terms: 'Regulamin NiX', version: 'Wersja', effective: 'Data wejścia w życie' },
+  en: { privacy: 'NiX Privacy Policy', terms: 'NiX Terms of Service', version: 'Version', effective: 'Effective date' },
+};
+const markdownFiles = { privacy: 'privacy-policy', terms: 'terms' };
+
+function markdown(locale, kind, document) {
+  const t = markdownTitles[locale];
+  const sections = document.sections
+    .map(({ title, body }) => `## ${title}\n\n${body.replaceAll(/^• /gm, '- ')}\n`)
+    .join('\n');
+  return `<!-- Generated from src/lib/legalDocuments.ts by npm run generate:legal-pages. Do not edit. -->\n\n# ${t[kind]}\n\n**${t.version}:** ${document.version}  \n**${t.effective}:** ${document.effectiveDate}\n\n${sections}`;
+}
+
+async function saveMarkdown(locale, kind, content) {
+  const target = `docs/legal/${markdownFiles[kind]}.${locale}.md`;
+  if (checkOnly) {
+    if ((await readFile(target, 'utf8')) !== content) throw new Error(`${target} differs from the app's legal documents; run npm run generate:legal-pages`);
+    return;
+  }
+  await writeFile(target, content);
+}
+
 for (const locale of ['pl', 'en']) {
   for (const kind of ['privacy', 'terms']) {
     const document = legalDocuments[locale][kind];
     const text = labels[locale];
     const meta = `<p class="meta">${text.version} ${document.version} · ${text.effective} ${document.effectiveDate}</p>`;
     await save(pathFor(kind, locale), page(locale, kind, document.sections, meta));
+    await saveMarkdown(locale, kind, markdown(locale, kind, document));
   }
   await save(pathFor('support', locale), page(locale, 'support', support[locale]));
 }

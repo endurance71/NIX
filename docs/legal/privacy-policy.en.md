@@ -1,88 +1,109 @@
+<!-- Generated from src/lib/legalDocuments.ts by npm run generate:legal-pages. Do not edit. -->
+
 # NiX Privacy Policy
 
-**Version:** 2026-10-08
-**Effective date:** 8 October 2026
+**Version:** 2026-10-12  
+**Effective date:** 12 October 2026
 
-## Controller and contact
+## Privacy at a glance
 
-NiX is a ShipApp brand. The controller is **MT Hub Damian Motyliński**, ul. ks. Józefa Poniatowskiego 27a
-lok. 2, 76-200 Słupsk, Poland, tax ID (NIP) 8393229228. Contact
-**nix@shipapp.pl** about privacy. You may lodge a complaint with the
-competent data-protection authority (in Poland: the President of the Personal Data
-Protection Office).
+NiX was built so that close conversations stay between you. Here is what you can count on:
+- You only talk to people you accept as friends.
+- Messages disappear after 24 hours, and NiX photos and videos soon after they are viewed. Only what you choose to save stays.
+- No ads, no tracking, and we never sell your data.
+- Memories are encrypted on your iPhone — never on our servers.
+- Before anything reaches the recipient, it goes through an automatic safety check.
+- Download a copy of your data or delete your account in the app, any time.
+Below are the details, in plain language and without fine print.
 
-## Data, purposes and legal bases
+## Who looks after your data
 
-We process email and login data, account identifiers, username, display name,
-profile bio, avatar, friend relationships and QR invitations, confirmation that
-the user is 16 or older (without storing date of birth), text and photo/video
-content and metadata, abuse reports,
-blocks, screen-capture settings, notification token, app-installation identifier,
-device model, iOS and app versions, app language, private conversation read state,
-and technical logs. This is necessary to provide the account and
-messaging service (GDPR Article 6(1)(b)), protect the service and defend claims
-(Article 6(1)(f)), or comply with law (Article 6(1)(c)).
+NiX is a ShipApp brand. The controller of your personal data is MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID (NIP) 8393229228. For anything about your privacy, email nix@shipapp.pl — a real person will answer.
 
-Push notifications are optional and can be disabled independently on each device
-in Profile or iOS Settings. A notification may contain a username and event type,
-but never includes a message photo, video, or thumbnail.
+## What we collect
 
-With separate, optional consent, we collect limited product-analytics events.
-An event contains an installation identifier, an allowlisted event name,
-app version, language, time, and restricted properties. It does not contain
-message content, usernames, media paths, or tokens. The installation ID can be
-linked to your account via installation and push tables — this is not anonymous
-analytics. Before consent, the client does not send events. You may refuse consent
-during onboarding and withdraw it anytime in **Profile → Privacy & security**. In
-the current public candidate, product analytics is build-flag disabled
-(`EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED=false`).
+Only what NiX needs to work:
+- Account: email and sign-in data (a protected password, or your Apple identifier with Sign in with Apple), account ID, confirmation that you are 16 or older, and acceptance of these documents.
+- Profile and friends: username, display name, bio, avatar, private-account setting, friend list, invites and blocks.
+- Messages: texts, voice messages, photos and videos (NiXes), with reactions, replies, forwards, saves, view time, “Delivered” and “Opened” status, and earlier versions of edited messages.
+- Conversation activity: daily exchange counts (streaks and best friends), pinned and muted conversations, and attempts to screenshot a NiX.
+- Safety: reports, secured evidence and moderation decisions.
+- Device: notification token, device name and model, iOS and app version, language, and last activity (the Devices screen).
+We do not collect your location, your address book or an advertising identifier.
 
-Camera, microphone and photo-library permissions are used only after your
-operating-system permission for messages and avatars. Messages are ephemeral: the
-app attempts to remove media after viewing. Screen-capture protection is not an
-absolute technical guarantee on every device.
+## Why we use it
 
-## Recipients, transfers and retention
+To run your account, connect you with friends and deliver messages — performance of our contract (Art. 6(1)(b) GDPR). To protect you and others from abuse, handle reports and defend legal claims — our legitimate interest (Art. 6(1)(f) GDPR). Where the law requires it, for example at the request of competent authorities — a legal obligation (Art. 6(1)(c) GDPR).
 
-We use Supabase (authentication, database, Storage and server functions; EU
-region), Apple (Sign in with Apple and App Store), Expo/EAS (app builds,
-distribution, and relaying push notifications to Apple APNs), OVHcloud (hosting the video moderation worker), and Microsoft Azure
-AI Content Safety (pre-delivery screening of text, photos, and sampled video
-frames). The installed Sentry
-SDK is hard-disabled in the public build (`EXPO_PUBLIC_SENTRY_ENABLED=false`) and
-receives no data. Transfers outside the EEA use an adequacy decision, standard
-contractual clauses, or another GDPR Chapter V mechanism.
+## Your messages and how long they live
 
-Account, profile, age confirmation, and relationship data are retained until deletion.
-Active notification tokens are retained until notifications are disabled, the user
-signs out, the account is deleted, or the device is reported as unregistered.
-Technical notification-delivery history and raw, consented product-analytics
-events (when enabled) are retained for up to 30 days. Daily aggregates do not
-contain an installation identifier.
-Media is removed after viewing. Ephemeral text messages are automatically deleted 24 hours after sending.
-If a recipient reports a message (media or text), an evidence copy is
-kept only for moderation and deleted after 30 days. Resolved reports and decision audit
-records are retained for up to 365 days; technical logs for up to 30 days.
-An open report may remain until resolved. A private account-export archive is
-available for 24 hours; its operational job record is removed after 30 days.
-Account deletion removes application data and
-Storage objects except minimal data required for a report, law, or legal claims.
+- Texts and voice messages disappear on their own 24 hours after sending.
+- Either of you can save a message in the conversation. A saved message stays until one of you unsaves it (it then disappears after 24 hours) or you delete the conversation.
+- A NiX photo or video is deleted from our servers about 10 minutes after it is first viewed — the replay window. An unopened NiX waits for its recipient. The conversation keeps a note of the NiX, and for a video a small preview thumbnail, until you delete the conversation.
+- You can edit a message for 15 minutes (up to 5 times) and undo sending for 5 minutes. Earlier versions of an edited message are kept with it only in case it is reported — no one can see them in the app.
+- Forwarding creates a new message to the friend you pick, with its own disappearing timer.
+- Deleting a conversation removes its messages and NiXes for both of you. After a block, messages are hidden; delete the conversation to remove them completely.
 
-## Safety and moderation
+## Screenshots and saving
 
-Before a message is delivered to the recipient we automatically screen text,
-photos, and video. Video uses sampled frames, not a full-file scan. Screening uses
-Microsoft Azure AI Content Safety solely to block prohibited content. The working
-copy used for screening is deleted after the decision. A recipient can still
-report a specific message and block its sender. An authorized person reviews
-reports and may warn, suspend, or ban an account. Contact
-nix@shipapp.pl about a decision or appeal.
+Screenshots and screen recordings of your NiXes are blocked by default, and if someone tries, you get notified. You can allow chosen friends to save — they can then keep your NiX in Photos on their device, outside NiX's control. This protection covers NiXes, not chat or voice messages, and no block can stop someone photographing a screen with another device.
 
-## Your rights and changes
+## Safety checks and moderation
 
-You may request access, rectification, erasure, restriction of processing,
-objection and portability where applicable, and lodge a complaint with the
-competent supervisory authority. Delete your account in **Profile → Account →
-Delete account**, or contact nix@shipapp.pl if you cannot access the
-app. Material changes are announced before taking effect and carry a new
-version/date.
+Before a message reaches the recipient, its text, photos and selected video frames are checked automatically by Microsoft Azure AI Content Safety (data centre in Sweden) and our own blocked-words filter. We look only for prohibited content — hate, violence, self-harm and sexual content. Rejected content is never delivered, and the working copy used for the check is deleted after the decision, at the latest after 24 hours. Voice messages and video sound are not analysed automatically.
+You can report any message, NiX or profile. A report secures evidence — a copy of the photo, video, recording or message text with its earlier versions — for 30 days. Our moderation team can remove content and restrict accounts. Child-safety reports are handled first and passed to the competent authorities where the law requires.
+
+## Private accounts and friends
+
+You add friends by exact username, a QR code (valid for 5 minutes) or an invite. A private account cannot be found by username or invited directly — only with a code or invite from its owner. We never upload your address book or suggest strangers.
+
+## Notifications
+
+Notifications are optional — turn them off in Profile or in iOS Settings. They show the sender's name and avatar and the kind of event, never the message text, photo or video. To show them as messages from a friend, iOS may remember the sender's name and avatar on your device (for example for Siri suggestions and Focus). A notification about an attempt to screenshot your NiX is sent even if you turn off message notifications in Profile.
+
+## Camera, microphone and photos
+
+We use the camera, microphone and photo library only after you allow it in iOS — for photos, videos and voice messages, scanning QR codes, choosing an avatar and saving to Photos. You can withdraw access in iOS Settings; the related feature then stops working.
+
+## What stays only on your iPhone
+
+- Memories — NiXes you sent, if you turn saving on — are encrypted (AES-256) with a key kept in this iPhone's Keychain. They never reach our servers or your data export. An iCloud backup holds only encrypted files that cannot be opened on another device. The limit is 500 MB; above it the oldest are removed automatically.
+- Received photos waiting to be opened are kept briefly in an encrypted cache.
+- The widget and Live Activity show only the number of new NiXes and upload progress — no names or content.
+- Lock Screen camera shots and files shared from other apps stay on the device until you send them.
+Signing out removes Memories and their key, the cache and the send queue from the device.
+
+## Who we share data with
+
+Only trusted providers NiX cannot work without, and only as much as needed:
+- Supabase — accounts, database, files and server functions (Ireland, EU).
+- Microsoft Azure AI Content Safety — safety checks (Sweden, EU).
+- OVHcloud — a server that prepares videos for checking (France, EU).
+- Expo and Apple — delivering notifications and app updates, Sign in with Apple and the App Store.
+We do not sell data or share it with advertisers. Product analytics and crash reporting (Sentry) are turned off in the app.
+
+## Transfers outside Europe
+
+Your data is stored in the European Union. Expo and Apple may also process the data needed for notifications and sign-in in the USA — only on the basis of an adequacy decision (EU–US Data Privacy Framework) or standard contractual clauses, under Chapter V GDPR.
+
+## How long we keep data
+
+- Account, profile, friends, blocks, age confirmation, document acceptance, devices, pinned and muted conversations and streak counts — until you delete your account.
+- Messages and NiXes — as described in the section on how long messages live.
+- Working copies for safety checks — until the decision, at most 24 hours.
+- Report evidence — 30 days; resolved reports — 365 days; decisions on accounts (warnings, suspensions) — as long as needed to protect the community.
+- Notification delivery history — 30 days. Your notification token is disabled when you sign out and deleted with your account.
+- Data export archives — 24 hours after they are ready.
+- Technical metadata about media uploads and safety checks — until you delete your account.
+
+## Your rights
+
+You have the right to access, rectify, erase, restrict, port and object to the processing of your data, where these apply. Download a copy of your data yourself: Profile → Privacy & security → Data export (a ZIP archive, ready in minutes). Send any other request to nix@shipapp.pl. You can also lodge a complaint with the Polish data protection authority (Prezes UODO).
+
+## Deleting your account
+
+Delete your account in the app: Profile → Account → Delete account, after confirming your username and signing in again. If you use Sign in with Apple, we also revoke NiX's access to your Apple ID. We delete your account, profile, friends, messages, NiXes, voice messages, avatar and exports; files shared with others disappear from our servers within minutes. Only report evidence (up to 30 days) and decisions without a link to your account remain. Signing out or deleting the app does not delete your account. Can't access the app? Email nix@shipapp.pl from the address on your account.
+
+## Children and changes to this policy
+
+NiX is for people aged 16 and over. We check your date of birth only on your device and never store it — we keep only the 16+ confirmation. We use no analytics or tracking; if that ever changes, we will ask for your consent first. We will tell you in the app about important changes to this policy before they take effect.
