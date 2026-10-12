@@ -22,6 +22,10 @@ Local Release Archive: `~/.nix-ops/release-1.0.13-15/` (ARCHIVE SUCCEEDED; 4 ext
 `processing` background mode). Uploaded with `xcodebuild -exportArchive` and the „NiX claude” API key. Build id
 `e5fbc2b0-904f-434f-8b8b-1e9485d05f66`: VALID, in **NiX Internal QA** and **Team (Expo)**, with PL/EN What to Test.
 
+Thirty-sixth OTA (2026-10-12): update group `deff6760-51f5-4201-b3d9-3c8f4791abcd`, source `97f1743`, for builds 14
+and 15. The Memories empty-state description wraps instead of running off the screen. Build 14 also gets the JS from
+build 15: the `child_safety` reason (it fails until the backend below is deployed) and the welcome-tour copy.
+
 **Backend pending.** Migrations `20261015100000` (private accounts), `20261015101000` (audio evidence) and
 `20261015102000` (`child_safety`), plus the `report-content` Edge Function, are not deployed yet. Until they are:
 - a „Child safety” report fails;
