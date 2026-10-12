@@ -29,7 +29,6 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { notify, selection, tap } from '../../lib/haptics';
 import { canUseLiquidGlass } from '../../lib/liquidGlass';
-import { markWelcomeSeen } from '../../lib/welcomeOnboarding';
 import { useStageInk } from '../brand/stageInk';
 import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
 import { useMotionEnabled } from '../../theme/motion';
@@ -180,7 +179,6 @@ export function WelcomeScreen() {
   const finish = (choices?: WelcomeSetupSummary) => {
     if (finishingRef.current) return;
     finishingRef.current = true;
-    void markWelcomeSeen(session?.user.id ?? null);
     if (!motionEnabled) {
       notify('success');
       close();
