@@ -24,7 +24,10 @@ npm run check:email-templates      # sprawdza, czy pliki są aktualne
 
 - Własny SMTP **wyłączony** — wysyłka przez wbudowany serwer Supabase, limit **2 e-maile/h** na cały
   projekt, nadawca Supabase. Do wydania potrzebny własny SMTP (nadawca `nix@shipapp.pl`).
-- Na produkcji są starsze szablony (ciemne, temat np. „Reset hasła — NiX”). Nowe trzeba wgrać.
+- 2026-10-13: nowe szablony i tematy (7 sztuk) wgrane przez Management API
+  (`PATCH /v1/projects/{ref}/config/auth`, tylko pola `mailer_subjects_*` i `mailer_templates_*`;
+  zweryfikowane 1:1 z repo, pozostała konfiguracja bez zmian). Kopia poprzedniej konfiguracji:
+  `~/.nix-ops/email-templates-backup/auth-config-2026-10-13.json` (poza repo).
 - Site URL `http://127.0.0.1:3000`; Redirect URLs: `nix://auth/callback` + lokalne.
 
 ## Pliki szablonów
