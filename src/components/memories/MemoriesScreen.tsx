@@ -142,7 +142,9 @@ export function MemoriesScreen() {
     </View>
   ) : (
     <View style={styles.emptyState}>
-      <Host matchContents colorScheme={colorScheme}>
+      {/* Full width, height from content: with `matchContents` on both axes the description is
+          measured as one unbounded line and runs off the screen instead of wrapping. */}
+      <Host matchContents={{ vertical: true }} colorScheme={colorScheme} style={styles.emptyHost}>
         {supportsContentUnavailableView ? (
           <ContentUnavailableView
             title={t('memories.emptyTitle')}
@@ -250,5 +252,8 @@ const styles = StyleSheet.create({
     paddingTop: 64,
     paddingHorizontal: 16,
     alignItems: 'center',
+  },
+  emptyHost: {
+    alignSelf: 'stretch',
   },
 });
