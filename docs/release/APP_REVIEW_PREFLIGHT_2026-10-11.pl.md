@@ -149,6 +149,32 @@ Zbierane typy danych w manifeście muszą się zgadzać z App Privacy w ASC (kro
 - Dokumenty są opublikowane w aplikacji (41. OTA) i na https://nix.shipapp.pl/privacy/.
 - **Do zrobienia ręcznie w ASC:** App Privacy według tabeli w `docs/app-store-listing.md` oraz adresy URL polityki i wsparcia na `nix.shipapp.pl`.
 
+### Krok 3 — App Store Connect (2026-10-12, przez API)
+
+Zrobione:
+- Wersja 1.0.12 → **1.0.13** z **buildem 15**; copyright „2026 MT Hub Damian Motyliński”.
+- Podtytuł: PL „Prywatne chwile z najbliższymi”, EN „Private moments with friends”. Nazwa „NiX Now Chat” bez zmian.
+- Opisy PL/EN: marketingowe, zgodne z aplikacją.
+- Promotional text oraz słowa kluczowe (PL 98/100 B, EN 91/100).
+- Adresy: polityka, wsparcie i strona marketingowa na `nix.shipapp.pl` (PL i EN osobno).
+- Review Notes przepisane:
+  - instrukcja testu z kontami demo, które zostały bez zmian;
+  - nowości 1.0.13;
+  - moderacja, SLA i „zero tolerance”;
+  - uczciwy opis OTA.
+- E-mail kontaktowy: `nix@shipapp.pl`.
+- Kategoria wiekowa sprawdzona z definicjami Apple, bez zmian:
+  - Messaging and Chat = tak;
+  - UGC = nie (UGC to „szeroka dystrybucja”, NiX to rozmowy 1:1);
+  - Social Media = nie (brak feedu i odkrywania);
+  - Age Assurance = tak; ocena 16+.
+
+Ręcznie (API tego nie obsługuje):
+- App Privacy według tabeli w `docs/app-store-listing.md`.
+- Dostępność: wyłączyć Mac (Apple silicon) i Apple Vision Pro, jeśli nietestowane.
+- DSA: status przedsiębiorcy (Business → Agreements).
+- Zrzuty ekranu: obecne 5 (6,5″, EN) pokazują stary interfejs; trzeba nowe, z fikcyjnymi danymi.
+
 ## Kolejność prac
 
 1. Kod (OTA + build 15): egzekucja konta prywatnego, dowody głosówek, poprawki copy we wprowadzeniu,
