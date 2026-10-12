@@ -20,6 +20,8 @@
     "generate:legal-pages": "node scripts/generate-legal-pages.mjs",
     "check:legal-pages": "node scripts/generate-legal-pages.mjs --check",
     "generate:site": "node scripts/generate-site.mjs",
+    "generate:email-templates": "node scripts/generate-email-templates.mjs",
+    "check:email-templates": "node scripts/generate-email-templates.mjs --check",
     "check:site": "node scripts/generate-site.mjs --check",
     "deploy:site": "bash scripts/deploy-site.sh",
     "check:text-outbox-security": "node scripts/check-text-outbox-security.mjs",
