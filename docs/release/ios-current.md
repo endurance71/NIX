@@ -36,6 +36,10 @@ and 15. The welcome tour and the login backdrop use the AI-generated photo set (
 `assets/onboarding/source/`, 1.6 MB in total). The Memories scene shows nine different moments, and the capture scene
 sends to three photo avatars.
 
+Thirty-ninth OTA (2026-10-12): update group `936e7d84-7292-49f1-9366-49f0cfd557cd`, source `fba76bf`, for builds 14
+and 15. Ola's chat avatar and her Memories tile in the welcome tour use a square face crop (`chat-face.jpg`) instead of
+a centre crop of the portrait, which cut her head off.
+
 **Backend pending.** Migrations `20261015100000` (private accounts), `20261015101000` (audio evidence) and
 `20261015102000` (`child_safety`), plus the `report-content` Edge Function, are not deployed yet. Until they are:
 - a „Child safety” report fails;
