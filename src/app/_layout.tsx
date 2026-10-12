@@ -1,6 +1,5 @@
 import { resolveBootstrapFailure, resolveBootstrapRedirect } from '../lib/bootstrapPresentation';
 import { Stack, router, useNavigationContainerRef, useSegments } from 'expo-router';
-import { shouldPresentWelcome } from '../lib/welcomeOnboarding';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -607,26 +606,23 @@ function usePendingFriendInviteRedirect(enabled: boolean, segments: string[]) {
   }, [enabled, segments]);
 }
 
-/** The account the tour was opened for in this run (a later sign-in of another account still gets it). */
+/** The account the tour was opened for since its last sign-in; cleared on sign-out. */
 let welcomePresentedFor: string | null = null;
 
 /**
- * Sign in first, then the welcome tour: it opens on the tabs right after a sign-in in this run
- * (not for a session restored at launch), once per account. Not over the post-signup profile
- * step, and only once the redirects are done.
+ * Sign in first, then the welcome tour: it opens on the tabs after every sign-in or sign-up (not
+ * for a session restored at launch), so signing out and back in shows it again. Not over the
+ * post-signup profile step, and only once the redirects are done.
  */
 function useWelcomePresentation(enabled: boolean, segments: string[], userId: string | null, signedInNow: boolean) {
   useEffect(() => {
-    if (!enabled || !userId || welcomePresentedFor === userId || segments[0] !== '(tabs)') return;
-    let cancelled = false;
-    void shouldPresentWelcome(userId, signedInNow).then((due) => {
-      if (cancelled || !due || welcomePresentedFor === userId) return;
-      welcomePresentedFor = userId;
-      router.push('/welcome');
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (!userId) {
+      welcomePresentedFor = null;
+      return;
+    }
+    if (!enabled || !signedInNow || welcomePresentedFor === userId || segments[0] !== '(tabs)') return;
+    welcomePresentedFor = userId;
+    router.push('/welcome');
   }, [enabled, segments, signedInNow, userId]);
 }
 
