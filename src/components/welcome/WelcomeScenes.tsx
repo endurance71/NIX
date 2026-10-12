@@ -21,6 +21,23 @@ const WELCOME_PHOTOS = {
   memories: require('../../../assets/onboarding/memories.jpg') as ImageSource,
 };
 
+/** Small tiles of the Memories grid (copies exported by `npm run brand:onboarding`). */
+const MEMORY_TILES = {
+  coffee: require('../../../assets/onboarding/memory-coffee.jpg') as ImageSource,
+  dog: require('../../../assets/onboarding/memory-dog.jpg') as ImageSource,
+  skate: require('../../../assets/onboarding/memory-skate.jpg') as ImageSource,
+  cake: require('../../../assets/onboarding/memory-cake.jpg') as ImageSource,
+  city: require('../../../assets/onboarding/memory-city.jpg') as ImageSource,
+  hike: require('../../../assets/onboarding/memory-hike.jpg') as ImageSource,
+};
+
+/** The friends a shot is sent to in the capture scene. */
+const FRIEND_AVATARS = [
+  require('../../../assets/onboarding/avatar-o.jpg') as ImageSource,
+  require('../../../assets/onboarding/avatar-k.jpg') as ImageSource,
+  require('../../../assets/onboarding/avatar-m.jpg') as ImageSource,
+];
+
 const APP_ICON = require('../../../assets/brand/app/ios-light.png') as ImageSource;
 
 /** The phone mock-up and what sits on a photo stay dark, like a real camera, in both appearances. */
@@ -69,11 +86,15 @@ function Pill({ icon, label, tint }: { icon: AppIconName; label: string; tint: s
   );
 }
 
-function Avatar({ letter, size, color }: { letter: string; size: number; color: string }) {
+function Avatar({ photo, size }: { photo: ImageSource; size: number }) {
   const ink = useStageInk();
   return (
-    <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: color }]}>
-      <Text style={[styles.avatarText, { fontSize: size * 0.42, color: ink.onAccent }]}>{letter}</Text>
+    <View
+      style={[
+        styles.avatar,
+        { width: size, height: size, borderRadius: size / 2, borderColor: ink.systemBackground },
+      ]}>
+      <Image source={photo} style={StyleSheet.absoluteFill} contentFit="cover" />
     </View>
   );
 }
@@ -196,7 +217,6 @@ const CAPTURE_BEATS: readonly SceneBeat[] = [
 ];
 
 export function CaptureScene({ active, width, height, motionEnabled }: SceneProps) {
-  const ink = useStageInk();
   const { t: translate } = useTranslation();
   const { colors } = useAppTheme();
   const t = useSceneTimeline(active, 6200, motionEnabled, 0.3);
@@ -278,13 +298,11 @@ export function CaptureScene({ active, width, height, motionEnabled }: SceneProp
         </Animated.View>
       </View>
       <Animated.View style={[styles.sendRow, { right: width * 0.04, top: height * 0.5 }, sendRow]}>
-        <Avatar letter="O" size={34} color={colors.accent} />
-        <View style={styles.avatarOverlap}>
-          <Avatar letter="K" size={34} color={ink.chatBubbleOwn} />
-        </View>
-        <View style={styles.avatarOverlap}>
-          <Avatar letter="M" size={34} color={ink.systemGray} />
-        </View>
+        {FRIEND_AVATARS.map((photo, index) => (
+          <View key={index} style={index > 0 ? styles.avatarOverlap : undefined}>
+            <Avatar photo={photo} size={34} />
+          </View>
+        ))}
       </Animated.View>
       <Animated.View style={[styles.sentPill, { right: width * 0.04, top: height * 0.5 + 46 }, sent]}>
         <Pill icon="checkCircleFill" label={translate('welcome.demo.sent')} tint={colors.accent} />
@@ -559,15 +577,16 @@ function TypingDot({ t, index }: { t: SharedValue<number>; index: number }) {
 // #region 5. Memories: the album fills in, then one memory zooms open
 
 const GRID = 3;
+// Nine different moments; the centre one (ZOOM_CELL) opens full size, so it is a full scene photo.
 const GRID_PHOTOS = [
-  WELCOME_PHOTOS.memories,
+  MEMORY_TILES.coffee,
   WELCOME_PHOTOS.welcome,
-  WELCOME_PHOTOS.capture,
-  WELCOME_PHOTOS.chat,
+  MEMORY_TILES.dog,
+  MEMORY_TILES.skate,
   WELCOME_PHOTOS.memories,
-  WELCOME_PHOTOS.ephemeral,
-  WELCOME_PHOTOS.capture,
-  WELCOME_PHOTOS.welcome,
+  MEMORY_TILES.hike,
+  MEMORY_TILES.cake,
+  MEMORY_TILES.city,
   WELCOME_PHOTOS.chat,
 ];
 const ZOOM_CELL = 4;
@@ -694,12 +713,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   avatar: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontFamily: APP_FONT_FAMILY,
-    fontWeight: '700',
+    overflow: 'hidden',
+    borderWidth: 2,
   },
   fanCard: {
     position: 'absolute',

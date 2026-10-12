@@ -60,7 +60,8 @@
     "eval:agents": "node scripts/agent-evals/run.mjs",
     "eval:agents:report": "node scripts/agent-evals/analyze.mjs",
     "gen:database": "node scripts/generate-database-types.mjs",
-    "brand:generate": "bash scripts/brand/generate.sh"
+    "brand:generate": "bash scripts/brand/generate.sh",
+    "brand:onboarding": "bash scripts/brand/export-onboarding.sh"
   },
   "dependencies": {
     "@expo/ui": "~57.0.22",

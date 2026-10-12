@@ -8,11 +8,8 @@ These replace the Unsplash placeholders. They are used in the in-app welcome tou
 - **Format:** vertical **9:19.5, 1179 × 2556 px** (or larger at the same ratio), JPG, sRGB, under 1.5 MB.
 - **Crops:** each photo is cropped to 3:4 cards and to a 9:19.5 phone screen. Keep the subject in the middle, with
   room around it.
-- **Filenames:** the same as today (`welcome.jpg`, `capture.jpg`, …) in `assets/onboarding/`.
-- **Web copies:** after swapping, run:
-  ```bash
-  for f in welcome capture ephemeral chat memories; do sips -s format jpeg -s formatOptions 70 -Z 1200 assets/onboarding/$f.jpg --out web/site/img/$f.jpg; done
-  ```
+- **Filenames:** the same as today (`welcome.jpg`, `capture.jpg`, …).
+- **Masters** go to `assets/onboarding/source/`; then `npm run brand:onboarding` exports the app and web copies.
 - **Credits:** update `assets/onboarding/CREDITS.md` with the tool, the date and "AI-generated".
 - **People:** adults only (early-to-mid twenties). NiX is 16+, so no one in the art may look underage.
 

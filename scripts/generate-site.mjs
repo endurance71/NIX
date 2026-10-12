@@ -251,7 +251,7 @@ function captureScene(d) {
               <span class="shutter"><span></span></span>
               <span class="flash"></span>`)}
           <div class="shot">${img('capture')}<span class="sticker">${escape(d.sticker)}</span></div>
-          <div class="send-row"><span class="avatar a1">O</span><span class="avatar a2">K</span><span class="avatar a3">M</span></div>
+          <div class="send-row">${['o', 'k', 'm'].map((id) => `<span class="avatar"><img src="/img/avatar-${id}.jpg" alt="" width="192" height="192" loading="lazy" decoding="async" /></span>`).join('')}</div>
           ${pill('check', d.sent, ' sent-pill')}
         </div>`;
 }
@@ -286,7 +286,12 @@ function chatScene(d) {
 }
 
 function memoriesScene(d) {
-  const photos = ['welcome', 'capture', 'chat', 'memories', 'ephemeral', 'welcome', 'chat', 'memories', 'capture', 'ephemeral', 'welcome', 'chat'];
+  const photos = [
+    'memory-coffee', 'welcome', 'memory-dog',
+    'memory-skate', 'memories', 'memory-hike',
+    'memory-cake', 'chat', 'memory-city',
+    'capture', 'ephemeral', 'memory-coffee',
+  ];
   const cells = photos
     .map((p, i) => `<span class="cell" style="--i:${i}">${img(p)}</span>`)
     .join('');

@@ -372,19 +372,16 @@ a.button:active { transform: scale(0.97); }
 .shot img { width: 100%; height: 100%; object-fit: cover; }
 .send-row { position: absolute; z-index: 6; right: 0; top: 46%; display: flex; animation: send-row 6.2s infinite; }
 .avatar {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   margin-left: -10px;
   border: 2.5px solid var(--bg);
   border-radius: 50%;
-  font-weight: 700;
-  color: #fff;
+  overflow: hidden;
+  background: var(--bubble-in);
 }
-.a1 { margin-left: 0; background: var(--accent); }
-.a2 { background: #0a84ff; }
-.a3 { background: #8e8e93; }
+.avatar:first-child { margin-left: 0; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
 .sent-pill { right: 0; top: calc(46% + 54px); animation: sent 6.2s infinite; }
 
 /* Ephemeral: the timer runs out and the picture dissolves, Opened. */
@@ -519,8 +516,6 @@ a.button:active { transform: scale(0.97); }
 .memories-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 0 10px; }
 .cell { aspect-ratio: 1; border-radius: 6px; overflow: hidden; }
 .cell img { width: 100%; height: 100%; object-fit: cover; }
-.cell:nth-child(2n) img { object-position: 30% 40%; }
-.cell:nth-child(3n) img { object-position: 70% 60%; }
 .lock-pill { left: 50%; bottom: 30px; transform: translateX(-50%); animation: lock-pill 6s infinite; }
 /* #endregion */
 
