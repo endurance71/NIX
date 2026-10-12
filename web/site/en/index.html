@@ -10,9 +10,20 @@
     <meta property="og:title" content="NiX — private photos and chats with friends" />
     <meta property="og:description" content="NiX is a private iPhone messenger: photos, videos, messages and voice notes only with friends you accept." />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://nix.shipapp.pl/en/" />
+    <meta property="og:image" content="https://nix.shipapp.pl/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <link rel="canonical" href="https://nix.shipapp.pl/en/" />
     <link rel="alternate" hreflang="pl" href="https://nix.shipapp.pl/" />
     <link rel="alternate" hreflang="en" href="https://nix.shipapp.pl/en/" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/img/welcome.jpg" as="image" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="/site.css" />
     <script src="/site.js" defer></script>
@@ -34,17 +45,18 @@
         <div class="glow" aria-hidden="true"></div>
         <div class="hero-text">
           <p class="eyebrow">For iPhone</p>
-          <h1>Moments that stay between you.</h1>
+          <h1>Moments that stay <span class="accent">between you.</span></h1>
           <p class="lead">Private photos, videos, messages and voice notes — only with people you invite.</p>
           <div class="actions">
             <span class="button primary" aria-disabled="true">Coming soon to the App Store</span>
             <a class="button" href="mailto:nix@shipapp.pl">Contact us</a>
           </div>
+          <ul class="trust"><li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.7 2.7L16 9.6"/></svg>No ads</li><li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.7 2.7L16 9.6"/></svg>No tracking</li><li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.7 2.7L16 9.6"/></svg>Checked before delivery</li><li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.7 2.7L16 9.6"/></svg>16+</li></ul>
         </div>
         <div class="scene hero-scene" aria-hidden="true">
-          <div class="fan fan-left"><img src="/img/memories.jpg" alt="" /></div>
-          <div class="fan fan-right"><img src="/img/capture.jpg" alt="" /></div>
-          <div class="fan fan-center"><img src="/img/welcome.jpg" alt="" /></div>
+          <div class="fan fan-left"><img src="/img/memories.jpg" alt="" width="553" height="1200" fetchpriority="high" decoding="async" /></div>
+          <div class="fan fan-right"><img src="/img/capture.jpg" alt="" width="553" height="1200" fetchpriority="high" decoding="async" /></div>
+          <div class="fan fan-center"><img src="/img/welcome.jpg" alt="" width="553" height="1200" fetchpriority="high" decoding="async" /></div>
           <span class="float-emoji e1">❤️</span>
           <span class="float-emoji e2">🔥</span>
           <span class="float-emoji e3">😂</span>
@@ -67,19 +79,20 @@
           <p class="kicker">Camera</p>
           <h2>Snap it. Add a sticker. Send.</h2>
           <p>NiX opens straight to the camera. One tap and your moment goes to the friends you pick — nobody else.</p>
+          <ul class="chips"><li>Stickers and captions</li><li>Photos and video</li><li>You pick who gets it</li></ul>
         </div>
         <div class="stage reveal">
           <div class="scene capture-scene" aria-hidden="true">
           <div class="phone">
             <div class="screen">
-              <div class="viewfinder"><img src="/img/capture.jpg" alt="" /></div>
+              <div class="viewfinder"><img src="/img/capture.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /></div>
               <span class="sticker">Saturday! 🔥</span>
               <span class="shutter"><span></span></span>
               <span class="flash"></span>
               <span class="island"></span>
             </div>
           </div>
-          <div class="shot"><img src="/img/capture.jpg" alt="" /><span class="sticker">Saturday! 🔥</span></div>
+          <div class="shot"><img src="/img/capture.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /><span class="sticker">Saturday! 🔥</span></div>
           <div class="send-row"><span class="avatar a1">O</span><span class="avatar a2">K</span><span class="avatar a3">M</span></div>
           <span class="pill sent-pill"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.7 2.7L16 9.6"/></svg>Sent</span>
         </div>
@@ -90,11 +103,12 @@
           <p class="kicker">Gone once viewed</p>
           <h2>Visible only as long as you want.</h2>
           <p>You decide how long a NiX stays visible. Then it’s gone, and screenshots of NiXes are blocked by default.</p>
+          <ul class="chips"><li>View time</li><li>Screenshots blocked</li><li>“Opened” status</li></ul>
         </div>
         <div class="stage reveal">
           <div class="scene ephemeral-scene" aria-hidden="true">
           <div class="nix-card">
-            <img src="/img/ephemeral.jpg" alt="" />
+            <img src="/img/ephemeral.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" />
             <span class="dissolve"></span>
             <svg class="ring" viewBox="0 0 58 58"><circle class="track" cx="29" cy="29" r="26.5" /><circle class="run" cx="29" cy="29" r="26.5" pathLength="1" /></svg>
             <svg class="icon ring-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5"/></svg>
@@ -109,12 +123,13 @@
           <p class="kicker">Chat</p>
           <h2>Chat your way.</h2>
           <p>Reply to a specific message, react with a Tapback, edit, undo send and record voice notes.</p>
+          <ul class="chips"><li>Replies</li><li>Tapback</li><li>Edit and undo</li><li>Voice notes</li></ul>
         </div>
         <div class="stage reveal">
           <div class="scene chat-scene" aria-hidden="true">
           <div class="phone light">
             <div class="screen">
-              <div class="chat-header"><img src="/img/chat.jpg" alt="" /><span>Ola</span></div>
+              <div class="chat-header"><img src="/img/chat.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /><span>Ola</span></div>
               <div class="thread">
                 <div class="bubble in b1">Did you see that sunset? 🌅</div>
                 <div class="bubble own b2">Just sent you a NiX!<span class="tapback">❤️</span></div>
@@ -133,13 +148,14 @@
           <p class="kicker">Memories</p>
           <h2>The best moments stay on your iPhone.</h2>
           <p>Keep NiXes you sent in an encrypted album on your iPhone — never on our servers.</p>
+          <ul class="chips"><li>Encrypted on device</li><li>500 MB limit</li><li>Delete any time</li></ul>
         </div>
         <div class="stage reveal">
           <div class="scene memories-scene" aria-hidden="true">
           <div class="phone light">
             <div class="screen">
               <div class="memories-title">Memories</div>
-              <div class="memories-grid"><span class="cell" style="--i:0"><img src="/img/welcome.jpg" alt="" /></span><span class="cell" style="--i:1"><img src="/img/capture.jpg" alt="" /></span><span class="cell" style="--i:2"><img src="/img/chat.jpg" alt="" /></span><span class="cell" style="--i:3"><img src="/img/memories.jpg" alt="" /></span><span class="cell" style="--i:4"><img src="/img/ephemeral.jpg" alt="" /></span><span class="cell" style="--i:5"><img src="/img/welcome.jpg" alt="" /></span><span class="cell" style="--i:6"><img src="/img/chat.jpg" alt="" /></span><span class="cell" style="--i:7"><img src="/img/memories.jpg" alt="" /></span><span class="cell" style="--i:8"><img src="/img/capture.jpg" alt="" /></span><span class="cell" style="--i:9"><img src="/img/ephemeral.jpg" alt="" /></span><span class="cell" style="--i:10"><img src="/img/welcome.jpg" alt="" /></span><span class="cell" style="--i:11"><img src="/img/chat.jpg" alt="" /></span></div>
+              <div class="memories-grid"><span class="cell" style="--i:0"><img src="/img/welcome.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /></span><span class="cell" style="--i:1"><img src="/img/capture.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /></span><span class="cell" style="--i:2"><img src="/img/chat.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /></span><span class="cell" style="--i:3"><img src="/img/memories.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /></span><span class="cell" style="--i:4"><img src="/img/ephemeral.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /></span><span class="cell" style="--i:5"><img src="/img/welcome.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /></span><span class="cell" style="--i:6"><img src="/img/chat.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /></span><span class="cell" style="--i:7"><img src="/img/memories.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /></span><span class="cell" style="--i:8"><img src="/img/capture.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /></span><span class="cell" style="--i:9"><img src="/img/ephemeral.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /></span><span class="cell" style="--i:10"><img src="/img/welcome.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /></span><span class="cell" style="--i:11"><img src="/img/chat.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /></span></div>
               <span class="island"></span>
             </div>
           </div>
@@ -179,7 +195,7 @@
           <p class="section-lead">NiX is for people aged 16 and over. We protect conversations before anything reaches the recipient.</p>
         </div>
         <div class="check-demo reveal" aria-hidden="true">
-          <div class="check-bubble"><img src="/img/welcome.jpg" alt="" /><span class="scan"></span></div>
+          <div class="check-bubble"><img src="/img/welcome.jpg" alt="" width="553" height="1200" loading="lazy" decoding="async" /><span class="scan"></span></div>
           <span class="pill checking"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V6z"/><path d="m8.8 12 2.2 2.2 4.2-4.4"/></svg>Safety check…</span>
           <span class="pill delivered"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.7 2.7L16 9.6"/></svg>Delivered</span>
         </div>
@@ -220,7 +236,11 @@
             </g>
           </svg></div>
         <h2>NiX. Only for your people.</h2>
-        <p>Coming soon to the App Store for iPhone.</p>
+        <p>Coming soon to the App Store for iPhone. Questions? Get in touch.</p>
+        <div class="actions">
+          <span class="button primary" aria-disabled="true">Coming soon to the App Store</span>
+          <a class="button" href="mailto:nix@shipapp.pl">nix@shipapp.pl</a>
+        </div>
       </section>
     </main>
     <footer>

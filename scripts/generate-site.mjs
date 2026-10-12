@@ -56,6 +56,9 @@ const copy = {
     nav: { features: 'Funkcje', safety: 'Bezpieczeństwo', support: 'Pomoc', other: 'English', otherHref: '/en/' },
     eyebrow: 'Na iPhone’a',
     tagline: 'Chwile, które zostają między wami.',
+    taglineLead: 'Chwile, które zostają',
+    taglineAccent: 'między wami.',
+    trust: ['Bez reklam', 'Bez śledzenia', 'Moderacja przed doręczeniem', 'Od 16 lat'],
     lead: 'Prywatne zdjęcia, filmy, wiadomości i głosówki — tylko z ludźmi, których sam zaprosisz.',
     cta: 'Wkrótce w App Store',
     contact: 'Napisz do nas',
@@ -82,24 +85,28 @@ const copy = {
         kicker: 'Aparat',
         title: 'Zrób zdjęcie. Dodaj naklejkę. Wyślij.',
         body: 'NiX otwiera się prosto na aparacie. Jedno stuknięcie i Twoja chwila leci do wybranych znajomych — nikogo więcej.',
+        chips: ['Naklejki i podpisy', 'Zdjęcia i wideo', 'Wybierasz odbiorców'],
       },
       {
         id: 'ephemeral',
         kicker: 'Znika po obejrzeniu',
         title: 'Widać tylko tyle, ile zechcesz.',
         body: 'Ty decydujesz, jak długo widać NiX-a. Potem znika, a zrzuty ekranu NiX-ów są domyślnie zablokowane.',
+        chips: ['Czas wyświetlania', 'Zrzuty zablokowane', 'Status „Otwarto”'],
       },
       {
         id: 'chat',
         kicker: 'Czat',
         title: 'Rozmowy po Twojemu.',
         body: 'Odpowiadaj na konkretne wiadomości, reaguj Tapbackiem, edytuj, cofaj wysłane i nagrywaj głosówki.',
+        chips: ['Odpowiedzi', 'Tapback', 'Edycja i cofanie', 'Głosówki'],
       },
       {
         id: 'memories',
         kicker: 'Wspomnienia',
         title: 'Najlepsze chwile zostają na Twoim iPhonie.',
         body: 'Wysłane NiX-y możesz zachować w zaszyfrowanym albumie na iPhonie — nigdy na naszych serwerach.',
+        chips: ['Szyfrowanie na urządzeniu', 'Limit 500 MB', 'Usuwasz kiedy chcesz'],
       },
     ],
     extrasTitle: 'I wszystko, czego jeszcze potrzebujesz',
@@ -117,7 +124,7 @@ const copy = {
       ['person', 'Twoje konto, Twoje dane', 'Konto usuniesz w aplikacji w kilka chwil. Co i kiedy usuwamy, opisuje polityka prywatności.'],
     ],
     finalTitle: 'NiX. Tylko dla Twoich ludzi.',
-    finalLead: 'Już wkrótce w App Store na iPhone’a.',
+    finalLead: 'Już wkrótce w App Store na iPhone’a. Masz pytania? Napisz do nas.',
     brand: 'NiX jest marką ShipApp',
     legal: { privacy: 'Polityka prywatności', terms: 'Regulamin', support: 'Pomoc' },
     paths: { privacy: '/privacy/', terms: '/terms/', support: '/support/' },
@@ -130,6 +137,9 @@ const copy = {
     nav: { features: 'Features', safety: 'Safety', support: 'Support', other: 'Polski', otherHref: '/' },
     eyebrow: 'For iPhone',
     tagline: 'Moments that stay between you.',
+    taglineLead: 'Moments that stay',
+    taglineAccent: 'between you.',
+    trust: ['No ads', 'No tracking', 'Checked before delivery', '16+'],
     lead: 'Private photos, videos, messages and voice notes — only with people you invite.',
     cta: 'Coming soon to the App Store',
     contact: 'Contact us',
@@ -156,24 +166,28 @@ const copy = {
         kicker: 'Camera',
         title: 'Snap it. Add a sticker. Send.',
         body: 'NiX opens straight to the camera. One tap and your moment goes to the friends you pick — nobody else.',
+        chips: ['Stickers and captions', 'Photos and video', 'You pick who gets it'],
       },
       {
         id: 'ephemeral',
         kicker: 'Gone once viewed',
         title: 'Visible only as long as you want.',
         body: 'You decide how long a NiX stays visible. Then it’s gone, and screenshots of NiXes are blocked by default.',
+        chips: ['View time', 'Screenshots blocked', '“Opened” status'],
       },
       {
         id: 'chat',
         kicker: 'Chat',
         title: 'Chat your way.',
         body: 'Reply to a specific message, react with a Tapback, edit, undo send and record voice notes.',
+        chips: ['Replies', 'Tapback', 'Edit and undo', 'Voice notes'],
       },
       {
         id: 'memories',
         kicker: 'Memories',
         title: 'The best moments stay on your iPhone.',
         body: 'Keep NiXes you sent in an encrypted album on your iPhone — never on our servers.',
+        chips: ['Encrypted on device', '500 MB limit', 'Delete any time'],
       },
     ],
     extrasTitle: 'And everything else you need',
@@ -191,7 +205,7 @@ const copy = {
       ['person', 'Your account, your data', 'Delete your account in the app in moments. The privacy policy explains what we delete and when.'],
     ],
     finalTitle: 'NiX. Only for your people.',
-    finalLead: 'Coming soon to the App Store for iPhone.',
+    finalLead: 'Coming soon to the App Store for iPhone. Questions? Get in touch.',
     brand: 'NiX is a ShipApp brand',
     legal: { privacy: 'Privacy policy', terms: 'Terms of service', support: 'Support' },
     paths: { privacy: '/privacy/en/', terms: '/terms/en/', support: '/support/en/' },
@@ -206,14 +220,19 @@ function escape(value) {
 
 function heroScene() {
   return `<div class="scene hero-scene" aria-hidden="true">
-          <div class="fan fan-left"><img src="/img/memories.jpg" alt="" /></div>
-          <div class="fan fan-right"><img src="/img/capture.jpg" alt="" /></div>
-          <div class="fan fan-center"><img src="/img/welcome.jpg" alt="" /></div>
+          <div class="fan fan-left">${img('memories', true)}</div>
+          <div class="fan fan-right">${img('capture', true)}</div>
+          <div class="fan fan-center">${img('welcome', true)}</div>
           <span class="float-emoji e1">❤️</span>
           <span class="float-emoji e2">🔥</span>
           <span class="float-emoji e3">😂</span>
           <div class="app-badge">${mark('rise-hero')}</div>
         </div>`;
+}
+
+// Every image below the hero loads lazily; the hero fan loads first.
+function img(name, eager = false) {
+  return `<img src="/img/${name}.jpg" alt="" width="553" height="1200" ${eager ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async" />`;
 }
 
 function phone(inner, extra = '') {
@@ -227,11 +246,11 @@ function phone(inner, extra = '') {
 
 function captureScene(d) {
   return `<div class="scene capture-scene" aria-hidden="true">
-          ${phone(`<div class="viewfinder"><img src="/img/capture.jpg" alt="" /></div>
+          ${phone(`<div class="viewfinder">${img('capture')}</div>
               <span class="sticker">${escape(d.sticker)}</span>
               <span class="shutter"><span></span></span>
               <span class="flash"></span>`)}
-          <div class="shot"><img src="/img/capture.jpg" alt="" /><span class="sticker">${escape(d.sticker)}</span></div>
+          <div class="shot">${img('capture')}<span class="sticker">${escape(d.sticker)}</span></div>
           <div class="send-row"><span class="avatar a1">O</span><span class="avatar a2">K</span><span class="avatar a3">M</span></div>
           ${pill('check', d.sent, ' sent-pill')}
         </div>`;
@@ -240,7 +259,7 @@ function captureScene(d) {
 function ephemeralScene(d) {
   return `<div class="scene ephemeral-scene" aria-hidden="true">
           <div class="nix-card">
-            <img src="/img/ephemeral.jpg" alt="" />
+            ${img('ephemeral')}
             <span class="dissolve"></span>
             <svg class="ring" viewBox="0 0 58 58"><circle class="track" cx="29" cy="29" r="26.5" /><circle class="run" cx="29" cy="29" r="26.5" pathLength="1" /></svg>
             ${icon('timer', ' ring-icon')}
@@ -255,7 +274,7 @@ const WAVE = [0.45, 0.8, 0.55, 1, 0.7, 0.4, 0.9, 0.6, 0.35, 0.75, 0.5, 0.85, 0.4
 function chatScene(d) {
   const bars = WAVE.map((h, i) => `<i style="--h:${h};--i:${i}"></i>`).join('');
   return `<div class="scene chat-scene" aria-hidden="true">
-          ${phone(`<div class="chat-header"><img src="/img/chat.jpg" alt="" /><span>${escape(d.chatName)}</span></div>
+          ${phone(`<div class="chat-header">${img('chat')}<span>${escape(d.chatName)}</span></div>
               <div class="thread">
                 <div class="bubble in b1">${escape(d.message1)}</div>
                 <div class="bubble own b2">${escape(d.message2)}<span class="tapback">❤️</span></div>
@@ -269,7 +288,7 @@ function chatScene(d) {
 function memoriesScene(d) {
   const photos = ['welcome', 'capture', 'chat', 'memories', 'ephemeral', 'welcome', 'chat', 'memories', 'capture', 'ephemeral', 'welcome', 'chat'];
   const cells = photos
-    .map((p, i) => `<span class="cell" style="--i:${i}"><img src="/img/${p}.jpg" alt="" /></span>`)
+    .map((p, i) => `<span class="cell" style="--i:${i}">${img(p)}</span>`)
     .join('');
   return `<div class="scene memories-scene" aria-hidden="true">
           ${phone(`<div class="memories-title">${escape(d.memories)}</div>
@@ -310,6 +329,7 @@ function landing(t) {
           <p class="kicker">${escape(story.kicker)}</p>
           <h2>${escape(story.title)}</h2>
           <p>${escape(story.body)}</p>
+          <ul class="chips">${story.chips.map((chip) => `<li>${escape(chip)}</li>`).join('')}</ul>
         </div>
         <div class="stage reveal">
           ${SCENES[story.id](d)}
@@ -338,9 +358,20 @@ function landing(t) {
     <meta property="og:title" content="${escape(t.title)}" />
     <meta property="og:description" content="${escape(t.description)}" />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://nix.shipapp.pl${t.lang === 'pl' ? '/' : '/en/'}" />
+    <meta property="og:image" content="https://nix.shipapp.pl/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="${t.lang === 'pl' ? 'pl_PL' : 'en_US'}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <link rel="canonical" href="https://nix.shipapp.pl${t.lang === 'pl' ? '/' : '/en/'}" />
     <link rel="alternate" hreflang="pl" href="https://nix.shipapp.pl/" />
     <link rel="alternate" hreflang="en" href="https://nix.shipapp.pl/en/" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/img/welcome.jpg" as="image" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="/site.css" />
     <script src="/site.js" defer></script>
@@ -362,12 +393,13 @@ function landing(t) {
         <div class="glow" aria-hidden="true"></div>
         <div class="hero-text">
           <p class="eyebrow">${escape(t.eyebrow)}</p>
-          <h1>${escape(t.tagline)}</h1>
+          <h1>${escape(t.taglineLead)} <span class="accent">${escape(t.taglineAccent)}</span></h1>
           <p class="lead">${escape(t.lead)}</p>
           <div class="actions">
             <span class="button primary" aria-disabled="true">${escape(t.cta)}</span>
             <a class="button" href="mailto:${contact}">${escape(t.contact)}</a>
           </div>
+          <ul class="trust">${t.trust.map((item) => `<li>${icon('check')}${escape(item)}</li>`).join('')}</ul>
         </div>
         ${heroScene()}
       </section>
@@ -404,7 +436,7 @@ function landing(t) {
           <p class="section-lead">${escape(t.safetyLead)}</p>
         </div>
         <div class="check-demo reveal" aria-hidden="true">
-          <div class="check-bubble"><img src="/img/welcome.jpg" alt="" /><span class="scan"></span></div>
+          <div class="check-bubble">${img('welcome')}<span class="scan"></span></div>
           ${pill('shield', d.checking, ' checking')}
           ${pill('check', d.delivered, ' delivered')}
         </div>
@@ -416,6 +448,10 @@ function landing(t) {
         <div class="final-icon">${mark('rise-final')}</div>
         <h2>${escape(t.finalTitle)}</h2>
         <p>${escape(t.finalLead)}</p>
+        <div class="actions">
+          <span class="button primary" aria-disabled="true">${escape(t.cta)}</span>
+          <a class="button" href="mailto:${contact}">${contact}</a>
+        </div>
       </section>
     </main>
     <footer>
@@ -442,6 +478,46 @@ async function save(path, content) {
   await writeFile(target, content);
 }
 
+// Served by Caddy for any missing path (handle_errors); bilingual, no scripts.
+function notFound() {
+  return `<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta name="color-scheme" content="light dark" />
+    <title>404 · NiX</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css" />
+  </head>
+  <body>
+    <main>
+      <section class="final not-found">
+        <div class="final-icon">${mark('rise-404')}</div>
+        <h2>Nie ma takiej strony</h2>
+        <p lang="en">This page doesn’t exist.</p>
+        <div class="actions">
+          <a class="button primary" href="/">Strona główna</a>
+          <a class="button" href="/en/" lang="en">Home (English)</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
+`;
+}
+
+async function saveFile(path, content) {
+  const target = `${ROOT}/${path}`;
+  if (checkOnly) {
+    if ((await readFile(target, 'utf8')) !== content) throw new Error(`${target} differs from its source; run npm run generate:site`);
+    return;
+  }
+  await writeFile(target, content);
+}
+
 await save('/', landing(copy.pl));
 await save('/en/', landing(copy.en));
+await saveFile('404.html', notFound());
 console.log(checkOnly ? 'Website landing matches its source.' : 'Generated the website landing (PL/EN).');
