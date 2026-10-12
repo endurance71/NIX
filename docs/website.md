@@ -10,3 +10,12 @@ Static website for NiX (`web/site/`), served by Caddy on the ShipApp VPS from `/
 - `img/` holds web-sized copies of the AI-generated onboarding photos, exported from
   `assets/onboarding/source/` by `npm run brand:onboarding` (see `assets/onboarding/CREDITS.md`).
 - Local preview: the `nix-site` entry in `.claude/launch.json` (`python3 -m http.server 4173 --directory web/site`).
+
+## Deploy
+
+1. One-time: the `nix.shipapp.pl` block in the ShipApp repo's Caddyfile and the `/srv/nix-site` read-only mount
+   in its `compose.yaml` (endurance71/shipapp#157). After merging, on the host: `git pull`, then
+   `docker compose up -d --force-recreate caddy`. A new volume needs a recreate; a reload is not enough.
+2. Every change: `npm run deploy:site` streams `web/site` to `/srv/nix-site` over SSH (`contabo-mtle`).
+   - It refreshes the directory in place, because the bind mount follows the directory.
+   - Static files need no Caddy restart.
