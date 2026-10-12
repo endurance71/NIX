@@ -25,7 +25,7 @@ import { typography } from '../../theme/typography';
 const LOGO_DRAW_MS = 2400;
 const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
-/** Faint moments drifting behind the logo (placeholder stock photos, see assets/onboarding). */
+/** Faint moments drifting behind the logo (the welcome-tour photos, see assets/onboarding). */
 const BACKDROP: readonly { image: ImageSource; x: number; y: number; rotate: number; size: number; phase: number }[] = [
   { image: require('../../../assets/onboarding/welcome.jpg'), x: -0.34, y: 0.1, rotate: -12, size: 0.36, phase: 0 },
   { image: require('../../../assets/onboarding/memories.jpg'), x: 0.36, y: 0.06, rotate: 10, size: 0.32, phase: 0.3 },

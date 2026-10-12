@@ -68,15 +68,20 @@ const support = {
   ],
 };
 
+// The same pages go to the invite host (nix.damianmotylinski.pl) and the website (nix.shipapp.pl).
+const ROOTS = ['web/invite', 'web/site'];
+
 async function save(path, content) {
-  const target = `web/invite${path}index.html`;
-  if (checkOnly) {
-    const existing = await readFile(target, 'utf8');
-    if (existing !== content) throw new Error(`${target} differs from the app's legal documents; run npm run generate:legal-pages`);
-    return;
+  for (const root of ROOTS) {
+    const target = `${root}${path}index.html`;
+    if (checkOnly) {
+      const existing = await readFile(target, 'utf8');
+      if (existing !== content) throw new Error(`${target} differs from the app's legal documents; run npm run generate:legal-pages`);
+      continue;
+    }
+    await mkdir(`${root}${path}`, { recursive: true });
+    await writeFile(target, content);
   }
-  await mkdir(`web/invite${path}`, { recursive: true });
-  await writeFile(target, content);
 }
 
 for (const locale of ['pl', 'en']) {
