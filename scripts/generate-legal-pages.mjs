@@ -108,7 +108,7 @@ const markdownFiles = { privacy: 'privacy-policy', terms: 'terms' };
 function markdown(locale, kind, document) {
   const t = markdownTitles[locale];
   const sections = document.sections
-    .map(({ title, body }) => `## ${title}\n\n${body.replaceAll(/^• /gm, '- ')}\n`)
+    .map(({ title, body }) => `## ${title}\n\n${body.replaceAll(/^• /gm, '- ').replaceAll('\n', '  \n')}\n`)
     .join('\n');
   return `<!-- Generated from src/lib/legalDocuments.ts by npm run generate:legal-pages. Do not edit. -->\n\n# ${t[kind]}\n\n**${t.version}:** ${document.version}  \n**${t.effective}:** ${document.effectiveDate}\n\n${sections}`;
 }
