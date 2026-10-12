@@ -2,11 +2,21 @@
 // The scenes mirror the in-app welcome tour (src/components/welcome/WelcomeScenes.tsx) as CSS motion:
 // the same photos, copy and order. The privacy, terms and support pages come from
 // scripts/generate-legal-pages.mjs. Run with --check to verify web/site matches this source.
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 
 const checkOnly = process.argv.includes('--check');
 const contact = 'nix@shipapp.pl';
 const ROOT = 'web/site';
+
+// Styles and script are linked with a hash of their contents, so a change reaches visitors at once
+// despite browser and Cloudflare caching (the file names themselves stay the same).
+async function versioned(file) {
+  const hash = createHash('sha256').update(await readFile(`${ROOT}/${file}`)).digest('hex').slice(0, 10);
+  return `/${file}?v=${hash}`;
+}
+const SITE_CSS = await versioned('site.css');
+const SITE_JS = await versioned('site.js');
 
 // The drawn NiX mark (assets/brand/master/nix-mark.svg, src/components/brand/DrawnLogo.tsx):
 // one continuous N stroke, then the glass rising stroke underneath it.
@@ -384,8 +394,8 @@ function landing(t) {
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="preload" href="/img/welcome.jpg" as="image" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="stylesheet" href="/site.css" />
-    <script src="/site.js" defer></script>
+    <link rel="stylesheet" href="${SITE_CSS}" />
+    <script src="${SITE_JS}" defer></script>
   </head>
   <body>
     <header class="top">
@@ -500,7 +510,7 @@ function notFound() {
     <meta name="color-scheme" content="light dark" />
     <title>404 · NiX</title>
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/site.css" />
+    <link rel="stylesheet" href="${SITE_CSS}" />
   </head>
   <body>
     <main>

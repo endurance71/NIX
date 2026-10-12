@@ -43,7 +43,10 @@
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; background: var(--bg); overflow-x: hidden; }
+body { margin: 0; background: var(--bg); }
+/* Scenes and glows are wider than a phone. iOS Safari ignores overflow on body, so clip the content
+   itself; clip (unlike hidden) does not turn main into a scroll container. */
+main { overflow-x: hidden; overflow-x: clip; }
 a { color: var(--accent-text); }
 a:focus-visible, .button:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
 img { display: block; }
@@ -53,9 +56,9 @@ img { display: block; }
   position: sticky;
   top: 0;
   z-index: 20;
-  background: color-mix(in srgb, var(--bg) 74%, transparent);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
+  /* Opaque on purpose: Safari 26 fills the area under the status bar with this solid colour (it
+     cannot blur it), so a translucent bar would look cut off below a flat strip. */
+  background: var(--bg);
   border-bottom: 1px solid color-mix(in srgb, var(--separator) 60%, transparent);
 }
 nav, .section, .footer-inner, .story, .hero {

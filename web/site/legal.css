@@ -24,7 +24,7 @@
   }
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); }
+body { margin: 0; background: var(--bg); overflow-wrap: anywhere; }
 header { border-bottom: 1px solid var(--separator); background: var(--surface); }
 nav, main, footer { width: min(760px, calc(100% - 32px)); margin: 0 auto; }
 nav { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import ts from 'typescript';
 
@@ -34,7 +35,7 @@ function page(locale, kind, sections, meta = '') {
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="robots" content="index,follow" />
     <title>${text[kind]} · NiX Now Chat</title>
-    <link rel="stylesheet" href="/legal.css" />
+    <link rel="stylesheet" href="/legal.css?v=__LEGAL_CSS__" />
   </head>
   <body>
     <header><nav aria-label="${locale === 'pl' ? 'Nawigacja' : 'Navigation'}"><a class="brand" href="/">NiX</a><div class="links">${links}<a href="${pathFor(kind, otherLocale)}" lang="${otherLocale}" hreflang="${otherLocale}">${text.language}</a></div></nav></header>
@@ -71,8 +72,16 @@ const support = {
 // The same pages go to the invite host (nix.damianmotylinski.pl) and the website (nix.shipapp.pl).
 const ROOTS = ['web/invite', 'web/site'];
 
-async function save(path, content) {
+// Each host has its own legal.css; it is linked with a hash of its contents so a change is not held
+// back by browser or Cloudflare caches.
+const legalCssHash = {};
+for (const root of ROOTS) {
+  legalCssHash[root] = createHash('sha256').update(await readFile(`${root}/legal.css`)).digest('hex').slice(0, 10);
+}
+
+async function save(path, page) {
   for (const root of ROOTS) {
+    const content = page.replace('__LEGAL_CSS__', legalCssHash[root]);
     const target = `${root}${path}index.html`;
     if (checkOnly) {
       const existing = await readFile(target, 'utf8');
