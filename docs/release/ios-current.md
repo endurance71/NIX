@@ -26,6 +26,11 @@ Thirty-sixth OTA (2026-10-12): update group `deff6760-51f5-4201-b3d9-3c8f4791abc
 and 15. The Memories empty-state description wraps instead of running off the screen. Build 14 also gets the JS from
 build 15: the `child_safety` reason (it fails until the backend below is deployed) and the welcome-tour copy.
 
+Thirty-seventh OTA (2026-10-12): update group `0cf50a8a-cc2a-487a-927c-240d528c0746`, source `5d13f59`, for builds 14
+and 15. NiX is introduced as a ShipApp brand (the controller and provider stay MT Hub Damian Motyliński). The contact
+moves to `nix@shipapp.pl` in the in-app documents, the consent copy and Profile → Contact. The web pages in
+`web/invite/` are regenerated but not uploaded yet.
+
 **Backend pending.** Migrations `20261015100000` (private accounts), `20261015101000` (audio evidence) and
 `20261015102000` (`child_safety`), plus the `report-content` Edge Function, are not deployed yet. Until they are:
 - a „Child safety” report fails;
