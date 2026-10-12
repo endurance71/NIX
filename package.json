@@ -21,6 +21,7 @@
     "check:legal-pages": "node scripts/generate-legal-pages.mjs --check",
     "generate:site": "node scripts/generate-site.mjs",
     "check:site": "node scripts/generate-site.mjs --check",
+    "deploy:site": "bash scripts/deploy-site.sh",
     "check:text-outbox-security": "node scripts/check-text-outbox-security.mjs",
     "check:sentry-disabled": "node scripts/check-sentry-disabled.mjs",
     "check:supabase-migrations": "node scripts/check-supabase-migrations.mjs",
