@@ -44,14 +44,12 @@ Fortieth OTA (2026-10-12): update group `227772ac-0b18-4f0b-8d26-34a819915528`, 
 The welcome tour now opens after every sign-in or sign-up, including signing out and back in. A session restored at
 launch still skips it. The per-account "seen" marker is removed.
 
-**Backend pending.** Migrations `20261015100000` (private accounts), `20261015101000` (audio evidence) and
-`20261015102000` (`child_safety`), plus the `report-content` Edge Function, are not deployed yet. Until they are:
-- a „Child safety” report fails;
-- private accounts are still searchable;
-- a voice-message report secures no audio.
+**Backend deployed (2026-10-12).** The three preflight migrations, plus `20261015103000_privacy_retention_fixes` and
+`report-content`, are live. See the [deployment record](BACKEND_DEPLOYMENT_2026-10-11.md).
 
-The encrypted pre-deploy backup and dry run (exactly these 3 migrations) are in `~/.nix-ops/review-preflight-2026-10-11/`
-(SHA256 `d1049c4f71c03f8d75ea985d43aee0b9e8972fa3400f2ad4cfedaeb6862381c7`).
+Forty-first OTA (2026-10-12): update group `04fe3a75-7910-4778-bc5c-f84270d4abac`, source `efda5a6`, for builds 14 and
+15. It ships the privacy policy and terms 2026-10-12: a formal policy checked against the code, and a zero-tolerance
+clause. `LEGAL_DOCUMENT_VERSION` is now 2026-10-12. The same documents are live on https://nix.shipapp.pl/privacy/.
 
 ## Feature candidate — 1.0.13 (14), 2026-10-11
 

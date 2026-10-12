@@ -130,6 +130,25 @@ Zbierane typy danych w manifeście muszą się zgadzać z App Privacy w ASC (kro
 - wiadomości, zdjęcia i wideo, audio, inne treści użytkownika;
 - wszystkie powiązane z kontem, bez śledzenia, cel: działanie aplikacji.
 
+### Krok 2 — dokumenty prawne (2026-10-12)
+
+- Polityka prywatności 2026-10-12 (PL/EN) jest napisana formalnym językiem i sprawdzona z kodem. Obejmuje:
+  - głosówki i zapisane wiadomości;
+  - edycję i cofanie, przekazywanie;
+  - zapis do Zdjęć, zrzuty ekranu, konta prywatne;
+  - powiadomienia z awatarem;
+  - Wspomnienia, eksport danych;
+  - dostawców z regionami, transfery, retencję i art. 22.
+- Regulamin ma klauzulę zero tolerancji.
+- Poprawki retencji w kodzie (`20261015103000`):
+  - miniatura znika razem z plikiem;
+  - nieotwarte NiX-y wygasają po 30 dniach;
+  - token push jest usuwany przy wylogowaniu;
+  - logi techniczne są przycinane;
+  - blokada odpisuje zapisane wiadomości.
+- Dokumenty są opublikowane w aplikacji (41. OTA) i na https://nix.shipapp.pl/privacy/.
+- **Do zrobienia ręcznie w ASC:** App Privacy według tabeli w `docs/app-store-listing.md` oraz adresy URL polityki i wsparcia na `nix.shipapp.pl`.
+
 ## Kolejność prac
 
 1. Kod (OTA + build 15): egzekucja konta prywatnego, dowody głosówek, poprawki copy we wprowadzeniu,
