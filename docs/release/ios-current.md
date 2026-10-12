@@ -40,6 +40,10 @@ Thirty-ninth OTA (2026-10-12): update group `936e7d84-7292-49f1-9366-49f0cfd557c
 and 15. Ola's chat avatar and her Memories tile in the welcome tour use a square face crop (`chat-face.jpg`) instead of
 a centre crop of the portrait, which cut her head off.
 
+Fortieth OTA (2026-10-12): update group `227772ac-0b18-4f0b-8d26-34a819915528`, source `ac0be33`, for builds 14 and 15.
+The welcome tour now opens after every sign-in or sign-up, including signing out and back in. A session restored at
+launch still skips it. The per-account "seen" marker is removed.
+
 **Backend pending.** Migrations `20261015100000` (private accounts), `20261015101000` (audio evidence) and
 `20261015102000` (`child_safety`), plus the `report-content` Edge Function, are not deployed yet. Until they are:
 - a „Child safety” report fails;
