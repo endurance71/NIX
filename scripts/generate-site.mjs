@@ -37,6 +37,8 @@ const ICONS = {
   hand: '<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
   person: '<circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5c1-3.8 4-5.8 7.5-5.8s6.5 2 7.5 5.8"/>',
   camera: '<path d="M4 8.5h3l1.6-2.5h6.8L17 8.5h3v10.5H4z"/><circle cx="12" cy="13.5" r="3.5"/>',
+  friends: '<circle cx="9" cy="8.5" r="3.3"/><path d="M2.8 19.5c.8-3.3 3.3-5 6.2-5s5.4 1.7 6.2 5"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 6.1M18 14.8c1.7.7 2.8 2.3 3.2 4.7"/>',
+  idcard: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16.2c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14 10h4.5M14 13.5h3"/>',
 };
 
 function icon(name, extra = '') {
@@ -121,6 +123,8 @@ const copy = {
       ['shield', 'Kontrola przed doręczeniem', 'Tekst, zdjęcia i wybrane klatki filmów przechodzą automatyczną kontrolę bezpieczeństwa (Microsoft Azure). Treść odrzucona nie jest doręczana.'],
       ['flag', 'Zgłaszanie', 'Każdą wiadomość i każdy profil możesz zgłosić. Zgłoszenia dotyczące bezpieczeństwa dzieci trafiają na najwyższy priorytet.'],
       ['hand', 'Blokowanie', 'Zablokowana osoba nie może do Ciebie pisać ani wysyłać zaproszeń.'],
+      ['friends', 'Tylko zaakceptowani znajomi', 'Rozmawiasz tylko z osobami, które przyjmiesz do znajomych. Obcy nie napiszą do Ciebie pierwsi.'],
+      ['idcard', 'Od 16 lat', 'Ukończenie 16 lat potwierdzasz przy rejestracji. Nie zapisujemy daty urodzenia.'],
       ['person', 'Twoje konto, Twoje dane', 'Konto usuniesz w aplikacji w kilka chwil. Co i kiedy usuwamy, opisuje polityka prywatności.'],
     ],
     finalTitle: 'NiX. Tylko dla Twoich ludzi.',
@@ -202,6 +206,8 @@ const copy = {
       ['shield', 'Checked before delivery', 'Text, photos and selected video frames go through an automatic safety check (Microsoft Azure). Rejected content is never delivered.'],
       ['flag', 'Reporting', 'Report any message or profile. Child-safety reports get the highest priority.'],
       ['hand', 'Blocking', 'A blocked person cannot message you or send you invites.'],
+      ['friends', 'Accepted friends only', 'You only talk to people whose invite you accepted. Strangers cannot message you first.'],
+      ['idcard', 'Aged 16 and over', 'You confirm you are 16 or older when signing up. We do not store your date of birth.'],
       ['person', 'Your account, your data', 'Delete your account in the app in moments. The privacy policy explains what we delete and when.'],
     ],
     finalTitle: 'NiX. Only for your people.',
