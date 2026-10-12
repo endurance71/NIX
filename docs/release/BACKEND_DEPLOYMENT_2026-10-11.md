@@ -79,3 +79,34 @@ deployed definitions: only the reply field was added.
   announces `message_replies` / `message_edits`.
 - Smoke on production from the simulator account (QA texts to the owner's account only): swipe reply delivered with its
   quote after moderation, moderated edit applied with „Edytowano”, undo send removed the message.
+
+## Follow-up — App Review preflight and privacy retention (2026-10-12)
+
+| Input | Value |
+| --- | --- |
+| Source | `a9a8fbc` (branch `feat/privacy-policy-2026-10-12`, merged as `efda5a6`) |
+| Migrations | `20261015100000_enforce_private_accounts`, `20261015101000_moderation_evidence_allow_audio`, `20261015102000_child_safety_report_reason`, `20261015103000_privacy_retention_fixes` (dry run listed exactly these four; all applied) |
+| Edge Functions | `report-content` (voice evidence copy, `child_safety` priority), deployed with `--use-api` |
+| Worker | unchanged |
+| Encrypted backup SHA256 | `2e94180947e7161c309ba773e80d0c903b821238c241e7dff50f07c2f1aa3d11` (`~/.nix-ops/privacy-retention-2026-10-12/`) |
+
+Before the push, the redefined functions were compared with the production dump:
+- `prepare_nix_cleanup`: only the 30-day guard was added;
+- `disable_push_device`: only the `signed_out` delete branch was added;
+- `create_content_report_v2` and `get_public_profile_by_username`: checked in the 2026-10-11 preflight run.
+
+Verified on production after the push:
+- cron jobs `expire-unopened-nixes` (03:50) and `prune-technical-logs` (03:55);
+- triggers `clear_thumbnail_on_cleanup`, `clear_thumbnail_on_release` and `expire_saved_texts_on_block`;
+- `moderation-evidence` accepts audio;
+- `content_reports_reason_check` includes `child_safety`;
+- username search excludes private profiles;
+- no cleaned NiX keeps a thumbnail (backfill: 0 left).
+
+Behaviour that existing clients (builds 14/15) now see:
+- private accounts no longer appear in username search;
+- a direct friend request to a private account is rejected (QR codes and invites still work);
+- reporting a voice message keeps the recording;
+- signing out deletes the push device;
+- unopened NiXes are cleaned up after 30 days;
+- blocking unsaves the pair's messages.
