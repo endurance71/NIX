@@ -20,6 +20,7 @@ VALUES
   ('private', 'is_account_restricted', ARRAY['authenticated', 'service_role']),
   ('private', 'is_pair_blocked', ARRAY['authenticated', 'service_role']),
   ('private', 'is_profile_private', ARRAY['authenticated', 'service_role']),
+  ('private', 'expire_saved_texts_on_block', ARRAY[]::text[]),
   ('private', 'moderation_cleanup_auth_headers', ARRAY[]::text[]),
   ('private', 'pre_delivery_moderation_enabled', ARRAY['authenticated', 'service_role']),
   ('private', 'guard_media_storage_write', ARRAY[]::text[]),

@@ -53,38 +53,46 @@ text, photos and selected video frames. No in-app purchases.
 
 ## URLs (public, no login)
 
-- Privacy: `https://nix.damianmotylinski.pl/privacy`
-- Terms: `https://nix.damianmotylinski.pl/terms`
-- Support: `https://nix.damianmotylinski.pl/support`
+- Privacy: `https://nix.shipapp.pl/privacy/`
+- Terms: `https://nix.shipapp.pl/terms/`
+- Support: `https://nix.shipapp.pl/support/`
 
 ## App Privacy (current binary)
 
-Tracking = No. No IAP. Sentry SDK is hard-disabled (`EXPO_PUBLIC_SENTRY_ENABLED=false`)
-and must not be declared as a diagnostics destination that currently receives data.
-Product analytics is build-flag off (`EXPO_PUBLIC_PRODUCT_ANALYTICS_ENABLED=false`).
+Tracking = **No**. No IAP. Sentry and product analytics are hard-off (`EXPO_PUBLIC_SENTRY_ENABLED=false`,
+`analytics: false`), so do not declare Diagnostics or Product Interaction. This matches the policy (version
+2026-10-12) and `NSPrivacyCollectedDataTypes` in `app.json`.
 
-Declare only what this binary actually uses:
+Every type below is **Linked to the user**, **Not used for tracking**, purpose **App Functionality**:
 
-- Contact Info (email) — Account, linked, used for account
-- User Content (messages, photos, video, reports) — App Functionality, linked
-- Identifiers (user ID, installation/device token) — App Functionality, linked
-- Diagnostics — not collected while Sentry is hard-off
-- Product Interaction — **do not declare** while product analytics is off
-- Purchases — none
+| ASC category | Data type | What it is in NiX |
+| --- | --- | --- |
+| Contact Info | Email Address | Sign-in email |
+| Contact Info | Name | Display name (may be a real name) |
+| User Content | Emails or Text Messages | Texts, replies, forwards, edits |
+| User Content | Photos or Videos | NiX photos and videos, avatar |
+| User Content | Audio Data | Voice messages |
+| User Content | Other User Content | Reactions, bio, reports and their evidence |
+| Identifiers | User ID | Account ID, username |
+| Identifiers | Device ID | Push token and app-installation record |
 
-Before enabling analytics: resolve audit P1-2 (Product Interaction linked vs unlink
-`installation_id`), update ASC App Privacy, then set the build flag intentionally.
+Not collected: location, contacts, browsing history, purchases, financial info, health, sensitive info,
+advertising data.
 
-Used by: Apple (Sign in with Apple, APNs), Supabase (EU), Expo (builds, push relay),
-Microsoft Azure AI Content Safety (pre-delivery screening).
+Used by:
+- Supabase (EU, Ireland)
+- Microsoft Azure AI Content Safety (Sweden): pre-delivery screening of text, photos and sampled video frames
+- OVHcloud (France): video-frame worker
+- Expo and Apple: push, updates, Sign in with Apple
 
 ## Operator paste checklist (public URLs)
 
-Publish identical PL/EN content from `docs/legal/` (version **2026-09-12**) to:
+Publish identical PL/EN content (version **2026-10-12**; `docs/legal/` and the pages are generated from
+`src/lib/legalDocuments.ts` by `npm run generate:legal-pages`) to:
 
-- Privacy: `https://nix.damianmotylinski.pl/privacy`
-- Terms: `https://nix.damianmotylinski.pl/terms`
-- Support: `https://nix.damianmotylinski.pl/support`
+- Privacy: `https://nix.shipapp.pl/privacy/`
+- Terms: `https://nix.shipapp.pl/terms/`
+- Support: `https://nix.shipapp.pl/support/`
 
 In-app and pre-login screens use `src/lib/legalDocuments.ts` (same version). Keep ASC
 Privacy Policy URL pointing at the public HTTPS page after publish.

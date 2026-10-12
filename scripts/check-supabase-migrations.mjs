@@ -75,6 +75,7 @@ const expected = [
   '20261015100000_enforce_private_accounts.sql',
   '20261015101000_moderation_evidence_allow_audio.sql',
   '20261015102000_child_safety_report_reason.sql',
+  '20261015103000_privacy_retention_fixes.sql',
 ];
 
 const actual = (await readdir(migrationsDir)).filter((name) => name.endsWith('.sql')).sort();
