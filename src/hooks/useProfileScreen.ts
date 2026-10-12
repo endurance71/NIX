@@ -145,7 +145,7 @@ export function useProfileScreen() {
   };
 
   const handleSupport = () => {
-    Linking.openURL('mailto:kontakt@damianmotylinski.pl').catch(() => {
+    Linking.openURL('mailto:nix@shipapp.pl').catch(() => {
       notifyError(t('profile.supportUnavailable'));
     });
   };

@@ -9,7 +9,7 @@ nieodwracalna.
 Usuwamy konto uwierzytelniania, profil, avatar, relacje, zaproszenia, wiadomości,
 metadane i pliki multimedialne powiązane z kontem oraz lokalne kolejki aplikacji.
 Jeśli nie możesz zalogować się do aplikacji, napisz na
-**kontakt@damianmotylinski.pl**. Weryfikacja tożsamości będzie proporcjonalna do
+**nix@shipapp.pl**. Weryfikacja tożsamości będzie proporcjonalna do
 żądania.
 
 ## Dla operatora

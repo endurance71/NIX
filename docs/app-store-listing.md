@@ -115,5 +115,5 @@ are no purchases, subscriptions, ads or tracking in this build.
 
 - Two dedicated demo accounts, already friends — passwords only in ASC /
   `~/.nix-ops/sprint4b/demo-accounts.json`
-- Contact email: `kontakt@damianmotylinski.pl`
+- Contact email: `nix@shipapp.pl`
 - Binary to submit: `1.0.11 (6)` Internal TestFlight, already on App Store Connect

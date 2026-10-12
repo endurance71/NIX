@@ -17,7 +17,7 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
       sections: [
         {
           title: 'Administrator danych i kontakt',
-          body: 'Administratorem Twoich danych osobowych jest MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, NIP 8393229228. W sprawach prywatności skontaktuj się z nami: kontakt@damianmotylinski.pl. Skargę możesz złożyć do Prezesa Urzędu Ochrony Danych Osobowych.',
+          body: 'NiX jest marką ShipApp. Administratorem Twoich danych osobowych jest MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, NIP 8393229228. W sprawach prywatności skontaktuj się z nami: nix@shipapp.pl. Skargę możesz złożyć do Prezesa Urzędu Ochrony Danych Osobowych.',
         },
         {
           title: 'Jakie dane przetwarzamy',
@@ -61,11 +61,11 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
         },
         {
           title: 'Twoje prawa',
-          body: 'Masz prawo żądać dostępu do danych, ich sprostowania, usunięcia, ograniczenia przetwarzania, przenoszenia oraz sprzeciwu — gdy ma zastosowanie. Możesz też złożyć skargę do Prezesa Urzędu Ochrony Danych Osobowych. Wnioski wyślij na kontakt@damianmotylinski.pl.',
+          body: 'Masz prawo żądać dostępu do danych, ich sprostowania, usunięcia, ograniczenia przetwarzania, przenoszenia oraz sprzeciwu — gdy ma zastosowanie. Możesz też złożyć skargę do Prezesa Urzędu Ochrony Danych Osobowych. Wnioski wyślij na nix@shipapp.pl.',
         },
         {
           title: 'Usunięcie konta',
-          body: 'Konto usuniesz w aplikacji: Profil → Konto → Usuń konto. Operacja wymaga potwierdzenia nazwy użytkownika i ponownego uwierzytelnienia. Jest nieodwracalna: usuwamy konto Auth, profil, relacje, zaproszenia, wiadomości, związane pliki Storage i lokalne kolejki aplikacji. Jeżeli nie masz dostępu do aplikacji, napisz na kontakt@damianmotylinski.pl.',
+          body: 'Konto usuniesz w aplikacji: Profil → Konto → Usuń konto. Operacja wymaga potwierdzenia nazwy użytkownika i ponownego uwierzytelnienia. Jest nieodwracalna: usuwamy konto Auth, profil, relacje, zaproszenia, wiadomości, związane pliki Storage i lokalne kolejki aplikacji. Jeżeli nie masz dostępu do aplikacji, napisz na nix@shipapp.pl.',
         },
         {
           title: 'Dzieci i zmiany dokumentu',
@@ -77,14 +77,14 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
       version: '2026-10-08',
       effectiveDate: '8 października 2026 r.',
       sections: [
-        { title: 'Usługodawca', body: 'Usługę NiX świadczy MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, NIP 8393229228. Kontakt: kontakt@damianmotylinski.pl.' },
+        { title: 'Usługodawca', body: 'NiX jest marką ShipApp. Usługę świadczy MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, NIP 8393229228. Kontakt: nix@shipapp.pl.' },
         { title: 'Usługa', body: 'NiX umożliwia zaakceptowanym znajomym wymianę efemerycznych wiadomości tekstowych, zdjęciowych i wideo. Do korzystania wymagane są kompatybilne urządzenie, dostęp do Internetu oraz konto.' },
         { title: 'Konto', body: 'Musisz mieć ukończone 16 lat, potwierdzić ten próg, podać prawdziwe dane wymagane przy rejestracji i chronić dostęp do konta. Konto e-mail i konto Apple mogą być odrębne. Nazwy użytkownika nie można zmienić po jej ustawieniu.' },
         { title: 'Treści użytkownika', body: 'Zachowujesz prawa do własnych treści. Udzielasz nam wyłącznie niewyłącznego, nieodpłatnego upoważnienia technicznego koniecznego do hostowania, przetworzenia i doręczenia treści wybranemu odbiorcy.' },
         { title: 'Zakazane działania', body: 'Nie wolno przesyłać treści bez prawa do ich użycia, niezgodnych z prawem, naruszających cudzą prywatność, dobra osobiste, prawa autorskie lub bezpieczeństwo. Zakazane jest nękanie, podszywanie się, obchodzenie zabezpieczeń i zakłócanie działania usługi.' },
-        { title: 'Bezpieczeństwo i moderacja', body: 'Przed doręczeniem automatycznie skanujemy tekst, zdjęcia i wideo (dla wideo: wybrane klatki) przez Microsoft Azure AI Content Safety, żeby zablokować treści niedozwolone. Kopię roboczą skanu usuwamy po decyzji. Odbiorca może zgłosić wiadomość i zablokować nadawcę. Możemy ostrzec, czasowo zawiesić lub zablokować konto dla bezpieczeństwa, ochrony innych osób lub zgodności z prawem. Odwołanie wyślij na kontakt@damianmotylinski.pl.' },
+        { title: 'Bezpieczeństwo i moderacja', body: 'Przed doręczeniem automatycznie skanujemy tekst, zdjęcia i wideo (dla wideo: wybrane klatki) przez Microsoft Azure AI Content Safety, żeby zablokować treści niedozwolone. Kopię roboczą skanu usuwamy po decyzji. Odbiorca może zgłosić wiadomość i zablokować nadawcę. Możemy ostrzec, czasowo zawiesić lub zablokować konto dla bezpieczeństwa, ochrony innych osób lub zgodności z prawem. Odwołanie wyślij na nix@shipapp.pl.' },
         { title: 'Dostępność', body: 'Usługa jest świadczona w modelu „as is” i może być czasowo niedostępna z powodu konserwacji, aktualizacji lub zdarzeń niezależnych. Nie gwarantujemy zachowania wiadomości po zakończeniu ich cyklu efemerycznego.' },
-        { title: 'Reklamacje i rozwiązanie umowy', body: 'Reklamacje wyślij na kontakt@damianmotylinski.pl wraz z opisem problemu. Odpowiemy w terminie przewidzianym przez prawo. Możesz rozwiązać umowę przez usunięcie konta w aplikacji; usunięcie jest nieodwracalne.' },
+        { title: 'Reklamacje i rozwiązanie umowy', body: 'Reklamacje wyślij na nix@shipapp.pl wraz z opisem problemu. Odpowiemy w terminie przewidzianym przez prawo. Możesz rozwiązać umowę przez usunięcie konta w aplikacji; usunięcie jest nieodwracalne.' },
         { title: 'Zmiany regulaminu i prawo', body: 'O istotnej zmianie regulaminu poinformujemy przed jej wejściem w życie. Stosuje się prawo polskie z zachowaniem bezwzględnie obowiązujących praw konsumenta.' },
       ],
     },
@@ -96,7 +96,7 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
       sections: [
         {
           title: 'Controller and contact',
-          body: 'The controller is MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. Contact us about privacy at kontakt@damianmotylinski.pl. You may lodge a complaint with the competent data-protection authority (in Poland: the President of the Personal Data Protection Office).',
+          body: 'NiX is a ShipApp brand. The controller is MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. Contact us about privacy at nix@shipapp.pl. You may lodge a complaint with the competent data-protection authority (in Poland: the President of the Personal Data Protection Office).',
         },
         {
           title: 'Data we process',
@@ -140,11 +140,11 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
         },
         {
           title: 'Your rights',
-          body: 'You may request access, rectification, erasure, restriction of processing, portability and objection where applicable, and lodge a complaint with the competent supervisory authority. Send requests to kontakt@damianmotylinski.pl.',
+          body: 'You may request access, rectification, erasure, restriction of processing, portability and objection where applicable, and lodge a complaint with the competent supervisory authority. Send requests to nix@shipapp.pl.',
         },
         {
           title: 'Account deletion',
-          body: 'Delete your account in the app: Profile → Account → Delete account. You must confirm your username and reauthenticate. The irreversible operation removes Auth, profile, relationships, invitations, messages, relevant Storage files and local app queues. Contact kontakt@damianmotylinski.pl if you cannot access the app.',
+          body: 'Delete your account in the app: Profile → Account → Delete account. You must confirm your username and reauthenticate. The irreversible operation removes Auth, profile, relationships, invitations, messages, relevant Storage files and local app queues. Contact nix@shipapp.pl if you cannot access the app.',
         },
         {
           title: 'Age and changes',
@@ -156,14 +156,14 @@ export const legalDocuments: Record<'pl' | 'en', { privacy: LegalDocument; terms
       version: '2026-10-08',
       effectiveDate: '8 October 2026',
       sections: [
-        { title: 'Provider', body: 'NiX is provided by MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. Contact: kontakt@damianmotylinski.pl.' },
+        { title: 'Provider', body: 'NiX is a ShipApp brand, provided by MT Hub Damian Motyliński, ul. ks. Józefa Poniatowskiego 27a lok. 2, 76-200 Słupsk, Poland, tax ID 8393229228. Contact: nix@shipapp.pl.' },
         { title: 'Service', body: 'NiX enables accepted friends to exchange ephemeral text, photo, and video messages. Use requires a compatible device, Internet access and an account.' },
         { title: 'Account', body: 'You must be 16 or older, confirm that threshold, provide accurate registration data, and keep your account secure. Email and Apple accounts can be separate. A username cannot be changed once set.' },
         { title: 'Your content', body: 'You retain rights in your content and grant only the non-exclusive, royalty-free technical permission necessary to host, process and deliver it to the selected recipient.' },
         { title: 'Prohibited use', body: 'Do not send content you lack rights to use, unlawful content, or content that violates privacy, personality, copyright or safety. Harassment, impersonation, bypassing safeguards and disrupting the service are prohibited.' },
-        { title: 'Safety and moderation', body: 'Before delivery we automatically screen text, photos, and video (sampled frames for video) with Microsoft Azure AI Content Safety to block prohibited content. The working copy used for screening is deleted after the decision. A recipient can report a message and block its sender. We may warn, suspend, or ban an account for safety, the rights of others, or legal compliance. Appeal at kontakt@damianmotylinski.pl.' },
+        { title: 'Safety and moderation', body: 'Before delivery we automatically screen text, photos, and video (sampled frames for video) with Microsoft Azure AI Content Safety to block prohibited content. The working copy used for screening is deleted after the decision. A recipient can report a message and block its sender. We may warn, suspend, or ban an account for safety, the rights of others, or legal compliance. Appeal at nix@shipapp.pl.' },
         { title: 'Availability', body: 'The service is provided as is and can be temporarily unavailable because of maintenance, updates or events outside our control. We do not guarantee that messages remain available after their ephemeral lifecycle.' },
-        { title: 'Complaints and termination', body: 'Send complaints with a description of the issue to kontakt@damianmotylinski.pl. You may end the agreement by deleting the account in the app; deletion is irreversible.' },
+        { title: 'Complaints and termination', body: 'Send complaints with a description of the issue to nix@shipapp.pl. You may end the agreement by deleting the account in the app; deletion is irreversible.' },
         { title: 'Changes and law', body: 'We announce material changes before they take effect. Polish law applies without limiting mandatory consumer protections.' },
       ],
     },

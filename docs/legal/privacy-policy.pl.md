@@ -5,9 +5,9 @@
 
 ## Administrator i kontakt
 
-Administratorem danych jest **MT Hub Damian Motyliński**, ul. ks. Józefa
+NiX jest marką ShipApp. Administratorem danych jest **MT Hub Damian Motyliński**, ul. ks. Józefa
 Poniatowskiego 27a lok. 2, 76-200 Słupsk, NIP 8393229228. W sprawach prywatności
-napisz na **kontakt@damianmotylinski.pl**. Skargę możesz złożyć do Prezesa Urzędu
+napisz na **nix@shipapp.pl**. Skargę możesz złożyć do Prezesa Urzędu
 Ochrony Danych Osobowych.
 
 ## Zakres, cele i podstawy
@@ -81,14 +81,14 @@ Microsoft Azure AI Content Safety wyłącznie po to, by zablokować treści
 niedozwolone. Kopię roboczą użytą do skanu usuwamy po decyzji. Odbiorca nadal
 może zgłosić konkretną wiadomość i zablokować nadawcę. Zgłoszenie jest oceniane
 przez upoważnioną osobę; możemy ostrzec, czasowo zawiesić albo zablokować konto.
-W sprawie wyniku lub odwołania napisz na kontakt@damianmotylinski.pl.
+W sprawie wyniku lub odwołania napisz na nix@shipapp.pl.
 
 ## Twoje prawa
 
 Masz prawo dostępu, sprostowania, usunięcia, ograniczenia, sprzeciwu i
 przenoszenia danych, gdy ma zastosowanie. Możesz usunąć konto w aplikacji:
 **Profil → Konto → Usuń konto**. Bez dostępu do aplikacji skontaktuj się z
-kontakt@damianmotylinski.pl; przed realizacją zweryfikujemy tożsamość proporcjonalnie do
+nix@shipapp.pl; przed realizacją zweryfikujemy tożsamość proporcjonalnie do
 żądania. Możesz też złożyć skargę do Prezesa UODO.
 
 ## Zmiany

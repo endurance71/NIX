@@ -1,8 +1,8 @@
 # NiX — procedura moderacji i reakcji na nadużycia
 
-**Właściciel:** Trust & Safety / MT Hub
+**Właściciel:** Trust & Safety / ShipApp (MT Hub Damian Motyliński)
 **Obowiązuje od:** 26 sierpnia 2026
-**Kontakt użytkownika i eskalacji:** kontakt@damianmotylinski.pl
+**Kontakt użytkownika i eskalacji:** nix@shipapp.pl
 
 ## Model bezpieczeństwa
 

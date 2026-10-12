@@ -8,7 +8,7 @@ const legalModule = Buffer.from(ts.transpileModule(legalSource, {
 const { legalDocuments } = await import(`data:text/javascript;base64,${legalModule}`);
 
 const checkOnly = process.argv.includes('--check');
-const contact = 'kontakt@damianmotylinski.pl';
+const contact = 'nix@shipapp.pl';
 const labels = {
   pl: { privacy: 'Polityka prywatności', terms: 'Regulamin', support: 'Pomoc', version: 'Wersja', effective: 'obowiązuje od', language: 'English' },
   en: { privacy: 'Privacy policy', terms: 'Terms of service', support: 'Support', version: 'Version', effective: 'effective', language: 'Polski' },
