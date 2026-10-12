@@ -31,6 +31,9 @@ const MEMORY_TILES = {
   hike: require('../../../assets/onboarding/memory-hike.jpg') as ImageSource,
 };
 
+/** Ola's face cropped square (a centre crop of the portrait would cut her head off). */
+const OLA_FACE = require('../../../assets/onboarding/chat-face.jpg') as ImageSource;
+
 /** The friends a shot is sent to in the capture scene. */
 const FRIEND_AVATARS = [
   require('../../../assets/onboarding/avatar-o.jpg') as ImageSource,
@@ -438,7 +441,7 @@ export function ChatScene({ active, width, height, motionEnabled }: SceneProps) 
       <PhoneFrame width={phoneW} height={phoneH}>
         <View style={[StyleSheet.absoluteFill, { backgroundColor: ink.systemBackground }]} />
         <View style={[styles.chatHeader, { paddingTop: phoneW * 0.16 }]}>
-          <Image source={WELCOME_PHOTOS.chat} style={styles.chatHeaderAvatar} contentFit="cover" />
+          <Image source={OLA_FACE} style={styles.chatHeaderAvatar} contentFit="cover" />
           <Text style={[styles.chatHeaderName, { color: ink.label }]}>{translate('welcome.demo.chatName')}</Text>
         </View>
         <Animated.View style={[styles.thread, thread]}>
@@ -587,7 +590,7 @@ const GRID_PHOTOS = [
   MEMORY_TILES.hike,
   MEMORY_TILES.cake,
   MEMORY_TILES.city,
-  WELCOME_PHOTOS.chat,
+  OLA_FACE,
 ];
 const ZOOM_CELL = 4;
 

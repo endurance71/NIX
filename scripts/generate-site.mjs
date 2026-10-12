@@ -274,7 +274,7 @@ const WAVE = [0.45, 0.8, 0.55, 1, 0.7, 0.4, 0.9, 0.6, 0.35, 0.75, 0.5, 0.85, 0.4
 function chatScene(d) {
   const bars = WAVE.map((h, i) => `<i style="--h:${h};--i:${i}"></i>`).join('');
   return `<div class="scene chat-scene" aria-hidden="true">
-          ${phone(`<div class="chat-header">${img('chat')}<span>${escape(d.chatName)}</span></div>
+          ${phone(`<div class="chat-header">${img('chat-face')}<span>${escape(d.chatName)}</span></div>
               <div class="thread">
                 <div class="bubble in b1">${escape(d.message1)}</div>
                 <div class="bubble own b2">${escape(d.message2)}<span class="tapback">❤️</span></div>
@@ -289,7 +289,7 @@ function memoriesScene(d) {
   const photos = [
     'memory-coffee', 'welcome', 'memory-dog',
     'memory-skate', 'memories', 'memory-hike',
-    'memory-cake', 'chat', 'memory-city',
+    'memory-cake', 'chat-face', 'memory-city',
     'capture', 'ephemeral', 'memory-coffee',
   ];
   const cells = photos
