@@ -32,3 +32,14 @@ export function getAuthFormErrorKey(error: AuthLikeError): string {
   const legacyKey = legacyErrors.find(([pattern]) => pattern.test(message))?.[1];
   return legacyKey ?? 'auth.requestFailed';
 }
+
+/**
+ * Signing up with an e-mail that already has a confirmed account returns no error and sends no
+ * e-mail (the server does not reveal registered addresses); the returned user has no identities.
+ */
+export function isExistingAccountSignUp(
+  data: { user?: { identities?: readonly unknown[] | null } | null } | null | undefined
+): boolean {
+  const identities = data?.user?.identities;
+  return Array.isArray(identities) && identities.length === 0;
+}

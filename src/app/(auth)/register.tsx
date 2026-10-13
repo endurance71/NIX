@@ -22,7 +22,7 @@ import { isAtLeastMinimumAge, isValidBirthDate, toBirthDateValue } from '../../l
 import { rememberPassedAgeCheck } from '../../lib/pendingAgeCheck';
 import { runWithFinally } from '../../lib/runWithFinally';
 import { getAuthLegalAcceptanceState } from '../../theme/authLayout';
-import { getAuthFormErrorKey } from '../../lib/authFormError';
+import { getAuthFormErrorKey, isExistingAccountSignUp } from '../../lib/authFormError';
 
 function isEmailValid(email: string) {
   return /\S+@\S+\.\S+/.test(email);
@@ -91,10 +91,17 @@ export default function RegisterScreen() {
     await runWithFinally(
       async () => {
         try {
-          const { error: signUpError } = await signUp(cleanedEmail, passwordValue, acceptedLegal);
+          const { data: signUpData, error: signUpError } = await signUp(
+            cleanedEmail,
+            passwordValue,
+            acceptedLegal
+          );
 
           if (signUpError) {
             setError(t(getAuthFormErrorKey(signUpError)));
+          } else if (isExistingAccountSignUp(signUpData)) {
+            // No code is coming: the address already has an account.
+            setError(t('auth.accountExists'));
           } else {
             await rememberPassedAgeCheck(cleanedEmail);
             router.replace({ pathname: '/(auth)/check-email', params: { email: cleanedEmail, mode: 'signup' } });
