@@ -57,6 +57,11 @@ e-mail sign-up carries the passed check to onboarding; Apple sign-ins still ask)
 first and turns autofill off on the username confirmation, so iOS no longer fills in the e-mail; the consent checkbox
 lines up with the links and its label.
 
+Forty-third OTA (2026-10-13): update group `4cfc3ea3-9e04-414a-9623-c4d055d200bc`, source `f3ee4eb`, for builds 14
+and 15. Verification codes use six digit boxes (sign-up and reset code screen, Change password). One invisible native
+field keeps iOS code autofill from Mail and pasting; it takes six digits, submits when complete and clears after a
+wrong code. The check-email description keeps the full stop after the e-mail.
+
 ## Feature candidate — 1.0.13 (14), 2026-10-11
 
 Supersedes build 13 (never uploaded). Same **runtime 1.0.13** and channel production, so every OTA up to the
