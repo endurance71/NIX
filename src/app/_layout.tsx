@@ -48,7 +48,13 @@ import { OfflineCacheProvider, useOfflineCache } from '../context/OfflineCachePr
 import type { Session } from '@supabase/supabase-js';
 import type { TFunction } from 'i18next';
 import { SOFT_SCROLL_EDGE_EFFECTS } from '../theme/scrollEdge';
-import { isWelcomePending, resetWelcome, shouldOpenWelcome } from '../lib/welcomePresentation';
+import {
+  isSignedInThisRun,
+  isWelcomePending,
+  noteAuthState,
+  resetWelcome,
+  shouldOpenWelcome,
+} from '../lib/welcomePresentation';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Catch and ignore in environments where splash screen autohide prevention is unavailable.
@@ -615,15 +621,23 @@ function usePendingFriendInviteRedirect(enabled: boolean, segments: string[]) {
  * for a session restored at launch), so signing out and back in shows it again. Not over the
  * post-signup profile step, and only once the redirects are done (see `shouldOpenWelcome`).
  */
-function useWelcomePresentation(enabled: boolean, segments: string[], userId: string | null, signedInNow: boolean) {
+function useWelcomePresentation(
+  enabled: boolean,
+  segments: string[],
+  userId: string | null,
+  signedInNow: boolean,
+  signedOut: boolean
+) {
   useEffect(() => {
     if (!userId) {
-      resetWelcome();
+      // Only a real sign-out forgets the tour; the session also reads as empty for a moment while
+      // the app mounts again after sign-up.
+      if (signedOut) resetWelcome();
       return;
     }
     if (!enabled || !signedInNow) return;
     if (shouldOpenWelcome(userId, segments[0])) router.push('/welcome');
-  }, [enabled, segments, signedInNow, userId]);
+  }, [enabled, segments, signedInNow, signedOut, userId]);
 }
 
 /** The push prompt waits for the main app: not over the profile step, activation or the tour. */
@@ -637,10 +651,10 @@ function canOfferPushPrompt(
 }
 
 /** True once a session appears after this run has seen the signed-out state (a fresh sign-in). */
-function useSignedInThisRun(authStatus: string, userId: string | null) {
-  const [sawSignedOut, setSawSignedOut] = useState(false);
-  if (!sawSignedOut && authStatus === 'anonymous' && !userId) setSawSignedOut(true);
-  return sawSignedOut && Boolean(userId);
+function useSignedInThisRun(signedOut: boolean, userId: string | null) {
+  // Noted during render, so the first render with the new session already counts it.
+  if (signedOut) noteAuthState(true);
+  return isSignedInThisRun(userId);
 }
 
 function RootNavigator() {
@@ -718,7 +732,8 @@ function RootNavigator() {
     return unsubscribe;
   }, [appReady, blockingStatus, bootstrap.status, navigationRef, needsOnboarding, segments, session]);
 
-  const signedInNow = useSignedInThisRun(authStatus, userId);
+  const signedOut = authStatus === 'anonymous' && !userId;
+  const signedInNow = useSignedInThisRun(signedOut, userId);
   useWelcomePresentation(
     appReady
       && !blockingStatus
@@ -732,6 +747,7 @@ function RootNavigator() {
     segments,
     userId,
     signedInNow,
+    signedOut,
   );
 
   usePendingFriendInviteRedirect(
