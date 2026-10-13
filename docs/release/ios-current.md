@@ -62,6 +62,12 @@ and 15. Verification codes use six digit boxes (sign-up and reset code screen, C
 field keeps iOS code autofill from Mail and pasting; it takes six digits, submits when complete and clears after a
 wrong code. The check-email description keeps the full stop after the e-mail.
 
+Forty-fourth OTA (2026-10-13): update group `ceaf7cbe-0db5-4a77-a116-1897b6304363`, source `3f1d050`, for builds 14
+and 15. Send to / To: show the friend's display name (the send capsule truncates); avatar initials come from the
+display name everywhere; the cropper confirm says Choose / Wybierz. The welcome tour counts as seen only when closed,
+so a new account gets it after its profile step. Delete account accepts the username or the account e-mail. The
+email-template generator and nix.shipapp.pl/auth/confirm are merged into `main`.
+
 ## Feature candidate — 1.0.13 (14), 2026-10-11
 
 Supersedes build 13 (never uploaded). Same **runtime 1.0.13** and channel production, so every OTA up to the
