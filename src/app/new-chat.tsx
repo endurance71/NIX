@@ -60,7 +60,7 @@ function FriendRow({ avatarUrl, item, onPress }: FriendRowProps) {
         url={avatarUrl}
         storagePath={item.avatar_storage_path}
         emoji={item.avatar_emoji}
-        fallbackInitial={item.username?.charAt(0)}
+        fallbackInitial={label}
       />
       {/* iOS separators start at the text, not under the avatar. */}
       <View style={[styles.rowText, { borderBottomColor: colors.separator }]}>

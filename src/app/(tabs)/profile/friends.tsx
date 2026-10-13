@@ -124,7 +124,7 @@ export default function FriendsScreen() {
                       url: avatarPath ? vm.avatarUrls[avatarPath] ?? null : null,
                       storagePath: avatarPath,
                       emoji: request.recipient.avatar_emoji ?? null,
-                      fallbackInitial: request.recipient.username,
+                      fallbackInitial: request.recipient.display_name || request.recipient.username,
                     }}
                     disabled={loading}
                     testID={`outgoing-request-${request.id}`}
@@ -160,7 +160,7 @@ export default function FriendsScreen() {
                     url: avatarPath ? vm.avatarUrls[avatarPath] ?? null : null,
                     storagePath: avatarPath,
                     emoji: friend.avatar_emoji ?? null,
-                    fallbackInitial: friend.username,
+                    fallbackInitial: displayName || friend.username,
                   }}
                   trailing={
                     friendshipBadge ? <FriendshipBadgeLabel badge={friendshipBadge} /> : undefined

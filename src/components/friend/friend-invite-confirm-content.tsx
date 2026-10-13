@@ -389,7 +389,7 @@ export function FriendInviteConfirmContent({
           url={avatarUrl}
           storagePath={friendProfile?.avatar_storage_path}
           emoji={friendProfile?.avatar_emoji}
-          fallbackInitial={displayUsername.charAt(0)}
+          fallbackInitial={displayName || displayUsername}
         />
       </View>
 

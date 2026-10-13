@@ -104,7 +104,7 @@ function FriendRecipientRow({
           url={avatarUrl}
           storagePath={item.avatar_storage_path}
           emoji={item.avatar_emoji}
-          fallbackInitial={item.username?.charAt(0)}
+          fallbackInitial={name}
         />
       </View>
       <View style={styles.rowText}>

@@ -28,6 +28,7 @@ import { buttonStyle, controlSize, font, foregroundStyle, frame, tint } from '@e
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { notify, selection, tap } from '../../lib/haptics';
+import { markWelcomeSeen } from '../../lib/welcomePresentation';
 import { canUseLiquidGlass } from '../../lib/liquidGlass';
 import { useStageInk } from '../brand/stageInk';
 import { APP_ICON_SIZE, resolveAppIconName, type AppIconName } from '../../theme/app-icons';
@@ -165,6 +166,7 @@ export function WelcomeScreen() {
   );
 
   const close = () => {
+    markWelcomeSeen(session?.user.id ?? null);
     if (router.canGoBack()) router.back();
     else router.replace('/');
   };

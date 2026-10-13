@@ -26,7 +26,8 @@ export function AvatarCircle({
 }: AvatarCircleProps) {
   const { colors } = useAppTheme();
   const styles = createStyles(size);
-  const normalizedInitial = (fallbackInitial ?? '?').trim().charAt(0).toUpperCase();
+  // Callers pass the name shown next to the avatar, which may be `@username`.
+  const normalizedInitial = (fallbackInitial ?? '?').trim().replace(/^@/, '').charAt(0).toUpperCase() || '?';
   const [failedForUrl, setFailedForUrl] = useState<string | null>(null);
   const imageFailed = Boolean(url) && failedForUrl === url;
   const hasUsableUrl = Boolean(url) && !imageFailed;

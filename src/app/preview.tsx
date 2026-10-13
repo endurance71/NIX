@@ -83,6 +83,7 @@ import {
   videoContentFit,
   type MediaViewport,
 } from '../lib/mediaPresentation';
+import { recipientDisplayName } from '../lib/sendRecipients';
 
 const TIMER_TRACK_HEIGHT = 8;
 /** Maks. czas oczekiwania na `readyToPlay` zanim wymusimy `play()` + `onReady()`. */
@@ -198,7 +199,7 @@ function PreviewSendControls({
   }
   const label = isSending
     ? t('sendTo.securing')
-    : t('preview.sendToRecipient', { name: `@${recipient.username}` });
+    : t('preview.sendToRecipient', { name: recipientDisplayName(recipient, t('common.unknown')) });
   return (
     <View style={sendControlStyles.row}>
       <NativeChromeIconButton
