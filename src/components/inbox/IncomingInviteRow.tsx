@@ -73,7 +73,7 @@ export function IncomingInviteRow({
             url={avatarUrl}
             storagePath={requester.avatar_storage_path ?? null}
             emoji={requester.avatar_emoji ?? null}
-            fallbackInitial={requester.username}
+            fallbackInitial={name}
           />
         </View>
       </RNHostView>

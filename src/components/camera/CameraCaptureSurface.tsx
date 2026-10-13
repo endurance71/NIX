@@ -36,6 +36,7 @@ import {
   isZoomedAwayFromPreset,
 } from '../../lib/cameraLenses';
 import { useMotionEnabled } from '../../theme/motion';
+import { recipientDisplayName } from '../../lib/sendRecipients';
 
 type Props = {
   vm: CameraScreenViewModel;
@@ -354,11 +355,11 @@ function RecipientChip({ vm }: Props) {
   const { t } = useTranslation();
   const { colors, presetRecipient, clearPresetRecipient, recordingVideo, videoPreparing } = vm;
   if (!presetRecipient) return null;
-  const username = presetRecipient.username;
+  const name = recipientDisplayName(presetRecipient, t('common.unknown'));
   return (
     <NativeGlassPill
-      label={t('camera.recipientChip', { username })}
-      accessibilityLabel={t('camera.recipientChipA11y', { username })}
+      label={t('camera.recipientChip', { name })}
+      accessibilityLabel={t('camera.recipientChipA11y', { name })}
       tintColor={colors.cameraControlTint}
       fill={colors.cameraControlBackground}
       maxWidth={RECIPIENT_CHIP_MAX_WIDTH}

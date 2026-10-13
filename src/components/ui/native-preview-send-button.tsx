@@ -13,6 +13,7 @@ import {
   opacity,
   padding,
   shapes,
+  truncationMode,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
@@ -20,7 +21,9 @@ import type { ChromeVariant } from './native-chrome-icon-button';
 
 const SEND_BUTTON_HEIGHT = 48;
 const SEND_BUTTON_MIN_WIDTH = 120;
-const SEND_BUTTON_MAX_WIDTH = 180;
+// Wide enough for "Send to" plus a typical first and last name; longer names are truncated
+// inside the capsule instead of running off the screen.
+const SEND_BUTTON_MAX_WIDTH = 240;
 
 type NativePreviewSendButtonProps = {
   label: string;
@@ -64,14 +67,14 @@ export function NativePreviewSendButton({
           spacing={6}
           alignment="center"
           modifiers={[
-            frame({ minWidth: SEND_BUTTON_MIN_WIDTH, height: SEND_BUTTON_HEIGHT }),
+            frame({ minWidth: SEND_BUTTON_MIN_WIDTH, maxWidth: SEND_BUTTON_MAX_WIDTH, height: SEND_BUTTON_HEIGHT }),
             padding({ leading: 16, trailing: 12 }),
             background(backgroundColor, shapes.capsule()),
             ...(chromeVariant === 'glass'
               ? [glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'capsule' as const })]
               : []),
           ]}>
-          <SwiftText modifiers={[foregroundStyle(tintColor as string), bold(), lineLimit(1)]}>
+          <SwiftText modifiers={[foregroundStyle(tintColor as string), bold(), lineLimit(1), truncationMode('tail')]}>
             {label}
           </SwiftText>
           <SwiftImage

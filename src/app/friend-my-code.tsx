@@ -96,7 +96,7 @@ function useMyCodeProfile() {
   const avatarUrl = profileRow?.avatar_storage_path
     ? (avatarUrls[profileRow.avatar_storage_path] ?? null)
     : null;
-  const fallbackInitial = (profileRow?.username ?? user?.email ?? '?')
+  const fallbackInitial = (profileRow?.display_name?.trim() || profileRow?.username || user?.email || '?')
     .replace(/^@/, '')
     .charAt(0)
     .toUpperCase();

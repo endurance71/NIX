@@ -51,7 +51,7 @@ export function FriendDetailHeader({
             url={avatarUrl}
             storagePath={friend.avatar_storage_path ?? null}
             emoji={friend.avatar_emoji ?? null}
-            fallbackInitial={friend.username}
+            fallbackInitial={displayName || friend.username}
           />
         </View>
       </RNHostView>

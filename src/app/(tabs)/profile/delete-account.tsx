@@ -41,7 +41,12 @@ export default function DeleteAccountScreen() {
     if (!authLoading && !user) router.replace('/(auth)/login');
   }, [authLoading, user]);
 
-  const confirmationMatches = Boolean(username) && confirmation.trim().replace(/^@/, '') === username;
+  // The username or the account e-mail; either one shows the person means this account.
+  const typedConfirmation = confirmation.trim().replace(/^@/, '').toLowerCase();
+  const confirmationMatches = Boolean(typedConfirmation) && (
+    (Boolean(username) && typedConfirmation === username.toLowerCase())
+    || (Boolean(user?.email) && typedConfirmation === user?.email?.toLowerCase())
+  );
   const disabled = !canUseNetworkSession || loading || !confirmationMatches || (hasPassword && !password);
 
   const removeAccount = async () => {

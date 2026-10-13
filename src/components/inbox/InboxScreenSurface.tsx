@@ -411,7 +411,7 @@ function MessageRowContent({
         url: avatarUrl,
         storagePath: row.avatarStoragePath,
         emoji: row.avatarEmoji,
-        fallbackInitial: row.username,
+        fallbackInitial: row.display_name || row.username,
         slot,
       })}
 
@@ -929,7 +929,7 @@ const PinnedConversationCell = memo(function PinnedConversationCell({
             url: avatarUrl,
             storagePath: row.avatarStoragePath,
             emoji: row.avatarEmoji,
-            fallbackInitial: row.username,
+            fallbackInitial: row.display_name || row.username,
             slot: `${x}:${y}`,
           })}
           {/* Unread: a blue dot on the avatar's corner, like an unread pin in Messages. */}

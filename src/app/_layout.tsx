@@ -48,6 +48,7 @@ import { OfflineCacheProvider, useOfflineCache } from '../context/OfflineCachePr
 import type { Session } from '@supabase/supabase-js';
 import type { TFunction } from 'i18next';
 import { SOFT_SCROLL_EDGE_EFFECTS } from '../theme/scrollEdge';
+import { resetWelcome, shouldOpenWelcome } from '../lib/welcomePresentation';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Catch and ignore in environments where splash screen autohide prevention is unavailable.
@@ -606,23 +607,19 @@ function usePendingFriendInviteRedirect(enabled: boolean, segments: string[]) {
   }, [enabled, segments]);
 }
 
-/** The account the tour was opened for since its last sign-in; cleared on sign-out. */
-let welcomePresentedFor: string | null = null;
-
 /**
  * Sign in first, then the welcome tour: it opens on the tabs after every sign-in or sign-up (not
  * for a session restored at launch), so signing out and back in shows it again. Not over the
- * post-signup profile step, and only once the redirects are done.
+ * post-signup profile step, and only once the redirects are done (see `shouldOpenWelcome`).
  */
 function useWelcomePresentation(enabled: boolean, segments: string[], userId: string | null, signedInNow: boolean) {
   useEffect(() => {
     if (!userId) {
-      welcomePresentedFor = null;
+      resetWelcome();
       return;
     }
-    if (!enabled || !signedInNow || welcomePresentedFor === userId || segments[0] !== '(tabs)') return;
-    welcomePresentedFor = userId;
-    router.push('/welcome');
+    if (!enabled || !signedInNow) return;
+    if (shouldOpenWelcome(userId, segments[0])) router.push('/welcome');
   }, [enabled, segments, signedInNow, userId]);
 }
 

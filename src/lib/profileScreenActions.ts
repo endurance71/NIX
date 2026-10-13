@@ -66,7 +66,8 @@ export async function pickProfileAvatarPhoto(
     width: AVATAR_UPLOAD_SIZE_PX,
     height: AVATAR_UPLOAD_SIZE_PX,
     compressImageQuality: AVATAR_UPLOAD_JPEG_QUALITY,
-    cropperChooseText: i18n.t('profile.choosePhoto'),
+    // The cropper's confirm button has room for one short word.
+    cropperChooseText: i18n.t('profile.cropperChoose'),
     cropperCancelText: i18n.t('common.cancel'),
   };
 
