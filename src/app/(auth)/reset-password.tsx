@@ -32,6 +32,7 @@ export default function ResetPasswordScreen() {
   } = useAuthPasswordPair();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [passwordsShown, setPasswordsShown] = useState(false);
   const confirmPasswordRef = useRef<TextInputRef>(null);
   const showLoginFallback = source === 'deeplink';
 
@@ -93,6 +94,13 @@ export default function ResetPasswordScreen() {
             }}
             editable={!loading}
             testID="reset-password"
+            revealed={passwordsShown}
+            revealToggle={{
+              revealed: passwordsShown,
+              onToggle: () => setPasswordsShown((value) => !value),
+              showLabel: t('auth.showPassword'),
+              hideLabel: t('auth.hidePassword'),
+            }}
           />
         </AuthLabeledField>
         <AuthLabeledField label={t('auth.resetPasswordConfirmField')}>
@@ -109,6 +117,7 @@ export default function ResetPasswordScreen() {
             }}
             editable={!loading}
             testID="reset-password-confirm"
+            revealed={passwordsShown}
           />
         </AuthLabeledField>
       </AuthFieldGroup>

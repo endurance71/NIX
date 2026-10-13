@@ -10,6 +10,8 @@ export type AppIconName =
   | 'clock'
   | 'close'
   | 'email'
+  | 'eye'
+  | 'eyeSlash'
   | 'star'
   | 'flash'
   | 'flashOff'
@@ -136,6 +138,9 @@ const APP_ICONS: Record<AppIconName, SFSymbol> = {
   clock: 'clock',
   close: 'xmark',
   email: 'envelope',
+  // Show / hide a password.
+  eye: 'eye',
+  eyeSlash: 'eye.slash',
   star: 'star',
   flash: 'bolt',
   flashOff: 'bolt.slash',

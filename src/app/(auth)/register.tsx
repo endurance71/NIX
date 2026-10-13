@@ -46,6 +46,7 @@ export default function RegisterScreen() {
   const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [birthDate, setBirthDate] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [passwordsShown, setPasswordsShown] = useState(false);
   const passwordRef = useRef<TextInputRef>(null);
   const confirmPasswordRef = useRef<TextInputRef>(null);
   const legalControlState = getAuthLegalAcceptanceState(acceptedLegal, loading);
@@ -141,6 +142,13 @@ export default function RegisterScreen() {
             }}
             editable={!loading}
             testID="register-password"
+            revealed={passwordsShown}
+            revealToggle={{
+              revealed: passwordsShown,
+              onToggle: () => setPasswordsShown((value) => !value),
+              showLabel: t('auth.showPassword'),
+              hideLabel: t('auth.hidePassword'),
+            }}
           />
         </AuthLabeledField>
         <AuthLabeledField label={t('auth.confirmPasswordField')}>
@@ -157,6 +165,7 @@ export default function RegisterScreen() {
             }}
             editable={!loading}
             testID="register-confirm-password"
+            revealed={passwordsShown}
           />
         </AuthLabeledField>
         <AuthBirthDateField

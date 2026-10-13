@@ -9,10 +9,13 @@ import React, {
 } from 'react';
 import { AccessibilityInfo, PixelRatio, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import type { SFSymbol } from 'sf-symbols-typescript';
 import { Button, Text, TextInput, type TextInputProps, type TextInputRef } from '@expo/ui';
-import { HStack, Rectangle, ScrollView, VStack } from '@expo/ui/swift-ui';
+import { Button as SwiftButton, HStack, Image as SwiftImage, Rectangle, ScrollView, VStack } from '@expo/ui/swift-ui';
 import {
+  accessibilityLabel as swiftAccessibilityLabel,
   background,
+  buttonStyle,
   clipShape,
   controlSize,
   fixedSize,
@@ -26,6 +29,7 @@ import {
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { APP_ICON_SIZE, resolveAppIconName } from '../../theme/app-icons';
 import {
   AUTH_FIELD_GROUP_CORNER_RADIUS,
   AUTH_FIELD_INNER_PADDING,
@@ -205,20 +209,51 @@ export const AuthTextField = forwardRef<TextInputRef, AuthFieldProps>(function A
   );
 });
 
-export const AuthSecureField = forwardRef<TextInputRef, AuthFieldProps>(function AuthSecureField(
-  { nativeValue, autoCapitalize = 'none', autoCorrect = false, ...props },
+/** Optional eye button: one press shows the typed password, another hides it again. */
+type PasswordRevealToggle = {
+  revealed: boolean;
+  onToggle: () => void;
+  showLabel: string;
+  hideLabel: string;
+};
+
+export const AuthSecureField = forwardRef<
+  TextInputRef,
+  AuthFieldProps & { revealed?: boolean; revealToggle?: PasswordRevealToggle }
+>(function AuthSecureField(
+  { nativeValue, autoCapitalize = 'none', autoCorrect = false, revealed = false, revealToggle, ...props },
   ref
 ) {
-  return (
+  const { colors } = useAppTheme();
+  const field = (
     <TextInput
       ref={ref}
       defaultValue={getValue(nativeValue)}
-      secureTextEntry
+      secureTextEntry={!revealed}
       autoCapitalize={autoCapitalize}
       autoCorrect={autoCorrect}
       modifiers={[frame({ maxWidth: Infinity })]}
       {...props}
     />
+  );
+  if (!revealToggle) return field;
+  return (
+    <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity })]}>
+      {field}
+      <SwiftButton
+        onPress={revealToggle.onToggle}
+        modifiers={[
+          buttonStyle('plain'),
+          frame({ width: 44, height: 44 }),
+          swiftAccessibilityLabel(revealToggle.revealed ? revealToggle.hideLabel : revealToggle.showLabel),
+        ]}>
+        <SwiftImage
+          systemName={resolveAppIconName(revealToggle.revealed ? 'eyeSlash' : 'eye') as SFSymbol}
+          size={APP_ICON_SIZE.md}
+          color={colors.secondaryLabel}
+        />
+      </SwiftButton>
+    </HStack>
   );
 });
 

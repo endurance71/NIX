@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import { useState, type RefObject } from 'react';
 import type { TextInputRef } from '@expo/ui';
 import { HStack, VStack } from '@expo/ui/swift-ui';
 import { frame, padding } from '@expo/ui/swift-ui/modifiers';
@@ -22,6 +22,7 @@ type LoginCredentialsSectionProps = {
 };
 
 export function LoginCredentialsSection({ vm, passwordRef }: LoginCredentialsSectionProps) {
+  const [passwordShown, setPasswordShown] = useState(false);
   const contentWidth = useAuthContentWidth();
 
   return (
@@ -62,6 +63,13 @@ export function LoginCredentialsSection({ vm, passwordRef }: LoginCredentialsSec
           }}
           editable={!vm.authBusy}
           testID="login-password"
+          revealed={passwordShown}
+          revealToggle={{
+            revealed: passwordShown,
+            onToggle: () => setPasswordShown((value) => !value),
+            showLabel: vm.t('auth.showPassword'),
+            hideLabel: vm.t('auth.hidePassword'),
+          }}
         />
       </AuthFieldGroup>
 
