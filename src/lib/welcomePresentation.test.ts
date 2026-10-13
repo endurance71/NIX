@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { markWelcomeSeen, resetWelcome, shouldOpenWelcome } from './welcomePresentation';
+import { isWelcomePending, markWelcomeSeen, resetWelcome, shouldOpenWelcome } from './welcomePresentation';
 
 describe('welcomePresentation', () => {
   beforeEach(() => resetWelcome());
@@ -28,5 +28,13 @@ describe('welcomePresentation', () => {
     markWelcomeSeen('u1');
     resetWelcome();
     expect(shouldOpenWelcome('u1', '(tabs)')).toBe(true);
+  });
+
+  it('trzyma prośbę o powiadomienia do zamknięcia powitania po świeżym logowaniu', () => {
+    expect(isWelcomePending('u1', true)).toBe(true);
+    expect(isWelcomePending('u1', false)).toBe(false);
+    expect(isWelcomePending(null, true)).toBe(false);
+    markWelcomeSeen('u1');
+    expect(isWelcomePending('u1', true)).toBe(false);
   });
 });

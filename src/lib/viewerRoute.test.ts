@@ -13,6 +13,9 @@ describe('viewer route and failure policy', () => {
     expect(classifyViewerFailure({ status: 401 })).toBe('unauthorized');
     expect(classifyViewerFailure({ statusCode: '404', message: 'Object not found' })).toBe('permanentMissing');
     expect(classifyViewerFailure({ status: 503 })).toBe('transient');
+    expect(
+      classifyViewerFailure({ code: 'NOT_FOUND', message: 'Tego NiX-a nie da się już otworzyć.' })
+    ).toBe('permanentMissing');
     expect(classifyViewerFailure(new Error('offline'))).toBe('transient');
   });
 });

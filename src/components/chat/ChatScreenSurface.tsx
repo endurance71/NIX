@@ -1156,6 +1156,7 @@ const NixChip = memo(function NixChip({
   maxWidth,
   highlighted,
   onOpen,
+  onReport,
   t,
 }: {
   nix: ChatNixEvent;
@@ -1165,6 +1166,8 @@ const NixChip = memo(function NixChip({
   /** Briefly ringed after a reply's quoted header scrolled here. */
   highlighted: boolean;
   onOpen: (nixId: string) => void;
+  /** Received NiXes only: long press (or the VoiceOver action) opens the report reasons. */
+  onReport: (nixId: string) => void;
   t: ChatScreenViewModel['t'];
 }) {
   const { colors } = useAppTheme();
@@ -1242,16 +1245,25 @@ const NixChip = memo(function NixChip({
     ? `, ${t('viewer.nixReactionBadgeA11y', { emoji: MESSAGE_REACTION_GLYPHS[reaction] })}`
     : '';
   const title = `${nixTitle(nix, t)}${reactionA11y}`;
+  const report = isOwn ? undefined : () => onReport(nix.id);
+  const reportAction = report ? [{ name: 'report', label: t('chat.reportNix') }] : [];
+  const onReportAction = (actionName: string) => {
+    if (actionName === 'report') report?.();
+  };
 
   if (canFirstOpen) {
     return (
       <View style={styles.row}>
         <Pressable
           onPress={open}
+          onLongPress={report}
+          delayLongPress={350}
           accessibilityRole="button"
           // Status for the label, instruction for the hint: never the same sentence twice.
           accessibilityLabel={`${title}, ${t('chat.nixNewA11y')}`}
           accessibilityHint={t('chat.nixOpenHint')}
+          accessibilityActions={reportAction}
+          onAccessibilityAction={(event) => onReportAction(event.nativeEvent.actionName)}
           style={anchorStyle}>
           {chip}
         </Pressable>
@@ -1270,10 +1282,31 @@ const NixChip = memo(function NixChip({
           accessible
           accessibilityRole="button"
           accessibilityLabel={`${title}, ${t('chat.nixReplayableA11y')}`}
-          accessibilityActions={[{ name: 'replay', label: t('chat.nixReplayAction') }]}
+          // Long press already replays; the viewer has Report, and VoiceOver gets it here too.
+          accessibilityActions={[{ name: 'replay', label: t('chat.nixReplayAction') }, ...reportAction]}
           onAccessibilityAction={(event) => {
             if (event.nativeEvent.actionName === 'replay') open();
+            else onReportAction(event.nativeEvent.actionName);
           }}
+          style={anchorStyle}>
+          {chip}
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (report) {
+    // Opened and gone: it can still be reported (e.g. when it disappeared before the report).
+    return (
+      <View style={styles.row}>
+        <Pressable
+          onLongPress={report}
+          delayLongPress={350}
+          accessible
+          accessibilityRole="text"
+          accessibilityLabel={`${title}, ${statusText}`}
+          accessibilityActions={reportAction}
+          onAccessibilityAction={(event) => onReportAction(event.nativeEvent.actionName)}
           style={anchorStyle}>
           {chip}
         </Pressable>
@@ -2166,6 +2199,22 @@ function openReportSheet(vm: ChatScreenViewModel, message: OptimisticTextMessage
   );
 }
 
+function openNixReportSheet(vm: ChatScreenViewModel, nix: ChatNixEvent) {
+  const reasons = vm.reportReasons;
+  ActionSheetIOS.showActionSheetWithOptions(
+    {
+      title: vm.t('chat.reportNix'),
+      options: [vm.t('common.cancel'), ...reasons.map((r) => r.label)],
+      cancelButtonIndex: 0,
+    },
+    (buttonIndex) => {
+      if (buttonIndex == null || buttonIndex === 0) return;
+      const reason = reasons[buttonIndex - 1];
+      if (reason) void vm.handleReportNix(nix, reason.id);
+    }
+  );
+}
+
 /**
  * Stable, id-keyed handlers for the memoized cells: they read the latest view model when called,
  * so `renderItem` does not depend on `vm` (PERF-10).
@@ -2209,6 +2258,10 @@ function useChatTimelineHandlers(vm: ChatScreenViewModel) {
     if (!nix) return;
     vm.handleOpenNix(nix);
   });
+  const onReportNix = useStableHandler((nixId: string) => {
+    const nix = vm.nixes.find((candidate) => candidate.id === nixId);
+    if (nix && nix.direction === 'received') openNixReportSheet(vm, nix);
+  });
   const onOpenUploadActions = useStableHandler((jobId: string) => {
     const job = vm.chatUploadJobs.find((candidate) => candidate.id === jobId);
     if (job) openChatUploadActions(vm, job);
@@ -2241,6 +2294,7 @@ function useChatTimelineHandlers(vm: ChatScreenViewModel) {
     onDeleteOutbox,
     onCancelSending,
     onOpenNix,
+    onReportNix,
     onOpenUploadActions,
     onRetryUpload,
     onReply,
@@ -2609,6 +2663,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     onDeleteOutbox,
     onCancelSending,
     onOpenNix,
+    onReportNix,
     onOpenUploadActions,
     onRetryUpload,
     onReply,
@@ -2721,6 +2776,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
           highlighted={highlightedNixId === item.nix.id}
           t={t}
           onOpen={onOpenNix}
+          onReport={onReportNix}
         />
       );
     }
@@ -2734,6 +2790,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
           highlighted={highlightedNixId === item.nix.id}
           t={t}
           onOpen={onOpenNix}
+          onReport={onReportNix}
         />
       );
     }
@@ -2839,6 +2896,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     onOpenNix,
     onOpenOverlay,
     onOpenUploadActions,
+    onReportNix,
     onReactToMessage,
     onRemoveReaction,
     onReportMessage,

@@ -53,7 +53,7 @@ import {
   fetchNixPublicProfiles,
   type ChatNixEvent,
 } from '../services/nixService';
-import { blockUser, reportContent, type ReportReason } from '../services/safetyService';
+import { blockUser, reportContent, reportNix, type ReportReason } from '../services/safetyService';
 import {
   notifyDomainError,
   notifyError,
@@ -765,6 +765,39 @@ export function useChatScreen(peerId: string) {
     }
   };
 
+  /**
+   * A received NiX, reported from its chip. Its file is the evidence; once the server has deleted
+   * it (after the replay period or 30 days), the report goes to the sender with the NiX's id, so
+   * it is never refused just because the content is already gone.
+   */
+  const handleReportNix = async (nix: ChatNixEvent, reason: ReportReason) => {
+    if (!canUseNetworkSession) {
+      notifyOffline();
+      return;
+    }
+    const reportSender = () =>
+      reportContent({
+        reportedUserId: peerId,
+        reason,
+        details: `User reported NiX ${nix.id} from the chat screen; its media was no longer available.`,
+      });
+    try {
+      if (nix.status === 'cleaned' || nix.status === 'cleanup_failed') {
+        await reportSender();
+      } else {
+        try {
+          await reportNix(nix.id, reason, 'User reported NiX from the chat screen.');
+        } catch {
+          // Usually the file was deleted in the meantime and no evidence could be secured.
+          await reportSender();
+        }
+      }
+      notifySuccess(t('chat.reportNixSuccess'));
+    } catch (error) {
+      notifyDomainError(error, t('chat.reportFailure'));
+    }
+  };
+
   const handleReportPeer = async (reason: ReportReason) => {
     if (!canUseNetworkSession) {
       notifyOffline();
@@ -1206,6 +1239,7 @@ export function useChatScreen(peerId: string) {
     handleDeleteOutboxMessage,
     handleCancelSendingTextMessage,
     handleReportMessage,
+    handleReportNix,
     handleReportPeer,
     handleBlockPeer,
     handleDeleteConversation,

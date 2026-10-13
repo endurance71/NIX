@@ -4,7 +4,7 @@ import { retainPrivatePhotoForReplay } from './photoCacheService';
 import { getCurrentUser } from './profileService';
 import { DomainError } from './errors';
 import { nowMs, trackDuration, trackEvent } from '../lib/telemetry';
-import { filterUnreadInboxNixesFromSender } from '../lib/nixUnreadQueue';
+import { filterUnreadInboxNixesFromSender, unviewedNixCutoff } from '../lib/nixUnreadQueue';
 import { createRpcFallbackGate } from '../lib/rpcFallbackGate';
 
 export type InboxNix = {
@@ -314,6 +314,7 @@ export async function fetchUnreadInboxQueueFromSender(senderId: string): Promise
     .eq('sender_id', senderId)
     .eq('is_viewed', false)
     .not('status', 'in', '("cleaned","cleanup_failed")')
+    .gt('created_at', unviewedNixCutoff())
     .order('created_at', { ascending: true })
     // DB-7: the poster (`thumbnail_b64`, up to ~60 KB) stays because the viewer shows it as
     // the first frame, but one open never needs more than a bounded FIFO slice.

@@ -45,9 +45,24 @@ describe('filterUnreadInboxNixesFromSender', () => {
           is_viewed: true,
         }),
       ],
-      'sender-a'
+      'sender-a',
+      Date.parse('2026-08-11T12:00:00.000Z')
     );
 
     expect(queue.map((item) => item.id)).toEqual(['old', 'new']);
+  });
+
+  it('pomija nixy starsze niż 30 dni (plik mógł już zostać usunięty)', () => {
+    const now = Date.parse('2026-10-13T12:00:00.000Z');
+    const queue = filterUnreadInboxNixesFromSender(
+      [
+        nix({ id: 'expired', created_at: '2026-09-13T11:00:00.000Z' }),
+        nix({ id: 'fresh', created_at: '2026-09-14T12:00:00.000Z' }),
+      ],
+      'sender-a',
+      now
+    );
+
+    expect(queue.map((item) => item.id)).toEqual(['fresh']);
   });
 });
