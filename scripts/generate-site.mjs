@@ -529,6 +529,67 @@ function notFound() {
 `;
 }
 
+// Target of the button in the auth emails (scripts/generate-email-templates.mjs). The script turns
+// the link into nix://auth/confirm (src/lib/authDeepLink.ts), then drops the query from the address
+// bar so the one-time token hash does not stay in history or reach analytics. Nothing is stored or sent.
+function authConfirm() {
+  return `<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Kontynuuj w NiX</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="${SITE_CSS}" />
+    <script>
+      (function () {
+        var params = new URLSearchParams(location.search);
+        var hash = params.get('token_hash');
+        var type = params.get('type');
+        if (hash && /^[A-Za-z0-9_-]{16,256}$/.test(hash) && (type === 'signup' || type === 'recovery')) {
+          window.nixAuthLink = 'nix://auth/confirm?token_hash=' + hash + '&type=' + type;
+        }
+        if (location.search) history.replaceState(null, '', location.pathname);
+      })();
+    </script>
+  </head>
+  <body>
+    <main>
+      <section class="final not-found">
+        <div class="final-icon">${mark('rise-auth')}</div>
+        <h2 data-pl="Kontynuuj w NiX" data-en="Continue in NiX">Kontynuuj w NiX</h2>
+        <p data-pl="Na iPhonie z NiX dotknij przycisku poniżej. Możesz też po prostu wpisać w aplikacji 6-cyfrowy kod z maila."
+           data-en="On the iPhone with NiX, tap the button below. Or just enter the 6-digit code from the email in the app.">Na iPhonie z NiX dotknij przycisku poniżej. Możesz też po prostu wpisać w aplikacji 6-cyfrowy kod z maila.</p>
+        <div class="actions">
+          <a class="button primary" id="open-app" hidden data-pl="Otwórz w NiX" data-en="Open in NiX">Otwórz w NiX</a>
+          <a class="button" href="https://apps.apple.com/app/id6791332379" data-pl="Pobierz NiX" data-en="Get NiX">Pobierz NiX</a>
+        </div>
+        <p class="fine" data-pl="Ta strona nie zapisuje ani nie wysyła kodu z linku." data-en="This page doesn’t store or send the code from your link.">Ta strona nie zapisuje ani nie wysyła kodu z linku.</p>
+      </section>
+    </main>
+    <script>
+      (function () {
+        var en = !(navigator.language || '').toLowerCase().startsWith('pl');
+        if (en) {
+          document.documentElement.lang = 'en';
+          document.title = 'Continue in NiX';
+          document.querySelectorAll('[data-en]').forEach(function (node) { node.textContent = node.getAttribute('data-en'); });
+        }
+        var button = document.getElementById('open-app');
+        if (window.nixAuthLink) {
+          button.href = window.nixAuthLink;
+          button.hidden = false;
+        }
+      })();
+    </script>
+  </body>
+</html>
+`;
+}
+
 async function saveFile(path, content) {
   const target = `${ROOT}/${path}`;
   if (checkOnly) {
@@ -541,4 +602,5 @@ async function saveFile(path, content) {
 await save('/', landing(copy.pl));
 await save('/en/', landing(copy.en));
 await saveFile('404.html', notFound());
+await save('/auth/confirm/', authConfirm());
 console.log(checkOnly ? 'Website landing matches its source.' : 'Generated the website landing (PL/EN).');

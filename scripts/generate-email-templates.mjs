@@ -8,8 +8,6 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 const checkOnly = process.argv.includes('--check');
 
-// The app opens /auth/confirm links only on this origin (Universal Links + src/lib/authDeepLink.ts).
-const AUTH_LINK_ORIGIN = 'https://nix.damianmotylinski.pl';
 const SITE = 'https://nix.shipapp.pl';
 const LOGO = `${SITE}/apple-touch-icon.png`;
 
@@ -27,7 +25,8 @@ const color = {
 const font = '-apple-system, BlinkMacSystemFont, &quot;SF Pro Text&quot;, &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif';
 
 /** The confirmation link the app understands; only signup and recovery carry one. */
-const confirmLink = (type) => `${AUTH_LINK_ORIGIN}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=${type}`;
+// nix.shipapp.pl/auth/confirm/ (scripts/generate-site.mjs) hands the token to the app via nix://auth/confirm.
+const confirmLink = (type) => `${SITE}/auth/confirm/?token_hash={{ .TokenHash }}&amp;type=${type}`;
 
 const common = {
   pl: {

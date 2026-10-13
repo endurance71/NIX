@@ -19,3 +19,12 @@ Static website for NiX (`web/site/`), served by Caddy on the ShipApp VPS from `/
 2. Every change: `npm run deploy:site` streams `web/site` to `/srv/nix-site` over SSH (`contabo-mtle`).
    - It refreshes the directory in place, because the bind mount follows the directory.
    - Static files need no Caddy restart.
+
+## /auth/confirm/
+
+Cel przycisku w mailach auth (potwierdzenie konta, reset hasła). Strona czyta `token_hash` i `type`
+w przeglądarce, buduje przycisk „Otwórz w NiX” (`nix://auth/confirm?...`, obsługuje go
+`src/lib/authDeepLink.ts`) i od razu usuwa zapytanie z paska adresu (`history.replaceState`). Nic nie
+zapisuje i nic nie wysyła; Caddy nie ma `log` dla tej domeny. Universal Links dla nix.shipapp.pl
+(otwieranie aplikacji bez tej strony) wymagają nowego builda z `applinks:nix.shipapp.pl`.
+
