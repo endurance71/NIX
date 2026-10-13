@@ -71,6 +71,12 @@ email-template generator and nix.shipapp.pl/auth/confirm are merged into `main`.
 Forty-fifth OTA (2026-10-13): update group `9cec757f-3193-449b-90f2-f8a07fdc52a0`, source `be36d6d`, for builds 14
 and 15. An eye button shows / hides the password on sign-in, sign-up and reset (one button for both fields).
 
+Forty-sixth OTA (2026-10-13): update group `7f0fe450-2479-4c62-abfc-e213d6928826`, source `ce0cd48`, for builds 14
+and 15. A tap anywhere in an auth field row focuses the field; field hints sit under the card (no hairline inside).
+A received NiX can be reported from the chat with a long press; once its file is gone the report goes to the sender
+with the NiX id. The viewer treats missing media as permanent (Skip) and leaves NiXes past 30 days out of the queue.
+The push prompt waits for the tabs, never over activation or the welcome tour.
+
 ## Feature candidate — 1.0.13 (14), 2026-10-11
 
 Supersedes build 13 (never uploaded). Same **runtime 1.0.13** and channel production, so every OTA up to the
