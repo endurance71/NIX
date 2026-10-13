@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getAuthFormErrorKey } from './authFormError';
+import { getAuthFormErrorKey, isExistingAccountSignUp } from './authFormError';
 
 describe('getAuthFormErrorKey', () => {
   it('maps Auth error codes before message text', () => {
@@ -19,5 +19,14 @@ describe('getAuthFormErrorKey', () => {
   it('never returns raw server text', () => {
     expect(getAuthFormErrorKey({ message: 'duplicate key value violates unique constraint' })).toBe('auth.requestFailed');
     expect(getAuthFormErrorKey(null)).toBe('auth.requestFailed');
+  });
+});
+
+describe('isExistingAccountSignUp', () => {
+  it('rozpoznaje rejestrację na adres, który ma już konto (brak identities, brak maila)', () => {
+    expect(isExistingAccountSignUp({ user: { identities: [] } })).toBe(true);
+    expect(isExistingAccountSignUp({ user: { identities: [{ provider: 'email' }] } })).toBe(false);
+    expect(isExistingAccountSignUp({ user: null })).toBe(false);
+    expect(isExistingAccountSignUp(null)).toBe(false);
   });
 });
