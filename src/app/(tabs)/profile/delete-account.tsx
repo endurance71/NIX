@@ -99,17 +99,6 @@ export default function DeleteAccountScreen() {
                 : t('profile.deleteAccountDescription')}
             </Text>
           </FieldGroup.SectionFooter>
-          <TextInput
-            placeholder={t('profile.deleteAccountConfirmLabel')}
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={canUseNetworkSession && !loading}
-            onChangeText={(value) => {
-              setConfirmation(value);
-              setError(null);
-            }}
-            testID="delete-account-confirmation"
-          />
           {hasPassword ? (
             <TextInput
               placeholder={t('profile.deleteAccountPasswordLabel')}
@@ -123,6 +112,24 @@ export default function DeleteAccountScreen() {
               testID="delete-account-password"
             />
           ) : null}
+          {/* After the password and with autofill off: iOS fills the field just above a password
+              with the account e-mail, which never matches the username. */}
+          <TextInput
+            placeholder={
+              username
+                ? t('profile.deleteAccountConfirmPlaceholder', { username })
+                : t('profile.deleteAccountConfirmLabel')
+            }
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="off"
+            editable={canUseNetworkSession && !loading}
+            onChangeText={(value) => {
+              setConfirmation(value);
+              setError(null);
+            }}
+            testID="delete-account-confirmation"
+          />
         </FieldGroup.Section>
         <FieldGroup.Section>
           <NativeSettingsActionRow

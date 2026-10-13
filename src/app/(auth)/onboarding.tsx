@@ -13,13 +13,15 @@ import {
   AuthTertiaryText,
   AuthTextField,
 } from '../../components/ui/auth-form-layout';
+import { AuthBirthDateField } from '../../components/ui/auth-birth-date-field';
 import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
 import { useAuth } from '../../hooks/useAuth';
 import { useTrackedUsername } from '../../hooks/useAuthCredentials';
 import { normalizeUsername } from '../../services/friendService';
 import { runWithFinally } from '../../lib/runWithFinally';
 import { queryKeys } from '../../lib/queryKeys';
-import { AGE_POLICY_VERSION, isAtLeastMinimumAge, isValidBirthDate } from '../../lib/ageGate';
+import { AGE_POLICY_VERSION, isAtLeastMinimumAge, isValidBirthDate, toBirthDateValue } from '../../lib/ageGate';
+import { forgetPassedAgeCheck, hasPassedAgeCheck } from '../../lib/pendingAgeCheck';
 import { hasCurrentAgeAttestation, recordCurrentAgeAttestation } from '../../services/safetyService';
 import {
   recordProductEvent,
@@ -34,7 +36,7 @@ export default function OnboardingScreen() {
   const queryClient = useQueryClient();
   const { username, onUsernameChange, getUsername } = useTrackedUsername();
   const [displayName, setDisplayName] = useState('');
-  const [birthDate, setBirthDate] = useState('');
+  const [birthDate, setBirthDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [signOutLoading, setSignOutLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +46,13 @@ export default function OnboardingScreen() {
     queryKey: queryKeys.currentAgeAttestation(userId, AGE_POLICY_VERSION),
     queryFn: hasCurrentAgeAttestation,
   });
+  // An e-mail sign-up already checked the age on the registration screen.
+  const { data: ageCheckedAtSignUp = false } = useQuery({
+    queryKey: queryKeys.pendingAgeCheck(userId),
+    queryFn: () => hasPassedAgeCheck(user?.email),
+    enabled: !ageAttested,
+  });
+  const needsBirthDate = !ageAttested && !ageCheckedAtSignUp;
   const { data: currentProfile } = useQuery({
     queryKey: queryKeys.currentUserProfile(userId),
     queryFn: getCurrentUserProfile,
@@ -56,11 +65,12 @@ export default function OnboardingScreen() {
   const handleSetUsername = async () => {
     const cleaned = normalizeUsername(getUsername());
     const cleanedDisplayName = displayName.trim();
-    if (!ageAttested && !isValidBirthDate(birthDate)) {
+    const birthDateValue = birthDate ? toBirthDateValue(birthDate) : '';
+    if (needsBirthDate && !isValidBirthDate(birthDateValue)) {
       setError(t('auth.birthDateInvalid'));
       return;
     }
-    if (!ageAttested && !isAtLeastMinimumAge(birthDate)) {
+    if (needsBirthDate && !isAtLeastMinimumAge(birthDateValue)) {
       setError(t('auth.minimumAgeRequired'));
       return;
     }
@@ -83,6 +93,7 @@ export default function OnboardingScreen() {
         if (!ageAttested) {
           await recordCurrentAgeAttestation();
           queryClient.setQueryData(queryKeys.currentAgeAttestation(userId, AGE_POLICY_VERSION), true);
+          await forgetPassedAgeCheck(user?.email);
         }
 
         if (!currentProfile?.username) {
@@ -131,22 +142,17 @@ export default function OnboardingScreen() {
       description={
         currentProfile?.username ? t('auth.ageGateDescription') : t('auth.onboardingDescription')
       }>
-      {!ageAttested ? (
+      {needsBirthDate ? (
         <AuthFieldGroup
           footer={<AuthTertiaryText>{t('auth.birthDatePrivacyHint')}</AuthTertiaryText>}>
-          <AuthTextField
-            nativeValue={birthDate}
-            placeholder={t('auth.birthDatePlaceholder')}
-            keyboardType="numbers-and-punctuation"
-            returnKeyType={currentProfile?.username ? 'go' : 'next'}
-            onSubmitEditing={() => {
-              if (currentProfile?.username) void handleSetUsername();
-            }}
-            onChangeText={(text) => {
-              setBirthDate(text);
+          <AuthBirthDateField
+            label={t('auth.birthDateLabel')}
+            value={birthDate}
+            onChange={(date) => {
+              setBirthDate(date);
               clearError();
             }}
-            editable={!busy}
+            disabled={busy}
             testID="onboarding-birth-date"
           />
         </AuthFieldGroup>
