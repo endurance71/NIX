@@ -4,12 +4,12 @@ import { useTranslation } from 'react-i18next';
 import {
   AuthEmailDescription,
   AuthErrorText,
-  AuthFieldGroup,
   AuthFormLayout,
   AuthSecondaryButton,
-  AuthTextField,
 } from '../../components/ui/auth-form-layout';
 import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
+import { OtpCodeField } from '../../components/ui/otp-code-field';
+import { OTP_CODE_LENGTH } from '../../lib/otpCode';
 import { useAuth } from '../../hooks/useAuth';
 import { runWithFinally } from '../../lib/runWithFinally';
 import { getAuthFormErrorKey } from '../../lib/authFormError';
@@ -70,8 +70,8 @@ export default function CheckEmailScreen() {
     ? t('auth.checkEmailRecoveryBody', { email: emailLabel })
     : t('auth.checkEmailSignupBody', { email: emailLabel });
 
-  const handleVerifyOTP = async () => {
-    if (!otpCode.trim()) return;
+  const handleVerifyOTP = async (code = otpCode) => {
+    if (code.length !== OTP_CODE_LENGTH || otpLoading) return;
     setOtpLoading(true);
     setOtpError(null);
     await runWithFinally(
@@ -79,11 +79,12 @@ export default function CheckEmailScreen() {
         try {
           const { error: verifyError } = await verifyOTP(
             emailLabel,
-            otpCode.trim(),
+            code,
             isRecovery ? 'recovery' : 'signup'
           );
           if (verifyError) {
             setOtpError(t(getAuthFormErrorKey(verifyError)));
+            setOtpCode('');
           } else if (isRecovery) {
             router.replace('/(auth)/reset-password');
           } else {
@@ -105,22 +106,18 @@ export default function CheckEmailScreen() {
       <AuthFormLayout>
         <AuthEmailDescription body={description} email={emailLabel} />
 
-        <AuthFieldGroup>
-          <AuthTextField
-            placeholder={t('auth.checkEmailOtpPlaceholder')}
-            nativeValue={otpCode}
-            onChangeText={(text) => {
-              setOtpCode(text);
-              setOtpError(null);
-            }}
-            keyboardType="number-pad"
-            autoComplete="one-time-code"
-            returnKeyType="go"
-            onSubmitEditing={() => void handleVerifyOTP()}
-            editable={!otpLoading}
-            testID="check-email-code"
-          />
-        </AuthFieldGroup>
+        <OtpCodeField
+          value={otpCode}
+          onChange={(code) => {
+            setOtpCode(code);
+            setOtpError(null);
+          }}
+          onComplete={(code) => void handleVerifyOTP(code)}
+          accessibilityLabel={t('auth.checkEmailOtpPlaceholder')}
+          disabled={otpLoading}
+          autoFocus
+          testID="check-email-code"
+        />
 
         {otpError ? <AuthErrorText>{otpError}</AuthErrorText> : null}
 
@@ -128,7 +125,7 @@ export default function CheckEmailScreen() {
           label={t('auth.checkEmailOtpButton')}
           loading={otpLoading}
           onPress={() => void handleVerifyOTP()}
-          disabled={otpLoading || !otpCode.trim()}
+          disabled={otpLoading || otpCode.length !== OTP_CODE_LENGTH}
         />
         <AuthSecondaryButton
           label={

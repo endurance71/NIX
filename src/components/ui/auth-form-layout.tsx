@@ -399,7 +399,11 @@ export function AuthEmailDescription({
   const contentWidth = useAuthContentWidth();
   const emailIndex = body.indexOf(email);
   const before = emailIndex >= 0 ? body.slice(0, emailIndex) : body;
-  const after = emailIndex >= 0 ? body.slice(emailIndex + email.length) : '';
+  const rest = emailIndex >= 0 ? body.slice(emailIndex + email.length) : '';
+  // The e-mail sits on its own line; the punctuation that ends its sentence stays with it, so the
+  // next line does not start with ". Open the link…".
+  const trailingPunctuation = /^[.,:;!?]+/.exec(rest)?.[0] ?? '';
+  const after = rest.slice(trailingPunctuation.length);
 
   return (
     <VStack
@@ -416,8 +420,8 @@ export function AuthEmailDescription({
           {before.trimEnd()}
         </Text>
       ) : null}
-      {emailIndex >= 0 ? <AuthHighlightedText>{email}</AuthHighlightedText> : null}
-      {after ? (
+      {emailIndex >= 0 ? <AuthHighlightedText>{`${email}${trailingPunctuation}`}</AuthHighlightedText> : null}
+      {after.trim() ? (
         <Text
           modifiers={[
             font({ design: 'rounded', textStyle: 'subheadline' }),
