@@ -68,6 +68,9 @@ display name everywhere; the cropper confirm says Choose / Wybierz. The welcome 
 so a new account gets it after its profile step. Delete account accepts the username or the account e-mail. The
 email-template generator and nix.shipapp.pl/auth/confirm are merged into `main`.
 
+Forty-fifth OTA (2026-10-13): update group `9cec757f-3193-449b-90f2-f8a07fdc52a0`, source `be36d6d`, for builds 14
+and 15. An eye button shows / hides the password on sign-in, sign-up and reset (one button for both fields).
+
 ## Feature candidate — 1.0.13 (14), 2026-10-11
 
 Supersedes build 13 (never uploaded). Same **runtime 1.0.13** and channel production, so every OTA up to the
