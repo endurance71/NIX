@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Kontynuuj w NiX</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=3cc47c8c81" />
+    <script>
+      (function () {
+        var params = new URLSearchParams(location.search);
+        var hash = params.get('token_hash');
+        var type = params.get('type');
+        if (hash && /^[A-Za-z0-9_-]{16,256}$/.test(hash) && (type === 'signup' || type === 'recovery')) {
+          window.nixAuthLink = 'nix://auth/confirm?token_hash=' + hash + '&type=' + type;
+        }
+        if (location.search) history.replaceState(null, '', location.pathname);
+      })();
+    </script>
+  </head>
+  <body>
+    <main>
+      <section class="final not-found">
+        <div class="final-icon"><svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true">
+            <defs>
+              <linearGradient id="rise-auth" x1="272" y1="752" x2="752" y2="272" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#fff" stop-opacity="0.55" />
+                <stop offset="1" stop-color="#fff" stop-opacity="0.92" />
+              </linearGradient>
+            </defs>
+            <g fill="none" stroke-width="100" stroke-linecap="round" stroke-linejoin="round">
+              <path class="rise" d="M752 272 L272 752" stroke="url(#rise-auth)" pathLength="1" />
+              <path class="stroke" d="M272 752 L272 272 L752 752" stroke="#fff" pathLength="1" />
+            </g>
+          </svg></div>
+        <h2 data-pl="Kontynuuj w NiX" data-en="Continue in NiX">Kontynuuj w NiX</h2>
+        <p data-pl="Na iPhonie z NiX dotknij przycisku poniżej. Możesz też po prostu wpisać w aplikacji 6-cyfrowy kod z maila."
+           data-en="On the iPhone with NiX, tap the button below. Or just enter the 6-digit code from the email in the app.">Na iPhonie z NiX dotknij przycisku poniżej. Możesz też po prostu wpisać w aplikacji 6-cyfrowy kod z maila.</p>
+        <div class="actions">
+          <a class="button primary" id="open-app" hidden data-pl="Otwórz w NiX" data-en="Open in NiX">Otwórz w NiX</a>
+          <a class="button" href="https://apps.apple.com/app/id6791332379" data-pl="Pobierz NiX" data-en="Get NiX">Pobierz NiX</a>
+        </div>
+        <p class="fine" data-pl="Ta strona nie zapisuje ani nie wysyła kodu z linku." data-en="This page doesn’t store or send the code from your link.">Ta strona nie zapisuje ani nie wysyła kodu z linku.</p>
+      </section>
+    </main>
+    <script>
+      (function () {
+        var en = !(navigator.language || '').toLowerCase().startsWith('pl');
+        if (en) {
+          document.documentElement.lang = 'en';
+          document.title = 'Continue in NiX';
+          document.querySelectorAll('[data-en]').forEach(function (node) { node.textContent = node.getAttribute('data-en'); });
+        }
+        var button = document.getElementById('open-app');
+        if (window.nixAuthLink) {
+          button.href = window.nixAuthLink;
+          button.hidden = false;
+        }
+      })();
+    </script>
+  </body>
+</html>

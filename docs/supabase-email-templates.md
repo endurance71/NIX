@@ -2,6 +2,36 @@
 
 Branded HTML maile auth dla rejestracji, resetu hasła, reautoryzacji i powiadomień bezpieczeństwa.
 
+## Generator (źródło prawdy)
+
+Szablony **generuje** [`scripts/generate-email-templates.mjs`](../scripts/generate-email-templates.mjs) w stylu
+nix.shipapp.pl (szare tła systemowe, kafel marki, przycisk-pigułka, jasny i ciemny motyw). Nie edytuj
+plików `supabase/templates/*.html` ręcznie:
+
+```bash
+npm run generate:email-templates   # zapisuje 7 szablonów
+npm run check:email-templates      # sprawdza, czy pliki są aktualne
+```
+
+- Języki: PL (gdy `.Data.language`/`.Data.locale` = `pl`) i EN dla pozostałych — jak w aplikacji.
+- Główny element to 6-cyfrowy kod (`{{ .Token }}`). Przycisk z linkiem jest tylko w `confirmation`
+  i `recovery`, bo aplikacja przyjmuje link `/auth/confirm` wyłącznie dla `signup` i `recovery`
+  (`src/lib/authDeepLink.ts`). Link prowadzi na `https://nix.shipapp.pl/auth/confirm/` — strona
+  (generowana w `scripts/generate-site.mjs`) przekazuje kod do aplikacji przyciskiem
+  `nix://auth/confirm?...` i od razu usuwa go z paska adresu. Domena `nix.damianmotylinski.pl` nie jest
+  już używana w mailach (od 2026-10-13).
+- Logo: `https://nix.shipapp.pl/apple-touch-icon.png`; stopka: Pomoc i Prywatność na nix.shipapp.pl.
+
+## Stan produkcji (sprawdzone 2026-10-12)
+
+- SMTP (od 2026-10-13): SEOHOST `mail.shipapp.pl:465`, nadawca „NiX <nix@shipapp.pl>”, min. 60 s między
+  mailami do jednej osoby, limit 30 e-maili/h. Test resetu do Gmaila: skrzynka Odebrane (nie spam).
+- 2026-10-13: nowe szablony i tematy (7 sztuk) wgrane przez Management API
+  (`PATCH /v1/projects/{ref}/config/auth`, tylko pola `mailer_subjects_*` i `mailer_templates_*`;
+  zweryfikowane 1:1 z repo, pozostała konfiguracja bez zmian). Tego samego dnia linki przestawione na nix.shipapp.pl. Kopia poprzedniej konfiguracji:
+  `~/.nix-ops/email-templates-backup/auth-config-2026-10-13.json` (poza repo).
+- Site URL `http://127.0.0.1:3000`; Redirect URLs: `nix://auth/callback` + lokalne.
+
 ## Pliki szablonów
 
 | Typ Supabase | Plik | Temat (subject) |
@@ -60,7 +90,10 @@ Po push sprawdź w Dashboard:
 - **Authentication → Email Templates:** podgląd HTML (6 auth + notifications)
 - **Authentication → Emails:** opcjonalnie Sender name „NiX”
 
-Wysyłka: domyślna Supabase (bez własnego SMTP).
+Wysyłka: domyślna Supabase (bez własnego SMTP) — patrz „Stan produkcji”.
+
+> Uwaga: `npx supabase config push` wypycha **cały** `config.toml` (także lokalne wartości, np. limity).
+> Bezpieczniej wgrać same szablony przez Dashboard (Authentication → Emails → Templates) albo Management API.
 
 ## Uwaga o ścieżkach `content_path`
 
