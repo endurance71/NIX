@@ -14,10 +14,12 @@ import {
   AuthTextField,
   AuthTextLink,
 } from '../../components/ui/auth-form-layout';
+import { AuthBirthDateField } from '../../components/ui/auth-birth-date-field';
 import { AuthLabeledField } from '../../components/ui/auth-labeled-field';
 import { AuthLegalAcceptance } from '../../components/ui/auth-legal-acceptance';
 import { AuthPrimaryButton } from '../../components/ui/auth-primary-button';
-import { isAtLeastMinimumAge, isValidBirthDate } from '../../lib/ageGate';
+import { isAtLeastMinimumAge, isValidBirthDate, toBirthDateValue } from '../../lib/ageGate';
+import { rememberPassedAgeCheck } from '../../lib/pendingAgeCheck';
 import { runWithFinally } from '../../lib/runWithFinally';
 import { getAuthLegalAcceptanceState } from '../../theme/authLayout';
 import { getAuthFormErrorKey } from '../../lib/authFormError';
@@ -42,7 +44,7 @@ export default function RegisterScreen() {
   } = useAuthRegisterCredentials();
   const [loading, setLoading] = useState(false);
   const [acceptedLegal, setAcceptedLegal] = useState(false);
-  const [birthDate, setBirthDate] = useState('');
+  const [birthDate, setBirthDate] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const passwordRef = useRef<TextInputRef>(null);
   const confirmPasswordRef = useRef<TextInputRef>(null);
@@ -69,11 +71,12 @@ export default function RegisterScreen() {
       setError(t('auth.passwordMismatch'));
       return;
     }
-    if (!isValidBirthDate(birthDate)) {
+    const birthDateValue = birthDate ? toBirthDateValue(birthDate) : '';
+    if (!isValidBirthDate(birthDateValue)) {
       setError(t('auth.birthDateInvalid'));
       return;
     }
-    if (!isAtLeastMinimumAge(birthDate)) {
+    if (!isAtLeastMinimumAge(birthDateValue)) {
       setError(t('auth.minimumAgeRequired'));
       return;
     }
@@ -92,6 +95,7 @@ export default function RegisterScreen() {
           if (signUpError) {
             setError(t(getAuthFormErrorKey(signUpError)));
           } else {
+            await rememberPassedAgeCheck(cleanedEmail);
             router.replace({ pathname: '/(auth)/check-email', params: { email: cleanedEmail, mode: 'signup' } });
           }
         } catch (cause) {
@@ -155,20 +159,16 @@ export default function RegisterScreen() {
             testID="register-confirm-password"
           />
         </AuthLabeledField>
-        <AuthLabeledField label={t('auth.birthDateLabel')}>
-          <AuthTextField
-            nativeValue={birthDate}
-            placeholder={t('auth.birthDatePlaceholder')}
-            keyboardType="numbers-and-punctuation"
-            returnKeyType="done"
-            onChangeText={(text) => {
-              setBirthDate(text);
-              clearError();
-            }}
-            editable={!loading}
-            testID="register-birth-date"
-          />
-        </AuthLabeledField>
+        <AuthBirthDateField
+          label={t('auth.birthDateLabel')}
+          value={birthDate}
+          onChange={(date) => {
+            setBirthDate(date);
+            clearError();
+          }}
+          disabled={loading}
+          testID="register-birth-date"
+        />
       </AuthFieldGroup>
 
       {error ? <AuthErrorText>{error}</AuthErrorText> : null}

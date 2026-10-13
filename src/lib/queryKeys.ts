@@ -18,6 +18,7 @@ export const queryKeys = {
   nixReactions: (nixIds: readonly string[]) => ['nixReactions', nixIds] as const,
   currentAgeAttestation: (userId: string | null, policyVersion: string) =>
     ['currentAgeAttestation', userId ?? 'none', policyVersion] as const,
+  pendingAgeCheck: (userId: string | null) => ['pendingAgeCheck', userId ?? 'none'] as const,
   blockedUsers: ['blockedUsers'] as const,
   contentReports: ['contentReports'] as const,
   productAnalyticsConsent: ['productAnalyticsConsent'] as const,

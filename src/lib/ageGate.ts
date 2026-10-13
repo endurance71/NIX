@@ -14,6 +14,12 @@ function parseIsoDate(value: string): DateParts | null {
   return { year, month, day };
 }
 
+/** A picked calendar date as `YYYY-MM-DD` in local time, the format the checks below read. */
+export function toBirthDateValue(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 export function isValidBirthDate(value: string, referenceDate = new Date()): boolean {
   const parts = parseIsoDate(value);
   if (!parts) return false;

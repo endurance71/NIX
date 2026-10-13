@@ -68,6 +68,11 @@ export function AuthLegalAcceptance({
   );
 }
 
+// The visual box sits flush with the column's leading edge (like the links below it), and the
+// label's first line is centred on the box; the 44 pt hit area still surrounds the box.
+const HIT_INSET = (AUTH_LEGAL_CHECKBOX_HIT_SIZE - AUTH_LEGAL_CHECKBOX_VISUAL_SIZE) / 2;
+const LABEL_FIRST_LINE_INSET = (AUTH_LEGAL_CHECKBOX_HIT_SIZE - typography.footnote.lineHeight) / 2;
+
 const styles = StyleSheet.create({
   row: {
     minHeight: AUTH_LEGAL_CONTROL_MIN_HEIGHT,
@@ -75,6 +80,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   checkboxHitArea: {
+    marginLeft: -HIT_INSET,
     width: AUTH_LEGAL_CHECKBOX_HIT_SIZE,
     height: AUTH_LEGAL_CHECKBOX_HIT_SIZE,
     alignItems: 'center',
@@ -97,9 +103,9 @@ const styles = StyleSheet.create({
   label: {
     flex: 1,
     minHeight: AUTH_LEGAL_CONTROL_MIN_HEIGHT,
-    paddingTop: 3,
-    paddingBottom: 4,
-    paddingLeft: 6,
+    paddingTop: LABEL_FIRST_LINE_INSET,
+    paddingBottom: LABEL_FIRST_LINE_INSET,
+    paddingLeft: 4,
     ...typography.footnote,
   },
   pressed: {
