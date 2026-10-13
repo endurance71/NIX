@@ -13,6 +13,7 @@ import {
   NativeSettingsRow,
   NativeSettingsSection,
 } from '../../../components/ui/native-settings';
+import { OtpCodeField } from '../../../components/ui/otp-code-field';
 import { SettingsListScreen } from '../../../components/ui/settings-list-screen';
 
 function isReauthenticationNeededError(error: { message?: string; code?: string } | null) {
@@ -171,13 +172,12 @@ export default function ChangePasswordScreen() {
             testID="confirm-password"
           />
           {requiresNonce ? (
-            <TextInput
-              placeholder={t('profile.verificationCode')}
-              secureTextEntry
-              autoComplete="one-time-code"
-              keyboardType="number-pad"
-              editable={canUseNetworkSession && !loading}
-              onChangeText={(value) => dispatchForm({ type: 'field', field: 'nonce', value })}
+            <OtpCodeField
+              value={nonce}
+              onChange={(value) => dispatchForm({ type: 'field', field: 'nonce', value })}
+              accessibilityLabel={t('profile.verificationCode')}
+              disabled={!canUseNetworkSession || loading}
+              autoFocus
               testID="verification-code"
             />
           ) : null}
