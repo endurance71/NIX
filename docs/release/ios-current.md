@@ -87,7 +87,11 @@ Forty-eighth OTA (2026-10-13): update group `07bc0f72-a824-4ee1-a327-f4807727dbc
 and 15. Traced on the simulator: right after the sign-up e-mail code the whole provider tree mounts again and the
 session reads as empty for a moment, so the root navigator forgot that this run started signed out and treated the
 new account as a restored session (no welcome tour). That flag now lives in module state, and the tour state resets
-only on a real sign-out. Not yet re-verified with a fresh sign-up on the simulator.
+only on a real sign-out. Owner confirmed on device the same day: the tour opens after a fresh sign-up.
+
+Forty-ninth OTA (2026-10-13): update group `91de568d-4d58-4c0e-9d1f-45072ca6446d`, source `7070176`, for builds 14
+and 15. Signing up with an address that already has a confirmed account returns no error and sends no e-mail; the
+form now says the account exists (empty `identities`) instead of opening the code screen.
 
 ## Feature candidate — 1.0.13 (14), 2026-10-11
 
