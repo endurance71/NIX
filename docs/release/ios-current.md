@@ -83,6 +83,12 @@ just opened. The tour now reopens on the tabs until it is closed. Server side (n
 redeployed the same day: a report of a NiX whose file is already deleted is kept with a metadata record instead of
 ending as `evidence_failed`.
 
+Forty-eighth OTA (2026-10-13): update group `07bc0f72-a824-4ee1-a327-f4807727dbc1`, source `12d7aef`, for builds 14
+and 15. Traced on the simulator: right after the sign-up e-mail code the whole provider tree mounts again and the
+session reads as empty for a moment, so the root navigator forgot that this run started signed out and treated the
+new account as a restored session (no welcome tour). That flag now lives in module state, and the tour state resets
+only on a real sign-out. Not yet re-verified with a fresh sign-up on the simulator.
+
 ## Feature candidate — 1.0.13 (14), 2026-10-11
 
 Supersedes build 13 (never uploaded). Same **runtime 1.0.13** and channel production, so every OTA up to the
