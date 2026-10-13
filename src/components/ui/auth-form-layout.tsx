@@ -1,11 +1,16 @@
 import React, {
   Children,
+  createContext,
   forwardRef,
   isValidElement,
   type PropsWithChildren,
   type ReactNode,
+  use,
   useEffect,
+  useImperativeHandle,
   useMemo,
+  useRef,
+  useState,
 } from 'react';
 import { AccessibilityInfo, PixelRatio, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -17,6 +22,7 @@ import {
   background,
   buttonStyle,
   clipShape,
+  contentShape,
   controlSize,
   fixedSize,
   font,
@@ -44,8 +50,60 @@ import {
   getAuthElevatedSurfaceColor,
   getAuthOrDividerLineWidth,
 } from '../../theme/authLayout';
+import { spacing } from '../../theme/spacing';
 import { AuthContentWidthContext, useAuthContentWidth } from './auth-content-width';
 import { AppHost } from './app-host';
+
+// Lets a field tell the group row it sits in how to focus it, so a tap anywhere in the row (its
+// padding and label included) lands in the field instead of only on the line of text.
+const AuthFieldRowFocusContext = createContext<((field: TextInputRef | null) => void) | null>(null);
+
+/** One card row. Becomes a single tap target when it holds a text or password field. */
+function AuthFieldRow({
+  children,
+  minHeight,
+  verticalPadding,
+  alignment,
+}: PropsWithChildren<{ minHeight: number; verticalPadding: number; alignment: 'leading' | 'center' }>) {
+  const [field, setField] = useState<TextInputRef | null>(null);
+
+  return (
+    <AuthFieldRowFocusContext.Provider value={setField}>
+      <VStack
+        spacing={0}
+        modifiers={[
+          frame({ maxWidth: Infinity, minHeight, alignment }),
+          padding({ horizontal: AUTH_FIELD_INNER_PADDING, vertical: verticalPadding }),
+          ...(field ? [contentShape(shapes.rectangle()), onTapGesture(() => field.focus())] : []),
+        ]}>
+        {children}
+      </VStack>
+    </AuthFieldRowFocusContext.Provider>
+  );
+}
+
+/** Forwards the field's ref and registers it with the surrounding group row. */
+function useAuthFieldRef(ref: React.ForwardedRef<TextInputRef>) {
+  const inputRef = useRef<TextInputRef>(null);
+  const registerWithRow = use(AuthFieldRowFocusContext);
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => inputRef.current?.focus(),
+      blur: () => inputRef.current?.blur(),
+      clear: () => inputRef.current?.clear(),
+      isFocused: () => inputRef.current?.isFocused() ?? false,
+      setSelection: (start, end) => inputRef.current?.setSelection(start, end) ?? Promise.resolve(),
+    }),
+    []
+  );
+  useEffect(() => {
+    if (!registerWithRow) return;
+    registerWithRow(inputRef.current);
+    return () => registerWithRow(null);
+  }, [registerWithRow]);
+  return inputRef;
+}
 
 export type ObservableState<T> = { value: T };
 
@@ -93,7 +151,7 @@ export function AuthFieldGroup({
   const rowAlignment = labeled ? 'leading' : 'center';
   const surfaceColor = getAuthElevatedSurfaceColor(colors, isDark);
 
-  return (
+  const card = (
     <VStack
       spacing={0}
       modifiers={[
@@ -104,35 +162,26 @@ export function AuthFieldGroup({
       {items.map((child, index) => (
         <React.Fragment key={isValidElement(child) && child.key != null ? String(child.key) : index}>
           {index > 0 ? <AuthFieldSeparator /> : null}
-          <VStack
-            spacing={0}
-            modifiers={[
-              frame({ maxWidth: Infinity, minHeight: rowMinHeight, alignment: rowAlignment }),
-              padding({
-                horizontal: AUTH_FIELD_INNER_PADDING,
-                vertical: rowVerticalPadding,
-              }),
-            ]}>
+          <AuthFieldRow minHeight={rowMinHeight} verticalPadding={rowVerticalPadding} alignment={rowAlignment}>
             {child}
-          </VStack>
+          </AuthFieldRow>
         </React.Fragment>
       ))}
-      {footer ? (
-        <>
-          {items.length > 0 ? <AuthFieldSeparator /> : null}
-          <VStack
-            spacing={0}
-            modifiers={[
-              frame({ maxWidth: Infinity, alignment: 'leading' }),
-              padding({
-                horizontal: AUTH_FIELD_INNER_PADDING,
-                vertical: AUTH_FIELD_INNER_PADDING,
-              }),
-            ]}>
-            {footer}
-          </VStack>
-        </>
-      ) : null}
+    </VStack>
+  );
+  if (!footer) return card;
+
+  // The hint sits under the card like an iOS section footer. Inside the card, the hairline above
+  // it read as the line to write on.
+  return (
+    <VStack alignment="leading" spacing={spacing.sm} modifiers={contentColumnModifiers(contentWidth)}>
+      {card}
+      <VStack
+        alignment="leading"
+        spacing={0}
+        modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ horizontal: AUTH_FIELD_INNER_PADDING })]}>
+        {footer}
+      </VStack>
     </VStack>
   );
 }
@@ -197,9 +246,10 @@ export const AuthTextField = forwardRef<TextInputRef, AuthFieldProps>(function A
   { nativeValue, autoCapitalize = 'none', autoCorrect = false, ...props },
   ref
 ) {
+  const inputRef = useAuthFieldRef(ref);
   return (
     <TextInput
-      ref={ref}
+      ref={inputRef}
       defaultValue={getValue(nativeValue)}
       autoCapitalize={autoCapitalize}
       autoCorrect={autoCorrect}
@@ -225,9 +275,10 @@ export const AuthSecureField = forwardRef<
   ref
 ) {
   const { colors } = useAppTheme();
+  const inputRef = useAuthFieldRef(ref);
   const field = (
     <TextInput
-      ref={ref}
+      ref={inputRef}
       defaultValue={getValue(nativeValue)}
       secureTextEntry={!revealed}
       autoCapitalize={autoCapitalize}

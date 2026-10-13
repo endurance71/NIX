@@ -29,6 +29,14 @@ export function classifyViewerFailure(error: unknown): ViewerFailureKind {
   const status = Number(candidate?.status ?? candidate?.statusCode);
   const message = `${candidate?.message ?? ''} ${candidate?.code ?? ''}`.toLowerCase();
   if (status === 401 || message.includes('jwt') || message.includes('unauthorized')) return 'unauthorized';
-  if (status === 404 || message.includes('not found') || message.includes('object does not exist')) return 'permanentMissing';
+  // `not_found` also covers the app's own DomainError('NOT_FOUND'), whose message is translated.
+  if (
+    status === 404 ||
+    message.includes('not found') ||
+    message.includes('not_found') ||
+    message.includes('object does not exist')
+  ) {
+    return 'permanentMissing';
+  }
   return 'transient';
 }

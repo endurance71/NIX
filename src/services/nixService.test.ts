@@ -389,7 +389,7 @@ describe('fetchUnreadInboxQueueFromSender (DB-7)', () => {
           media_type: 'video',
           playback_duration_ms: 3000,
           thumbnail_b64: 'data:image/jpeg;base64,AAAA',
-          created_at: '2026-10-10T10:00:00.000Z',
+          created_at: new Date().toISOString(),
           is_viewed: false,
           status: 'sent',
           view_duration_sec: 5,
@@ -397,15 +397,18 @@ describe('fetchUnreadInboxQueueFromSender (DB-7)', () => {
       ],
     });
     const order = vi.fn(() => ({ limit }));
+    const gt = vi.fn(() => ({ order }));
     const chain: { eq: ReturnType<typeof vi.fn>; not: ReturnType<typeof vi.fn> } = {
       eq: vi.fn(() => chain),
-      not: vi.fn(() => ({ order })),
+      not: vi.fn(() => ({ gt })),
     };
     mockNixesSelect.mockReturnValueOnce(chain as never);
 
     const result = await fetchUnreadInboxQueueFromSender('sender-1');
 
     expect(String(mockNixesSelect.mock.calls.at(0)?.at(0) ?? '')).toContain('thumbnail_b64');
+    // NiXes past the 30-day retention may have lost their file; they never enter the queue.
+    expect(gt).toHaveBeenCalledWith('created_at', expect.any(String));
     expect(order).toHaveBeenCalledWith('created_at', { ascending: true });
     expect(limit).toHaveBeenCalledWith(UNREAD_SENDER_QUEUE_LIMIT);
     expect(UNREAD_SENDER_QUEUE_LIMIT).toBe(20);

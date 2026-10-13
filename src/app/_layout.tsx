@@ -48,7 +48,7 @@ import { OfflineCacheProvider, useOfflineCache } from '../context/OfflineCachePr
 import type { Session } from '@supabase/supabase-js';
 import type { TFunction } from 'i18next';
 import { SOFT_SCROLL_EDGE_EFFECTS } from '../theme/scrollEdge';
-import { resetWelcome, shouldOpenWelcome } from '../lib/welcomePresentation';
+import { isWelcomePending, resetWelcome, shouldOpenWelcome } from '../lib/welcomePresentation';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Catch and ignore in environments where splash screen autohide prevention is unavailable.
@@ -284,6 +284,7 @@ function AppStack({
   session,
   canUseNetworkSession,
   needsOnboarding,
+  canPromptPush,
   colors,
   statusBarStyle,
   t,
@@ -291,6 +292,7 @@ function AppStack({
   session: Session | null;
   canUseNetworkSession: boolean;
   needsOnboarding: boolean;
+  canPromptPush: boolean;
   colors: AppColors;
   statusBarStyle: AppStatusBarStyle;
   t: TFunction;
@@ -450,6 +452,7 @@ function AppStack({
       userId={session?.user.id ?? null}
       enabled={Boolean(session) && canUseNetworkSession}
       canNavigate={!needsOnboarding}
+      canPromptPush={canPromptPush}
     >
       {content}
     </PushNotificationsProvider>
@@ -623,6 +626,16 @@ function useWelcomePresentation(enabled: boolean, segments: string[], userId: st
   }, [enabled, segments, signedInNow, userId]);
 }
 
+/** The push prompt waits for the main app: not over the profile step, activation or the tour. */
+function canOfferPushPrompt(
+  needsOnboarding: boolean,
+  topRoute: string | undefined,
+  userId: string | null,
+  signedInNow: boolean
+) {
+  return !needsOnboarding && topRoute === '(tabs)' && !isWelcomePending(userId, signedInNow);
+}
+
 /** True once a session appears after this run has seen the signed-out state (a fresh sign-in). */
 function useSignedInThisRun(authStatus: string, userId: string | null) {
   const [sawSignedOut, setSawSignedOut] = useState(false);
@@ -766,6 +779,7 @@ function RootNavigator() {
         session={session}
         canUseNetworkSession={canUseNetworkSession}
         needsOnboarding={needsOnboarding}
+        canPromptPush={canOfferPushPrompt(needsOnboarding, segments[0], userId, signedInNow)}
         colors={colors}
         statusBarStyle={statusBarStyle}
         t={t}

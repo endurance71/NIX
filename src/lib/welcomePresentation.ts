@@ -30,3 +30,8 @@ export function shouldOpenWelcome(userId: string, topRoute: string | undefined):
   openingFor = userId;
   return true;
 }
+
+/** True from a fresh sign-in until the tour is closed, including the moments before it opens. */
+export function isWelcomePending(userId: string | null, signedInNow: boolean): boolean {
+  return Boolean(userId) && signedInNow && seenFor !== userId;
+}

@@ -198,11 +198,14 @@ export function PushNotificationsProvider({
   userId: sessionUserId,
   enabled,
   canNavigate,
+  canPromptPush,
   children,
 }: {
   userId: string | null;
   enabled: boolean;
   canNavigate: boolean;
+  /** The main app is in front: no profile step, activation screen or welcome tour to cover. */
+  canPromptPush: boolean;
   children: ReactNode;
 }) {
   const userId = enabled ? sessionUserId : null;
@@ -212,6 +215,10 @@ export function PushNotificationsProvider({
   const [busy, setBusy] = useState(false);
   const handledResponses = useRef<Set<string>>(new Set());
   const pendingResponse = useRef<Notifications.NotificationResponse | null>(null);
+  const canPromptPushRef = useRef(canPromptPush);
+  useEffect(() => {
+    canPromptPushRef.current = canPromptPush;
+  }, [canPromptPush]);
 
   const refresh = useCallback(
     async () => {
@@ -276,9 +283,12 @@ export function PushNotificationsProvider({
     }
     const offers = decidePushRationale(source, await getPushPromptOffers(userId));
     if (!offers) return;
-    await markPushPromptOffers(userId, offers);
     // Never drop a system Alert onto a banner that is still entering or leaving.
     await appNotificationQueue.whenSettled();
+    // The waits above take a moment; a screen such as the welcome tour may have opened since.
+    // Leave the offer unused so it comes back once the main app is in front.
+    if (source === 'onboarding' && !canPromptPushRef.current) return;
+    await markPushPromptOffers(userId, offers);
     trackEvent('push_rationale_shown', { source });
     Alert.alert(t('push.rationaleTitle'), t('push.rationaleBody'), [
       { text: t('push.notNow'), style: 'cancel' },
@@ -308,12 +318,13 @@ export function PushNotificationsProvider({
     };
   }, [refresh, userId]);
 
-  // After onboarding, offer push once so receivers (not only senders) register a token.
+  // After onboarding, offer push once so receivers (not only senders) register a token. Only on
+  // the main app, never over the activation screen or the welcome tour.
   useEffect(() => {
-    if (!userId || !canNavigate || state !== 'disabled' || busy) return;
+    if (!userId || !canPromptPush || state !== 'disabled' || busy) return;
     const timer = setTimeout(offerPushRationaleFromEffect, 800);
     return () => clearTimeout(timer);
-  }, [busy, canNavigate, state, userId]);
+  }, [busy, canPromptPush, state, userId]);
 
   useEffect(() => {
     if (!userId) return;
