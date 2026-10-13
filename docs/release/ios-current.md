@@ -51,6 +51,12 @@ Forty-first OTA (2026-10-12): update group `04fe3a75-7910-4778-bc5c-f84270d4abac
 15. It ships the privacy policy and terms 2026-10-12: a formal policy checked against the code, and a zero-tolerance
 clause. `LEGAL_DOCUMENT_VERSION` is now 2026-10-12. The same documents are live on https://nix.shipapp.pl/privacy/.
 
+Forty-second OTA (2026-10-13): update group `05abd5c1-4744-4ca8-a4fb-64acca0e2e79`, source `1a1105d`, for builds 14
+and 15. Fixes found while recording for App Review: the birth date is a native SwiftUI date picker, asked once (an
+e-mail sign-up carries the passed check to onboarding; Apple sign-ins still ask); Delete account puts the password
+first and turns autofill off on the username confirmation, so iOS no longer fills in the e-mail; the consent checkbox
+lines up with the links and its label.
+
 ## Feature candidate — 1.0.13 (14), 2026-10-11
 
 Supersedes build 13 (never uploaded). Same **runtime 1.0.13** and channel production, so every OTA up to the
