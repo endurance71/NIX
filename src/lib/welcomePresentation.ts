@@ -1,7 +1,20 @@
 // Per app run, in memory: the welcome tour opens after every sign-in or sign-up and is
-// forgotten on sign-out.
+// forgotten on sign-out. Module state on purpose: right after sign-up the whole provider tree can
+// mount again (the session reads as empty for a moment), and component state would forget that
+// this run started signed out.
 let seenFor: string | null = null;
 let openingFor: string | null = null;
+let sawSignedOut = false;
+
+/** Called on every auth change; only a confirmed signed-out state counts (not "still loading"). */
+export function noteAuthState(signedOut: boolean) {
+  if (signedOut) sawSignedOut = true;
+}
+
+/** A session that appeared after this run saw the signed-out state, i.e. a fresh sign-in. */
+export function isSignedInThisRun(userId: string | null): boolean {
+  return sawSignedOut && Boolean(userId);
+}
 
 /** Called when the person closes the tour; until then it may be shown again. */
 export function markWelcomeSeen(userId: string | null) {
@@ -12,6 +25,12 @@ export function markWelcomeSeen(userId: string | null) {
 export function resetWelcome() {
   seenFor = null;
   openingFor = null;
+}
+
+/** Test helper: a new app run. */
+export function resetWelcomeRunForTests() {
+  resetWelcome();
+  sawSignedOut = false;
 }
 
 /**

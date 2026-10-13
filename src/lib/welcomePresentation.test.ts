@@ -1,8 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { isWelcomePending, markWelcomeSeen, resetWelcome, shouldOpenWelcome } from './welcomePresentation';
+import {
+  isSignedInThisRun,
+  isWelcomePending,
+  markWelcomeSeen,
+  noteAuthState,
+  resetWelcome,
+  resetWelcomeRunForTests,
+  shouldOpenWelcome,
+} from './welcomePresentation';
 
 describe('welcomePresentation', () => {
-  beforeEach(() => resetWelcome());
+  beforeEach(() => resetWelcomeRunForTests());
 
   it('otwiera powitanie raz na zakładkach', () => {
     expect(shouldOpenWelcome('u1', '(tabs)')).toBe(true);
@@ -43,5 +51,15 @@ describe('welcomePresentation', () => {
     expect(isWelcomePending(null, true)).toBe(false);
     markWelcomeSeen('u1');
     expect(isWelcomePending('u1', true)).toBe(false);
+  });
+
+  it('pamięta świeże logowanie po ponownym zamontowaniu aplikacji (stan poza komponentem)', () => {
+    expect(isSignedInThisRun('u1')).toBe(false); // sesja przywrócona przy starcie
+    noteAuthState(true); // ekran logowania / rejestracji
+    expect(isSignedInThisRun(null)).toBe(false);
+    // Po kodzie z maila drzewo montuje się od nowa: nowe komponenty pytają moduł, nie swój stan.
+    expect(isSignedInThisRun('u1')).toBe(true);
+    noteAuthState(false); // chwilowo pusta sesja w trakcie montowania niczego nie kasuje
+    expect(isSignedInThisRun('u1')).toBe(true);
   });
 });
