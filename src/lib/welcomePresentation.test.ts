@@ -17,6 +17,13 @@ describe('welcomePresentation', () => {
     expect(shouldOpenWelcome('u1', '(tabs)')).toBe(true);
   });
 
+  it('otwiera ponownie, gdy spóźnione przekierowanie podmieniło otwarte powitanie', () => {
+    expect(shouldOpenWelcome('u1', '(tabs)')).toBe(true);
+    expect(shouldOpenWelcome('u1', 'welcome')).toBe(false);
+    // router.replace('/(tabs)') after the profile step lands on top of the tour.
+    expect(shouldOpenWelcome('u1', '(tabs)')).toBe(true);
+  });
+
   it('nie wraca po zamknięciu, nawet po wyjściu z zakładek', () => {
     expect(shouldOpenWelcome('u1', '(tabs)')).toBe(true);
     markWelcomeSeen('u1');

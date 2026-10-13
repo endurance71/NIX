@@ -88,3 +88,19 @@ export function statusForRpcError(message: string): 400 | 401 | 403 | 429 {
   if (normalized.includes('not reportable')) return 403;
   return 400;
 }
+
+/**
+ * True when a reported NiX's file is gone for good: the cleanup deleted it (after the replay
+ * period or the 30-day retention) or storage no longer has the object. Such a report is still
+ * accepted with a metadata record instead of a copy; any other download failure is retried.
+ */
+export function isNixMediaGone(
+  nixStatus: string | null | undefined,
+  downloadError: { message?: string; statusCode?: string | number; status?: number } | null | undefined,
+): boolean {
+  if (nixStatus === 'cleaned' || nixStatus === 'cleanup_failed') return true;
+  if (!downloadError) return false;
+  const status = Number(downloadError.statusCode ?? downloadError.status);
+  const message = (downloadError.message ?? '').toLowerCase();
+  return status === 404 || message.includes('not found') || message.includes('object does not exist');
+}
