@@ -77,6 +77,12 @@ A received NiX can be reported from the chat with a long press; once its file is
 with the NiX id. The viewer treats missing media as permanent (Skip) and leaves NiXes past 30 days out of the queue.
 The push prompt waits for the tabs, never over activation or the welcome tour.
 
+Forty-seventh OTA (2026-10-13): update group `df3d13b3-c67c-430b-b250-2edca0b5df7a`, source `3ccb2b1`, for builds 14
+and 15. After the profile step two redirects to the tabs race; the later one could replace the welcome tour that had
+just opened. The tour now reopens on the tabs until it is closed. Server side (no OTA needed), `report-content` was
+redeployed the same day: a report of a NiX whose file is already deleted is kept with a metadata record instead of
+ending as `evidence_failed`.
+
 ## Feature candidate — 1.0.13 (14), 2026-10-11
 
 Supersedes build 13 (never uploaded). Same **runtime 1.0.13** and channel production, so every OTA up to the
