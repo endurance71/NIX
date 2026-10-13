@@ -16,12 +16,18 @@ export function resetWelcome() {
 
 /**
  * Whether to open the tour now. `segments[0]` is the current top route. A tour opened on the tabs
- * can be replaced right away by a redirect (a new account briefly lands on the tabs before its
- * profile step); leaving the tabs for anything but the tour itself cancels that attempt, so the
- * tour opens again once the account reaches the tabs for real.
+ * can be replaced right away by a redirect: a new account briefly lands on the tabs before its
+ * profile step, and after that step two redirects to the tabs race, so the later one can replace
+ * the tour itself. Only closing the tour marks it seen; until then, coming back to the tabs (from
+ * the tour or from anywhere else) opens it again, while a push still on its way is not repeated.
  */
 export function shouldOpenWelcome(userId: string, topRoute: string | undefined): boolean {
-  if (seenFor === userId || topRoute === 'welcome') return false;
+  if (seenFor === userId) return false;
+  if (topRoute === 'welcome') {
+    // The push arrived; if a redirect replaces the tour now, the next visit to the tabs reopens it.
+    if (openingFor === userId) openingFor = null;
+    return false;
+  }
   if (topRoute !== '(tabs)') {
     if (openingFor === userId) openingFor = null;
     return false;

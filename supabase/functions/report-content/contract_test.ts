@@ -1,6 +1,7 @@
 import { assertEquals } from 'jsr:@std/assert@1';
 import {
   TEXT_REPORTS_ENABLED,
+  isNixMediaGone,
   statusForRpcError,
   validateReportPayload,
 } from './contract.ts';
@@ -70,4 +71,13 @@ Deno.test('maps RPC errors to closed HTTP statuses', () => {
     validateReportPayload({ reason: 'spam', reportedUserId: 'user-1' }, { textReportsEnabled: false }).ok,
     true
   );
+});
+
+Deno.test('treats a cleaned NiX or a missing object as gone, other failures as retryable', () => {
+  assertEquals(isNixMediaGone('cleaned', null), true);
+  assertEquals(isNixMediaGone('cleanup_failed', { message: 'timeout' }), true);
+  assertEquals(isNixMediaGone('sent', { statusCode: '404', message: 'Object not found' }), true);
+  assertEquals(isNixMediaGone('viewed', { message: 'Object not found' }), true);
+  assertEquals(isNixMediaGone('sent', { statusCode: 500, message: 'Query was aborted' }), false);
+  assertEquals(isNixMediaGone('sent', null), false);
 });

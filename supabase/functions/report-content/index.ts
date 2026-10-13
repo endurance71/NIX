@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.3';
 import { corsHeaders, getBearerToken, json, notifySentry } from '../_shared/http.ts';
-import { statusForRpcError, validateReportPayload } from './contract.ts';
+import { isNixMediaGone, statusForRpcError, validateReportPayload } from './contract.ts';
 
 function extensionFor(mediaPath: string, mediaType: string) {
   const raw = mediaPath.split('?')[0].split('.').pop()?.toLowerCase();
@@ -167,28 +167,67 @@ Deno.serve(async (req) => {
         .from('media-vault')
         .download(report.media_path);
       if (downloadError || !media) {
-        await markEvidenceFailed(serviceClient, report.report_id);
-        return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
-      }
+        const { data: nix } = validated.value.nixId
+          ? await serviceClient
+            .from('nixes')
+            .select('id, sender_id, receiver_id, media_type, status, created_at')
+            .eq('id', validated.value.nixId)
+            .maybeSingle()
+          : { data: null };
+        if (!nix || !isNixMediaGone(nix.status, downloadError)) {
+          await markEvidenceFailed(serviceClient, report.report_id);
+          return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
+        }
 
-      const extension = extensionFor(report.media_path, report.media_type ?? 'image');
-      const evidencePath = `${report.report_id}/evidence.${extension}`;
-      const { error: uploadError } = await serviceClient.storage
-        .from('moderation-evidence')
-        .upload(evidencePath, media, {
-          contentType: media.type || (report.media_type === 'video' ? 'video/mp4' : 'image/jpeg'),
-          upsert: true,
+        // The file was already deleted (replay period over or 30 days passed). The report still
+        // reaches moderation, with what is left: who sent what to whom, and when.
+        const evidencePath = `${report.report_id}/evidence.json`;
+        const evidenceJson = JSON.stringify({
+          nixId: nix.id,
+          senderId: nix.sender_id,
+          receiverId: nix.receiver_id,
+          mediaType: nix.media_type,
+          nixStatus: nix.status,
+          createdAt: nix.created_at,
+          mediaUnavailable: true,
+          reportedAt: new Date().toISOString(),
         });
-      if (uploadError) {
-        await markEvidenceFailed(serviceClient, report.report_id);
-        return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
-      }
+        const { error: uploadError } = await serviceClient.storage
+          .from('moderation-evidence')
+          .upload(evidencePath, new Blob([evidenceJson], { type: 'application/json' }), {
+            contentType: 'application/json',
+            upsert: true,
+          });
+        if (uploadError) {
+          await markEvidenceFailed(serviceClient, report.report_id);
+          return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
+        }
+        const { error: updateError } = await serviceClient
+          .from('content_reports')
+          .update({ evidence_path: evidencePath, status: 'open' })
+          .eq('id', report.report_id);
+        if (updateError) return json({ error: 'Evidence state could not be saved' }, 500);
+        await notifySentry('moderation.evidence.media_unavailable', { report_id: report.report_id }, 'info');
+      } else {
+        const extension = extensionFor(report.media_path, report.media_type ?? 'image');
+        const evidencePath = `${report.report_id}/evidence.${extension}`;
+        const { error: uploadError } = await serviceClient.storage
+          .from('moderation-evidence')
+          .upload(evidencePath, media, {
+            contentType: media.type || (report.media_type === 'video' ? 'video/mp4' : 'image/jpeg'),
+            upsert: true,
+          });
+        if (uploadError) {
+          await markEvidenceFailed(serviceClient, report.report_id);
+          return json({ error: 'Evidence could not be secured. Try again before closing the message.' }, 500);
+        }
 
-      const { error: updateError } = await serviceClient
-        .from('content_reports')
-        .update({ evidence_path: evidencePath, status: 'open' })
-        .eq('id', report.report_id);
-      if (updateError) return json({ error: 'Evidence state could not be saved' }, 500);
+        const { error: updateError } = await serviceClient
+          .from('content_reports')
+          .update({ evidence_path: evidencePath, status: 'open' })
+          .eq('id', report.report_id);
+        if (updateError) return json({ error: 'Evidence state could not be saved' }, 500);
+      }
     }
   }
 
