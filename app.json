@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.damianmotylinski.nixapp",
-      "buildNumber": "15",
+      "buildNumber": "16",
       "associatedDomains": [
         "applinks:nix.damianmotylinski.pl",
         "webcredentials:nix.damianmotylinski.pl"

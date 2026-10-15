@@ -4,7 +4,21 @@
 > Dated sprint plans and audit snapshots are historical evidence and must link
 > here instead of presenting their old binary state as current.
 
-## App Review candidate — 1.0.13 (15), 2026-10-11
+## App Review candidate — 1.0.13 (16), 2026-10-15
+
+Same code as build 15 plus OTA 49 (`main` at `1359eab`), with the JS embedded so App Review sees it on the first
+launch. Version bump `faf3ddd`. Local Release Archive: `~/.nix-ops/release-1.0.13-16/` (ARCHIVE SUCCEEDED; 4
+extensions; only the `processing` background mode). Uploaded with `xcodebuild -exportArchive` and the API key. Build id
+`20562801-aa18-4312-be81-66110dd43591`: VALID, selected for version 1.0.13 in ASC.
+
+App Review 2.1 package: physical-device recording on iPhone 16 Pro Max / iOS 27.0.1, uploaded as the App Review
+attachment `NiX-App-Review-1.0.13-2026-10-15.mp4` (16 MB, from `~/.nix-ops/app-review-video/`). Scenario:
+[APP_REVIEW_RECORDING_IPHONE_2026-10-15.pl.md](APP_REVIEW_RECORDING_IPHONE_2026-10-15.pl.md). Six-part reply:
+[apple-review-reply-2026-10-15.en.md](apple-review-reply-2026-10-15.en.md), saved as a draft reply on submission
+`8db797c3…`; a short version is appended to App Review Notes. Known issue seen in the recording: a received photo
+stays black for ~6 s before showing (separate task).
+
+## Previous candidate — 1.0.13 (15), 2026-10-11
 
 Fixes from the [App Review preflight](APP_REVIEW_PREFLIGHT_2026-10-11.pl.md), step 1. **Runtime 1.0.13**, channel
 production: OTAs for build 14 also apply here. `main` at `dcfee5c` (version bump `bb50249`).
