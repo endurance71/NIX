@@ -18,6 +18,10 @@ attachment `NiX-App-Review-1.0.13-2026-10-15.mp4` (16 MB, from `~/.nix-ops/app-r
 `8db797c3…`; a short version is appended to App Review Notes. Known issue seen in the recording: a received photo
 stays black for ~6 s before showing (separate task).
 
+**Submitted 2026-10-15 14:45 (CEST):** the reply was sent on submission `8db797c3…`, then Update Review and Resubmit
+to App Review. The version and the submission are **WAITING_FOR_REVIEW** with build 16. Until App Review decides, publish
+an OTA to `production` only for a critical fix, because the reviewer's app downloads it too.
+
 ## Previous candidate — 1.0.13 (15), 2026-10-11
 
 Fixes from the [App Review preflight](APP_REVIEW_PREFLIGHT_2026-10-11.pl.md), step 1. **Runtime 1.0.13**, channel
