@@ -851,9 +851,9 @@ function PinnedUploadMenuItems({
 }
 
 /**
- * One pinned conversation: a large avatar with the name under it, like a pin in Messages. Tap and
- * long press do what the row does (open the chat / the same context menu); VoiceOver reads one
- * element with the row's label. Memoized like `MessageRow` (PERF-16).
+ * One pinned conversation: a large avatar with the name under it, like a pin in Messages. Tap opens
+ * the chat, a long press shows the row's menu; VoiceOver reads one element with the row's label.
+ * Memoized like `MessageRow` (PERF-16).
  */
 const PinnedConversationCell = memo(function PinnedConversationCell({
   row,
@@ -1008,36 +1008,42 @@ const PinnedConversationCell = memo(function PinnedConversationCell({
     return <HStack spacing={0} modifiers={placement}>{cellButton}</HStack>;
   }
 
+  // A Menu with a primary action, not a context menu: several `contextMenu`s in one List row (the
+  // grid is one row) all resolve to the first one, so holding any pin opened the first pin's menu.
+  // Tap opens the chat, a long press shows this pin's menu anchored to it.
   return (
-    <ContextMenu modifiers={placement}>
-      <ContextMenu.Trigger>{cellButton}</ContextMenu.Trigger>
-      {/* Inside the list the system would lift the whole grid row; lift just this pin. */}
-      <ContextMenu.Preview>
-        <VStack spacing={0} modifiers={[padding({ all: 16 })]}>{content}</VStack>
-      </ContextMenu.Preview>
-      <ContextMenu.Items>
-        <PinnedUploadMenuItems
-          row={row}
-          onUploadAction={(action) => handlers.onUploadAction(row, action)}
-          divided={hasRowMenu}
+    <Menu
+      label={content}
+      onPrimaryAction={() => handlers.onOpen(row)}
+      modifiers={[
+        ...placement,
+        buttonStyle('plain'),
+        accessibilityLabel(a11yLabel),
+        accessibilityHint(
+          row.kind === 'nix' && row.unread ? t('inbox.openHint') : t('inbox.openChatHint'),
+        ),
+      ]}>
+      <PinnedUploadMenuItems
+        row={row}
+        onUploadAction={(action) => handlers.onUploadAction(row, action)}
+        divided={hasRowMenu}
+        t={t}
+      />
+      {hasRowMenu ? (
+        <MessageContextMenuItems
+          menu={menu}
+          pinned
+          muted={muted}
+          onTogglePin={() => handlers.onTogglePin(row)}
+          onSetMute={(duration) => handlers.onSetMute(row, duration)}
+          onMarkRead={() => handlers.onMarkRead(row)}
+          onReport={() => handlers.onReport(row)}
+          onBlock={() => handlers.onBlock(row)}
+          onDelete={() => handlers.onDelete(row)}
           t={t}
         />
-        {hasRowMenu ? (
-          <MessageContextMenuItems
-            menu={menu}
-            pinned
-            muted={muted}
-            onTogglePin={() => handlers.onTogglePin(row)}
-            onSetMute={(duration) => handlers.onSetMute(row, duration)}
-            onMarkRead={() => handlers.onMarkRead(row)}
-            onReport={() => handlers.onReport(row)}
-            onBlock={() => handlers.onBlock(row)}
-            onDelete={() => handlers.onDelete(row)}
-            t={t}
-          />
-        ) : null}
-      </ContextMenu.Items>
-    </ContextMenu>
+      ) : null}
+    </Menu>
   );
 });
 
