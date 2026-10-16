@@ -60,6 +60,7 @@ function StickerTextInput({
     inputRef,
     inputTextStyle,
     emptyCaretPaddingLeft,
+    emptyCaretPaddingTop,
     textAlign,
     textStyleExtras,
     emptyEditing,
@@ -84,6 +85,7 @@ function StickerTextInput({
         emptyCaretPaddingLeft != null
           ? {
               paddingLeft: emptyCaretPaddingLeft,
+              paddingTop: emptyCaretPaddingTop,
               paddingRight: BAR_TEXT_HORIZONTAL_PADDING,
             }
           : null,
@@ -99,7 +101,9 @@ function StickerTextInput({
       pointerEvents={isEditing && !controller.sheetPresented && !exiting ? 'auto' : 'none'}
       multiline
       maxLength={200}
-      textAlign={textAlign}
+      // The prop wins over the style: a centred empty input would centre the caret in the
+      // space left of the placeholder padding instead of putting it after the placeholder.
+      textAlign={emptyEditing ? 'left' : textAlign}
       returnKeyType="done"
       blurOnSubmit
       onSubmitEditing={onConfirm}
@@ -192,7 +196,7 @@ export function PreviewTextStickerContent({
     minimumBarHeight,
     placeholderText,
     setBarInnerWidth,
-    setPlaceholderWidth,
+    setPlaceholderLine,
     shellStyle,
     textAlign,
     textStyleExtras,
@@ -237,6 +241,10 @@ export function PreviewTextStickerContent({
                   <Text
                     pointerEvents="none"
                     allowFontScaling={false}
+                    onTextLayout={(event) => {
+                      const last = event.nativeEvent.lines.at(-1);
+                      if (last) setPlaceholderLine({ end: last.x + last.width, top: last.y });
+                    }}
                     style={[
                       styles.fakePlaceholder,
                       {
@@ -251,38 +259,24 @@ export function PreviewTextStickerContent({
                     {placeholderText}
                   </Text>
                 ) : null}
-                {emptyEditing ? (
-                  <Text
-                    pointerEvents="none"
-                    allowFontScaling={false}
-                    onLayout={(event) => setPlaceholderWidth(event.nativeEvent.layout.width)}
-                    style={[
-                      styles.placeholderMeasure,
-                      {
-                        fontSize,
-                        lineHeight: fontSize * 1.2,
-                        fontWeight,
-                        ...textStyleExtras,
-                      },
-                    ]}>
-                    {placeholderText}
-                  </Text>
-                ) : null}
+                {/* The in-flow text sizes the bar. While empty it carries the placeholder
+                    (invisibly), so a placeholder that wraps at a large size is not cut off. */}
                 <Animated.Text
                   allowFontScaling={false}
                   style={[
                     styles.displayText,
                     {
                       fontSize,
-                      color: textColor,
+                      color: emptyEditing ? 'transparent' : textColor,
                       fontWeight,
                       textAlign,
+                      ...(emptyEditing ? { lineHeight: fontSize * 1.2 } : null),
                       ...textStyleExtras,
                     },
                     displayTextStyle,
                   ]}
                   pointerEvents={isEditing ? 'none' : 'auto'}>
-                  {text || ' '}
+                  {text || (emptyEditing ? placeholderText : ' ')}
                 </Animated.Text>
                 <StickerTextInput
                   text={text}
@@ -371,11 +365,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     fontWeight: '700',
     textAlignVertical: 'center',
-  },
-  placeholderMeasure: {
-    position: 'absolute',
-    opacity: 0,
-    fontWeight: '700',
   },
   displayText: {
     color: DEFAULT_MEDIA_TEXT_COLOR,

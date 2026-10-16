@@ -73,11 +73,13 @@ function sheetParkTop({
   windowHeight,
   minTopPx,
   maxTopPx,
+  stickerReservePx,
 }: {
   sheetHeight: number;
   windowHeight: number;
   minTopPx: number;
   maxTopPx: number;
+  stickerReservePx: number;
 }) {
   return previewTextTopAboveObstacle({
     windowHeight,
@@ -85,7 +87,7 @@ function sheetParkTop({
       sheetHeight > 0 ? sheetHeight : FORMAT_SHEET_FALLBACK_HEIGHT,
     minTopPx,
     maxTopPx,
-    stickerReservePx: LIFT_STICKER_RESERVE,
+    stickerReservePx,
     gapPx: LIFT_GAP,
   });
 }
@@ -117,7 +119,7 @@ type ControllerArgs = Required<
     | 'exiting'
     | 'animateEnter'
   >
-> & Pick<PreviewTextStickerProps, 'onExitComplete'>;
+> & Pick<PreviewTextStickerProps, 'onExitComplete' | 'barHeightPx'>;
 
 function resolveStickerTextStyle({
   italic,
@@ -157,6 +159,7 @@ export function usePreviewTextStickerController({
   topPx,
   minTopPx,
   maxTopPx,
+  barHeightPx = 0,
   onTopPxChange,
   onPressDisplay,
   onConfirm,
@@ -167,6 +170,8 @@ export function usePreviewTextStickerController({
 }: ControllerArgs) {
   const { t } = useTranslation();
   const { height: windowHeight } = useWindowDimensions();
+  // A wrapped placeholder or a big preset makes the bar taller than the default reserve.
+  const liftReservePx = Math.max(LIFT_STICKER_RESERVE, barHeightPx);
   const motionEnabled = useMotionEnabled();
   const inputRef = useRef<TextInputInstance>(null);
   const didEnterRef = useRef(false);
@@ -180,7 +185,8 @@ export function usePreviewTextStickerController({
   const [formatOpen, setFormatOpen] = useState(false);
   const [formatSheetHeight, setFormatSheetHeight] = useState(0);
   const [barInnerWidth, setBarInnerWidth] = useState(0);
-  const [placeholderWidth, setPlaceholderWidth] = useState(0);
+  /** Where the placeholder's last line ends (sticker-content coordinates), for the caret. */
+  const [placeholderLine, setPlaceholderLine] = useState<{ end: number; top: number } | null>(null);
 
   const translateY = useSharedValue(topPx);
   const restTop = useSharedValue(topPx);
@@ -203,13 +209,17 @@ export function usePreviewTextStickerController({
   const sheetPresented = isEditing && formatOpen;
   const placeholderText = t('preview.textPlaceholder');
   const emptyEditing = isEditing && text.length === 0;
+  // The caret sits right after the placeholder, on its last line: a large placeholder wraps
+  // like typed text would, so the end of the first line is not where typing starts.
+  const contentWidth = barInnerWidth - 2 * BAR_TEXT_HORIZONTAL_PADDING;
   const emptyCaretPaddingLeft =
-    emptyEditing && barInnerWidth > 0 && placeholderWidth > 0
+    emptyEditing && contentWidth > 0 && placeholderLine
       ? Math.min(
-          barInnerWidth - BAR_TEXT_HORIZONTAL_PADDING,
-          Math.max(BAR_TEXT_HORIZONTAL_PADDING, (barInnerWidth + placeholderWidth) / 2),
+          contentWidth - BAR_TEXT_HORIZONTAL_PADDING,
+          Math.max(BAR_TEXT_HORIZONTAL_PADDING, placeholderLine.end),
         )
       : undefined;
+  const emptyCaretPaddingTop = emptyCaretPaddingLeft != null ? placeholderLine?.top : undefined;
   const minimumBarHeight = captionMinimumBarHeight(variant, fontSize);
 
   useEffect(() => {
@@ -284,6 +294,7 @@ export function usePreviewTextStickerController({
             windowHeight,
             minTopPx,
             maxTopPx,
+            stickerReservePx: liftReservePx,
           }),
           motionEnabled,
         );
@@ -335,10 +346,20 @@ export function usePreviewTextStickerController({
       windowHeight,
       minTopPx,
       maxTopPx,
+      stickerReservePx: liftReservePx,
     });
     if (Math.abs(translateY.get() - target) < FORMAT_PARK_REFINE_EPSILON) return;
     animateFormatLift(translateY, target, motionEnabled);
-  }, [formatOpen, formatSheetHeight, maxTopPx, minTopPx, motionEnabled, translateY, windowHeight]);
+  }, [
+    formatOpen,
+    formatSheetHeight,
+    liftReservePx,
+    maxTopPx,
+    minTopPx,
+    motionEnabled,
+    translateY,
+    windowHeight,
+  ]);
 
   const applyKeyboardFrame = useEffectEvent((event: KeyboardEvent) => {
     if (exitingRef.current || formatOpenRef.current || formatLiftActiveRef.current) return;
@@ -355,7 +376,7 @@ export function usePreviewTextStickerController({
       obstacleHeight: kb,
       minTopPx,
       maxTopPx,
-      stickerReservePx: LIFT_STICKER_RESERVE,
+      stickerReservePx: liftReservePx,
       gapPx: LIFT_GAP,
     });
     const ms = Math.max(event.duration ?? 0, kb < 1 ? duration.slow : 0);
@@ -569,6 +590,7 @@ export function usePreviewTextStickerController({
     contentPresenceStyle,
     displayTextStyle,
     emptyCaretPaddingLeft,
+    emptyCaretPaddingTop,
     emptyEditing,
     formatStyle,
     handleFormatSheetHeightChange,
@@ -582,7 +604,7 @@ export function usePreviewTextStickerController({
     closeFormatSheet,
     placeholderText,
     setBarInnerWidth,
-    setPlaceholderWidth,
+    setPlaceholderLine,
     sheetPresented,
     shellStyle,
     textAlign,

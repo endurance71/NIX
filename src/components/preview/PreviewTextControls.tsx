@@ -243,6 +243,7 @@ export function PreviewTextTools({
             topPx={controls.yToTopPx(stickerY)}
             minTopPx={minTop}
             maxTopPx={maxTop}
+            barHeightPx={barHeight}
             animateEnter={animateEnter}
             onBarHeightChange={(height) => {
               if (Math.abs(height - barHeight) >= 0.5) setBarHeight(height);

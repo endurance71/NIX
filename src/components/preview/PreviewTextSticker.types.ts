@@ -30,6 +30,8 @@ export type PreviewTextStickerProps = {
   topPx: number;
   minTopPx: number;
   maxTopPx: number;
+  /** Measured bar height, so lifting above the keyboard / Format sheet clears a tall bar. */
+  barHeightPx?: number;
   onTopPxChange: (topPx: number) => void;
   onChangeText: (text: string) => void;
   onChangeStyle?: (patch: PreviewTextStylePatch) => void;

@@ -21,6 +21,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withSpring,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -51,6 +52,9 @@ const RENDER_FONT_SIZE = 160;
 const GESTURE_HIT_SLOP = 24;
 /** Sticker shrinking into the trash after a drop. */
 const STICKER_REMOVE_MS = 220;
+/** A picked sticker pops onto the media: it lands with a little bounce, like a real sticker. */
+const STICKER_APPEAR_SPRING = { duration: 420, dampingRatio: 0.62 };
+const STICKER_APPEAR_FROM_SCALE = 0.5;
 const A11Y_MOVE_STEP = 0.05;
 const A11Y_SCALE_STEP = 1.2;
 const A11Y_ROTATE_STEP = Math.PI / 12;
@@ -94,6 +98,18 @@ function PreviewEmojiSticker({
   const overTrash = useSharedValue(false);
   /** 0 → 1 while the sticker is swallowed by the trash after being dropped on it. */
   const removal = useSharedValue(0);
+  /** 0 → 1 as a freshly picked sticker pops in (stays 1 with reduced motion). */
+  const appear = useSharedValue(motionEnabled ? 0 : 1);
+
+  useEffect(() => {
+    if (!motionEnabled) {
+      appear.set(1);
+      return;
+    }
+    appear.set(withSpring(1, STICKER_APPEAR_SPRING));
+    // Mount only: a sticker pops in once, when it is picked.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Outside changes (VoiceOver actions, stage resize) move the sticker; after a gesture the
   // props equal the live values, so this is a no-op and nothing jumps.
@@ -215,14 +231,16 @@ function PreviewEmojiSticker({
 
   const animatedStyle = useAnimatedStyle(() => {
     const gone = removal.get();
+    const popped = appear.get();
     const trashScale = (overTrash.get() ? 0.6 : 1) * (motionEnabled ? 1 - gone : 1);
+    const popScale = STICKER_APPEAR_FROM_SCALE + (1 - STICKER_APPEAR_FROM_SCALE) * popped;
     return {
-      opacity: (overTrash.get() ? 0.6 : 1) * (1 - gone),
+      opacity: (overTrash.get() ? 0.6 : 1) * (1 - gone) * Math.min(1, popped * 3),
       transform: [
         { translateX: centerX.get() },
         { translateY: centerY.get() },
         { rotate: `${rotation.get()}rad` },
-        { scale: (fontSize.get() / RENDER_FONT_SIZE) * trashScale },
+        { scale: (fontSize.get() / RENDER_FONT_SIZE) * trashScale * popScale },
       ],
     };
   });
