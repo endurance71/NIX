@@ -1,6 +1,10 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
 import NativeBackgroundUploader from '../../modules/nix-background-uploader/src';
+import { setDurableUploadContainerUri } from '../lib/durableUploadQueueDb';
+
+// Staged files are stored as absolute URIs; after an app update they live in a new container.
+setDurableUploadContainerUri(FileSystem.documentDirectory);
 
 function sanitize(value: string) {
   return value.replace(/[^A-Za-z0-9._-]/g, '_');

@@ -5,9 +5,21 @@ import type {
   DurableUploadRecipient,
   UploadJobState,
 } from '../types/uploadQueue';
+import { rebaseContainerUri } from './uploadContainerPath';
 import { uploadQueueSecretsCodec, type UploadQueueSecrets } from './uploadQueueSecrets';
 
 const DATABASE_NAME = 'nix-upload-queue.db';
+
+/**
+ * A URI inside the app's current data container (the document directory). Staged and prepared
+ * file URIs are stored absolute, and iOS moves the container on every app update, so rows are
+ * rebased onto this when read. Set by `durableUploadStorage`; null (tests) keeps rows as stored.
+ */
+let currentContainerUri: string | null = null;
+
+export function setDurableUploadContainerUri(uri: string | null | undefined) {
+  currentContainerUri = uri ?? null;
+}
 const DATABASE_VERSION = 5;
 
 type UploadJobRow = {
@@ -248,8 +260,8 @@ async function toJob(row: UploadJobRow, recipients: DurableUploadRecipient[]): P
     ownerId: row.owner_id,
     mediaType: row.media_type,
     state: row.state,
-    stagedUri: row.staged_uri,
-    preparedUri: row.prepared_uri,
+    stagedUri: rebaseContainerUri(row.staged_uri, currentContainerUri),
+    preparedUri: row.prepared_uri ? rebaseContainerUri(row.prepared_uri, currentContainerUri) : null,
     contentType: row.content_type,
     fileExtension: row.file_extension,
     originalSizeBytes: row.original_size_bytes,

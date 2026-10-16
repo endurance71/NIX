@@ -8,6 +8,7 @@ import {
   patchDurableUploadJob,
   purgeFinishedDurableUploadJobs,
   purgeOwnerDurableUploadJobs,
+  setDurableUploadContainerUri,
 } from './durableUploadQueueDb';
 
 const clearedKeys: string[] = [];
@@ -48,6 +49,28 @@ beforeEach(async () => {
   await db.runAsync(`INSERT INTO upload_jobs
     (id, owner_id, media_type, state, staged_uri, created_at, updated_at, expires_at, next_attempt_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 'job', 'owner', 'image', 'preparing', 'file:///image.jpg', 1, 1, 100_000, 15_000);
+});
+
+describe('staged files after an app update', () => {
+  const oldContainer = 'file:///var/mobile/Containers/Data/Application/5371AD35-0761-4B53-A83F-93116469D224/';
+  const newContainer = 'file:///var/mobile/Containers/Data/Application/80A7A24A-37E3-418B-AFA0-D306AB3DC572/';
+
+  it('reads staged and prepared URIs in the current container, not the one they were written in', async () => {
+    const db = await getUploadQueueDatabase();
+    await db.runAsync('UPDATE upload_jobs SET staged_uri = ?, prepared_uri = ? WHERE id = ?',
+      `${oldContainer}Library/Application%20Support/NiX/Uploads/job/source.mov`,
+      `${oldContainer}Library/Application%20Support/NiX/Uploads/job/prepared.mp4`, 'job');
+    setDurableUploadContainerUri(`${newContainer}Documents/`);
+    try {
+      expect(await getDurableUploadJob('job')).toMatchObject({
+        stagedUri: `${newContainer}Library/Application%20Support/NiX/Uploads/job/source.mov`,
+        preparedUri: `${newContainer}Library/Application%20Support/NiX/Uploads/job/prepared.mp4`,
+      });
+      expect((await listDurableUploadJobs('owner'))[0]?.preparedUri).toContain(newContainer);
+    } finally {
+      setDurableUploadContainerUri(null);
+    }
+  });
 });
 
 describe('atomic durable upload control', () => {
