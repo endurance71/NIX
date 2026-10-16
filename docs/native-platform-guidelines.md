@@ -37,7 +37,7 @@ Szczegóły implementacji universal UI: [NiX_Documentation_v1.2.md §2.2](NiX_Do
 
 - Komponenty renderowane przez **SwiftUI** (`@expo/ui`, `Host`, `FieldGroup`, `List`, `TextInput`, `Button`…).
 - Ikony: **SF Symbols** (`AppIcon` z zaimplementowanym SwiftUI `Image(systemName:)`; tab bar: `NativeTabs.Trigger.Icon`).
-- Nawigacja dolna: **`NativeTabs`** (`expo-router/unstable-native-tabs`) — tylko ikony (`Trigger.Label hidden`), badge na inbox.
+- Nawigacja dolna: **`NativeTabs`** (`expo-router/native-tabs`, stabilne od SDK 58) — tylko ikony (`Trigger.Label hidden`), badge na inbox.
 - Motyw: **systemowy light/dark** (`userInterfaceStyle: automatic`) — tokeny mapowane na role iOS (`label`, `systemBackground`, `destructive`…).
 - Animacje interakcji: **Reanimated 4** na UI thread (nie legacy `Animated` API); tokeny w `src/theme/motion.ts`.
 - Gestykulacja: **react-native-gesture-handler** zgodnie z oczekiwaniami iOS.
