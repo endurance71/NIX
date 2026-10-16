@@ -16,8 +16,9 @@ function fixShellScriptPaths(script) {
     'export PROJECT_ROOT="$PROJECT_DIR/.."',
   );
 
-  // `node --print "…path…"` → "$( node --print "…path…" )"
-  fixed = fixed.replace(/`([^`]*--print[^`]+)`/g, '"$($1)"');
+  // `node --print "…path…"` → "$( node --print "…path…" )". Sentry 8 already wraps the backticks
+  // in quotes; swallow them too, or the result is ""$(…)"" and the substitution is unquoted again.
+  fixed = fixed.replace(/"?`([^`]*--print[^`]+)`"?/g, '"$($1)"');
 
   return fixed;
 }

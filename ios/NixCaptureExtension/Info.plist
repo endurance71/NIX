@@ -20,12 +20,14 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>NSCameraUsageDescription</key>
-	<string>NiX uses the camera to take photos that you choose to send to friends.</string>
 	<key>EXAppExtensionAttributes</key>
 	<dict>
 		<key>EXExtensionPointIdentifier</key>
 		<string>com.apple.securecapture</string>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>NiX uses the camera to take photos that you choose to send to friends.</string>
+	<key>RCTNewArchEnabled</key>
+	<true/>
 </dict>
 </plist>

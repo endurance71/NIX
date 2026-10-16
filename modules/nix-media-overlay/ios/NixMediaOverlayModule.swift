@@ -247,6 +247,15 @@ public class NixMediaOverlayModule: Module {
 
   private static let activeVideoBakes = VideoBakeRegistry()
 
+  /// Scale of the screen NiX runs on. `UIScreen.main` is deprecated under the scene life cycle, and
+  /// the bakes run off the main thread, so the scale is read from the window scene once, on main.
+  private static let displayScale: CGFloat = {
+    let read = {
+      UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.screen.scale }.max() ?? 3
+    }
+    return Thread.isMainThread ? read() : DispatchQueue.main.sync(execute: read)
+  }()
+
   private static func bakeCancelledException() -> Exception {
     Exception(
       name: "BakeCancelled",
@@ -943,7 +952,7 @@ public class NixMediaOverlayModule: Module {
       let textLayer = CATextLayer()
       textLayer.string = layout.attributed
       textLayer.alignmentMode = style.caAlign
-      textLayer.contentsScale = UIScreen.main.scale
+      textLayer.contentsScale = Self.displayScale
       textLayer.isWrapped = true
       textLayer.foregroundColor = style.textColor.cgColor
       textLayer.frame = CGRect(
@@ -991,7 +1000,7 @@ public class NixMediaOverlayModule: Module {
       let textLayer = CATextLayer()
       textLayer.string = attributed
       textLayer.alignmentMode = style.caAlign
-      textLayer.contentsScale = UIScreen.main.scale
+      textLayer.contentsScale = Self.displayScale
       textLayer.isWrapped = true
       textLayer.foregroundColor = style.textColor.cgColor
       textLayer.frame = CGRect(
@@ -1281,7 +1290,7 @@ final class NixFilteredImageView: ExpoView {
     fade.type = .fade
     fade.duration = 0.18
     imageView.layer.add(fade, forKey: "contents")
-    imageView.layer.contentsScale = image?.scale ?? UIScreen.main.scale
+    imageView.layer.contentsScale = image?.scale ?? traitCollection.displayScale
     imageView.layer.contents = image?.cgImage
   }
 
@@ -1298,8 +1307,8 @@ final class NixFilteredImageView: ExpoView {
     }
     let key = "\(path)|\(filter.key)"
     guard key != renderedKey else { return }
-    let maxPixels = max(bounds.width, bounds.height) * UIScreen.main.scale * 1.25
-    let scale = UIScreen.main.scale
+    let scale = traitCollection.displayScale
+    let maxPixels = max(bounds.width, bounds.height) * scale * 1.25
     renderQueue.async { [weak self] in
       guard let self else { return }
       let image = self.renderedImage(path: path, filter: filter, key: key, maxPixels: maxPixels, scale: scale)
