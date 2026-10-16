@@ -12,7 +12,8 @@ Dowody mają trzy poziomy, jak w poprzednich audytach: **wykonanie** — wynik u
    - `InteractionManager` został usunięty z React Native — `src/components/welcome/welcomeMotion.ts:91` rzuci `TypeError` przy animacjach welcome tour (TypeScript to łapie, ale łatwo to zbagatelizować jako „tylko typy”).
 3. **iOS natywnie wymaga ręcznej pracy.** NiX ma `ios/` w repo (bare). Już dziś działa na scene lifecycle (`enableSceneSupport` + `EXExpoAppSceneDelegate`), więc najtrudniejsza część jest za wami, ale trzeba: dodać `SceneDelegate.swift`, zmienić `UISceneDelegateClassName`, usunąć ręczne wywołania `RCTLinkingManager` z `AppDelegate.swift` (w SDK 58 dublują zdarzenia) i odtworzyć 4 patche natywne (piąty, `expo-constants`, jest już zbędny). Patch `expo-widgets` jest blokerem builda: bez niego nie kompiluje się `nix-background-uploader` (sekcja 7). **Nie uruchamiajcie `expo prebuild` na `ios/`** — świeży prebuild przywraca tryb tła `fetch`, usunięty specjalnie dla App Review w buildzie 15 (wykonanie, sekcja 5).
 4. **Wydanie:** SDK 58 to zmiana native → nowy `runtimeVersion` (np. `1.1.0`) i lokalny Xcode Archive (Ścieżka B). OTA z tej gałęzi nigdy nie może trafić do runtime `1.0.13`.
-5. **Rekomendacja czasowa:** `main` zostaje na SDK 57 do decyzji App Review (hotfixy OTA tylko z `main`). Migracja na `upgrade/expo-sdk-58`, regularnie scalana z `main`. Wydanie SDK 58 jako 1.1.0 po akceptacji 1.0.13 i po pełnym smoke teście na urządzeniu. Szacuję 3–5 dni pracy + 1–2 dni testów na urządzeniu.
+5. **Co zyskujemy** (sekcja 8): zgodność z iOS 27 SDK i Liquid Glass, error boundary per ekran (dziś każdy wyjątek zamyka aplikację), `staleDate` dla Live Activity uploadu, płynniejsze przejścia i cache obrazów, stabilne soczewki, szybsze wywołania modułów natywnych, a w dalszej perspektywie Siri/Skróty przez `expo-app-intents`.
+6. **Rekomendacja czasowa:** `main` zostaje na SDK 57 do decyzji App Review (hotfixy OTA tylko z `main`). Migracja na `upgrade/expo-sdk-58`, regularnie scalana z `main`. Wydanie SDK 58 jako 1.1.0 po akceptacji 1.0.13 i po pełnym smoke teście na urządzeniu. Szacuję 3–5 dni pracy + 1–2 dni testów na urządzeniu.
 
 ## 2. Co zostało uruchomione
 
@@ -216,27 +217,56 @@ Uwagi przy odtwarzaniu:
 
 Do zrobienia: usunąć `expo-constants`; przegenerować `react-native-screens` (4.30.0, bez zmian treści), `react-native` (0.88.0, bez `.orig` i bez hunka `react-native-xcode.sh`), `expo-widgets` (58.0.20), `expo-image-manipulator` (58.0.14), `expo-camera` (58.0.10, ręczne scalanie); bez zmian: `expo-quick-actions`, `react-native-compressor`, `query-string`.
 
-## 8. Co warto wykorzystać w NiX
+## 8. Co zyskujemy — korzyści i nowe funkcje dla NiX
 
-Kolejność według wartości dla NiX, nie według changelogu.
+Każdą pozycję sprawdziłem w kodzie NiX. Część nowości SDK 58 NiX ma już zrobioną po swojemu — takie pozycje są w 8.5, żeby nie liczyć ich jako zysku.
 
-| Funkcja | Po co w NiX | Kiedy |
-| --- | --- | --- |
-| `expo-camera`: stabilne `deviceType` soczewek | przełącznik soczewek przestaje zależeć od języka urządzenia (dziś PL/EN mogą dawać różne nazwy) | razem z migracją (i tak trzeba) |
-| `expo-notifications`: `threadIdentifier` | grupowanie powiadomień per rozmowa w Centrum powiadomień | 1.1.x |
-| `expo-notifications`: forwarding delegata iOS | łatwiejsza współpraca z własnym kodem powiadomień (communication notifications) | do oceny przy migracji |
-| `expo-widgets`: `staleDate`, stabilne identyfikatory Live Activity | może zastąpić część patcha `expo-widgets` (filtrowanie aktywności) i pozwolić oznaczyć zawieszony upload jako „stale” | razem z migracją patcha |
-| `expo-updates`: `updates.maxUpdatesToKeep` | przy kilkudziesięciu OTA na runtime ogranicza miejsce zajmowane na urządzeniu | 1.1.0 (zmiana native) |
-| `expo-image`: `transition.skipOnCacheHit` | brak „mrugnięcia” przy obrazach z cache w viewerze (`ViewerScreenSurface.tsx:177`) i siatce Wspomnień (`MemoryGridCell.tsx:72`) | 1.1.x, JS |
-| `expo-file-system`: `File.digest()` | skrót pliku natywnie zamiast wczytywania bajtów do JS (np. kontrola integralności mediów przed uploadem) | opcjonalnie |
-| `expo-audio`: nagrywanie WAV/PCM, `AudioStream` | jeśli wiadomości głosowe mają mieć wizualizację fali lub transkrypcję | opcjonalnie |
-| `@expo/ui`: listy z recyklingiem (`List`/`LazyVStack` z `data`) | natywne listy w ustawieniach i listach znajomych | opcjonalnie; FlashList zostaje dla czatu |
-| `@expo/ui`: `NavigationStack`, `Toolbar` | — | nie teraz (macie Expo Router) |
-| `expo-app-intents` (alpha) | „Wyślij NiX do…” w Siri/Skrótach | po wyjściu z alpha |
-| Expo Modules 2.0 (beta) | szybsze wywołania w 5 modułach lokalnych | po wyjściu z beta |
-| `@expo/agent-cli` | `status`, `smoke`, `expo-doctor` dla agentów | opcjonalnie, dev |
+### 8.1 Dlaczego w ogóle migrować (strategicznie)
 
-Bez znaczenia dla NiX (tylko iOS, bez webu): prebuilt `expo-modules-core` i R8 na Androidzie, `expo-hinge`, `server` jako domyślny output webu, SSR i loadery.
+- **iOS 27 SDK.** SDK 58 to pierwsza wersja Expo przygotowana pod iOS 27 SDK (scene lifecycle, aplikacje „resizable”, iPhone Duo). Apple co roku, zwykle w kwietniu, zaczyna wymagać buildów z nowym SDK (dziś Xcode 26 — `docs/DEPLOY_IOS_TESTFLIGHT.md:196`). Migracja teraz, bez presji terminu, jest tańsza niż w marcu.
+- **Liquid Glass na iOS 27.** `isLiquidGlassAvailable()` zwraca `true` w buildach z iOS 27 SDK. Ścieżki „glass” w `src/lib/liquidGlass.ts` dostaną poprawny sygnał.
+- **Poprawki trafiają do najnowszego SDK.** Nowe wersje RNGH (3.x), Reanimated (4.7), Skia (2.14), Screens (4.30) i Sentry (8.x) celują w RN 0.88. Na RN 0.86 zostajecie z coraz starszymi bibliotekami i coraz grubszymi patchami.
+- **Mniej własnych patchy.** Patch `expo-constants` znika (naprawione upstream). Filtr aktywnych Live Activities jest teraz w `expo-widgets`, więc logika patcha i upstream jest ta sama (sekcja 7).
+
+### 8.2 Nowe funkcje do zaimplementowania (od najbardziej opłacalnych)
+
+| # | Funkcja SDK 58 | Co da użytkownikowi NiX | Gdzie w kodzie | Nakład |
+| --- | --- | --- | --- | --- |
+| 1 | **Error boundary per ekran** w Expo Router (`unstable_screenErrorBoundary` na `<Stack>` / `unstable_settings.screenErrorBoundary`) | Wyjątek w viewerze, czacie czy preview pokazuje ekran „Coś poszło nie tak — spróbuj ponownie” zamiast zamykać całą aplikację. Dziś NiX nie ma żadnego error boundary (`grep ErrorBoundary src` = 0) | `src/app/_layout.tsx`, nowy ekran fallback + klucze i18n pl/en | mały |
+| 2 | **Live Activity `staleDate`** | Gdy upload utknie (brak sieci), Live Activity na ekranie blokady jest oznaczona jako nieaktualna, zamiast pokazywać „Wysyłanie 40%” bez końca | `src/services/uploadLiveActivity.ts` (ścieżka JS) oraz `ExpoWidgetsLiveActivityBridge` w patchu `expo-widgets` (ścieżka natywna — i tak przegenerowujemy patch) | mały |
+| 3 | **`expo-image` `transition.skipOnCacheHit`** | Brak efektu „mrugnięcia” przy przewijaniu siatki Wspomnień i w viewerze, gdy obraz jest już w cache — aplikacja wydaje się szybsza | `MemoryGridCell.tsx:72`, `ViewerScreenSurface.tsx:177` | bardzo mały |
+| 4 | **Stabilne identyfikatory soczewek** (`deviceType`) | Przełącznik soczewek działa tak samo na iPhonie po polsku i po angielsku; wybór soczewki można zapamiętać między sesjami | `useCameraScreen.ts`, `NativeLensSwitcher.tsx` (i tak do przepisania, 4.5) | mały (w ramach migracji) |
+| 5 | **React transitions i prefetch** w Expo Router | Przy otwieraniu czatu z inboxa lub viewera bieżący ekran zostaje widoczny, aż następny będzie gotowy (bez pustej klatki), a `router.prefetch` może przygotować najbliższą rozmowę w tle | `inbox`, `viewer`, `useRouter().prefetch` | mały–średni |
+| 6 | **`activityEnabled` / `NavigationAwareActivity`** | Ukryte zakładki (kamera, inbox, profil) przestają renderować się w tle, ale zachowują stan — mniej pracy CPU i pamięci, gdy np. kamera ze Skią nie jest widoczna | `src/components/navigation/app-tabs-layout.tsx`, ekrany Stack | mały, wymaga pomiaru |
+| 7 | **`@expo/ui`: materiały i gradienty jako `ShapeStyle`** (`background`, `foregroundStyle`, nowy `Background`), `scrollEdgeEffectStyle` | Natywne SwiftUI materials/gradienty zamiast `expo-linear-gradient` / `expo-blur` w RN (8 plików, m.in. `LoginStage.tsx`, `MessageOverlay.tsx`, `PreviewTextBar.tsx`) — spójne z zasadą native-first, lepszy wygląd na iOS 26/27 | `src/components/**` | średni, stopniowo |
+| 8 | **`@expo/ui`: poprawione `RNHostView`** (`measure()` w miejscu, gdzie SwiftUI narysował widok; dotyk w `BottomSheet`/`Popover`; tap poza polem chowa klawiaturę) | Poprawne pozycje i dotyk w treści arkuszy | `src/components/ui/app-bottom-sheet.ios.tsx:91` — za darmo, do sprawdzenia | brak |
+| 9 | **`updates.maxUpdatesToKeep`** | Limit miejsca na OTA na telefonie — przy ~49 OTA na runtime ma to znaczenie | `app.json` → `updates` (zmiana native, idzie z 1.1.0) | bardzo mały |
+| 10 | **`expo-app-intents` (alpha)** | „Hej Siri, wyślij NiX do Oli”, skrót „Zrób NiX” w Skrótach, znajomi w Spotlight, sugestie Apple Intelligence. NiX ma już `INSendMessageIntent` (powiadomienia komunikacyjne) i Camera Control, więc to naturalne rozszerzenie | nowy katalog `app-intents/` (Swift inline modules) | duży; **alpha — prototyp na gałęzi, nie w wydaniu** |
+| 11 | **`File.digest()`** (SHA-256 natywnie) | Skrót pliku bez wczytywania bajtów do JS — np. kontrola integralności mediów przed uploadem (w bazie jest już `manifest_sha256`) | `src/services/mediaService.ts`, upload | mały, opcjonalnie |
+| 12 | **iPhone Duo: `ArrangementView`, `expo-hinge`** | Tryb „namiotu”: podgląd kamery na górnej połowie, przyciski na dolnej; viewer + odpowiedź obok siebie | kamera, viewer | duży; dopiero gdy urządzenie będzie realnym rynkiem |
+
+### 8.3 Ulepszenia „za darmo” (bez pisania kodu)
+
+- **Szybsze wywołania modułów natywnych na iOS** — przekazywanie długich stringów do 3,8× szybsze, tańsze Promise. NiX przekazuje JSON-y stanu Live Activity do `nix-background-uploader` przy każdym postępie uploadu (`uploadLiveActivity.ts:87,123`).
+- **Powiadomienia w foreground są pewniejsze.** Handler, który nie odpowie w 3 s, już nie gubi powiadomienia. NiX ma asynchroniczny handler (`PushNotificationsProvider.tsx:51`), a wątek JS bywa zajęty kompresją wideo — wcześniej takie powiadomienie mogło zniknąć.
+- **Metro 0.87** — generowanie source map ~2× szybsze przy ~połowie pamięci: szybsze `eas update` i `expo export`.
+- **Biblioteki** — nowsze Reanimated, Skia, FlashList (2.0 → 2.3), Screens i Safe Area z poprawkami dla iOS 26/27.
+- **Narzędzia dev** — nowy tunel (`@expo/ws-tunnel`, stabilniejszy), Xcode 27 Device Hub, `@expo/agent-cli` (`status`, `smoke` ze zrzutem ekranu) i `expo command:ps/events` — przydatne przy waszym sposobie pracy z agentami.
+
+### 8.4 Na później (beta/eksperymentalne)
+
+- **Expo Modules 2.0 (beta)** — moduły jako zwykłe klasy Swift z adnotacjami; wywołania synchroniczne 2,5–5,6× szybsze niż DSL. Kandydaci: `nix-camera-torch`, `nix-media-overlay`. Po wyjściu z bety.
+- **Noxcturnal** (`experiments.noxcturnalTransformWorker`) — transformer w Ruście, ~2× szybszy zimny bundling. Działa tylko bez własnych pluginów Babel; NiX ma React Compiler, więc część plików może wracać do Babel — do zmierzenia.
+- **Gesture Handler 3: API na hookach** (`usePanGesture` itd.) — mniej obiektów gestów tworzonych przy renderze; stare API jest `@deprecated`, więc migracja i tak przyjdzie.
+
+### 8.5 Czego SDK 58 NiX nie da (żeby nie liczyć tego jako zysku)
+
+- `threadIdentifier` w `expo-notifications` — NiX już grupuje powiadomienia per nadawca w Notification Service Extension (`ios/NixNotificationService/NotificationService.swift:27`). Nowe API dotyczy głównie powiadomień lokalnych.
+- Przekazywanie delegata `UNUserNotificationCenter` — NiX nie ma drugiej biblioteki z własnym delegatem.
+- `AudioStream` / nagrywanie WAV — waveform wiadomości głosowych już powstaje z meteringu (`useVoiceRecorder.ts:27,92`).
+- Sterowanie odtwarzaniem z ekranu blokady — odtwarzanie w tle jest wyłączone (`app.json`).
+- Czcionki variable — NiX używa systemowego `ui-rounded`.
+- `scanDocumentAsync`, Android (widgety, R8, prebuilt core), web (SSR, loadery, `server` output), `expo-observe`, integracja PostHog — poza zakresem aplikacji iOS z wyłączoną analityką.
 
 ## 9. Plan pracy na gałęzi
 
