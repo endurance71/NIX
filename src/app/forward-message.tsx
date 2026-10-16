@@ -5,16 +5,19 @@ import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { SymbolView } from 'expo-symbols';
+import type { SFSymbol } from 'sf-symbols-typescript';
 import { TextInput } from '@expo/ui';
 import { Button, HStack, Spacer, Text as SwiftText, ZStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits,
+  buttonBorderShape,
   buttonStyle,
+  controlSize,
   disabled as swiftDisabled,
-  bold,
   font,
   foregroundStyle,
   frame,
+  labelStyle,
   padding,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
@@ -97,7 +100,7 @@ function FriendRow({
   );
 }
 
-/** Cancel · title · Send, like a compose sheet in Messages. */
+/** Close (✕) · title · Send (↑), like a system compose sheet on iOS 26. */
 function ForwardHeader({ canSend, onSend }: { canSend: boolean; onSend: () => void }) {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
@@ -113,19 +116,31 @@ function ForwardHeader({ canSend, onSend }: { canSend: boolean; onSend: () => vo
           {t('forward.title')}
         </SwiftText>
         <HStack spacing={0} modifiers={[frame({ maxWidth: Infinity })]}>
+          {/* System close and confirm buttons: glyphs in glass circles, the label is for VoiceOver
+              (outside a toolbar `role="close"` alone draws the word, so the xmark is explicit). */}
           <Button
-            label={t('common.cancel')}
+            role="close"
+            systemImage={resolveAppIconName('close') as SFSymbol}
+            label={t('common.close')}
             onPress={() => router.back()}
-            modifiers={[buttonStyle('borderless'), tint(colors.accentText)]}
+            modifiers={[
+              labelStyle('iconOnly'),
+              buttonStyle('glass'),
+              buttonBorderShape('circle'),
+              controlSize('large'),
+            ]}
           />
           <Spacer />
           <Button
+            systemImage={resolveAppIconName('send') as SFSymbol}
             label={t('forward.send')}
             onPress={onSend}
             modifiers={[
-              buttonStyle('borderless'),
-              bold(),
-              tint(colors.accentText),
+              labelStyle('iconOnly'),
+              buttonStyle('glassProminent'),
+              buttonBorderShape('circle'),
+              controlSize('large'),
+              tint(colors.accent),
               swiftDisabled(!canSend),
             ]}
           />
