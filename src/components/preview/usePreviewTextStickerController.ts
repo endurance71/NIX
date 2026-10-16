@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
 import { AppState, Keyboard, useWindowDimensions, type KeyboardEvent, type TextInputInstance, type TextStyle } from 'react-native';
-import { Gesture } from 'react-native-gesture-handler';
+import { useExclusiveGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
 import {
   Easing,
   cancelAnimation,
@@ -467,27 +467,27 @@ export function usePreviewTextStickerController({
   // Only a placed (display-mode) sticker can be dropped on the trash; while typing the trash
   // button in the action row deletes it.
   const canTrash = !isEditing && !exiting;
-  const pan = Gesture.Pan()
-    .enabled(!formatOpen)
-    .minDistance(4)
-    .onBegin(() => {
+  const pan = usePanGesture({
+    enabled: !formatOpen,
+    minDistance: 4,
+    onBegin: () => {
       'worklet';
       cancelAnimation(translateY);
       dragStartY.set(translateY.get());
-    })
-    .onStart(() => {
+    },
+    onActivate: () => {
       'worklet';
       if (canTrash) trashVisible.set(motionEnabled ? withTiming(1, { duration: duration.fast }) : 1);
-    })
-    .onUpdate((event) => {
+    },
+    onUpdate: (event) => {
       'worklet';
       const rawNext = dragStartY.get() + event.translationY;
       const lowest = canTrash ? maxTopPx + TRASH_OVERDRAG_PX : maxTopPx;
       const next = Math.max(minTopPx, Math.min(lowest, rawNext));
       translateY.set(next);
       overTrash.set(canTrash && next - maxTopPx >= TRASH_ACTIVATE_PX);
-    })
-    .onEnd(() => {
+    },
+    onDeactivate: () => {
       'worklet';
       if (overTrash.get()) {
         scheduleOnRN(onDelete);
@@ -499,12 +499,13 @@ export function usePreviewTextStickerController({
       }
       restTop.set(nextTopPx);
       scheduleOnRN(onTopPxChange, nextTopPx);
-    })
-    .onFinalize(() => {
+    },
+    onFinalize: () => {
       'worklet';
       overTrash.set(false);
       trashVisible.set(motionEnabled ? withTiming(0, { duration: duration.fast }) : 0);
-    });
+    },
+  });
 
   // Light tick at the moment the sticker crosses into the trash zone (the visual grows with it).
   useAnimatedReaction(
@@ -514,13 +515,14 @@ export function usePreviewTextStickerController({
     },
   );
 
-  const tapDisplay = Gesture.Tap()
-    .enabled(!isEditing)
-    .onEnd(() => {
+  const tapDisplay = useTapGesture({
+    enabled: !isEditing,
+    onDeactivate: () => {
       'worklet';
       scheduleOnRN(onPressDisplay);
-    });
-  const composed = Gesture.Exclusive(pan, tapDisplay);
+    },
+  });
+  const composed = useExclusiveGestures(pan, tapDisplay);
 
   const handleBackdropPress = () => {
     if (exiting) return;

@@ -1,5 +1,5 @@
-import { useCallback, useMemo } from 'react';
-import { Gesture } from 'react-native-gesture-handler';
+import { useCallback } from 'react';
+import { useExclusiveGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
 import { withSpring, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { appNotificationQueue, type NotificationToken } from '../../lib/notificationQueue';
@@ -16,22 +16,31 @@ export function useNotificationGesture(token: NotificationToken, dragY: SharedVa
     snapshot.notification.onPress?.();
   }, [id, generation]);
 
-  const gesture = useMemo(() => {
-    const pan = Gesture.Pan().enabled(canSwipe)
-      .activeOffsetY([-10, 10]).failOffsetX([-18, 18])
-      .onChange((event) => { dragY.set((value) => Math.max(-120, Math.min(24, value + event.changeY))); })
-      .onEnd((event, success) => {
-        if (!success) return;
-        if (dragY.get() < -24 || event.velocityY < -420) scheduleOnRN(dismiss);
-        else dragY.set(withSpring(0, { duration: 280, dampingRatio: 1 }));
-      })
-      .onFinalize((_event, success) => {
-        if (!success) dragY.set(withSpring(0, { duration: 280, dampingRatio: 1 }));
-      });
-    const tap = Gesture.Tap().onEnd((_event, success) => {
-      if (success) scheduleOnRN(press);
-    });
-    return Gesture.Exclusive(pan, tap);
-  }, [canSwipe, dragY, dismiss, press]);
+  const pan = usePanGesture({
+    enabled: canSwipe,
+    activeOffsetY: [-10, 10],
+    failOffsetX: [-18, 18],
+    onUpdate: (event) => {
+      'worklet';
+      dragY.set((value) => Math.max(-120, Math.min(24, value + event.changeY)));
+    },
+    onDeactivate: (event) => {
+      'worklet';
+      if (event.canceled) return;
+      if (dragY.get() < -24 || event.velocityY < -420) scheduleOnRN(dismiss);
+      else dragY.set(withSpring(0, { duration: 280, dampingRatio: 1 }));
+    },
+    onFinalize: (event) => {
+      'worklet';
+      if (event.canceled) dragY.set(withSpring(0, { duration: 280, dampingRatio: 1 }));
+    },
+  });
+  const tap = useTapGesture({
+    onDeactivate: (event) => {
+      'worklet';
+      if (!event.canceled) scheduleOnRN(press);
+    },
+  });
+  const gesture = useExclusiveGestures(pan, tap);
   return { gesture, dismiss, press };
 }

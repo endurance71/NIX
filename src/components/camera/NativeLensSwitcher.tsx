@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import {
@@ -114,27 +114,28 @@ export function NativeLensSwitcher({
     selectionHaptic();
     onSelect(id);
   };
-  const drag = Gesture.Pan()
-    .enabled(!disabled && options.length > 1)
-    .activeOffsetX([-DRAG_ACTIVATION_PX, DRAG_ACTIVATION_PX])
-    .failOffsetY([-24, 24])
-    .onStart((event) => {
+  const drag = usePanGesture({
+    enabled: !disabled && options.length > 1,
+    activeOffsetX: [-DRAG_ACTIVATION_PX, DRAG_ACTIVATION_PX],
+    failOffsetY: [-24, 24],
+    onActivate: (event) => {
       'worklet';
       const index = chipIndexAt(event.x, optionIds.length);
       dragIndex.set(index);
       scheduleOnRN(selectDragged, index);
-    })
-    .onUpdate((event) => {
+    },
+    onUpdate: (event) => {
       'worklet';
       const index = chipIndexAt(event.x, optionIds.length);
       if (index === dragIndex.get()) return;
       dragIndex.set(index);
       scheduleOnRN(selectDragged, index);
-    })
-    .onFinalize(() => {
+    },
+    onFinalize: () => {
       'worklet';
       dragIndex.set(-1);
-    });
+    },
+  });
 
   if (options.length === 0 || !selection) return null;
 

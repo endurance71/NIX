@@ -1,6 +1,11 @@
-import { useMemo } from 'react';
 import type { ViewStyle } from 'react-native';
-import { Gesture } from 'react-native-gesture-handler';
+import {
+  useCompetingGestures,
+  useExclusiveGestures,
+  useLongPressGesture,
+  usePanGesture,
+  useTapGesture,
+} from 'react-native-gesture-handler';
 import {
   useAnimatedStyle,
   useSharedValue,
@@ -49,82 +54,79 @@ export function useViewerGestures({
   const dragY = useSharedValue(0);
   const chromeOpacity = useSharedValue(1);
 
-  const gesture = useMemo(() => {
-    const fadeChrome = (to: number) => {
+  const fadeChrome = (to: number) => {
+    'worklet';
+    // Reduce Motion: the chrome hides and returns instantly.
+    chromeOpacity.set(motionEnabled ? withTiming(to, { duration: duration.fast }) : to);
+  };
+
+  const settle = (velocityY: number) => {
+    'worklet';
+    dragY.set(withSpring(0, { duration: 400, dampingRatio: 0.8, velocity: velocityY }));
+  };
+
+  const hold = useLongPressGesture({
+    enabled: tapEnabled,
+    minDuration: VIEWER_HOLD_TO_PAUSE_MS,
+    maxDistance: 12,
+    onActivate: () => {
       'worklet';
-      // Reduce Motion: the chrome hides and returns instantly.
-      chromeOpacity.set(motionEnabled ? withTiming(to, { duration: duration.fast }) : to);
-    };
-
-    const hold = Gesture.LongPress()
-      .enabled(tapEnabled)
-      .minDuration(VIEWER_HOLD_TO_PAUSE_MS)
-      .maxDistance(12)
-      .onStart(() => {
-        fadeChrome(0);
-        scheduleOnRN(onHoldChange, true);
-      })
-      .onFinalize((_event, success) => {
-        if (!success) return;
-        fadeChrome(1);
-        scheduleOnRN(onHoldChange, false);
-      });
-
-    const tap = Gesture.Tap()
-      .enabled(tapEnabled)
-      .onEnd((event, success) => {
-        if (!success) return;
-        scheduleOnRN(onTapZone, resolveViewerTapZone(event.x, width));
-      });
-
-    const settle = (velocityY: number) => {
+      fadeChrome(0);
+      scheduleOnRN(onHoldChange, true);
+    },
+    onFinalize: (event) => {
       'worklet';
-      dragY.set(withSpring(0, { duration: 400, dampingRatio: 0.8, velocity: velocityY }));
-    };
+      if (event.canceled) return;
+      fadeChrome(1);
+      scheduleOnRN(onHoldChange, false);
+    },
+  });
 
-    const pan = Gesture.Pan()
-      .enabled(panEnabled)
-      // Down only; a horizontal swipe is left to the system.
-      .activeOffsetY(10)
-      .failOffsetX([-10, 10])
-      .onUpdate((event) => {
-        dragY.set(Math.max(0, event.translationY));
-      })
-      .onEnd((event, success) => {
-        if (!success) return;
-        if (shouldDismissViewer(event.translationY, event.velocityY, height)) {
-          if (motionEnabled) {
-            dragY.set(
-              withSpring(height, {
-                duration: 300,
-                dampingRatio: 1,
-                velocity: event.velocityY,
-                overshootClamping: true,
-              }),
-            );
-          }
-          scheduleOnRN(onDismiss);
-          return;
+  const tap = useTapGesture({
+    enabled: tapEnabled,
+    onDeactivate: (event) => {
+      'worklet';
+      if (event.canceled) return;
+      scheduleOnRN(onTapZone, resolveViewerTapZone(event.x, width));
+    },
+  });
+
+  const pan = usePanGesture({
+    enabled: panEnabled,
+    // Down only; a horizontal swipe is left to the system.
+    activeOffsetY: 10,
+    failOffsetX: [-10, 10],
+    onUpdate: (event) => {
+      'worklet';
+      dragY.set(Math.max(0, event.translationY));
+    },
+    onDeactivate: (event) => {
+      'worklet';
+      if (event.canceled) return;
+      if (shouldDismissViewer(event.translationY, event.velocityY, height)) {
+        if (motionEnabled) {
+          dragY.set(
+            withSpring(height, {
+              duration: 300,
+              dampingRatio: 1,
+              velocity: event.velocityY,
+              overshootClamping: true,
+            }),
+          );
         }
-        settle(event.velocityY);
-      })
-      .onFinalize((_event, success) => {
-        if (!success) settle(0);
-      });
+        scheduleOnRN(onDismiss);
+        return;
+      }
+      settle(event.velocityY);
+    },
+    onFinalize: (event) => {
+      'worklet';
+      if (event.canceled) settle(0);
+    },
+  });
 
-    return Gesture.Race(pan, Gesture.Exclusive(hold, tap));
-  }, [
-    chromeOpacity,
-    dragY,
-    height,
-    motionEnabled,
-    onDismiss,
-    onHoldChange,
-    onTapZone,
-    panEnabled,
-    tapEnabled,
-    width,
-  ]);
+  const holdOrTap = useExclusiveGestures(hold, tap);
+  const gesture = useCompetingGestures(pan, holdOrTap);
 
   /** Follows the finger and shrinks to 0.9; with Reduce Motion it only fades. */
   const stageStyle = useAnimatedStyle<ViewStyle>(() => {

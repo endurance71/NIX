@@ -31,7 +31,17 @@ import {
   interpolateColor,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-import { Gesture } from 'react-native-gesture-handler';
+import {
+  GestureStateManager,
+  useCompetingGestures,
+  useExclusiveGestures,
+  useLongPressGesture,
+  usePanGesture,
+  usePinchGesture,
+  useTapGesture,
+  type ComposedGesture,
+  type PanGesture,
+} from 'react-native-gesture-handler';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useScreenInsets, type ScreenInsetsResult } from './useScreenInsets';
@@ -161,8 +171,8 @@ export type CameraScreenViewModel = {
   /** True while a pinch / hold-to-record drag is changing `zoomShared`. */
   zoomGestureActive: SharedValue<boolean>;
   /** Pinch-to-zoom racing tap-to-focus and long-press AE/AF lock on the preview. */
-  previewGesture: ReturnType<typeof Gesture.Race>;
-  shutterGesture: ReturnType<typeof Gesture.Pan>;
+  previewGesture: ComposedGesture;
+  shutterGesture: PanGesture;
   previewViewRef: RefObject<ViewInstance | null>;
   onPreviewLayout: (event: LayoutChangeEvent) => void;
   focusIndicator: CameraFocusIndicator | null;
@@ -523,41 +533,33 @@ export function useCameraScreen(): CameraScreenViewModel {
     dispatchCameraUi({ type: 'SET_ZOOM', zoom: nextZoom });
   }, []);
 
-  const pinchGesture = useMemo(
-    () =>
-      Gesture.Pinch()
-        .onBegin(() => {
-          'worklet';
-          zoomAtGestureStart.set(zoomShared.get());
-          zoomGestureActive.set(true);
-        })
-        .onUpdate((event) => {
-          'worklet';
-          // UI thread only (PERF-12): the preview subscribes to `zoomShared` on its own; React
-          // state is committed once, when the pinch ends.
-          zoomShared.set(Math.max(
-            0,
-            Math.min(1, zoomAtGestureStart.get() + (event.scale - 1) * 0.22)
-          ));
-        })
-        .onEnd(() => {
-          'worklet';
-          zoomGestureActive.set(false);
-          scheduleOnRN(setZoomFromGesture, zoomShared.get());
-        })
-        .onFinalize(() => {
-          'worklet';
-          if (!zoomGestureActive.get()) return;
-          zoomGestureActive.set(false);
-          scheduleOnRN(setZoomFromGesture, zoomShared.get());
-        }),
-    [
-      setZoomFromGesture,
-      zoomAtGestureStart,
-      zoomGestureActive,
-      zoomShared,
-    ]
-  );
+  const pinchGesture = usePinchGesture({
+    onBegin: () => {
+      'worklet';
+      zoomAtGestureStart.set(zoomShared.get());
+      zoomGestureActive.set(true);
+    },
+    onUpdate: (event) => {
+      'worklet';
+      // UI thread only (PERF-12): the preview subscribes to `zoomShared` on its own; React
+      // state is committed once, when the pinch ends.
+      zoomShared.set(Math.max(
+        0,
+        Math.min(1, zoomAtGestureStart.get() + (event.scale - 1) * 0.22)
+      ));
+    },
+    onDeactivate: () => {
+      'worklet';
+      zoomGestureActive.set(false);
+      scheduleOnRN(setZoomFromGesture, zoomShared.get());
+    },
+    onFinalize: () => {
+      'worklet';
+      if (!zoomGestureActive.get()) return;
+      zoomGestureActive.set(false);
+      scheduleOnRN(setZoomFromGesture, zoomShared.get());
+    },
+  });
 
   useEffect(() => {
     if (permission) return;
@@ -879,26 +881,27 @@ export function useCameraScreen(): CameraScreenViewModel {
     requestFocusAt(width / 2, height / 2, x + width / 2, y + height / 2, true);
   };
 
-  const previewGesture = useMemo(() => {
-    const focusTap = Gesture.Tap()
-      .maxDuration(300)
-      .maxDistance(12)
-      .onEnd((event, success) => {
-        'worklet';
-        if (!success) return;
-        scheduleOnRN(handleFocusRequest, event.x, event.y, event.absoluteX, event.absoluteY, false);
-      });
-    const focusLock = Gesture.LongPress()
-      .minDuration(600)
-      .maxDistance(12)
-      .numberOfPointers(1)
-      .onStart((event) => {
-        'worklet';
-        scheduleOnRN(handleFocusRequest, event.x, event.y, event.absoluteX, event.absoluteY, true);
-      });
-    // Pinch wins as soon as two fingers scale; otherwise a hold locks, a tap focuses.
-    return Gesture.Race(pinchGesture, Gesture.Exclusive(focusLock, focusTap));
-  }, [handleFocusRequest, pinchGesture]);
+  const focusTap = useTapGesture({
+    maxDuration: 300,
+    maxDistance: 12,
+    onDeactivate: (event) => {
+      'worklet';
+      if (event.canceled) return;
+      scheduleOnRN(handleFocusRequest, event.x, event.y, event.absoluteX, event.absoluteY, false);
+    },
+  });
+  const focusLock = useLongPressGesture({
+    minDuration: 600,
+    maxDistance: 12,
+    numberOfPointers: 1,
+    onActivate: (event) => {
+      'worklet';
+      scheduleOnRN(handleFocusRequest, event.x, event.y, event.absoluteX, event.absoluteY, true);
+    },
+  });
+  // Pinch wins as soon as two fingers scale; otherwise a hold locks, a tap focuses.
+  const focusGesture = useExclusiveGestures(focusLock, focusTap);
+  const previewGesture = useCompetingGestures(pinchGesture, focusGesture);
 
   const onCameraReady = () => {
     cameraReadyRef.current = true;
@@ -1409,8 +1412,8 @@ export function useCameraScreen(): CameraScreenViewModel {
     }
   };
 
-  // Stable JS bridges for worklets — gesture objects must not be recreated mid-touch
-  // (SET_ZOOM / recordingVideo re-renders previously rebuilt Gesture.Pan and crashed Hermes).
+  // Stable JS bridges for worklets: the gesture callbacks never change between renders
+  // (SET_ZOOM / recordingVideo re-renders once rebuilt the builder Gesture.Pan and crashed Hermes).
   const handleShutterPressIn = useLatestCallback(onShutterPressIn);
   const handleShutterPressOut = useLatestCallback(onShutterPressOut);
 
@@ -1481,74 +1484,61 @@ export function useCameraScreen(): CameraScreenViewModel {
 
   // Hold-to-record + Snapchat-style vertical drag-to-zoom while REC is active.
   // manualActivation keeps the touch alive through drag (Pressable would cancel on move).
-  // Memoized: recreating Pan mid-hold (zoom commits / recording state) aborted Hermes in TF.
-  const shutterGesture = useMemo(
-    () =>
-      Gesture.Pan()
-        .manualActivation(true)
-        .onTouchesDown((_event, state) => {
-          'worklet';
-          if (!shutterEnabled.get()) {
-            state.fail();
-            return;
-          }
-          shutterFingerActive.set(true);
-          state.activate();
-          // Feedback on touch-down, on the UI thread: a press-in, then from ~150 ms a slow grow
-          // that previews the hold-to-record threshold (500 ms).
-          if (motionEnabledShared.get()) {
-            shutterScale.set(
-              withSequence(
-                withTiming(SHUTTER_PRESSED_SCALE, { duration: 100, easing: SHUTTER_EASE_OUT }),
-                withDelay(
-                  50,
-                  withTiming(SHUTTER_HOLD_SCALE, {
-                    duration: VIDEO_HOLD_THRESHOLD_MS - 150,
-                    easing: SHUTTER_EASE_OUT,
-                  })
-                )
-              )
-            );
-          } else {
-            shutterPressOpacity.set(withTiming(SHUTTER_PRESSED_OPACITY, { duration: 100 }));
-          }
-          scheduleOnRN(handleShutterPressIn);
-        })
-        .onChange((event) => {
-          'worklet';
-          if (!recordingZoomEnabled.get()) return;
-          // Inline hold-zoom math — do not call applyHoldZoomDelta (cross-file non-worklet).
-          // UI thread only (PERF-12); committed to React state when the finger lifts.
-          zoomGestureActive.set(true);
-          zoomShared.set(Math.max(
-            0,
-            Math.min(1, zoomShared.get() - event.changeY * HOLD_ZOOM_GAIN)
-          ));
-        })
-        .onFinalize(() => {
-          'worklet';
-          if (!shutterFingerActive.get()) return;
-          shutterFingerActive.set(false);
-          zoomGestureActive.set(false);
-          shutterScale.set(withTiming(1, { duration: 150, easing: SHUTTER_EASE_OUT }));
-          shutterPressOpacity.set(withTiming(1, { duration: 150 }));
-          scheduleOnRN(setZoomFromGesture, zoomShared.get());
-          scheduleOnRN(handleShutterPressOut);
-        }),
-    [
-      handleShutterPressIn,
-      handleShutterPressOut,
-      motionEnabledShared,
-      recordingZoomEnabled,
-      setZoomFromGesture,
-      shutterEnabled,
-      shutterFingerActive,
-      shutterPressOpacity,
-      shutterScale,
-      zoomGestureActive,
-      zoomShared,
-    ]
-  );
+  // The hook keeps one gesture instance; recreating the builder Pan mid-hold (zoom commits /
+  // recording state) aborted Hermes in TF.
+  const shutterGesture = usePanGesture({
+    manualActivation: true,
+    onTouchesDown: (event) => {
+      'worklet';
+      if (!shutterEnabled.get()) {
+        GestureStateManager.fail(event.handlerTag);
+        return;
+      }
+      shutterFingerActive.set(true);
+      GestureStateManager.activate(event.handlerTag);
+      // Feedback on touch-down, on the UI thread: a press-in, then from ~150 ms a slow grow
+      // that previews the hold-to-record threshold (500 ms).
+      if (motionEnabledShared.get()) {
+        shutterScale.set(
+          withSequence(
+            withTiming(SHUTTER_PRESSED_SCALE, { duration: 100, easing: SHUTTER_EASE_OUT }),
+            withDelay(
+              50,
+              withTiming(SHUTTER_HOLD_SCALE, {
+                duration: VIDEO_HOLD_THRESHOLD_MS - 150,
+                easing: SHUTTER_EASE_OUT,
+              })
+            )
+          )
+        );
+      } else {
+        shutterPressOpacity.set(withTiming(SHUTTER_PRESSED_OPACITY, { duration: 100 }));
+      }
+      scheduleOnRN(handleShutterPressIn);
+    },
+    onUpdate: (event) => {
+      'worklet';
+      if (!recordingZoomEnabled.get()) return;
+      // Inline hold-zoom math — do not call applyHoldZoomDelta (cross-file non-worklet).
+      // UI thread only (PERF-12); committed to React state when the finger lifts.
+      zoomGestureActive.set(true);
+      zoomShared.set(Math.max(
+        0,
+        Math.min(1, zoomShared.get() - event.changeY * HOLD_ZOOM_GAIN)
+      ));
+    },
+    onFinalize: () => {
+      'worklet';
+      if (!shutterFingerActive.get()) return;
+      shutterFingerActive.set(false);
+      zoomGestureActive.set(false);
+      shutterScale.set(withTiming(1, { duration: 150, easing: SHUTTER_EASE_OUT }));
+      shutterPressOpacity.set(withTiming(1, { duration: 150 }));
+      scheduleOnRN(setZoomFromGesture, zoomShared.get());
+      scheduleOnRN(handleShutterPressOut);
+    },
+  });
+
 
   const takeAccessiblePhoto = () => {
     if (takingPicture || isSwitchingCamera || accessibleVideoPendingRef.current || recordingSessionRunningRef.current

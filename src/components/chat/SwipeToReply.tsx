@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { SymbolView } from 'expo-symbols';
@@ -46,28 +46,29 @@ export function SwipeToReply({
   const travel = useSharedValue(0);
   const armed = useSharedValue(false);
 
-  const pan = Gesture.Pan()
-    .enabled(enabled)
-    .activeOffsetX(ACTIVATION_PX)
-    .failOffsetX(-12)
-    .failOffsetY([-12, 12])
-    .onUpdate((event) => {
+  const pan = usePanGesture({
+    enabled,
+    activeOffsetX: ACTIVATION_PX,
+    failOffsetX: -12,
+    failOffsetY: [-12, 12],
+    onUpdate: (event) => {
       'worklet';
       travel.set(travelFor(event.translationX));
       const nowArmed = event.translationX >= REPLY_THRESHOLD;
       if (nowArmed === armed.get()) return;
       armed.set(nowArmed);
       if (nowArmed) scheduleOnRN(tap, 'light');
-    })
-    .onEnd(() => {
+    },
+    onDeactivate: () => {
       'worklet';
       if (armed.get()) scheduleOnRN(onReply);
-    })
-    .onFinalize(() => {
+    },
+    onFinalize: () => {
       'worklet';
       armed.set(false);
       travel.set(withSpring(0, appleUiSpring));
-    });
+    },
+  });
 
   const contentStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: travel.get() }],

@@ -1,6 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, type AccessibilityActionEvent } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import {
+  GestureDetector,
+  useExclusiveGestures,
+  usePanGesture,
+  useTapGesture,
+} from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -95,21 +100,23 @@ export function PreviewFilterSwipeLayer({
 
   const handleTap = () => onTap?.();
 
-  const pan = Gesture.Pan()
-    .enabled(enabled)
-    .activeOffsetX([-16, 16])
-    .failOffsetY([-24, 24])
-    .onEnd((event) => {
+  const pan = usePanGesture({
+    enabled,
+    activeOffsetX: [-16, 16],
+    failOffsetY: [-24, 24],
+    onDeactivate: (event) => {
       'worklet';
       scheduleOnRN(handleSwipeEnd, event.translationX, event.velocityX);
-    });
-  const tap = Gesture.Tap()
-    .enabled(enabled && Boolean(onTap))
-    .onEnd(() => {
+    },
+  });
+  const tap = useTapGesture({
+    enabled: enabled && Boolean(onTap),
+    onDeactivate: () => {
       'worklet';
       scheduleOnRN(handleTap);
-    });
-  const gesture = Gesture.Exclusive(pan, tap);
+    },
+  });
+  const gesture = useExclusiveGestures(pan, tap);
 
   const labelStyle = useAnimatedStyle(() => ({
     opacity: labelOpacity.get(),

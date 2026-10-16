@@ -8,7 +8,13 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import {
+  GestureDetector,
+  usePanGesture,
+  usePinchGesture,
+  useRotationGesture,
+  useSimultaneousGestures,
+} from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   useAnimatedReaction,
@@ -120,25 +126,25 @@ function PreviewEmojiSticker({
   };
   const remove = () => onDelete(sticker.id);
 
-  const pan = Gesture.Pan()
-    .enabled(enabled)
-    .averageTouches(true)
-    .hitSlop(GESTURE_HIT_SLOP)
-    .onStart(() => {
+  const pan = usePanGesture({
+    enabled,
+    averageTouches: true,
+    hitSlop: GESTURE_HIT_SLOP,
+    onActivate: () => {
       'worklet';
       startX.set(centerX.get());
       startY.set(centerY.get());
       trashVisible.set(motionEnabled ? withTiming(1, { duration: duration.fast }) : 1);
-    })
-    .onUpdate((event) => {
+    },
+    onUpdate: (event) => {
       'worklet';
       centerX.set(startX.get() + event.translationX);
       centerY.set(startY.get() + event.translationY);
       const over = isFingerOverTrash(event.absoluteX, event.absoluteY, trash.x, trash.y);
       overTrash.set(over);
       trashActive.set(over);
-    })
-    .onEnd(() => {
+    },
+    onDeactivate: () => {
       'worklet';
       if (overTrash.get()) {
         // Shrink into the trash, then delete; the trash stays red until the sticker is gone.
@@ -155,50 +161,53 @@ function PreviewEmojiSticker({
         return;
       }
       scheduleOnRN(commit, centerX.get(), centerY.get(), fontSize.get(), rotation.get());
-    })
-    .onFinalize(() => {
+    },
+    onFinalize: () => {
       'worklet';
       // While the sticker is being swallowed, the red trash stays up until it is gone.
       const removing = overTrash.get();
       if (!removing) trashActive.set(false);
       const hide = withTiming(0, { duration: motionEnabled ? duration.fast : 0 });
       trashVisible.set(removing ? withDelay(STICKER_REMOVE_MS, hide) : hide);
-    });
+    },
+  });
 
-  const pinch = Gesture.Pinch()
-    .enabled(enabled)
-    .hitSlop(GESTURE_HIT_SLOP)
-    .onStart(() => {
+  const pinch = usePinchGesture({
+    enabled,
+    hitSlop: GESTURE_HIT_SLOP,
+    onActivate: () => {
       'worklet';
       startFont.set(fontSize.get());
-    })
-    .onUpdate((event) => {
+    },
+    onUpdate: (event) => {
       'worklet';
       const base = startFont.get();
       fontSize.set(base * clampLiveStickerScale(base, event.scale));
-    })
-    .onEnd(() => {
+    },
+    onDeactivate: () => {
       'worklet';
       scheduleOnRN(commit, centerX.get(), centerY.get(), fontSize.get(), rotation.get());
-    });
+    },
+  });
 
-  const rotate = Gesture.Rotation()
-    .enabled(enabled)
-    .hitSlop(GESTURE_HIT_SLOP)
-    .onStart(() => {
+  const rotate = useRotationGesture({
+    enabled,
+    hitSlop: GESTURE_HIT_SLOP,
+    onActivate: () => {
       'worklet';
       startRotation.set(rotation.get());
-    })
-    .onUpdate((event) => {
+    },
+    onUpdate: (event) => {
       'worklet';
       rotation.set(startRotation.get() + event.rotation);
-    })
-    .onEnd(() => {
+    },
+    onDeactivate: () => {
       'worklet';
       scheduleOnRN(commit, centerX.get(), centerY.get(), fontSize.get(), rotation.get());
-    });
+    },
+  });
 
-  const gesture = Gesture.Simultaneous(pan, pinch, rotate);
+  const gesture = useSimultaneousGestures(pan, pinch, rotate);
 
   useAnimatedReaction(
     () => overTrash.get(),
