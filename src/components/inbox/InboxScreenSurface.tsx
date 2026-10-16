@@ -1,5 +1,6 @@
-import { memo, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { GestureDetector, useTapGesture } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import {
   Button,
@@ -851,68 +852,71 @@ function PinnedUploadMenuItems({
 }
 
 /**
- * One pinned conversation: a large avatar with the name under it, like a pin in Messages. Tap opens
- * the chat, a long press shows the row's menu; VoiceOver reads one element with the row's label.
- * Memoized like `MessageRow` (PERF-16).
+ * The touch surface of a pin: a React Native view over it with a Gesture Handler tap. The finger
+ * landing reports which pin is held, so the grid row's context menu and preview are this pin's by
+ * the time the system asks for them (SwiftUI's own long press gesture never fired next to that
+ * menu); a tap opens the chat. A hold fails the tap at 0.5 s and the system menu takes over.
+ * Hidden from VoiceOver, which activates the SwiftUI button under it instead.
  */
-const PinnedConversationCell = memo(function PinnedConversationCell({
+function PinnedTouchSurface({
+  width,
+  height,
+  onHold,
+  onOpen,
+}: {
+  width: number;
+  height: number;
+  onHold: () => void;
+  onOpen: () => void;
+}) {
+  const gesture = useTapGesture({
+    runOnJS: true,
+    onTouchesDown: onHold,
+    onDeactivate: (event) => {
+      if (!event.canceled) onOpen();
+    },
+  });
+  return (
+    <GestureDetector gesture={gesture}>
+      <View
+        collapsable={false}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={{ width, height }}
+      />
+    </GestureDetector>
+  );
+}
+
+/**
+ * The pin itself: the avatar with its unread dot and status badge, the name under it. Shared by
+ * the grid cell and the context menu preview (the lifted card).
+ */
+function PinnedCellBody({
   row,
   avatarUrl,
   busy,
   muted,
   friendshipBadge,
-  reactionGlyph,
-  muteAvailable,
-  networkActionsEnabled,
-  handlers,
-  x,
-  y,
   cellWidth,
   cellHeight,
   avatarSize,
-  animationKey,
-  t,
+  slot,
 }: {
   row: InboxRowModel;
   avatarUrl: string | null;
   busy: boolean;
   muted: boolean;
   friendshipBadge: FriendshipBadge | null;
-  reactionGlyph: string | null;
-  muteAvailable: boolean;
-  networkActionsEnabled: boolean;
-  handlers: RowHandlers;
-  x: number;
-  y: number;
   cellWidth: number;
   cellHeight: number;
   avatarSize: number;
-  /** Pinned-set key for the glide animation; `null` with Reduce Motion (cells jump into place). */
-  animationKey: number | null;
-  t: Translate;
+  /** Host slot of the avatar's React view (see `avatarView`). */
+  slot: string;
 }) {
   const { colors } = useAppTheme();
-  const menu = resolveInboxRowMenu({ row, busy, online: networkActionsEnabled, muteAvailable });
   const name = row.display_name || `@${row.username}`;
-  const a11yLabel = buildInboxRowAccessibilityLabel({
-    name,
-    friendshipLabel: friendshipBadgeAccessibilityLabel(friendshipBadge, t),
-    unreadLabel: row.unread ? t('inbox.unreadA11y') : null,
-    pinnedLabel: t('inbox.pinnedA11y'),
-    mutedLabel: muted ? t('inbox.mutedA11y') : null,
-    // The grid shows no status line; VoiceOver still gets the facts the row would show.
-    status: rowSubtitle(row, t, reactionGlyph),
-    timestamp: row.upload ? '' : row.timestampLabel,
-  });
-
-  // Absolutely placed in the grid (see layoutPinnedGrid): padding, not offset, so the context
-  // menu preview lifts from where the cell really is; the padding animates on pin / unpin.
-  const placement: ModifierConfig[] = [
-    padding({ leading: x, top: y }),
-    ...(animationKey === null ? [] : [animation(PINNED_GRID_ANIMATION, animationKey)]),
-  ];
-
-  const content = (
+  return (
     <VStack
       alignment="center"
       spacing={PINNED_GRID_NAME_SPACING}
@@ -930,7 +934,7 @@ const PinnedConversationCell = memo(function PinnedConversationCell({
             storagePath: row.avatarStoragePath,
             emoji: row.avatarEmoji,
             fallbackInitial: row.display_name || row.username,
-            slot: `${x}:${y}`,
+            slot,
           })}
           {/* Unread: a blue dot on the avatar's corner, like an unread pin in Messages. */}
           {row.unread ? (
@@ -977,6 +981,81 @@ const PinnedConversationCell = memo(function PinnedConversationCell({
       </HStack>
     </VStack>
   );
+}
+
+/**
+ * One pinned conversation: a large avatar with the name under it, like a pin in Messages. Tap
+ * opens the chat; a long press tells the grid which pin is held (its context menu is the grid
+ * row's, see `PinnedConversationsGrid`). VoiceOver reads one element (the button) with the row's
+ * label.
+ * Memoized like `MessageRow` (PERF-16).
+ */
+const PinnedConversationCell = memo(function PinnedConversationCell({
+  row,
+  avatarUrl,
+  busy,
+  muted,
+  friendshipBadge,
+  reactionGlyph,
+  handlers,
+  onHold,
+  x,
+  y,
+  cellWidth,
+  cellHeight,
+  avatarSize,
+  animationKey,
+  t,
+}: {
+  row: InboxRowModel;
+  avatarUrl: string | null;
+  busy: boolean;
+  muted: boolean;
+  friendshipBadge: FriendshipBadge | null;
+  reactionGlyph: string | null;
+  handlers: RowHandlers;
+  onHold: (peerId: string) => void;
+  x: number;
+  y: number;
+  cellWidth: number;
+  cellHeight: number;
+  avatarSize: number;
+  /** Pinned-set key for the glide animation; `null` with Reduce Motion (cells jump into place). */
+  animationKey: number | null;
+  t: Translate;
+}) {
+  const name = row.display_name || `@${row.username}`;
+  const a11yLabel = buildInboxRowAccessibilityLabel({
+    name,
+    friendshipLabel: friendshipBadgeAccessibilityLabel(friendshipBadge, t),
+    unreadLabel: row.unread ? t('inbox.unreadA11y') : null,
+    pinnedLabel: t('inbox.pinnedA11y'),
+    mutedLabel: muted ? t('inbox.mutedA11y') : null,
+    // The grid shows no status line; VoiceOver still gets the facts the row would show.
+    status: rowSubtitle(row, t, reactionGlyph),
+    timestamp: row.upload ? '' : row.timestampLabel,
+  });
+
+  // Absolutely placed in the grid (see layoutPinnedGrid): padding, not offset, so the lifted
+  // preview comes from where the cell really is; the padding animates on pin / unpin.
+  const placement: ModifierConfig[] = [
+    padding({ leading: x, top: y }),
+    ...(animationKey === null ? [] : [animation(PINNED_GRID_ANIMATION, animationKey)]),
+  ];
+
+  const content = (
+    <PinnedCellBody
+      row={row}
+      avatarUrl={avatarUrl}
+      busy={busy}
+      muted={muted}
+      friendshipBadge={friendshipBadge}
+      cellWidth={cellWidth}
+      cellHeight={cellHeight}
+      avatarSize={avatarSize}
+      slot={`${x}:${y}`}
+    />
+  );
 
   if (busy) {
     return (
@@ -987,69 +1066,40 @@ const PinnedConversationCell = memo(function PinnedConversationCell({
     );
   }
 
-  const cellButton = (
-    <Button
-      onPress={() => handlers.onOpen(row)}
-      modifiers={[
-        buttonStyle('plain'),
-        accessibilityLabel(a11yLabel),
-        accessibilityHint(
-          row.kind === 'nix' && row.unread ? t('inbox.openHint') : t('inbox.openChatHint'),
-        ),
-      ]}>
-      {content}
-    </Button>
-  );
-  const hasRowMenu = hasInboxRowMenu(menu);
-  const hasUploadItems = Boolean(
-    selectPrimaryUploadAction(row.upload) || row.upload?.actions.cancelJobIds.length,
-  );
-  if (!hasRowMenu && !hasUploadItems) {
-    return <HStack spacing={0} modifiers={placement}>{cellButton}</HStack>;
-  }
-
-  // A Menu with a primary action, not a context menu: several `contextMenu`s in one List row (the
-  // grid is one row) all resolve to the first one, so holding any pin opened the first pin's menu.
-  // Tap opens the chat, a long press shows this pin's menu anchored to it.
   return (
-    <Menu
-      label={content}
-      onPrimaryAction={() => handlers.onOpen(row)}
-      modifiers={[
-        ...placement,
-        buttonStyle('plain'),
-        accessibilityLabel(a11yLabel),
-        accessibilityHint(
-          row.kind === 'nix' && row.unread ? t('inbox.openHint') : t('inbox.openChatHint'),
-        ),
-      ]}>
-      <PinnedUploadMenuItems
-        row={row}
-        onUploadAction={(action) => handlers.onUploadAction(row, action)}
-        divided={hasRowMenu}
-        t={t}
-      />
-      {hasRowMenu ? (
-        <MessageContextMenuItems
-          menu={menu}
-          pinned
-          muted={muted}
-          onTogglePin={() => handlers.onTogglePin(row)}
-          onSetMute={(duration) => handlers.onSetMute(row, duration)}
-          onMarkRead={() => handlers.onMarkRead(row)}
-          onReport={() => handlers.onReport(row)}
-          onBlock={() => handlers.onBlock(row)}
-          onDelete={() => handlers.onDelete(row)}
-          t={t}
-        />
-      ) : null}
-    </Menu>
+    <HStack spacing={0} modifiers={placement}>
+      <ZStack alignment="topLeading" modifiers={[frame({ width: cellWidth, height: cellHeight })]}>
+        <Button
+          onPress={() => handlers.onOpen(row)}
+          modifiers={[
+            buttonStyle('plain'),
+            accessibilityLabel(a11yLabel),
+            accessibilityHint(
+              row.kind === 'nix' && row.unread ? t('inbox.openHint') : t('inbox.openChatHint'),
+            ),
+          ]}>
+          {content}
+        </Button>
+        <RNHostView matchContents>
+          <PinnedTouchSurface
+            width={cellWidth}
+            height={cellHeight}
+            onHold={() => onHold(row.peerId)}
+            onOpen={() => handlers.onOpen(row)}
+          />
+        </RNHostView>
+      </ZStack>
+    </HStack>
   );
 });
 
 /**
  * Pinned conversations as a grid of large avatars at the top of the list (Messages, iOS 26): rows
  * of `columns`, every row centered. One list row, so it scrolls with the conversations under it.
+ *
+ * One context menu for the whole grid: a List row keeps a single context menu, and with one per
+ * pin the first always won (holding any pin opened the first pin's menu). The pin under the
+ * finger reports itself on a short long press, and the row's preview and items are that pin's.
  */
 function PinnedConversationsGrid({
   rows,
@@ -1069,48 +1119,103 @@ function PinnedConversationsGrid({
   const layout = layoutPinnedGrid({ count: rows.length, columns, width: gridWidth, fontScale });
   const animationKey = motionEnabled ? pinnedGridAnimationKey(rows.map((row) => row.peerId)) : null;
 
+  const [heldPeerId, setHeldPeerId] = useState<string | null>(null);
+  const onHold = useCallback((peerId: string) => setHeldPeerId(peerId), []);
+  const heldRow = rows.find((row) => row.peerId === heldPeerId) ?? rows[0];
+  const heldBusy = vm.busyPeerIds.has(heldRow.peerId);
+  const heldMuted = vm.mutedPeerIds.has(heldRow.peerId);
+  const heldMenu = resolveInboxRowMenu({
+    row: heldRow,
+    busy: heldBusy,
+    online: vm.canPerformNetworkAction,
+    muteAvailable: vm.muteAvailable,
+  });
+  const heldHasRowMenu = hasInboxRowMenu(heldMenu);
+
+  const rowModifiers: ModifierConfig[] = [
+    listRowInsets({
+      top: 8,
+      leading: PINNED_GRID_ROW_INSET,
+      bottom: 16,
+      trailing: PINNED_GRID_ROW_INSET,
+    }),
+    listRowBackground(colors.background),
+    listRowSeparator('hidden'),
+    // Fades a pin in / out while the others glide (and the row resizes) on pin / unpin.
+    ...(animationKey === null ? [] : [animation(PINNED_GRID_ANIMATION, animationKey)]),
+  ];
+
   return (
-    <ZStack
-      alignment="topLeading"
-      modifiers={[
-        frame({ width: gridWidth, height: layout.height, alignment: 'topLeading' }),
-        listRowInsets({
-          top: 8,
-          leading: PINNED_GRID_ROW_INSET,
-          bottom: 16,
-          trailing: PINNED_GRID_ROW_INSET,
-        }),
-        listRowBackground(colors.background),
-        listRowSeparator('hidden'),
-        // Fades a pin in / out while the others glide (and the row resizes) on pin / unpin.
-        ...(animationKey === null ? [] : [animation(PINNED_GRID_ANIMATION, animationKey)]),
-      ]}>
-      {rows.map((row, index) => {
-        const position = layout.positions[index] ?? { x: 0, y: 0 };
-        return (
-          <PinnedConversationCell
-            // Peer key: a pin keeps its cell (and avatar) while the grid reflows around it.
-            key={`pin:${row.peerId}`}
-            row={row}
-            avatarUrl={row.avatarStoragePath ? vm.avatarUrls[row.avatarStoragePath] ?? null : null}
-            busy={vm.busyPeerIds.has(row.peerId)}
-            muted={vm.mutedPeerIds.has(row.peerId)}
-            friendshipBadge={vm.friendshipBadges.get(row.peerId) ?? null}
-            reactionGlyph={reactionGlyphFor(vm.nixReactionFor(row))}
-            muteAvailable={vm.muteAvailable}
-            networkActionsEnabled={vm.canPerformNetworkAction}
-            handlers={handlers}
-            x={position.x}
-            y={position.y}
+    <ContextMenu modifiers={rowModifiers}>
+      <ContextMenu.Trigger>
+        <ZStack
+          alignment="topLeading"
+          modifiers={[frame({ width: gridWidth, height: layout.height, alignment: 'topLeading' })]}>
+          {rows.map((row, index) => {
+            const position = layout.positions[index] ?? { x: 0, y: 0 };
+            return (
+              <PinnedConversationCell
+                // Peer key: a pin keeps its cell (and avatar) while the grid reflows around it.
+                key={`pin:${row.peerId}`}
+                row={row}
+                avatarUrl={row.avatarStoragePath ? vm.avatarUrls[row.avatarStoragePath] ?? null : null}
+                busy={vm.busyPeerIds.has(row.peerId)}
+                muted={vm.mutedPeerIds.has(row.peerId)}
+                friendshipBadge={vm.friendshipBadges.get(row.peerId) ?? null}
+                reactionGlyph={reactionGlyphFor(vm.nixReactionFor(row))}
+                handlers={handlers}
+                onHold={onHold}
+                x={position.x}
+                y={position.y}
+                cellWidth={layout.cellWidth}
+                cellHeight={layout.cellHeight}
+                avatarSize={layout.avatarSize}
+                animationKey={animationKey}
+                t={vm.t}
+              />
+            );
+          })}
+        </ZStack>
+      </ContextMenu.Trigger>
+      {/* The system would lift the whole grid row; lift just the held pin. */}
+      <ContextMenu.Preview>
+        <VStack spacing={0} modifiers={[padding({ all: 16 })]}>
+          <PinnedCellBody
+            row={heldRow}
+            avatarUrl={heldRow.avatarStoragePath ? vm.avatarUrls[heldRow.avatarStoragePath] ?? null : null}
+            busy={heldBusy}
+            muted={heldMuted}
+            friendshipBadge={vm.friendshipBadges.get(heldRow.peerId) ?? null}
             cellWidth={layout.cellWidth}
             cellHeight={layout.cellHeight}
             avatarSize={layout.avatarSize}
-            animationKey={animationKey}
+            slot={`preview:${heldRow.peerId}`}
+          />
+        </VStack>
+      </ContextMenu.Preview>
+      <ContextMenu.Items>
+        <PinnedUploadMenuItems
+          row={heldRow}
+          onUploadAction={(action) => handlers.onUploadAction(heldRow, action)}
+          divided={heldHasRowMenu}
+          t={vm.t}
+        />
+        {heldHasRowMenu ? (
+          <MessageContextMenuItems
+            menu={heldMenu}
+            pinned
+            muted={heldMuted}
+            onTogglePin={() => handlers.onTogglePin(heldRow)}
+            onSetMute={(duration) => handlers.onSetMute(heldRow, duration)}
+            onMarkRead={() => handlers.onMarkRead(heldRow)}
+            onReport={() => handlers.onReport(heldRow)}
+            onBlock={() => handlers.onBlock(heldRow)}
+            onDelete={() => handlers.onDelete(heldRow)}
             t={vm.t}
           />
-        );
-      })}
-    </ZStack>
+        ) : null}
+      </ContextMenu.Items>
+    </ContextMenu>
   );
 }
 
