@@ -1,6 +1,7 @@
 import { PropsWithChildren } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
-import { Host } from '@expo/ui';
+import { Host, type UniversalHostProps } from '@expo/ui';
+import type { Alignment } from '@expo/ui/swift-ui';
 import { useAppTheme } from '../../hooks/useAppTheme';
 
 export type AppHostSafeAreaMode = 'respect' | 'fullBleed' | 'keyboardOnly';
@@ -13,6 +14,11 @@ type AppHostProps = PropsWithChildren<{
   ignoreSafeArea?: 'all' | 'keyboard';
   safeAreaMode?: AppHostSafeAreaMode;
   useViewportSizeMeasurement?: boolean;
+  /**
+   * Where the SwiftUI content sits when the host is larger than it. Defaults to `'center'`: SDK 57
+   * centered it and every NiX screen was laid out that way; SDK 58 top-aligns by default.
+   */
+  alignment?: Alignment;
 }>;
 
 function resolveIgnoreSafeArea(
@@ -37,8 +43,12 @@ export function AppHost({
   ignoreSafeArea,
   safeAreaMode,
   useViewportSizeMeasurement = false,
+  alignment = 'center',
 }: AppHostProps) {
   const { colorScheme } = useAppTheme();
+  // On iOS the universal Host is the SwiftUI one, which takes `alignment`; the universal props
+  // type does not list it yet.
+  const alignmentProps = { alignment } as Partial<UniversalHostProps>;
 
   return (
     <Host
@@ -46,7 +56,8 @@ export function AppHost({
       matchContents={matchContents}
       ignoreSafeArea={resolveIgnoreSafeArea(safeAreaMode, ignoreSafeArea)}
       useViewportSizeMeasurement={useViewportSizeMeasurement}
-      colorScheme={colorScheme}>
+      colorScheme={colorScheme}
+      {...alignmentProps}>
       {children}
     </Host>
   );
