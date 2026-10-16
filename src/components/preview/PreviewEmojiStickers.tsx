@@ -129,7 +129,6 @@ function PreviewEmojiSticker({
   const pan = usePanGesture({
     enabled,
     averageTouches: true,
-    hitSlop: GESTURE_HIT_SLOP,
     onActivate: () => {
       'worklet';
       startX.set(centerX.get());
@@ -174,7 +173,6 @@ function PreviewEmojiSticker({
 
   const pinch = usePinchGesture({
     enabled,
-    hitSlop: GESTURE_HIT_SLOP,
     onActivate: () => {
       'worklet';
       startFont.set(fontSize.get());
@@ -192,7 +190,6 @@ function PreviewEmojiSticker({
 
   const rotate = useRotationGesture({
     enabled,
-    hitSlop: GESTURE_HIT_SLOP,
     onActivate: () => {
       'worklet';
       startRotation.set(rotation.get());
@@ -272,8 +269,12 @@ function PreviewEmojiSticker({
   return (
     <Animated.View style={[styles.anchor, animatedStyle]} pointerEvents="box-none">
       <GestureDetector gesture={gesture}>
+        {/* The grab margin lives on the view: Gesture Handler 3 measures a gesture's hitSlop
+            against its detector (display: contents, no real bounds) and drops the second
+            finger of a pinch. */}
         <View
           style={styles.glyphBox}
+          hitSlop={GESTURE_HIT_SLOP}
           accessible
           accessibilityLabel={t('preview.stickerA11y', { emoji: sticker.emoji })}
           accessibilityActions={[
