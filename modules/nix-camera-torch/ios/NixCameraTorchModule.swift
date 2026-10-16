@@ -281,7 +281,6 @@ public class NixCameraTorchModule: Module {
           "label": formatDisplayLabel(2.0),
           "localizedName": wide.localizedName,
           "deviceType": wide.deviceType.rawValue,
-        "deviceType": wide.deviceType.rawValue,
           "zoom": expoNormalizedZoom(targetFactor: 2.0, on: wide),
           "displayFactor": 2.0,
         ])
