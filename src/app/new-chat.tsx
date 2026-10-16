@@ -8,19 +8,23 @@ import { TextInput } from '@expo/ui';
 import { Button, HStack, Spacer, Text as SwiftText, ZStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits,
+  buttonBorderShape,
   buttonStyle,
   controlSize,
   font,
   foregroundStyle,
   frame,
+  labelStyle,
   padding,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
+import type { SFSymbol } from 'sf-symbols-typescript';
 import { ACCEPTED_FRIENDS_LIMIT, listAcceptedFriends, type FriendProfile } from '../services/friendService';
 import { queryKeys } from '../lib/queryKeys';
 import { filterFriendProfiles } from '../lib/inboxSearch';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { typography } from '../theme/typography';
+import { resolveAppIconName } from '../theme/app-icons';
 import { AvatarCircle } from '../components/ui/avatar-circle';
 import { AppHost } from '../components/ui/app-host';
 import { useScreenInsets } from '../hooks/useScreenInsets';
@@ -86,10 +90,9 @@ function openFriends() {
   router.dismissTo('/(tabs)/profile/friends');
 }
 
-/** Sheet chrome: Cancel + centered title, then the "To:" field — like a compose sheet in Messages. */
+/** Sheet chrome: centered title + the system close (✕) button, then the "To:" field — like a compose sheet in Messages. */
 function NewChatHeader() {
   const { t } = useTranslation();
-  const { colors } = useAppTheme();
   return (
     // Full width from RN layout, height from the content (AppHost defaults to `flex: 1`, which
     // pushed the title into the middle of the sheet and collapsed Cancel onto it).
@@ -104,12 +107,21 @@ function NewChatHeader() {
           {t('inbox.newChatTitle')}
         </SwiftText>
         <HStack spacing={0} modifiers={[frame({ maxWidth: Infinity })]}>
-          <Button
-            label={t('common.cancel')}
-            onPress={() => router.back()}
-            modifiers={[buttonStyle('borderless'), tint(colors.accentText)]}
-          />
           <Spacer />
+          {/* The system close button: an xmark in a glass circle (outside a toolbar `role="close"`
+              alone draws the word, so the icon is explicit and the label is for VoiceOver). */}
+          <Button
+            role="close"
+            systemImage={resolveAppIconName('close') as SFSymbol}
+            label={t('common.close')}
+            onPress={() => router.back()}
+            modifiers={[
+              labelStyle('iconOnly'),
+              buttonStyle('glass'),
+              buttonBorderShape('circle'),
+              controlSize('large'),
+            ]}
+          />
         </HStack>
       </ZStack>
     </AppHost>
