@@ -3379,7 +3379,7 @@ PODS:
     - RNWorklets (>= 0.8.0)
     - SocketRocket
     - Yoga
-  - RNImageCropPicker (0.51.1):
+  - RNImageCropPicker (0.52.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -3407,11 +3407,11 @@ PODS:
     - React-utils
     - ReactCodegen
     - ReactCommon/turbomodule/core
-    - RNImageCropPicker/QBImagePickerController (= 0.51.1)
+    - RNImageCropPicker/QBImagePickerController (= 0.52.0)
     - SocketRocket
     - TOCropViewController (~> 2.8.0)
     - Yoga
-  - RNImageCropPicker/QBImagePickerController (0.51.1):
+  - RNImageCropPicker/QBImagePickerController (0.52.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -4487,7 +4487,7 @@ SPEC CHECKSUMS:
   RNCAsyncStorage: f47445f5456576a324e6b459ce391f5eb26ef444
   RNCMaskedView: 0c84a5ae272dbf6682ac13812f47032f4025f484
   RNGestureHandler: 9eb2437cb5a73b75be84b6bf6876d450fa3a2371
-  RNImageCropPicker: 1cf2b3d92bed8869de2fa9c751ced7267f293324
+  RNImageCropPicker: b33913cf0f603e4f76119e48f57c11c8ac713408
   RNReanimated: b4a1e5b5e5e4864a67cc38d0a6028a3a725ea38f
   RNScreens: f092f0fddf6486e2fda912c5de2cf5461519b5b7
   RNSentry: 20546c73692efcf142f7f483508b4697250bb6f7
