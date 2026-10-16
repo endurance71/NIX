@@ -32,6 +32,22 @@ enum NativeUploadControl {
     if previous == "paused", !allowPausedTransition { return previous }
     return proposed
   }
+  /// Whether a PUT was refused because the object is already in Storage. Supabase Storage answers
+  /// a repeated PUT with HTTP 400 whose body says `"statusCode":"409"` / `KeyAlreadyExists`
+  /// (a plain 409 comes from other S3-style gateways); either way the bytes landed on an earlier
+  /// attempt — typically a PUT that completed just before the process was killed — and only the
+  /// finalize step is missing.
+  static func isDuplicateObjectResponse(statusCode: Int, responseBody: String?) -> Bool {
+    if statusCode == 409 { return true }
+    guard statusCode == 400, let responseBody, let data = responseBody.data(using: .utf8),
+      let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { return false }
+    let nested = (payload["statusCode"] as? String) ?? (payload["statusCode"] as? Int).map(String.init)
+    let code = (payload["code"] as? String) ?? ""
+    let error = (payload["error"] as? String) ?? ""
+    return nested == "409" || code == "KeyAlreadyExists" || error == "Duplicate"
+  }
+
   static func isCurrent(snapshotAttempt: String?, taskAttempt: String) -> Bool {
     snapshotAttempt == nil || snapshotAttempt == taskAttempt
   }

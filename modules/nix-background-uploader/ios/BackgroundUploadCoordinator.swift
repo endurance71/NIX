@@ -1145,11 +1145,12 @@ public final class BackgroundUploadCoordinator: NSObject, URLSessionDataDelegate
         code: statusCode == 401 || statusCode == 403 ? "AUTH_REQUIRED" : "UPLOAD_URL_EXPIRED",
         message: responseBody ?? "Upload authorization expired."
       )
-    } else if statusCode == 409 {
+    } else if NativeUploadControl.isDuplicateObjectResponse(statusCode: statusCode, responseBody: responseBody) {
       if descriptor.kind == .upload {
         // A prior PUT may have reached Storage before its callback was
-        // delivered. Finalization verifies exact size and MIME, so this
-        // reconciles the object without treating the conflict as success.
+        // delivered (or the app was killed between the PUT and finalize).
+        // Finalization verifies exact size and MIME, so this reconciles the
+        // object without treating the conflict as success.
         do {
           let finalizer = try makeFinalizeTask(descriptor: descriptor)
           patchSnapshot(jobId: descriptor.jobId, attemptId: descriptor.attemptId) {

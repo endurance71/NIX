@@ -9,7 +9,10 @@ atomowo po stronie Supabase.
 
 Ręczne force quit zatrzymuje transfer zgodnie z zachowaniem iOS. Zadanie i
 pliki pozostają trwałe przez maksymalnie siedem dni i są uzgadniane przy
-następnym uruchomieniu aplikacji.
+następnym uruchomieniu aplikacji. Jeśli PUT zdążył dojść do Storage, a proces
+zginął przed finalizacją, ponowny PUT dostaje od Supabase Storage HTTP 400 z
+`KeyAlreadyExists` (`statusCode: "409"` w treści) — uploader traktuje to jak
+409 i przechodzi od razu do finalizacji, która sprawdza rozmiar i MIME.
 
 ## Kolejność wdrożenia
 
