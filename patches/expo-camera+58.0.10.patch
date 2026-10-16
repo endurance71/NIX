@@ -1,4 +1,5 @@
 diff --git a/node_modules/expo-camera/ios/Common/ExpoCameraUtils.swift b/node_modules/expo-camera/ios/Common/ExpoCameraUtils.swift
+index 2696222..571ee23 100644
 --- a/node_modules/expo-camera/ios/Common/ExpoCameraUtils.swift
 +++ b/node_modules/expo-camera/ios/Common/ExpoCameraUtils.swift
 @@ -20,8 +20,10 @@ struct ExpoCameraUtils {
@@ -14,10 +15,10 @@ diff --git a/node_modules/expo-camera/ios/Common/ExpoCameraUtils.swift b/node_mo
  
      return orientation
 diff --git a/node_modules/expo-camera/ios/Current/CameraPhotoCapture.swift b/node_modules/expo-camera/ios/Current/CameraPhotoCapture.swift
-index fc9a9bb..a04bcfa 100644
+index 9236b1b..5e445c4 100644
 --- a/node_modules/expo-camera/ios/Current/CameraPhotoCapture.swift
 +++ b/node_modules/expo-camera/ios/Current/CameraPhotoCapture.swift
-@@ -15,6 +15,48 @@ protocol CameraPhotoCaptureDelegate: AnyObject {
+@@ -18,6 +18,48 @@ protocol CameraPhotoCaptureDelegate: AnyObject {
  }
  
  class CameraPhotoCapture: NSObject, AVCapturePhotoCaptureDelegate {
@@ -66,7 +67,7 @@ index fc9a9bb..a04bcfa 100644
    weak var captureDelegate: CameraPhotoCaptureDelegate?
  
    // Serial + per-item autorelease: overlapping full-res photo pipelines can jetsam small devices
-@@ -78,31 +120,8 @@ class CameraPhotoCapture: NSObject, AVCapturePhotoCaptureDelegate {
+@@ -83,31 +125,8 @@ class CameraPhotoCapture: NSObject, AVCapturePhotoCaptureDelegate {
        // options.mirror is deprecated but should continue to work until removed
        connection?.isVideoMirrored = captureDelegate?.presetCamera == .front &&
          ((captureDelegate?.mirror ?? false) || options.mirror)
@@ -99,7 +100,7 @@ index fc9a9bb..a04bcfa 100644
  
        photoOutput.capturePhoto(with: photoSettings, delegate: self)
      }
-@@ -180,14 +199,17 @@ class CameraPhotoCapture: NSObject, AVCapturePhotoCaptureDelegate {
+@@ -194,14 +213,17 @@ class CameraPhotoCapture: NSObject, AVCapturePhotoCaptureDelegate {
        throw CameraSavingImageException("Failed to process image data")
      }
  
@@ -120,10 +121,10 @@ index fc9a9bb..a04bcfa 100644
 +      takenImage = ExpoCameraUtils.crop(image: takenImage, to: croppedSize)
 +    }
  
-     let width = takenImage.size.width
-     let height = takenImage.size.height
+     let request = CaptureRequest(
+       exif: options.exif,
 diff --git a/node_modules/expo-camera/ios/Current/CameraSessionManager.swift b/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
-index 7a6568c..5119e90 100644
+index 139cd02..3d37d6a 100644
 --- a/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
 +++ b/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
 @@ -25,6 +25,9 @@ protocol CameraSessionManagerDelegate: AnyObject {
@@ -430,19 +431,19 @@ index 7a6568c..5119e90 100644
    }
  }
 diff --git a/node_modules/expo-camera/ios/Current/CameraVideoRecording.swift b/node_modules/expo-camera/ios/Current/CameraVideoRecording.swift
-index 4db86b1..222fdfa 100644
+index ee1c052..64b591c 100644
 --- a/node_modules/expo-camera/ios/Current/CameraVideoRecording.swift
 +++ b/node_modules/expo-camera/ios/Current/CameraVideoRecording.swift
-@@ -9,6 +9,8 @@ protocol CameraVideoRecordingDelegate: AnyObject {
-   var appContext: AppContext? { get }
+@@ -11,6 +11,8 @@ protocol CameraVideoRecordingDelegate: AnyObject {
    var videoBitrate: Int? { get }
    var videoStabilizationMode: VideoStabilizationMode { get }
+   var onRecordingProgress: EventDispatcher { get }
 +
 +  func prepareTorchForVideoRecording(reason: String) async
  }
  
  class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
-@@ -23,27 +25,49 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+@@ -28,12 +30,25 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
      super.init()
    }
  
@@ -452,7 +453,7 @@ index 4db86b1..222fdfa 100644
 +    let isRecording = output?.isRecording ?? false
 +    let hasPromise = videoRecordedPromise != nil
 +    let codec = videoCodecType?.rawValue ?? "nil"
-+    let message = "[ExpoCameraTorch] event=\(event) reason=\(reason) t=\(CFAbsoluteTimeGetCurrent()) movieIsRecording=\(isRecording) hasPromise=\(hasPromise) codec=\(codec) validOptions=\(isValidVideoOptions)"
++    let message = "[ExpoCameraTorch] event=\(event) reason=\(reason) t=\(CFAbsoluteTimeGetCurrent()) movieIsRecording=\(isRecording) hasPromise=\(hasPromise) codec=\(codec)"
 +    NSLog("%@", message)
 +    #endif
 +  }
@@ -460,21 +461,15 @@ index 4db86b1..222fdfa 100644
    func record(options: CameraRecordingOptions, videoFileOutput: AVCaptureMovieFileOutput, promise: Promise) async {
      guard !videoFileOutput.isRecording && videoRecordedPromise == nil else {
 +      logVideoRecordingDiagnostic("movie-record-skip-already-recording", videoFileOutput: videoFileOutput)
+       promise.reject(CameraAlreadyRecordingException())
        return
      }
  
 +    logVideoRecordingDiagnostic("movie-record-begin", videoFileOutput: videoFileOutput)
      if let connection = videoFileOutput.connection(with: .video) {
-       let orientation = await delegate?.responsiveWhenOrientationLocked == true ?
-         delegate?.physicalOrientation ?? .unknown : UIDevice.current.orientation
-       connection.videoOrientation = ExpoCameraUtils.videoOrientation(for: orientation)
-+      logVideoRecordingDiagnostic(
-+        "movie-record-connection-configured",
-+        reason: "orientation=\(connection.videoOrientation.rawValue) mirrored=\(connection.isVideoMirrored) stabilization=\(connection.preferredVideoStabilizationMode.rawValue)",
-+        videoFileOutput: videoFileOutput
-+      )
-       await setVideoOptions(options: options, for: connection, videoFileOutput: videoFileOutput, promise: promise)
- 
+       connection.videoOrientation = await ExpoCameraUtils.captureOrientation(
+         responsiveWhenOrientationLocked: delegate?.responsiveWhenOrientationLocked == true,
+@@ -50,9 +65,12 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
        if connection.isVideoOrientationSupported && delegate?.mirror == true {
          connection.isVideoMirrored = delegate?.mirror ?? false
        }
@@ -482,19 +477,14 @@ index 4db86b1..222fdfa 100644
 +      logVideoRecordingDiagnostic("movie-record-no-video-connection", videoFileOutput: videoFileOutput)
      }
  
-     if !isValidVideoOptions {
-+      logVideoRecordingDiagnostic("movie-record-invalid-options", videoFileOutput: videoFileOutput)
-       return
-     }
- 
      guard let appContext = delegate?.appContext else {
 +      logVideoRecordingDiagnostic("movie-record-no-app-context", videoFileOutput: videoFileOutput)
        promise.reject(CameraRecordingFailedException())
        return
      }
-@@ -52,7 +76,15 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
-     let fileUrl = URL(fileURLWithPath: path)
-     videoRecordedPromise = promise
+@@ -68,7 +86,15 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+       self?.isProgressActive = true
+     }
  
 +    logVideoRecordingDiagnostic("movie-startRecording-before", reason: "url=\(fileUrl.lastPathComponent)", videoFileOutput: videoFileOutput)
      videoFileOutput.startRecording(to: fileUrl, recordingDelegate: self)
@@ -508,7 +498,7 @@ index 4db86b1..222fdfa 100644
    }
  
    @available(iOS 18.0, *)
-@@ -65,6 +97,7 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+@@ -81,6 +107,7 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
    }
  
    func stopRecording(videoFileOutput: AVCaptureMovieFileOutput?) {
@@ -516,58 +506,28 @@ index 4db86b1..222fdfa 100644
      videoFileOutput?.stopRecording()
    }
  
-@@ -75,18 +108,22 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
-     promise: Promise
-   ) async {
-     isValidVideoOptions = true
-+    logVideoRecordingDiagnostic("movie-setVideoOptions-begin", videoFileOutput: videoFileOutput)
- 
-     if let maxDuration = options.maxDuration {
-       videoFileOutput.maxRecordedDuration = CMTime(seconds: maxDuration, preferredTimescale: 1000)
-+      logVideoRecordingDiagnostic("movie-setVideoOptions-maxDuration", reason: "maxDuration=\(maxDuration)", videoFileOutput: videoFileOutput)
-     }
- 
-     if let maxFileSize = options.maxFileSize {
-       videoFileOutput.maxRecordedFileSize = Int64(maxFileSize)
-+      logVideoRecordingDiagnostic("movie-setVideoOptions-maxFileSize", reason: "maxFileSize=\(maxFileSize)", videoFileOutput: videoFileOutput)
-     }
- 
-     let avMode = (delegate?.videoStabilizationMode ?? .auto).toAVCaptureVideoStabilizationMode()
-     if connection.isVideoStabilizationSupported {
-       connection.preferredVideoStabilizationMode = avMode
-+      logVideoRecordingDiagnostic("movie-setVideoOptions-stabilization", reason: "mode=\(avMode.rawValue)", videoFileOutput: videoFileOutput)
-     }
- 
-     if let codec = options.codec {
-@@ -98,7 +135,9 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+@@ -111,13 +138,20 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
          }
          videoFileOutput.setOutputSettings(outputSettings, for: connection)
          self.videoCodecType = codecType
 +        logVideoRecordingDiagnostic("movie-setVideoOptions-codec", reason: "codec=\(codecType.rawValue)", videoFileOutput: videoFileOutput)
        } else {
 +        logVideoRecordingDiagnostic("movie-setVideoOptions-codec-rejected", reason: "codec=\(String(describing: options.codec?.rawValue))", videoFileOutput: videoFileOutput)
-         promise.reject(CameraRecordingException(options.codec?.rawValue))
-         videoRecordedPromise = nil
-         isValidVideoOptions = false
-@@ -106,12 +145,29 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+         throw CameraRecordingException(options.codec?.rawValue)
+       }
      }
    }
  
-+  func fileOutput(
-+    _ output: AVCaptureFileOutput,
-+    didStartRecordingTo fileURL: URL,
-+    from connections: [AVCaptureConnection]
-+  ) {
+   func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
 +    logVideoRecordingDiagnostic(
 +      "movie-didStartRecording",
 +      reason: "url=\(fileURL.lastPathComponent) connections=\(connections.count)",
 +      videoFileOutput: output as? AVCaptureMovieFileOutput
 +    )
-+  }
-+
-   func fileOutput(
-     _ output: AVCaptureFileOutput,
-     didFinishRecordingTo outputFileURL: URL,
+     DispatchQueue.main.async { [weak self, weak output] in
+       self?.startProgressTimer(for: output)
+     }
+@@ -176,6 +210,11 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
      from connections: [AVCaptureConnection],
      error: Error?
    ) {
@@ -579,7 +539,7 @@ index 4db86b1..222fdfa 100644
      defer {
        videoRecordedPromise = nil
        videoCodecType = nil
-@@ -128,6 +184,7 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
+@@ -193,6 +232,7 @@ class CameraVideoRecording: NSObject, AVCaptureFileOutputRecordingDelegate {
    }
  
    func cleanup() {
@@ -588,7 +548,7 @@ index 4db86b1..222fdfa 100644
      videoRecordedPromise = nil
      videoCodecType = nil
 diff --git a/node_modules/expo-camera/ios/Current/CameraView.swift b/node_modules/expo-camera/ios/Current/CameraView.swift
-index 4692d00..bb888ba 100644
+index 4fcefea..f31f86f 100644
 --- a/node_modules/expo-camera/ios/Current/CameraView.swift
 +++ b/node_modules/expo-camera/ios/Current/CameraView.swift
 @@ -75,17 +75,30 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
@@ -644,7 +604,7 @@ index 4692d00..bb888ba 100644
          self.sessionManager.updateCameraIsActive()
        }
      }
-@@ -200,6 +218,7 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
+@@ -199,6 +217,7 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
          return
        }
        self.sessionManager.updateCameraIsActive()
@@ -652,7 +612,7 @@ index 4692d00..bb888ba 100644
        DispatchQueue.main.async {
          self.onCameraReady()
        }
-@@ -211,10 +230,11 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
+@@ -210,10 +229,11 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
        guard let self else {
          return
        }
@@ -665,7 +625,7 @@ index 4692d00..bb888ba 100644
            sessionManager.enableTorch()
          }
        }
-@@ -226,6 +246,7 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
+@@ -225,6 +245,7 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
        guard let self else {
          return
        }
@@ -673,7 +633,7 @@ index 4692d00..bb888ba 100644
        if session.isRunning && !isSessionPaused {
          isSessionPaused = true
          session.stopRunning()
-@@ -301,11 +322,45 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
+@@ -309,11 +330,45 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
    }
  
    func record(options: CameraRecordingOptions, promise: Promise) async {
@@ -719,7 +679,7 @@ index 4692d00..bb888ba 100644
    }
  
    @available(iOS 18.0, *)
-@@ -348,6 +403,9 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
+@@ -356,6 +411,9 @@ public class CameraView: ExpoView, EXAppLifecycleListener, EXCameraInterface, Ca
    }
  
    func stopRecording() {

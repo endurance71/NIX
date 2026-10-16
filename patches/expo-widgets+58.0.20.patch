@@ -1,5 +1,5 @@
 diff --git a/node_modules/expo-widgets/ios/LiveActivity.swift b/node_modules/expo-widgets/ios/LiveActivity.swift
-index 5f34eb2..c91c259 100644
+index b80655d..5f8e626 100644
 --- a/node_modules/expo-widgets/ios/LiveActivity.swift
 +++ b/node_modules/expo-widgets/ios/LiveActivity.swift
 @@ -1,6 +1,73 @@
@@ -77,28 +77,31 @@ index 5f34eb2..c91c259 100644
    let id: String
    let name: String
 diff --git a/node_modules/expo-widgets/plugin/build/ios/xcode/addXCConfigurationList.js b/node_modules/expo-widgets/plugin/build/ios/xcode/addXCConfigurationList.js
-index abe17af..ccf119d 100644
+index ee28423..f7c7e29 100644
 --- a/node_modules/expo-widgets/plugin/build/ios/xcode/addXCConfigurationList.js
 +++ b/node_modules/expo-widgets/plugin/build/ios/xcode/addXCConfigurationList.js
-@@ -15,7 +15,6 @@ function addXCConfigurationList(xcodeProject, props) {
+@@ -22,7 +22,6 @@ function addXCConfigurationList(xcodeProject, props) {
          INFOPLIST_KEY_CFBundleDisplayName: props.targetName,
          INFOPLIST_KEY_NSHumanReadableCopyright: `""`,
          MARKETING_VERSION: `"${props.marketingVersion}"`,
 -        SWIFT_OPTIMIZATION_LEVEL: `"-Onone"`,
          CODE_SIGN_ENTITLEMENTS: `"${props.targetName}/${props.targetName}.entitlements"`,
          APPLICATION_EXTENSION_API_ONLY: '"YES"',
-         ...(props.appleTeamId ? { DEVELOPMENT_TEAM: props.appleTeamId } : {}),
-@@ -30,6 +29,9 @@ function addXCConfigurationList(xcodeProject, props) {
-     return xcodeProject.addXCConfigurationList(['Debug', 'Release'].map((name) => ({
-         name,
-         isa: 'XCBuildConfiguration',
--        buildSettings: { ...commonBuildSettings },
-+        // Release keeps Xcode's default (-O); only Debug disables Swift optimization.
-+        buildSettings: name === 'Debug'
-+            ? { ...commonBuildSettings, SWIFT_OPTIMIZATION_LEVEL: `"-Onone"` }
-+            : { ...commonBuildSettings },
-     })), 'Release', comment);
+         ...props.appleTeamId ? {
+@@ -42,9 +41,10 @@ function addXCConfigurationList(xcodeProject, props) {
+     ].map((name)=>({
+             name,
+             isa: 'XCBuildConfiguration',
+-            buildSettings: {
+-                ...commonBuildSettings
+-            }
++            // Release keeps Xcode's default (-O); only Debug disables Swift optimization.
++            buildSettings: name === 'Debug'
++                ? { ...commonBuildSettings, SWIFT_OPTIMIZATION_LEVEL: `"-Onone"` }
++                : { ...commonBuildSettings }
+         })), 'Release', comment);
  }
+ 
 diff --git a/node_modules/expo-widgets/plugin/src/ios/xcode/addXCConfigurationList.ts b/node_modules/expo-widgets/plugin/src/ios/xcode/addXCConfigurationList.ts
 index 8147997..c374bfe 100644
 --- a/node_modules/expo-widgets/plugin/src/ios/xcode/addXCConfigurationList.ts
