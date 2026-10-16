@@ -79,6 +79,7 @@ Szczegóły implementacji universal UI: [NiX_Documentation_v1.2.md §2.2](NiX_Do
 - Refy typowane komponentem (`useRef<View>`) — w RN 0.88 (Strict TS API) typ instancji: `ViewInstance`, `TextInputInstance`, `ScrollViewInstance`.
 - `HStack` / `VStack` z `@expo/ui` bez `spacing` tam, gdzie układ zakłada brak odstępu — od SDK 58 domyślny jest odstęp systemowy; pisz `spacing={0}`.
 - `UIScreen.main` i `keyWindow` w kodzie natywnym — od SDK 58 sceny: skala z `traitCollection` lub `UIWindowScene`.
+- Poleganie na domyślnym `fullScreenGestureEnabled` — na iOS 26 `react-native-screens` włącza cofanie gestem z dowolnego miejsca ekranu, co zjada poziome gesty NiX (swipe-to-reply, filtry). Root `Stack` ustawia `fullScreenGestureEnabled: false`; nie włączaj tego na ekranach z własnym poziomym gestem.
 
 ---
 

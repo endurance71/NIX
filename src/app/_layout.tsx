@@ -326,6 +326,10 @@ function AppStack({
           headerStyle: { backgroundColor: colors.background },
           contentStyle: { backgroundColor: colors.background },
           scrollEdgeEffects: SOFT_SCROLL_EDGE_EFFECTS,
+          // iOS 26 pops a screen with a swipe from anywhere unless told otherwise; that swipe
+          // is taken in NiX (reply by swiping a bubble, filters in the preview), so the back
+          // gesture stays on the left edge, as before iOS 26.
+          fullScreenGestureEnabled: false,
         }}
       >
         <Stack.Screen name="(tabs)" />
