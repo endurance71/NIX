@@ -1,4 +1,3 @@
-import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
@@ -9,8 +8,9 @@ import {
   GlassEffectContainer,
   Host,
   HStack,
-  Namespace,
+  Spacer,
   Text as SwiftText,
+  ZStack,
 } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits,
@@ -25,9 +25,8 @@ import {
   foregroundStyle,
   frame,
   glassEffect,
-  glassEffectId,
-  matchedGeometryEffect,
   monospacedDigit,
+  offset,
   opacity,
   padding,
   shapes,
@@ -80,7 +79,9 @@ type NativeLensSwitcherProps = {
 };
 
 /**
- * Liquid Glass capsule + sliding selection via matchedGeometryEffect (+ glassEffectId morph).
+ * Liquid Glass capsule with one selection pill that slides under the chips (offset + spring).
+ * A single moving view always slides: the SDK 57 matchedGeometryEffect + glassEffectId morph
+ * between chips cross-fades on SDK 58, where the old and new chip update separately.
  * Animation lives on GlassEffectContainer — required for Liquid Glass transitions.
  */
 export function NativeLensSwitcher({
@@ -92,7 +93,6 @@ export function NativeLensSwitcher({
   colors,
 }: NativeLensSwitcherProps) {
   const { t } = useTranslation();
-  const namespaceId = useId();
   const useGlass = canUseLiquidGlass();
 
   const selection =
@@ -145,10 +145,28 @@ export function NativeLensSwitcher({
   const capsuleHeight = CHIP_HEIGHT + CAPSULE_PAD * 2;
   const capsuleWidth = options.length * CHIP_WIDTH + CAPSULE_PAD * 2;
 
-  const chips = (
+  const selectionPill = (
     <HStack
       spacing={0}
-      alignment="center"
+      modifiers={[
+        frame({ width: CHIP_WIDTH, height: CHIP_HEIGHT }),
+        ...(useGlass
+          ? [
+              glassEffect({
+                glass: { variant: 'clear', interactive: true, tint: colors.accent },
+                shape: 'capsule' as const,
+              }),
+            ]
+          : [background(solidSelectionFill, shapes.capsule())]),
+        offset({ x: selectionIndex * CHIP_WIDTH }),
+      ]}>
+      <Spacer />
+    </HStack>
+  );
+
+  const chips = (
+    <ZStack
+      alignment="leading"
       modifiers={[
         padding({
           leading: CAPSULE_PAD,
@@ -167,52 +185,36 @@ export function NativeLensSwitcher({
         animation(SELECTION_SPRING, selectionIndex),
         opacity(disabled ? 0.55 : 1),
       ]}>
-      {options.map((option) => {
-        const isActive = option.id === selection;
-        const label = isActive && activeLabelOverride ? activeLabelOverride : formatSwitcherLabel(option);
-        return (
-          <Button
-            key={option.id}
-            onPress={disabled ? undefined : () => onSelect(option.id)}
-            modifiers={[
-              buttonStyle('plain'),
-              frame({ width: CHIP_WIDTH, height: CHIP_HEIGHT }),
-              ...(isActive
-                ? useGlass
-                  ? [
-                      glassEffect({
-                        glass: {
-                          variant: 'clear',
-                          interactive: true,
-                          tint: colors.accent,
-                        },
-                        shape: 'capsule' as const,
-                      }),
-                      glassEffectId('lens-selection', namespaceId),
-                      matchedGeometryEffect('lens-selection-geometry', namespaceId),
-                    ]
-                  : [
-                      background(solidSelectionFill, shapes.capsule()),
-                      matchedGeometryEffect('lens-selection-geometry', namespaceId),
-                    ]
-                : []),
-              swiftAccessibilityLabel(t('camera.lensA11y', { label })),
-              ...(isActive ? [accessibilityAddTraits(['isSelected'])] : []),
-              swiftDisabled(disabled),
-            ]}>
-            <SwiftText
+      {selectionPill}
+      <HStack spacing={0} alignment="center">
+        {options.map((option) => {
+          const isActive = option.id === selection;
+          const label = isActive && activeLabelOverride ? activeLabelOverride : formatSwitcherLabel(option);
+          return (
+            <Button
+              key={option.id}
+              onPress={disabled ? undefined : () => onSelect(option.id)}
               modifiers={[
-                foregroundStyle({ type: 'hierarchical', style: 'primary' }),
-                font({ size: 13, weight: isActive ? 'bold' : 'semibold', design: 'rounded' }),
-                monospacedDigit(),
-                ...(isActive ? [bold()] : []),
+                buttonStyle('plain'),
+                frame({ width: CHIP_WIDTH, height: CHIP_HEIGHT }),
+                swiftAccessibilityLabel(t('camera.lensA11y', { label })),
+                ...(isActive ? [accessibilityAddTraits(['isSelected'])] : []),
+                swiftDisabled(disabled),
               ]}>
-              {label}
-            </SwiftText>
-          </Button>
-        );
-      })}
-    </HStack>
+              <SwiftText
+                modifiers={[
+                  foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+                  font({ size: 13, weight: isActive ? 'bold' : 'semibold', design: 'rounded' }),
+                  monospacedDigit(),
+                  ...(isActive ? [bold()] : []),
+                ]}>
+                {label}
+              </SwiftText>
+            </Button>
+          );
+        })}
+      </HStack>
+    </ZStack>
   );
 
   return (
@@ -221,17 +223,15 @@ export function NativeLensSwitcher({
       matchContents
       colorScheme="dark"
       style={[styles.host, { width: capsuleWidth, height: capsuleHeight }]}>
-      <Namespace id={namespaceId}>
-        {useGlass ? (
-          <GlassEffectContainer
-            spacing={12}
-            modifiers={[animation(SELECTION_SPRING, selectionIndex)]}>
-            {chips}
-          </GlassEffectContainer>
-        ) : (
-          chips
-        )}
-      </Namespace>
+      {useGlass ? (
+        <GlassEffectContainer
+          spacing={12}
+          modifiers={[animation(SELECTION_SPRING, selectionIndex)]}>
+          {chips}
+        </GlassEffectContainer>
+      ) : (
+        chips
+      )}
     </Host>
     </GestureDetector>
   );
