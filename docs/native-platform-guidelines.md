@@ -1,7 +1,7 @@
 # Wytyczne platformowe: native-first (iOS)
 
 **Status:** obowiązuje dla całego projektu NiX  
-**Ostatnia aktualizacja:** 2026-07-14 (Expo SDK 57 / React Native 0.86)
+**Ostatnia aktualizacja:** 2026-10-16 (Expo SDK 58 / React Native 0.88)
 
 ---
 
@@ -74,6 +74,11 @@ Szczegóły implementacji universal UI: [NiX_Documentation_v1.2.md §2.2](NiX_Do
 - Legacy **`Animated` API** i **`LayoutAnimation`** na gorących ścieżkach (kamera, viewer, przejścia tabów).
 - **`FieldGroup` wewnątrz `ScrollView`** lub ze sztywnej wysokością.
 - Projektowanie „webowych wzorców” (np. generyczny CSS layout) jako wzorca dla mobile.
+- `InteractionManager` (usunięty w RN 0.88) — użyj `requestIdleCallback` z `timeout`.
+- Nowy kod z builderem `Gesture.*` z Gesture Handler (przestarzały w RNGH 3) — w nowym kodzie hooki `usePanGesture`, `useTapGesture` itd.; istniejące gesty migrujemy osobno.
+- Refy typowane komponentem (`useRef<View>`) — w RN 0.88 (Strict TS API) typ instancji: `ViewInstance`, `TextInputInstance`, `ScrollViewInstance`.
+- `HStack` / `VStack` z `@expo/ui` bez `spacing` tam, gdzie układ zakłada brak odstępu — od SDK 58 domyślny jest odstęp systemowy; pisz `spacing={0}`.
+- `UIScreen.main` i `keyWindow` w kodzie natywnym — od SDK 58 sceny: skala z `traitCollection` lub `UIWindowScene`.
 
 ---
 

@@ -1,6 +1,6 @@
 # NiX — punkt wejścia dla agentów (Claude Code, Codex, Cursor)
 
-NiX to aplikacja **iOS-only** na Expo SDK 57 (bare workflow, `ios/` w repo), React Native 0.86, `@expo/ui`, Expo Router, Reanimated 4, Supabase (Postgres + Edge Functions w Deno). Ten plik jest zawsze w kontekście — trzyma twarde zasady i mapę „cel → źródło prawdy”. Szczegóły są w `docs/`; przy sprzeczności wygrywa wskazany dokument.
+NiX to aplikacja **iOS-only** na Expo SDK 58 (bare workflow, `ios/` w repo), React Native 0.88, `@expo/ui`, Expo Router, Reanimated 4, Supabase (Postgres + Edge Functions w Deno). Ten plik jest zawsze w kontekście — trzyma twarde zasady i mapę „cel → źródło prawdy”. Szczegóły są w `docs/`; przy sprzeczności wygrywa wskazany dokument.
 
 ## Twarde zasady (zawsze)
 
