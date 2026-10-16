@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type ScrollViewInstance,
   type ScrollViewProps,
 } from 'react-native';
 import { ScrollViewMarker } from 'react-native-screens/experimental';
@@ -78,7 +79,7 @@ function MemoryVideo({ uri, label }: { uri: string; label: string }) {
  */
 const NO_SCROLL_EDGE_EFFECTS = { top: 'hidden', bottom: 'hidden', left: 'hidden', right: 'hidden' } as const;
 
-function GalleryScrollView({ ref, ...props }: ScrollViewProps & { ref?: Ref<ScrollView> }) {
+function GalleryScrollView({ ref, ...props }: ScrollViewProps & { ref?: Ref<ScrollViewInstance> }) {
   return (
     <ScrollViewMarker style={styles.fill} scrollEdgeEffects={NO_SCROLL_EDGE_EFFECTS}>
       <ScrollView {...props} ref={ref} />

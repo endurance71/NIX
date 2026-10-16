@@ -20,7 +20,7 @@ export function sentryDisabledViolations() {
   const xcodeProject = read('ios/NiX.xcodeproj/project.pbxproj');
   const violations = [];
 
-  if (packageJson.dependencies?.['@sentry/react-native'] !== '~7.11.0') {
+  if (packageJson.dependencies?.['@sentry/react-native'] !== '~8.28.0') {
     violations.push('the pinned @sentry/react-native SDK must remain installed');
   }
   if (!app.plugins?.includes('@sentry/react-native')) {

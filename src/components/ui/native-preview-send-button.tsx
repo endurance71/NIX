@@ -67,7 +67,7 @@ export function NativePreviewSendButton({
           spacing={6}
           alignment="center"
           modifiers={[
-            frame({ minWidth: SEND_BUTTON_MIN_WIDTH, maxWidth: SEND_BUTTON_MAX_WIDTH, height: SEND_BUTTON_HEIGHT }),
+            frame({ minWidth: SEND_BUTTON_MIN_WIDTH, maxWidth: SEND_BUTTON_MAX_WIDTH, minHeight: SEND_BUTTON_HEIGHT, maxHeight: SEND_BUTTON_HEIGHT }),
             padding({ leading: 16, trailing: 12 }),
             background(backgroundColor, shapes.capsule()),
             ...(chromeVariant === 'glass'

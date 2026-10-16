@@ -112,7 +112,7 @@ function ForwardHeader({ canSend, onSend }: { canSend: boolean; onSend: () => vo
           ]}>
           {t('forward.title')}
         </SwiftText>
-        <HStack modifiers={[frame({ maxWidth: Infinity })]}>
+        <HStack spacing={0} modifiers={[frame({ maxWidth: Infinity })]}>
           <Button
             label={t('common.cancel')}
             onPress={() => router.back()}

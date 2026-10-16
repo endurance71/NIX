@@ -103,7 +103,7 @@ function NewChatHeader() {
           ]}>
           {t('inbox.newChatTitle')}
         </SwiftText>
-        <HStack modifiers={[frame({ maxWidth: Infinity })]}>
+        <HStack spacing={0} modifiers={[frame({ maxWidth: Infinity })]}>
           <Button
             label={t('common.cancel')}
             onPress={() => router.back()}

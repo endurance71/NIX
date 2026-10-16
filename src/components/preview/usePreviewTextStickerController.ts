@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
-import { AppState, Keyboard, TextInput, useWindowDimensions, type KeyboardEvent, type TextStyle } from 'react-native';
+import { AppState, Keyboard, useWindowDimensions, type KeyboardEvent, type TextInputInstance, type TextStyle } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
 import {
   Easing,
@@ -168,7 +168,7 @@ export function usePreviewTextStickerController({
   const { t } = useTranslation();
   const { height: windowHeight } = useWindowDimensions();
   const motionEnabled = useMotionEnabled();
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const didEnterRef = useRef(false);
   const formatLiftActiveRef = useRef(false);
   const formatLiftStartedRef = useRef(false);

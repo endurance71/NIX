@@ -92,7 +92,7 @@ export function bindSupabaseAuthLifecycle(): () => void {
     if (state === 'active') void supabase.auth.startAutoRefresh();
     else void supabase.auth.stopAutoRefresh();
   };
-  syncRefresh(AppState.currentState);
+  syncRefresh(AppState.currentState ?? 'unknown');
   const subscription = AppState.addEventListener('change', syncRefresh);
   return () => {
     subscription.remove();

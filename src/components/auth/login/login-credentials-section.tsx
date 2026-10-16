@@ -77,7 +77,7 @@ export function LoginCredentialsSection({ vm, passwordRef }: LoginCredentialsSec
       <HStack
         alignment="center"
         spacing={0}
-        modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'leading' })]}>
+        modifiers={[frame({ minWidth: contentWidth, maxWidth: contentWidth, minHeight: 44, alignment: 'leading' })]}>
         <AuthTextLink label={vm.t('auth.forgotPassword')} onPress={vm.goToForgotPassword} />
       </HStack>
     </VStack>

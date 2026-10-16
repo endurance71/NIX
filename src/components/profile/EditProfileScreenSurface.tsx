@@ -365,7 +365,7 @@ export default function EditProfileScreenSurface() {
         <FieldGroup.Section>
           <FieldGroup.SectionHeader>
             {/* The hosted view is only as wide as its content, so the SwiftUI frame centres it. */}
-            <HStack modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}>
+            <HStack spacing={0} modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}>
               <RNHostView matchContents>
                 <View style={styles.hero}>
                   <Pressable

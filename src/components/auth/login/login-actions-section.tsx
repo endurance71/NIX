@@ -36,7 +36,7 @@ export function LoginActionsSection({ vm }: LoginActionsSectionProps) {
         linkLabel={vm.t('auth.noAccountLink')}
         onPress={vm.goToRegister}
       />
-      <HStack alignment="center" spacing={12} modifiers={[frame({ width: contentWidth, minHeight: 44 })]}>
+      <HStack alignment="center" spacing={12} modifiers={[frame({ minWidth: contentWidth, maxWidth: contentWidth, minHeight: 44 })]}>
         <AuthTextLink
           label={vm.t('profile.privacyPolicy')}
           onPress={() => router.push('/(auth)/privacy-policy')}

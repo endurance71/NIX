@@ -130,7 +130,7 @@ function AuthFieldSeparator() {
       <Rectangle
         modifiers={[
           foregroundStyle(colors.separator),
-          frame({ maxWidth: Infinity, height: 0.5 }),
+          frame({ maxWidth: Infinity, minHeight: 0.5, maxHeight: 0.5 }),
           padding({ leading: AUTH_FIELD_SEPARATOR_INSET }),
         ]}
       />
@@ -350,7 +350,7 @@ export function AuthFooterPrompt({
       <VStack
         alignment="leading"
         spacing={4}
-        modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'leading' })]}>
+        modifiers={[frame({ minWidth: contentWidth, maxWidth: contentWidth, minHeight: 44, alignment: 'leading' })]}>
         {prompt ? (
           <Text modifiers={[font({ design: 'rounded', textStyle: 'subheadline' }), foregroundStyle(colors.secondaryLabel)]}>
             {prompt}
@@ -369,7 +369,7 @@ export function AuthFooterPrompt({
     <HStack
       alignment="center"
       spacing={0}
-      modifiers={[frame({ width: contentWidth, minHeight: 44, alignment: 'leading' })]}>
+      modifiers={[frame({ minWidth: contentWidth, maxWidth: contentWidth, minHeight: 44, alignment: 'leading' })]}>
       <Text modifiers={[font({ design: 'rounded', textStyle: 'subheadline' }), foregroundStyle(colors.secondaryLabel)]}>
         {`${prompt} `}
       </Text>

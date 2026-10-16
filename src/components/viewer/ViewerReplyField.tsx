@@ -174,7 +174,7 @@ export function ViewerReplyField({
             onPress={trailing.onPress}
             modifiers={[
               buttonStyle('plain'),
-              frame({ minWidth: 28, height: 22 }),
+              frame({ minWidth: 28, minHeight: 22, maxHeight: 22 }),
               swiftAccessibilityLabel(trailing.accessibilityLabel),
             ]}>
             <SwiftText modifiers={[font({ size: 20 })]}>{trailing.glyph}</SwiftText>

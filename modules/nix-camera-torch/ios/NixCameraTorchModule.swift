@@ -256,6 +256,7 @@ public class NixCameraTorchModule: Module {
         "kind": "ultraWide",
         "label": formatDisplayLabel(0.5),
         "localizedName": ultra.localizedName,
+        "deviceType": ultra.deviceType.rawValue,
         "zoom": 0.0,
         "displayFactor": 0.5,
       ])
@@ -267,6 +268,7 @@ public class NixCameraTorchModule: Module {
         "kind": "wide",
         "label": formatDisplayLabel(1.0),
         "localizedName": wide.localizedName,
+        "deviceType": wide.deviceType.rawValue,
         "zoom": 0.0,
         "displayFactor": 1.0,
       ])
@@ -278,6 +280,8 @@ public class NixCameraTorchModule: Module {
           "kind": "wideCrop2x",
           "label": formatDisplayLabel(2.0),
           "localizedName": wide.localizedName,
+          "deviceType": wide.deviceType.rawValue,
+        "deviceType": wide.deviceType.rawValue,
           "zoom": expoNormalizedZoom(targetFactor: 2.0, on: wide),
           "displayFactor": 2.0,
         ])
@@ -291,6 +295,7 @@ public class NixCameraTorchModule: Module {
         "kind": "telephoto",
         "label": formatDisplayLabel(factor),
         "localizedName": tele.localizedName,
+        "deviceType": tele.deviceType.rawValue,
         "zoom": 0.0,
         "displayFactor": Double(factor),
       ])
@@ -331,7 +336,7 @@ struct NixFocusPointOptions: Record {
   /// JS-computed device point of interest (0–1), used only without a live preview layer.
   @Field var fallbackX: Double = 0.5
   @Field var fallbackY: Double = 0.5
-  /// "back" | "front" and the expo-camera `selectedLens` localizedName, for the fallback device.
+  /// "back" | "front" and the expo-camera `selectedLens` (the lens deviceType), for the fallback device.
   @Field var facing: String = "back"
   @Field var lensName: String?
   /// true = focus/expose once at the point, then hold (AE/AF lock).
@@ -389,13 +394,14 @@ enum NixCameraFocus {
       .device
   }
 
-  /// Mirrors expo-camera `updateDevice`: the lens chosen by localizedName, else the wide camera.
+  /// Mirrors expo-camera `updateDevice`: the lens chosen by deviceType, else the wide camera.
+  /// localizedName still matches for a bundle older than SDK 58 talking to this binary.
   private static func fallbackDevice(facing: String, lensName: String?) -> AVCaptureDevice? {
     let position: AVCaptureDevice.Position = facing == "front" ? .front : .back
     if let lensName {
       let discovery = AVCaptureDevice.DiscoverySession(
         deviceTypes: discoveryDeviceTypes, mediaType: .video, position: position)
-      if let match = discovery.devices.first(where: { $0.localizedName == lensName }) {
+      if let match = discovery.devices.first(where: { $0.deviceType.rawValue == lensName || $0.localizedName == lensName }) {
         return match
       }
     }

@@ -62,6 +62,13 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 // Fade from the indigo launch tile into the app instead of cutting.
 SplashScreen.setOptions({ duration: 250, fade: true });
 
+/**
+ * A deep link straight into a stacked screen (viewer, chat, friend invite) keeps the tabs under it,
+ * so back lands there. Expo Router 58 removed `initialRouteName`; where a signed-out or onboarding
+ * user belongs is decided by `resolveBootstrapRedirect`, not by the stack.
+ */
+export const unstable_settings = { anchor: '(tabs)' };
+
 // Initialize monitoring at module load (runs once).
 initMonitoring();
 
@@ -310,7 +317,6 @@ function AppStack({
       {session && canUseNetworkSession ? <TextOutboxSync userId={session.user.id} /> : null}
       {session && canUseNetworkSession && iosRoadmapFeatures.accountData ? <AppInstallationSync /> : null}
       <Stack
-        initialRouteName={session && !needsOnboarding ? '(tabs)' : '(auth)'}
         screenOptions={{
           headerShown: false,
           headerBackButtonDisplayMode: 'minimal',

@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { InteractionManager } from 'react-native';
 import { notify, tap, type ImpactIntensity } from '../../lib/haptics';
 import { Easing, cancelAnimation, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
@@ -81,23 +80,27 @@ export function useSceneBeats(active: boolean, cycleMs: number, motionEnabled: b
 }
 
 /**
- * Runs `start` once the screen has settled: after the navigation transition and two frames, so
- * a hero animation does not compete with the screen mounting (images decoding, native hosts
- * laying out) and stutter on its first beats.
+ * Runs `start` once the screen has settled: when the JS thread is first idle after the navigation
+ * transition, then two frames, so a hero animation does not compete with the screen mounting
+ * (images decoding, native hosts laying out) and stutter on its first beats. `requestIdleCallback`
+ * replaces `InteractionManager`, removed in React Native 0.88; the timeout caps the wait.
  */
+/** Longest wait for an idle JS thread before the hero animation starts anyway. */
+const SETTLE_TIMEOUT_MS = 500;
+
 export function runWhenSettled(start: () => void): () => void {
   let cancelled = false;
   let frame = 0;
-  const task = InteractionManager.runAfterInteractions(() => {
+  const idle = requestIdleCallback(() => {
     frame = requestAnimationFrame(() => {
       frame = requestAnimationFrame(() => {
         if (!cancelled) start();
       });
     });
-  });
+  }, { timeout: SETTLE_TIMEOUT_MS });
   return () => {
     cancelled = true;
-    task.cancel();
+    cancelIdleCallback(idle);
     cancelAnimationFrame(frame);
   };
 }

@@ -84,7 +84,7 @@ const InboxWidget = (props: InboxWidgetProps, environment: WidgetEnvironment) =>
           'widget'
         ),
       ]}>
-      <HStack>
+      <HStack spacing={0}>
         <Image
           assetName="NixWidgetLogo"
           modifiers={[resizable(), frame({ width: 26, height: 26 }), clipShape('roundedRectangle', 7)]}

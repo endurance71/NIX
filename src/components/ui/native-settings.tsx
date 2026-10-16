@@ -116,7 +116,7 @@ function NativeSettingsLeading({
       </View>
     </RNHostView>
   ) : icon ? (
-    <HStack alignment="center" modifiers={[frame({ width: 26, alignment: 'center' })]}>
+    <HStack spacing={0} alignment="center" modifiers={[frame({ width: 26, alignment: 'center' })]}>
       <SymbolView
         name={resolveAppIconName(icon) as SFSymbol}
         size={iconMetrics?.size ?? APP_ICON_SIZE.settings}
@@ -223,7 +223,7 @@ export function NativeSettingsRow({
     return (
       <HStack alignment="center" spacing={spacing.md} testID={testID}>
         {/* Leading is already SwiftUI (an avatar hosts its own RN view): no RNHostView here. */}
-        {resolvedLeading ? <HStack modifiers={[accessibilityHidden()]}>{resolvedLeading}</HStack> : null}
+        {resolvedLeading ? <HStack spacing={0} modifiers={[accessibilityHidden()]}>{resolvedLeading}</HStack> : null}
         <Toggle
           isOn={switchValue}
           onIsOnChange={(value) => onSwitchValueChange?.(value)}

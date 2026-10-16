@@ -10,7 +10,7 @@ import { NativeSettingsRow, NativeSettingsSection } from '../ui/native-settings'
  */
 function FriendshipEmoji({ emoji }: { emoji: string }) {
   return (
-    <HStack alignment="center" modifiers={[frame({ width: 26, alignment: 'center' }), accessibilityHidden(true)]}>
+    <HStack spacing={0} alignment="center" modifiers={[frame({ width: 26, alignment: 'center' }), accessibilityHidden(true)]}>
       <SwiftText modifiers={[font({ size: 20 })]}>{emoji}</SwiftText>
     </HStack>
   );

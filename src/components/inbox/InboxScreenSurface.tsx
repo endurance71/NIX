@@ -702,7 +702,7 @@ const MessageRow = memo(function MessageRow({
 
   // A real SwiftUI button: native press highlight and the button trait for VoiceOver.
   const rowButton = busy ? (
-    <HStack modifiers={[accessibilityElement('ignore'), accessibilityLabel(a11yLabel)]}>
+    <HStack spacing={0} modifiers={[accessibilityElement('ignore'), accessibilityLabel(a11yLabel)]}>
       {content}
     </HStack>
   ) : (
@@ -738,7 +738,7 @@ const MessageRow = memo(function MessageRow({
       </ContextMenu.Items>
     </ContextMenu>
   ) : (
-    <HStack modifiers={rowModifiers}>{rowButton}</HStack>
+    <HStack spacing={0} modifiers={rowModifiers}>{rowButton}</HStack>
   );
 
   if (busy) return withMenu;
@@ -980,7 +980,7 @@ const PinnedConversationCell = memo(function PinnedConversationCell({
 
   if (busy) {
     return (
-      <HStack
+      <HStack spacing={0}
         modifiers={[...placement, accessibilityElement('ignore'), accessibilityLabel(a11yLabel)]}>
         {content}
       </HStack>
@@ -1005,7 +1005,7 @@ const PinnedConversationCell = memo(function PinnedConversationCell({
     selectPrimaryUploadAction(row.upload) || row.upload?.actions.cancelJobIds.length,
   );
   if (!hasRowMenu && !hasUploadItems) {
-    return <HStack modifiers={placement}>{cellButton}</HStack>;
+    return <HStack spacing={0} modifiers={placement}>{cellButton}</HStack>;
   }
 
   return (
@@ -1013,7 +1013,7 @@ const PinnedConversationCell = memo(function PinnedConversationCell({
       <ContextMenu.Trigger>{cellButton}</ContextMenu.Trigger>
       {/* Inside the list the system would lift the whole grid row; lift just this pin. */}
       <ContextMenu.Preview>
-        <VStack modifiers={[padding({ all: 16 })]}>{content}</VStack>
+        <VStack spacing={0} modifiers={[padding({ all: 16 })]}>{content}</VStack>
       </ContextMenu.Preview>
       <ContextMenu.Items>
         <PinnedUploadMenuItems
@@ -1363,7 +1363,7 @@ export function InboxScreenSurface(props: InboxScreenSurfaceProps) {
     return (
       <AppHost style={[styles.container, { backgroundColor: colors.background }]}>
         <StatusBar style={statusBarStyle} />
-        <VStack
+        <VStack spacing={0}
           alignment="center"
           modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'center' })]}>
           <ProgressView modifiers={[accessibilityLabel(vm.t('common.loading'))]} />

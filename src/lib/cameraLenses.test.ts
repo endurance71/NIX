@@ -1,3 +1,4 @@
+import type { LensInfo } from 'expo-camera';
 import { describe, expect, it } from 'vitest';
 import {
   buildLensSwitcherOptions,
@@ -12,6 +13,11 @@ import {
   lensOptionsFromNativePresets,
   shouldShowLensSwitcher,
 } from './cameraLenses';
+
+/** expo-camera lenses: classified by localizedName, selected by deviceType. */
+function lensInfos(localizedNames: string[]): LensInfo[] {
+  return localizedNames.map((localizedName) => ({ localizedName, deviceType: `device:${localizedName}` }));
+}
 
 describe('classifyCameraLens', () => {
   it('classifies English physical lenses', () => {
@@ -44,35 +50,35 @@ describe('classifyCameraLens', () => {
 
 describe('buildLensSwitcherOptions', () => {
   it('adds synthetic 2× crop between wide and tele', () => {
-    const options = buildLensSwitcherOptions([
+    const options = buildLensSwitcherOptions(lensInfos([
       'Back Triple Camera',
       'Back Telephoto Camera',
       'Back Ultra Wide Camera',
       'Back Dual Camera',
       'Back Camera',
-    ]);
+    ]));
 
     expect(options.map((o) => o.id)).toEqual(['0.5', '1x', '2x', 'tele']);
     expect(options.map((o) => o.kind)).toEqual(['ultraWide', 'wide', 'wideCrop2x', 'telephoto']);
-    expect(options.find((o) => o.id === '2x')?.selectedLensValue).toBe('Back Camera');
+    expect(options.find((o) => o.id === '2x')?.selectedLensValue).toBe('device:Back Camera');
     expect(options.find((o) => o.id === '2x')?.zoom).toBeCloseTo(FALLBACK_WIDE_2X_ZOOM);
     expect(options.find((o) => o.id === 'tele')?.zoom).toBe(0);
   });
 
   it('handles Polish localized names and excludes podwójny/potrójny', () => {
-    const options = buildLensSwitcherOptions([
+    const options = buildLensSwitcherOptions(lensInfos([
       'Tylny teleobiektyw',
       'Podwójny tylny aparat',
       'Potrójny tylny aparat',
       'Tylny aparat',
       'Tylny obiektyw ultraszerokokątny',
-    ]);
+    ]));
 
     expect(options.map((o) => o.kind)).toEqual(['ultraWide', 'wide', 'wideCrop2x', 'telephoto']);
   });
 
   it('adds 2× when ultra+wide without tele', () => {
-    const options = buildLensSwitcherOptions(['Back Ultra Wide Camera', 'Back Camera']);
+    const options = buildLensSwitcherOptions(lensInfos(['Back Ultra Wide Camera', 'Back Camera']));
     expect(options.map((o) => o.id)).toEqual(['0.5', '1x', '2x']);
   });
 });
@@ -85,6 +91,7 @@ describe('lensOptionsFromNativePresets', () => {
         kind: 'ultraWide',
         label: '0,5',
         localizedName: 'Tylny ultraszerokokątny',
+        deviceType: 'device:Tylny ultraszerokokątny',
         zoom: 0,
         displayFactor: 0.5,
       },
@@ -93,6 +100,7 @@ describe('lensOptionsFromNativePresets', () => {
         kind: 'wide',
         label: '1×',
         localizedName: 'Tylny aparat',
+        deviceType: 'device:Tylny aparat',
         zoom: 0,
         displayFactor: 1,
       },
@@ -101,6 +109,7 @@ describe('lensOptionsFromNativePresets', () => {
         kind: 'wideCrop2x',
         label: '2',
         localizedName: 'Tylny aparat',
+        deviceType: 'device:Tylny aparat',
         zoom: 0.22,
         displayFactor: 2,
       },
@@ -109,6 +118,7 @@ describe('lensOptionsFromNativePresets', () => {
         kind: 'telephoto',
         label: '5',
         localizedName: 'Tylny teleobiektyw',
+        deviceType: 'device:Tylny teleobiektyw',
         zoom: 0,
         displayFactor: 5,
       },
@@ -116,17 +126,18 @@ describe('lensOptionsFromNativePresets', () => {
 
     expect(options.map((o) => o.label)).toEqual(['0,5', '1×', '2', '5']);
     expect(options.find((o) => o.id === '2x')?.zoom).toBe(0.22);
+    expect(options.find((o) => o.id === 'tele')?.selectedLensValue).toBe('device:Tylny teleobiektyw');
   });
 });
 
 describe('defaultLensOption', () => {
   it('prefers 1x when present', () => {
-    const options = buildLensSwitcherOptions(['Back Ultra Wide Camera', 'Back Camera']);
+    const options = buildLensSwitcherOptions(lensInfos(['Back Ultra Wide Camera', 'Back Camera']));
     expect(defaultLensOption(options)?.id).toBe('1x');
   });
 
   it('falls back to first option when wide is missing', () => {
-    const options = buildLensSwitcherOptions(['Back Ultra Wide Camera']);
+    const options = buildLensSwitcherOptions(lensInfos(['Back Ultra Wide Camera']));
     expect(defaultLensOption(options)?.kind).toBe('ultraWide');
   });
 
@@ -137,8 +148,8 @@ describe('defaultLensOption', () => {
 
 describe('shouldShowLensSwitcher', () => {
   it('shows only for rear camera with at least two options', () => {
-    const two = buildLensSwitcherOptions(['Back Ultra Wide Camera', 'Back Camera']);
-    const one = buildLensSwitcherOptions(['Back Camera']);
+    const two = buildLensSwitcherOptions(lensInfos(['Back Ultra Wide Camera', 'Back Camera']));
+    const one = buildLensSwitcherOptions(lensInfos(['Back Camera']));
 
     expect(shouldShowLensSwitcher('back', two)).toBe(true);
     expect(shouldShowLensSwitcher('back', one)).toBe(false);

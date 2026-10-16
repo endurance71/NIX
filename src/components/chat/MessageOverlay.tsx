@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactElement } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet, Text, View, type ViewInstance } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { GlassView } from 'expo-glass-effect';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
@@ -109,7 +109,7 @@ export function MessageOverlay({
       : target.y + target.height + GAP;
 
   const progress = useSharedValue(motionEnabled ? 0 : 1);
-  const firstRef = useRef<View>(null);
+  const firstRef = useRef<ViewInstance>(null);
   const closingRef = useRef(false);
 
   useEffect(() => {

@@ -326,9 +326,7 @@ function RecordingProgressRing({
     recordingProgress(elapsedMs.get(), VIDEO_TOTAL_MAX_DURATION_MS)
   );
   const circle = useMemo(() => {
-    const path = Skia.Path.Make();
-    path.addCircle(RING_SIZE / 2, RING_SIZE / 2, (RING_SIZE - RING_STROKE) / 2);
-    return path;
+    return Skia.Path.Circle(RING_SIZE / 2, RING_SIZE / 2, (RING_SIZE - RING_STROKE) / 2);
   }, []);
 
   return (

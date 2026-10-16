@@ -36,7 +36,7 @@ export function AccentAppearancePreview() {
   const a11yLabel = t('profile.accentAppearancePreviewA11y', { color: presetLabel });
 
   return (
-    <VStack
+    <VStack spacing={0}
       alignment="center"
       modifiers={[
         listRowBackground('transparent'),
@@ -48,18 +48,18 @@ export function AccentAppearancePreview() {
       <ZStack
         alignment="center"
         modifiers={[
-          frame({ maxWidth: Infinity, height: PREVIEW_HEIGHT }),
+          frame({ maxWidth: Infinity, minHeight: PREVIEW_HEIGHT, maxHeight: PREVIEW_HEIGHT }),
           background(colors.tertiarySystemBackground, shapes.roundedRectangle({ cornerRadius: CORNER_RADIUS })),
           clipShape('roundedRectangle', CORNER_RADIUS),
         ]}>
-        <VStack
+        <VStack spacing={0}
           modifiers={[
             frame({ maxWidth: Infinity, maxHeight: Infinity }),
             background(withAlpha(accent, '28'), shapes.roundedRectangle({ cornerRadius: CORNER_RADIUS })),
           ]}>
           {null}
         </VStack>
-        <VStack
+        <VStack spacing={0}
           modifiers={[
             frame({ width: 220, height: 140 }),
             background(withAlpha(accent, '40'), shapes.roundedRectangle({ cornerRadius: 48 })),

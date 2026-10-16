@@ -24,6 +24,9 @@ import {
   type AccessibilityActionEvent,
   type LayoutChangeEvent,
   type ScrollView,
+  type ScrollViewInstance,
+  type TextInputInstance,
+  type ViewInstance,
   type ScrollViewProps,
 } from 'react-native';
 import { GlassView } from 'expo-glass-effect';
@@ -952,7 +955,7 @@ const MessageBubble = memo(function MessageBubble({
     }
   }
   // Double tap opens the Tapback bar on a text bubble; a voice bubble's single tap plays it.
-  const bubbleRef = useRef<View>(null);
+  const bubbleRef = useRef<ViewInstance>(null);
   const doubleTapEnabled = canReact && !isVoice && mode.press === null;
   // The copy that lifts above the blur on long press (its badge does nothing there).
   const previewContent = (
@@ -1670,7 +1673,7 @@ const ChatComposer = memo(function ChatComposer({
   const [inputKey, setInputKey] = useState(0);
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const editing = context?.mode === 'edit';
   // A new edit puts the message's text into the input once (adjusting state during render).
   const [seededKey, setSeededKey] = useState<string | null>(null);
@@ -1966,12 +1969,12 @@ const ChatListKeyboardContext = createContext<ChatListKeyboardBinding | null>(nu
  * insets change only when a keyboard movement starts or settles, so the list never re-lays out per
  * frame and React never re-renders for the keyboard. Module-level: FlashList memoizes it by identity.
  */
-function ChatListScrollView({ ref, ...props }: ScrollViewProps & { ref?: Ref<ScrollView> }) {
+function ChatListScrollView({ ref, ...props }: ScrollViewProps & { ref?: Ref<ScrollViewInstance> }) {
   const binding = use(ChatListKeyboardContext);
   const fallbackRef = useAnimatedRef<ScrollView>();
   const scrollRef = binding?.scrollRef ?? fallbackRef;
   useScrollOffset(scrollRef, binding?.scrollOffset);
-  const setRefs = useCallback((node: ScrollView | null) => {
+  const setRefs = useCallback((node: ScrollViewInstance | null) => {
     scrollRef(node);
     if (typeof ref === 'function') ref(node);
     else if (ref) ref.current = node;
@@ -2673,7 +2676,7 @@ export function ChatScreenSurface({ vm }: ChatScreenSurfaceProps) {
     messageActionsFor,
   } = useChatTimelineHandlers(vm);
   const onCancelContext = useStableHandler(() => vm.handleCancelComposerContext());
-  const rootRef = useRef<View>(null);
+  const rootRef = useRef<ViewInstance>(null);
   const [overlay, setOverlay] = useState<MessageOverlayRequest | null>(null);
   const onOpenOverlay = useStableHandler(({ messageId, isOwn, frame, ...request }: BubbleOverlayRequest) => {
     rootRef.current?.measureInWindow((rootX, rootY, rootWidth, rootHeight) => {

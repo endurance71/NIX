@@ -1,6 +1,6 @@
 import { performCameraPermissionRequest } from '../lib/cameraPermissions';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from 'react';
-import type { LayoutChangeEvent, View, ViewStyle } from 'react-native';
+import type { LayoutChangeEvent, ViewInstance, ViewStyle } from 'react-native';
 import { AccessibilityInfo, Alert, AppState, Linking } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -9,6 +9,7 @@ import {
   useCameraPermissions,
   useMicrophonePermissions,
   type AvailableLenses,
+  type LensInfo,
   type CameraOrientation,
   type ResponsiveOrientationChanged,
 } from 'expo-camera';
@@ -162,7 +163,7 @@ export type CameraScreenViewModel = {
   /** Pinch-to-zoom racing tap-to-focus and long-press AE/AF lock on the preview. */
   previewGesture: ReturnType<typeof Gesture.Race>;
   shutterGesture: ReturnType<typeof Gesture.Pan>;
-  previewViewRef: RefObject<View | null>;
+  previewViewRef: RefObject<ViewInstance | null>;
   onPreviewLayout: (event: LayoutChangeEvent) => void;
   focusIndicator: CameraFocusIndicator | null;
   focusLocked: boolean;
@@ -305,7 +306,7 @@ export function useCameraScreen(): CameraScreenViewModel {
   const flipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hardwarePressActiveRef = useRef(false);
   const recordingWithoutAudioRef = useRef(false);
-  const previewViewRef = useRef<View>(null);
+  const previewViewRef = useRef<ViewInstance>(null);
   const previewLayoutRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
   const focusLockedRef = useRef(false);
   const [focusIndicator, setFocusIndicator] = useState<CameraFocusIndicator | null>(null);
@@ -660,8 +661,8 @@ export function useCameraScreen(): CameraScreenViewModel {
   }, [applyLensOptions]);
 
   const applyAvailableLenses = useCallback(
-    (lenses: string[]) => {
-      // Prefer native deviceType presets; localizedName callback is fallback-only.
+    (lenses: LensInfo[]) => {
+      // Prefer native presets; the expo-camera lens list is fallback-only.
       void getBackLensPresetsAsync().then((nativePresets) => {
         if (nativePresets && nativePresets.length > 0) {
           applyLensOptions(lensOptionsFromNativePresets(nativePresets));

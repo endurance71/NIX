@@ -5,6 +5,7 @@ const app = JSON.parse(readFileSync(new URL('../app.json', import.meta.url), 'ut
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const plist = readFileSync(new URL('../ios/NiX/Info.plist', import.meta.url), 'utf8');
 const appDelegate = readFileSync(new URL('../ios/NiX/AppDelegate.swift', import.meta.url), 'utf8');
+const sceneDelegate = readFileSync(new URL('../ios/NiX/SceneDelegate.swift', import.meta.url), 'utf8');
 const widgetPlist = readFileSync(new URL('../ios/ExpoWidgetsTarget/Info.plist', import.meta.url), 'utf8');
 const expoPlist = readFileSync(new URL('../ios/NiX/Supporting/Expo.plist', import.meta.url), 'utf8');
 const en = readFileSync(new URL('../ios/NiX/Supporting/en.lproj/InfoPlist.strings', import.meta.url), 'utf8');
@@ -125,16 +126,22 @@ if (app.ios.infoPlist.UIBackgroundModes) {
 }
 if (!app.plugins?.includes('expo-notifications')) fail('expo-notifications plugin is missing in app.json');
 const buildProperties = app.plugins?.find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-build-properties')?.[1];
-if (buildProperties?.ios?.enableSceneSupport !== true) {
-  fail('expo-build-properties must enable scene support for Xcode 27');
+if (buildProperties?.ios && 'enableSceneSupport' in buildProperties.ios) {
+  fail('expo-build-properties ios.enableSceneSupport has no effect since SDK 58; remove it');
 }
+// SDK 58 (iOS 27 SDK): the generated SceneDelegate creates the window and starts React Native.
 if (
   !plist.includes('<key>UIApplicationSceneManifest</key>')
-  || !plist.includes('<string>EXExpoAppSceneDelegate</string>')
+  || !plist.includes('<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>')
+  || !/class SceneDelegate: ExpoAppSceneDelegate\b/.test(sceneDelegate)
+  || !project.includes('SceneDelegate.swift in Sources')
   || !appDelegate.includes('class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {')
   || /factory\.startReactNative\(/.test(appDelegate)
 ) {
-  fail('native scene support must use ExpoAppSceneDelegate to create the window and start React Native');
+  fail('native scene support must use the SceneDelegate (ExpoAppSceneDelegate) to create the window and start React Native');
+}
+if (appDelegate.includes('RCTLinkingManager')) {
+  fail('AppDelegate must not forward links to RCTLinkingManager: ExpoAppDelegate already delivers each link once');
 }
 if (!entitlements.includes('<key>aps-environment</key>')) fail('aps-environment is missing from NiX.entitlements');
 if (app.ios.usesAppleSignIn && !entitlements.includes('<key>com.apple.developer.applesignin</key>')) {

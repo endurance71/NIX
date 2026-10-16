@@ -58,7 +58,7 @@ export default function PreviewDurationMenu({
             spacing={8}
             alignment="center"
             modifiers={[
-              frame({ minWidth: 76, height: 48 }),
+              frame({ minWidth: 76, minHeight: 48, maxHeight: 48 }),
               padding({ leading: 14, trailing: 14 }),
               background(colors.cameraControlBackground, shapes.capsule()),
               ...(chromeVariant === 'glass'

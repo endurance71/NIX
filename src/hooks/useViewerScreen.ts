@@ -470,9 +470,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
           const nix = await fetchInboxNixById(paramId);
           if (cancelled) return;
           const mappedQueue = [toViewerQueueItem(nix)];
-          unstable_batchedUpdates(() => {
-            setQueueState((current) => ({ ...current, queue: mappedQueue, queueLoading: false }));
-          });
+          setQueueState((current) => ({ ...current, queue: mappedQueue, queueLoading: false }));
           trackEvent('viewer_load_stage', { stage: 'queue', status: 'success', mode: 'replay' });
         } catch (err) {
           console.error('Nie udało się pobrać nixa do replay', err);
@@ -511,9 +509,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
           // Opened from a chat on a later unread NiX: that one plays first (seed), then the rest.
           const mappedQueue = orderViewerQueueFromSeed(nixes.map(toViewerQueueItem), paramId);
 
-          unstable_batchedUpdates(() => {
-            setQueueState((current) => ({ ...current, queue: mappedQueue, queueLoading: false }));
-          });
+          setQueueState((current) => ({ ...current, queue: mappedQueue, queueLoading: false }));
           trackEvent('viewer_load_stage', { stage: 'queue', status: 'success', mode: 'inbox' });
         } catch (err) {
           console.error('Nie udało się pobrać kolejki nixów', err);
@@ -536,13 +532,11 @@ export function useViewerScreen(): ViewerScreenViewModel {
       }
 
       if (seedItem) {
-        unstable_batchedUpdates(() => {
-          setQueueState((current) => ({
-            ...current,
-            queue: [seedItem],
-            queueLoading: false,
-          }));
-        });
+        setQueueState((current) => ({
+          ...current,
+          queue: [seedItem],
+          queueLoading: false,
+        }));
         trackEvent('viewer_load_stage', { stage: 'queue', status: 'success', mode: 'seed' });
         return;
       }
@@ -617,21 +611,19 @@ export function useViewerScreen(): ViewerScreenViewModel {
 
   const advanceAfterCurrentSlide = () => {
     if (slideIndexRef.current < queueRef.current.length - 1) {
-      unstable_batchedUpdates(() => {
-        setQueueState((current) => ({ ...current, slideIndex: current.slideIndex + 1 }));
-        setMediaState((current) => ({
-          ...current,
-          renderNix: null,
-          imageUrl: null,
-          loading: true,
-          imageReady: false,
-          imageLoadError: null,
-          useNativeFallback: false,
-          videoThumbnailOverlay: null,
-          videoPlayer: null,
-        }));
-        setCanDismissByTap(false);
-      });
+      setQueueState((current) => ({ ...current, slideIndex: current.slideIndex + 1 }));
+      setMediaState((current) => ({
+        ...current,
+        renderNix: null,
+        imageUrl: null,
+        loading: true,
+        imageReady: false,
+        imageLoadError: null,
+        useNativeFallback: false,
+        videoThumbnailOverlay: null,
+        videoPlayer: null,
+      }));
+      setCanDismissByTap(false);
     } else {
       trackEvent('viewer_close_reason', { reason: 'completed_last_item' });
       dispatchViewer({ type: 'close' });
@@ -695,6 +687,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
     const isVideo = item.media_type === 'video';
 
     let cancelled = false;
+    // RN 0.88 types the bookkeeping argument as required; the reset runs as one batch, as before.
     unstable_batchedUpdates(() => {
       setViewerError(null);
       setMediaState((current) => ({
@@ -710,7 +703,7 @@ export function useViewerScreen(): ViewerScreenViewModel {
         videoThumbnailOverlay: null,
         photoExpiresAt: null,
       }));
-    });
+    }, undefined);
     if (isVideo && item.thumbnail_b64) {
       trackEvent('viewer_thumbnail_source', { source: 'embedded' });
     } else if (isVideo) {
@@ -721,16 +714,14 @@ export function useViewerScreen(): ViewerScreenViewModel {
       signedUrl: string,
       extra: { photoExpiresAt: number | null; videoPlayer: VideoPlayer | null },
     ) => {
-      unstable_batchedUpdates(() => {
-        setMediaState((current) => ({
-          ...current,
-          imageUrl: signedUrl,
-          renderNix: item,
-          renderOwnerId: owner,
-          loading: false,
-          ...extra,
-        }));
-      });
+      setMediaState((current) => ({
+        ...current,
+        imageUrl: signedUrl,
+        renderNix: item,
+        renderOwnerId: owner,
+        loading: false,
+        ...extra,
+      }));
       // PERF-24: an old nix without an embedded thumbnail never waits for one before playback.
       if (isVideo && !item.thumbnail_b64 && !extra.videoPlayer) {
         void generateVideoThumbnailAtTime(signedUrl, 0, { maxWidth: 720 })

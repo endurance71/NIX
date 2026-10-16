@@ -2,6 +2,7 @@ import { AppState, Linking, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Crypto from 'expo-crypto';
 import * as Notifications from 'expo-notifications';
+import { IosAuthorizationStatus } from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { getCurrentLocale } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
@@ -58,12 +59,12 @@ export function resolvePushPermissionState(
   permissions: Notifications.NotificationPermissionsStatus
 ): PushPermissionState {
   const status = permissions.ios?.status;
-  if (status === Notifications.IosAuthorizationStatus.NOT_DETERMINED) return 'not_determined';
-  if (status === Notifications.IosAuthorizationStatus.DENIED) return 'denied';
+  if (status === IosAuthorizationStatus.NOT_DETERMINED) return 'not_determined';
+  if (status === IosAuthorizationStatus.DENIED) return 'denied';
   if (
-    status === Notifications.IosAuthorizationStatus.AUTHORIZED ||
-    status === Notifications.IosAuthorizationStatus.PROVISIONAL ||
-    status === Notifications.IosAuthorizationStatus.EPHEMERAL
+    status === IosAuthorizationStatus.AUTHORIZED ||
+    status === IosAuthorizationStatus.PROVISIONAL ||
+    status === IosAuthorizationStatus.EPHEMERAL
   ) {
     return 'granted';
   }

@@ -1,3 +1,4 @@
+import type { LensInfo } from 'expo-camera';
 import type { NativeBackLensPreset } from '../../modules/nix-camera-torch';
 
 export type CameraLensKind = 'ultraWide' | 'wide' | 'telephoto' | 'virtual' | 'unknown';
@@ -8,7 +9,7 @@ export type LensOption = {
   id: string;
   kind: LensSwitcherKind;
   label: string;
-  /** Pass-through value for CameraView `selectedLens` (native matches localizedName). */
+  /** Pass-through value for CameraView `selectedLens` (native matches the lens deviceType). */
   selectedLensValue: string;
   /** expo-camera normalized zoom 0–1 (non-zero for wide 2× crop). */
   zoom: number;
@@ -110,7 +111,7 @@ export function lensOptionsFromNativePresets(presets: NativeBackLensPreset[]): L
         id: preset.id,
         kind: preset.kind as LensSwitcherKind,
         label: preset.label,
-        selectedLensValue: preset.localizedName,
+        selectedLensValue: preset.deviceType,
         zoom: typeof preset.zoom === 'number' && Number.isFinite(preset.zoom) ? preset.zoom : 0,
         displayFactor: preset.displayFactor,
       },
@@ -119,16 +120,17 @@ export function lensOptionsFromNativePresets(presets: NativeBackLensPreset[]): L
 }
 
 /**
- * Fallback when native presets are unavailable: physical lenses from localizedName + synthetic 2×.
+ * Fallback when native presets are unavailable: physical lenses classified by localizedName and
+ * selected by deviceType, + synthetic 2×.
  */
-export function buildLensSwitcherOptions(lenses: string[]): LensOption[] {
+export function buildLensSwitcherOptions(lenses: LensInfo[]): LensOption[] {
   const byKind = new Map<'ultraWide' | 'wide' | 'telephoto', { name: string }>();
 
-  for (const localizedName of lenses) {
+  for (const { localizedName, deviceType } of lenses) {
     const kind = classifyCameraLens(localizedName);
     if (kind === 'virtual' || kind === 'unknown') continue;
     if (byKind.has(kind)) continue;
-    byKind.set(kind, { name: localizedName });
+    byKind.set(kind, { name: deviceType });
   }
 
   const options: LensOption[] = [];

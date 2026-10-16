@@ -1,5 +1,5 @@
 import { Fragment, type RefObject } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ViewInstance } from 'react-native';
 import { GlassView } from 'expo-glass-effect';
 import { SymbolView } from 'expo-symbols';
 import { useAppTheme } from '../../hooks/useAppTheme';
@@ -44,7 +44,7 @@ export function MessageActionMenu({
 }: {
   items: readonly MessageActionMenuItem[];
   /** First row, when there is no Tapback bar to take VoiceOver focus. */
-  focusRef?: RefObject<View | null>;
+  focusRef?: RefObject<ViewInstance | null>;
 }) {
   const { colors } = useAppTheme();
   const useGlass = canUseLiquidGlass();

@@ -16,7 +16,7 @@
 
 [`src/lib/monitoring.ts`](../src/lib/monitoring.ts):
 
-- SDK `@sentry/react-native ~7.11.0`, plugin Expo, Metro i CocoaPods pozostają w projekcie.
+- SDK `@sentry/react-native ~8.28.0`, plugin Expo, Metro i CocoaPods pozostają w projekcie.
 - `SENTRY_RUNTIME_ENABLED = false` blokuje wysyłkę niezależnie od wartości DSN,
   a root layout nie korzysta z `Sentry.wrap`.
 - Edge Functions mają osobną stałą hard-off przed odczytem `SENTRY_DSN` i `fetch`.

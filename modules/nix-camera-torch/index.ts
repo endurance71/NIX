@@ -10,6 +10,8 @@ export type NativeBackLensPreset = {
   kind: string;
   label: string;
   localizedName: string;
+  /** AVCaptureDevice.DeviceType raw value: what expo-camera `selectedLens` matches since SDK 58. */
+  deviceType: string;
   zoom: number;
   displayFactor: number;
 };
