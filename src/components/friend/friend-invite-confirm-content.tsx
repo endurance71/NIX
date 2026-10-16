@@ -144,6 +144,8 @@ export function FriendInviteConfirmContent({
   onSettled,
 }: FriendInviteConfirmContentProps) {
   const nativeBottomSheet = presentation === 'sheet';
+  // The close button belongs to the sheet; the full page (invite link) is left with the back button.
+  const onClose = nativeBottomSheet ? onDismiss : undefined;
   const onSettledRef = useRef(onSettled);
   useEffect(() => {
     onSettledRef.current = onSettled;
@@ -315,7 +317,8 @@ export function FriendInviteConfirmContent({
       <ActionSheetSurface
         title={t('profile.addFriend')}
         message={channel === 'qr' ? t('invite.confirmScannedMessage') : t('invite.confirmLinkMessage')}
-        nativeBottomSheet={nativeBottomSheet}>
+        nativeBottomSheet={nativeBottomSheet}
+        onClose={onClose}>
         <View style={styles.loaderContent}>
           <ActivityIndicator color={colors.textPrimary} />
           <Text style={[styles.loaderLabel, { color: colors.textSecondary }]}>
@@ -332,7 +335,8 @@ export function FriendInviteConfirmContent({
         title={t('profile.addFriend')}
         message={error}
         nativeBottomSheet={nativeBottomSheet}
-        actions={<Button variant="tertiary" fullWidth title={t('common.close')} onPress={onDismiss} />}
+        onClose={onClose}
+        actions={nativeBottomSheet ? undefined : <Button variant="tertiary" fullWidth title={t('common.close')} onPress={onDismiss} />}
       />
     );
   }
@@ -340,6 +344,8 @@ export function FriendInviteConfirmContent({
   return (
     <ActionSheetSurface
       title={t('profile.addFriend')}
+      onClose={onClose}
+      closeDisabled={actionLoading}
       message={
         channel === 'qr'
           ? t('invite.confirmScannedApprovalMessage')
@@ -370,17 +376,19 @@ export function FriendInviteConfirmContent({
               }
             />
           ) : null}
-          <Button
-            variant="tertiary"
-            fullWidth
-            title={
-              relationStatus === 'already_friends' || relationStatus === 'outgoing_pending'
-                ? t('common.close')
-                : t('common.cancel')
-            }
-            onPress={onDismiss}
-            disabled={actionLoading}
-          />
+          {nativeBottomSheet ? null : (
+            <Button
+              variant="tertiary"
+              fullWidth
+              title={
+                relationStatus === 'already_friends' || relationStatus === 'outgoing_pending'
+                  ? t('common.close')
+                  : t('common.cancel')
+              }
+              onPress={onDismiss}
+              disabled={actionLoading}
+            />
+          )}
         </>
       }>
       <View style={styles.avatarContainer}>

@@ -98,24 +98,17 @@ function ProfileFieldEditorSheet({
       message={t(isDisplayName ? 'profile.editDisplayNameMessage' : 'profile.editBioMessage')}
       contentAlign="stretch"
       nativeBottomSheet
+      onClose={onCancel}
+      closeDisabled={busy}
       actions={
-        <>
-          <Button
-            size="large"
-            fullWidth
-            title={t('common.save')}
-            loading={busy}
-            disabled={invalid || unchanged}
-            onPress={submit}
-          />
-          <Button
-            variant="tertiary"
-            fullWidth
-            title={t('common.cancel')}
-            disabled={busy}
-            onPress={onCancel}
-          />
-        </>
+        <Button
+          size="large"
+          fullWidth
+          title={t('common.save')}
+          loading={busy}
+          disabled={invalid || unchanged}
+          onPress={submit}
+        />
       }>
       <View>
         <TextInput

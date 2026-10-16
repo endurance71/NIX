@@ -8,25 +8,22 @@ import { TextInput } from '@expo/ui';
 import { Button, HStack, Spacer, Text as SwiftText, ZStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits,
-  buttonBorderShape,
   buttonStyle,
   controlSize,
   font,
   foregroundStyle,
   frame,
-  labelStyle,
   padding,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
-import type { SFSymbol } from 'sf-symbols-typescript';
 import { ACCEPTED_FRIENDS_LIMIT, listAcceptedFriends, type FriendProfile } from '../services/friendService';
 import { queryKeys } from '../lib/queryKeys';
 import { filterFriendProfiles } from '../lib/inboxSearch';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { typography } from '../theme/typography';
-import { resolveAppIconName } from '../theme/app-icons';
 import { AvatarCircle } from '../components/ui/avatar-circle';
 import { AppHost } from '../components/ui/app-host';
+import { SheetCloseButton } from '../components/ui/sheet-close-button';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { useAuth } from '../hooks/useAuth';
 import { useSignedAvatarUrls } from '../hooks/useSignedAvatarUrls';
@@ -108,20 +105,7 @@ function NewChatHeader() {
         </SwiftText>
         <HStack spacing={0} modifiers={[frame({ maxWidth: Infinity })]}>
           <Spacer />
-          {/* The system close button: an xmark in a glass circle (outside a toolbar `role="close"`
-              alone draws the word, so the icon is explicit and the label is for VoiceOver). */}
-          <Button
-            role="close"
-            systemImage={resolveAppIconName('close') as SFSymbol}
-            label={t('common.close')}
-            onPress={() => router.back()}
-            modifiers={[
-              labelStyle('iconOnly'),
-              buttonStyle('glass'),
-              buttonBorderShape('circle'),
-              controlSize('large'),
-            ]}
-          />
+          <SheetCloseButton onPress={() => router.back()} />
         </HStack>
       </ZStack>
     </AppHost>

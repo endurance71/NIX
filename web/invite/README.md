@@ -4,7 +4,7 @@ Host this directory at `https://nix.damianmotylinski.pl`.
 
 - Create the `nix` DNS record and point it at the existing hosting account.
 - The live subdomain document root is `/domains/nix.damianmotylinski.pl/public_html` in the existing FTP account. It also contains an unrelated homepage; do not overwrite that `index.html`.
-- Upload this directory's `index.html` as **`nix-invite.html`** and `auth-confirm.html` as **`nix-auth-confirm.html`**. Upload `.htaccess`, `.well-known/`, `legal.css`, `privacy/`, `terms/` and `support/` at their existing relative paths. `/invite/*` rewrites to the dedicated NiX landing file.
+- Upload this directory's `index.html` as **`nix-invite.html`** and `auth-confirm.html` as **`nix-auth-confirm.html`**. Upload `.htaccess`, `.well-known/`, `legal.css`, `nix-touch-icon.png`, `nix-share-image.png`, `privacy/`, `terms/` and `support/` at their existing relative paths. `/invite/*` rewrites to the dedicated NiX landing file. The two PNGs are the NiX icon that link previews (the share sheet, Messages) show next to the Polish title; without them iOS falls back to the domain's favicon.
 - Keep `.htaccess`; it supplies the AASA content type, security headers and `/invite/*` rewrite.
 - Confirm `/.well-known/apple-app-site-association` returns `200 application/json`
   directly, without a redirect.

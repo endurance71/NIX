@@ -37,7 +37,11 @@ import {
 } from '../../modules/nix-camera-torch';
 
 const SHARE_QR_SIZE = 512;
-const SHARE_QR_CAPTURE_TIMEOUT_MS = 1500;
+/**
+ * The first QR render after launch can take a couple of seconds (the SVG module warms up); a
+ * timeout shares the link alone, so it is generous rather than tight.
+ */
+const SHARE_QR_CAPTURE_TIMEOUT_MS = 4000;
 const SHARE_QR_FILE_NAME = 'nix-invite-qr.png';
 
 type ShareInviteOutcome =
@@ -164,7 +168,10 @@ function useShareQrCapture() {
 
   const capture = (nextValue: string) =>
     new Promise<string | null>((resolve) => {
-      const timer = setTimeout(() => finish(null), SHARE_QR_CAPTURE_TIMEOUT_MS);
+      const timer = setTimeout(() => {
+        console.warn('[MyCode] QR capture timed out; sharing the link only');
+        finish(null);
+      }, SHARE_QR_CAPTURE_TIMEOUT_MS);
       function finish(base64: string | null) {
         clearTimeout(timer);
         resolveRef.current = null;

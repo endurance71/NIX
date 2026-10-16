@@ -35,6 +35,7 @@ import { typography } from '../theme/typography';
 import { APP_ICON_SIZE, resolveAppIconName } from '../theme/app-icons';
 import { AvatarCircle } from '../components/ui/avatar-circle';
 import { AppHost } from '../components/ui/app-host';
+import { SheetCloseButton } from '../components/ui/sheet-close-button';
 import { OfflineStatusBanner } from '../components/auth/OfflineStatusBanner';
 import type { TextMessage } from '../types/database.types';
 
@@ -116,20 +117,8 @@ function ForwardHeader({ canSend, onSend }: { canSend: boolean; onSend: () => vo
           {t('forward.title')}
         </SwiftText>
         <HStack spacing={0} modifiers={[frame({ maxWidth: Infinity })]}>
-          {/* System close and confirm buttons: glyphs in glass circles, the label is for VoiceOver
-              (outside a toolbar `role="close"` alone draws the word, so the xmark is explicit). */}
-          <Button
-            role="close"
-            systemImage={resolveAppIconName('close') as SFSymbol}
-            label={t('common.close')}
-            onPress={() => router.back()}
-            modifiers={[
-              labelStyle('iconOnly'),
-              buttonStyle('glass'),
-              buttonBorderShape('circle'),
-              controlSize('large'),
-            ]}
-          />
+          <SheetCloseButton onPress={() => router.back()} />
+          {/* The confirm button: the send glyph in a prominent glass circle, "Send" for VoiceOver. */}
           <Spacer />
           <Button
             systemImage={resolveAppIconName('send') as SFSymbol}

@@ -5,6 +5,7 @@ import { useScreenInsets } from '../../hooks/useScreenInsets';
 import { SHEET_TOP_PADDING } from '../../theme/safeArea';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
+import { HostedSheetCloseButton, SHEET_CLOSE_BUTTON_SIZE } from './sheet-close-button';
 
 export const ACTION_SHEET_AVATAR_SIZE = 96;
 
@@ -21,6 +22,9 @@ type ActionSheetSurfaceProps = {
    * one uniform content inset. The native sheet owns its safe area and material.
    */
   nativeBottomSheet?: boolean;
+  /** Shows the system close button (xmark in a glass circle) at the top right, like every NiX sheet. */
+  onClose?: () => void;
+  closeDisabled?: boolean;
 };
 
 export function ActionSheetSurface({
@@ -31,6 +35,8 @@ export function ActionSheetSurface({
   actions,
   omitBottomInset = false,
   nativeBottomSheet = false,
+  onClose,
+  closeDisabled = false,
 }: ActionSheetSurfaceProps) {
   const { colors } = useAppTheme();
   const { topContentInset, bottomContentInset } = useScreenInsets('sheet');
@@ -44,9 +50,18 @@ export function ActionSheetSurface({
   return (
     <View style={styles.screenRoot} collapsable={false}>
       <View style={styles.container}>
-        <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>
-          {title}
-        </Text>
+        <View style={styles.titleRow}>
+          {/* A matching blank on the left keeps the title centered next to the close button. */}
+          {onClose ? <View style={styles.titleSide} /> : null}
+          <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>
+            {title}
+          </Text>
+          {onClose ? (
+            <View style={styles.titleSide}>
+              <HostedSheetCloseButton onPress={onClose} disabled={closeDisabled} />
+            </View>
+          ) : null}
+        </View>
         {message ? <Text style={[styles.message, { color: colors.textSecondary }]}>{message}</Text> : null}
         {children ? (
           <View style={[styles.content, contentAlign === 'stretch' ? styles.contentStretch : styles.contentCenter]}>
@@ -94,8 +109,19 @@ const createStyles = (
       paddingBottom: bottomInsetValue,
       gap: spacing.md,
     },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    titleSide: {
+      width: SHEET_CLOSE_BUTTON_SIZE,
+      height: SHEET_CLOSE_BUTTON_SIZE,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     title: {
       ...typography.title2,
+      flex: 1,
       textAlign: 'center',
       paddingHorizontal: spacing.md,
     },

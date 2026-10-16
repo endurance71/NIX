@@ -10,7 +10,6 @@ import {
   Toggle,
   VStack,
 } from '@expo/ui/swift-ui';
-import { SymbolView } from 'expo-symbols';
 import {
   accessibilityElement,
   accessibilityHidden,
@@ -116,20 +115,14 @@ function NativeSettingsLeading({
       </View>
     </RNHostView>
   ) : icon ? (
+    // A SwiftUI symbol, not a hosted React view: when the row re-renders (a title or disabled
+    // change) SwiftUI rebuilds it, and a hosted React view could stay detached and vanish.
     <HStack spacing={0} alignment="center" modifiers={[frame({ width: 26, alignment: 'center' })]}>
-      <SymbolView
-        name={resolveAppIconName(icon) as SFSymbol}
+      <SwiftImage
+        systemName={resolveAppIconName(icon) as SFSymbol}
         size={iconMetrics?.size ?? APP_ICON_SIZE.settings}
-        weight={iconMetrics?.weight ?? 'regular'}
-        tintColor={color}
-        fallback={
-          <View
-            style={{
-              width: iconMetrics?.size ?? APP_ICON_SIZE.settings,
-              height: iconMetrics?.size ?? APP_ICON_SIZE.settings,
-            }}
-          />
-        }
+        color={color}
+        modifiers={[font({ size: iconMetrics?.size ?? APP_ICON_SIZE.settings, weight: iconMetrics?.weight ?? 'regular' })]}
       />
     </HStack>
   ) : (
