@@ -5,11 +5,12 @@ const expectedAppId = '9Q39P5MUT9.com.damianmotylinski.nixapp';
 const baseUrl = process.argv[2]?.replace(/\/+$/, '');
 const failures = [];
 
-const [html, authConfirmHtml, association, htaccess, legalSource] = await Promise.all([
-  readFile('web/invite/index.html', 'utf8'),
-  readFile('web/invite/auth-confirm.html', 'utf8'),
-  readFile('web/invite/.well-known/apple-app-site-association', 'utf8'),
-  readFile('web/invite/.htaccess', 'utf8'),
+// The invite host is nix.shipapp.pl (web/site, served by Caddy; see docs/website.md). web/invite is
+// the old SEOHOST copy, kept until the links shared from nix.damianmotylinski.pl have expired.
+const [html, authConfirmHtml, association, legalSource] = await Promise.all([
+  readFile('web/site/invite/index.html', 'utf8'),
+  readFile('web/site/auth/confirm/index.html', 'utf8'),
+  readFile('web/site/.well-known/apple-app-site-association', 'utf8'),
   readFile('src/lib/legalDocuments.ts', 'utf8'),
 ]);
 const legalVersion = legalSource.match(/version: '([^']+)'/)?.[1];
@@ -24,7 +25,7 @@ function validatePublicPage(path, text, marker, location) {
   if (!text.includes(marker)) failures.push(`${location} /${path} is missing its version or support content`);
   if (!text.includes('nix@shipapp.pl')) failures.push(`${location} /${path} is missing the contact`);
   if (!text.includes('Azure')) failures.push(`${location} /${path} must disclose Azure screening`);
-  if (path.startsWith('privacy') && !text.includes('OVHcloud')) failures.push(`${location} /${path} must disclose the video worker hosting`);
+  if (path.startsWith('privacy') && !/OVH(cloud| SAS)/.test(text)) failures.push(`${location} /${path} must disclose the video worker hosting`);
   const language = path.includes('/en/') ? 'en' : 'pl';
   if (!text.includes(`<html lang="${language}">`)) failures.push(`${location} /${path} has the wrong language`);
 }
@@ -50,19 +51,17 @@ if (!association.includes(expectedAppId)) failures.push('AASA contains the wrong
 if (JSON.stringify(aasa?.applinks?.details ?? []).includes('/invite/*') === false) {
   failures.push('AASA must be limited to /invite/*');
 }
-if (!/ForceType\s+application\/json/.test(htaccess)) failures.push('AASA JSON content type rule is missing');
-if (!/RewriteRule\s+\^invite\//.test(htaccess)) failures.push('/invite/* rewrite is missing');
-if (!/RewriteRule\s+\^auth\/confirm/.test(htaccess)) failures.push('/auth/confirm rewrite is missing');
 if (!JSON.stringify(aasa?.applinks?.details ?? []).includes('/auth/confirm*')) {
   failures.push('AASA must open /auth/confirm links in the app');
 }
-if (!authConfirmHtml.includes('noindex,nofollow')) failures.push('auth confirm page must stay out of search indexes');
-if (/location\.(search|href)|URLSearchParams/.test(authConfirmHtml)) {
-  failures.push('auth confirm page must not read the token from its URL');
+if (!/<meta name="robots" content="noindex/.test(authConfirmHtml)) failures.push('auth confirm page must stay out of search indexes');
+if (!authConfirmHtml.includes('history.replaceState')) {
+  failures.push('auth confirm page must drop the token from the address bar');
 }
-if (!/Referrer-Policy\s+"no-referrer"/.test(htaccess)) failures.push('Referrer-Policy header is missing');
+if (!html.includes('<meta name="referrer" content="no-referrer"')) failures.push('invite page must not leak the token as a referrer');
+if (!html.includes('og:image')) failures.push('invite page must carry a link preview image');
 for (const [path, marker] of publicPages) {
-  const content = await readFile(`web/invite/${path}index.html`, 'utf8');
+  const content = await readFile(`web/site/${path}index.html`, 'utf8');
   validatePublicPage(path, content, marker, 'local');
 }
 

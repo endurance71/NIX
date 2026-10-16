@@ -17,6 +17,7 @@
       "bundleIdentifier": "com.damianmotylinski.nixapp",
       "buildNumber": "17",
       "associatedDomains": [
+        "applinks:nix.shipapp.pl",
         "applinks:nix.damianmotylinski.pl",
         "webcredentials:nix.damianmotylinski.pl"
       ],

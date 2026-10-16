@@ -18,7 +18,7 @@ describe('friendInvite QR payloads', () => {
 
   it('buduje i parsuje Universal Link', () => {
     const link = buildFriendInviteShareLink('share-token');
-    expect(link).toBe('https://nix.damianmotylinski.pl/invite/share-token');
+    expect(link).toBe('https://nix.shipapp.pl/invite/share-token');
     expect(extractFriendInvitePayload(link)).toEqual({
       token: 'share-token',
       profileId: null,

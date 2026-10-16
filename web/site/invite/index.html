@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="color-scheme" content="light dark" />
+    <title>NiX — prywatne zaproszenie</title>
+    <meta name="description" content="Zainstaluj NiX i otwórz ten link ponownie, aby zobaczyć, kto Cię zaprosił." />
+    <meta property="og:site_name" content="NiX" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="NiX — prywatne zaproszenie" />
+    <meta property="og:description" content="Zainstaluj NiX i otwórz ten link ponownie, aby zobaczyć, kto Cię zaprosił." />
+    <meta property="og:image" content="https://nix.shipapp.pl/nix-share-image.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="stylesheet" href="/site.css?v=3cc47c8c81" />
+  </head>
+  <body>
+    <main>
+      <section class="final not-found">
+        <div class="final-icon"><svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true">
+            <defs>
+              <linearGradient id="rise-invite" x1="272" y1="752" x2="752" y2="272" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#fff" stop-opacity="0.55" />
+                <stop offset="1" stop-color="#fff" stop-opacity="0.92" />
+              </linearGradient>
+            </defs>
+            <g fill="none" stroke-width="100" stroke-linecap="round" stroke-linejoin="round">
+              <path class="rise" d="M752 272 L272 752" stroke="url(#rise-invite)" pathLength="1" />
+              <path class="stroke" d="M272 752 L272 272 L752 752" stroke="#fff" pathLength="1" />
+            </g>
+          </svg></div>
+        <h2 data-pl="Prywatne zaproszenie NiX" data-en="Private NiX invitation">Prywatne zaproszenie NiX</h2>
+        <p data-pl="Zainstaluj NiX, a następnie ponownie otwórz ten link, aby bezpiecznie zobaczyć, kto Cię zaprosił."
+           data-en="Install NiX, then open this invitation link again to securely preview who invited you.">Zainstaluj NiX, a następnie ponownie otwórz ten link, aby bezpiecznie zobaczyć, kto Cię zaprosił.</p>
+        <div class="actions">
+          <a class="button primary" href="https://apps.apple.com/app/id6791332379" data-pl="Otwórz App Store" data-en="Open App Store">Otwórz App Store</a>
+        </div>
+        <p class="fine" data-pl="Ta strona nie ujawnia osoby zapraszającej i nie zapisuje tokenu zaproszenia." data-en="This page does not reveal the inviter and does not store the invitation token.">Ta strona nie ujawnia osoby zapraszającej i nie zapisuje tokenu zaproszenia.</p>
+        <p class="fine"><a href="/privacy/" data-pl="Polityka prywatności" data-en="Privacy Policy">Polityka prywatności</a> · <a href="/terms/" data-pl="Regulamin" data-en="Terms">Regulamin</a></p>
+      </section>
+    </main>
+    <script>
+      (function () {
+        if ((navigator.language || '').toLowerCase().startsWith('pl')) return;
+        document.documentElement.lang = 'en';
+        document.title = 'NiX — private invitation';
+        var description = 'Install NiX and open this link again to see who invited you.';
+        document.querySelector('meta[property="og:title"]').setAttribute('content', document.title);
+        document.querySelectorAll('meta[name="description"], meta[property="og:description"]').forEach(function (node) {
+          node.setAttribute('content', description);
+        });
+        document.querySelectorAll('[data-en]').forEach(function (node) { node.textContent = node.getAttribute('data-en'); });
+      })();
+    </script>
+  </body>
+</html>

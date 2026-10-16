@@ -73,7 +73,7 @@ Przepływ:
 ## Password AutoFill (iCloud Keychain)
 
 - Entitlement + `app.json → ios.associatedDomains`: `webcredentials:nix.damianmotylinski.pl` (obok `applinks:`). To zmiana natywna — wymaga nowego binarium (Xcode Archive), OTA jej nie dostarczy.
-- AASA (`web/invite/.well-known/apple-app-site-association`, hostowany na `https://nix.damianmotylinski.pl/.well-known/apple-app-site-association`) ma sekcję:
+- AASA (generowany do `web/site/.well-known/apple-app-site-association`, na `https://nix.shipapp.pl/.well-known/apple-app-site-association`; kopia na starym hoście `nix.damianmotylinski.pl` zostaje, bo tam wciąż wskazuje `webcredentials:`) ma sekcję:
   ```json
   "webcredentials": { "apps": ["9Q39P5MUT9.com.damianmotylinski.nixapp"] }
   ```

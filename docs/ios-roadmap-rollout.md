@@ -10,11 +10,10 @@ Wszystkie migracje są addytywne. Klienta wdrażaj dopiero po bazie i Edge Funct
 2. Wdróż `push-dispatch`, `data-export-download` i `process-data-exports`.
 3. Potwierdź działanie cronów `process-data-exports`,
    `nix-product-analytics-cleanup` i `nix-data-export-cleanup`.
-4. Opublikuj zawartość `web/invite` pod `nix.damianmotylinski.pl`:
+4. Zaproszenia i AASA są na `nix.shipapp.pl` (`web/site`, `npm run deploy:site`; patrz `docs/website.md`):
    - AASA bez redirectu i z `Content-Type: application/json`,
    - `/invite/*` kieruje do landing page,
-   - placeholder `__NIX_APP_STORE_URL__` jest zastąpiony finalnym URL,
-   - logowanie pełnych ścieżek `/invite/<token>` jest wyłączone.
+   - Caddy nie loguje tej domeny, więc pełne ścieżki `/invite/<token>` nie trafiają do logów.
 5. Opublikuj zaktualizowaną politykę prywatności w wersji `2026-07-29`.
 
 Universal Links wymagają nowego binarnego wydania z entitlementem Associated

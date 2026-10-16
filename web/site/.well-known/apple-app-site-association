@@ -1,0 +1,26 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "9Q39P5MUT9.com.damianmotylinski.nixapp"
+        ],
+        "components": [
+          {
+            "/": "/invite/*",
+            "comment": "NiX single-use friend invite links"
+          },
+          {
+            "/": "/auth/confirm*",
+            "comment": "NiX email confirmation and password recovery links"
+          }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "9Q39P5MUT9.com.damianmotylinski.nixapp"
+    ]
+  }
+}

@@ -590,6 +590,89 @@ function authConfirm() {
 `;
 }
 
+// Landing of a friend invite link (https://nix.shipapp.pl/invite/<token>, src/lib/friendInvite.ts).
+// With NiX installed iOS opens the app straight away (the AASA below); this page is for everyone
+// else and for link previews (the share sheet, Messages), which read its title, description and
+// image. The token stays in the URL handled by the browser; the page never reads or stores it.
+function invite() {
+  return `<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="color-scheme" content="light dark" />
+    <title>NiX — prywatne zaproszenie</title>
+    <meta name="description" content="Zainstaluj NiX i otwórz ten link ponownie, aby zobaczyć, kto Cię zaprosił." />
+    <meta property="og:site_name" content="NiX" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="NiX — prywatne zaproszenie" />
+    <meta property="og:description" content="Zainstaluj NiX i otwórz ten link ponownie, aby zobaczyć, kto Cię zaprosił." />
+    <meta property="og:image" content="https://nix.shipapp.pl/nix-share-image.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="stylesheet" href="${SITE_CSS}" />
+  </head>
+  <body>
+    <main>
+      <section class="final not-found">
+        <div class="final-icon">${mark('rise-invite')}</div>
+        <h2 data-pl="Prywatne zaproszenie NiX" data-en="Private NiX invitation">Prywatne zaproszenie NiX</h2>
+        <p data-pl="Zainstaluj NiX, a następnie ponownie otwórz ten link, aby bezpiecznie zobaczyć, kto Cię zaprosił."
+           data-en="Install NiX, then open this invitation link again to securely preview who invited you.">Zainstaluj NiX, a następnie ponownie otwórz ten link, aby bezpiecznie zobaczyć, kto Cię zaprosił.</p>
+        <div class="actions">
+          <a class="button primary" href="https://apps.apple.com/app/id6791332379" data-pl="Otwórz App Store" data-en="Open App Store">Otwórz App Store</a>
+        </div>
+        <p class="fine" data-pl="Ta strona nie ujawnia osoby zapraszającej i nie zapisuje tokenu zaproszenia." data-en="This page does not reveal the inviter and does not store the invitation token.">Ta strona nie ujawnia osoby zapraszającej i nie zapisuje tokenu zaproszenia.</p>
+        <p class="fine"><a href="/privacy/" data-pl="Polityka prywatności" data-en="Privacy Policy">Polityka prywatności</a> · <a href="/terms/" data-pl="Regulamin" data-en="Terms">Regulamin</a></p>
+      </section>
+    </main>
+    <script>
+      (function () {
+        if ((navigator.language || '').toLowerCase().startsWith('pl')) return;
+        document.documentElement.lang = 'en';
+        document.title = 'NiX — private invitation';
+        var description = 'Install NiX and open this link again to see who invited you.';
+        document.querySelector('meta[property="og:title"]').setAttribute('content', document.title);
+        document.querySelectorAll('meta[name="description"], meta[property="og:description"]').forEach(function (node) {
+          node.setAttribute('content', description);
+        });
+        document.querySelectorAll('[data-en]').forEach(function (node) { node.textContent = node.getAttribute('data-en'); });
+      })();
+    </script>
+  </body>
+</html>
+`;
+}
+
+// Apple App Site Association: universal links for invites and auth emails, and the web credentials
+// domain for Password AutoFill and passkeys. Served as application/json (Caddyfile, no extension).
+function appSiteAssociation() {
+  const appId = '9Q39P5MUT9.com.damianmotylinski.nixapp';
+  return `${JSON.stringify(
+    {
+      applinks: {
+        details: [
+          {
+            appIDs: [appId],
+            components: [
+              { '/': '/invite/*', comment: 'NiX single-use friend invite links' },
+              { '/': '/auth/confirm*', comment: 'NiX email confirmation and password recovery links' },
+            ],
+          },
+        ],
+      },
+      webcredentials: { apps: [appId] },
+    },
+    null,
+    2,
+  )}\n`;
+}
+
 async function saveFile(path, content) {
   const target = `${ROOT}/${path}`;
   if (checkOnly) {
@@ -603,4 +686,7 @@ await save('/', landing(copy.pl));
 await save('/en/', landing(copy.en));
 await saveFile('404.html', notFound());
 await save('/auth/confirm/', authConfirm());
+await save('/invite/', invite());
+await mkdir(`${ROOT}/.well-known`, { recursive: true });
+await saveFile('.well-known/apple-app-site-association', appSiteAssociation());
 console.log(checkOnly ? 'Website landing matches its source.' : 'Generated the website landing (PL/EN).');
