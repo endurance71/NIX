@@ -106,13 +106,16 @@ export function PreviewFilterSwipeLayer({
     failOffsetY: [-24, 24],
     onDeactivate: (event) => {
       'worklet';
+      // A cancelled swipe (another gesture took over) must not step the filter.
+      if (event.canceled) return;
       scheduleOnRN(handleSwipeEnd, event.translationX, event.velocityX);
     },
   });
   const tap = useTapGesture({
     enabled: enabled && Boolean(onTap),
-    onDeactivate: () => {
+    onDeactivate: (event) => {
       'worklet';
+      if (event.canceled) return;
       scheduleOnRN(handleTap);
     },
   });

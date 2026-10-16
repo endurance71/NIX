@@ -59,9 +59,10 @@ export function SwipeToReply({
       armed.set(nowArmed);
       if (nowArmed) scheduleOnRN(tap, 'light');
     },
-    onDeactivate: () => {
+    onDeactivate: (event) => {
       'worklet';
-      if (armed.get()) scheduleOnRN(onReply);
+      // A cancelled drag (the list or a sheet took over) springs back without replying.
+      if (!event.canceled && armed.get()) scheduleOnRN(onReply);
     },
     onFinalize: () => {
       'worklet';
