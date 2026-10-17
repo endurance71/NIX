@@ -95,6 +95,11 @@ final class ShareViewController: UIViewController {
         let destination = folder.appendingPathComponent("\(UUID().uuidString).\(ext.lowercased())")
         do {
           try FileManager.default.copyItem(at: url, to: destination)
+          // `copyItem` keeps the photo's own dates (a 2009 photo stays 2009), and NiX picks up a
+          // shared file only within minutes of it being shared: stamp the copy with now.
+          let now = Date()
+          try? FileManager.default.setAttributes(
+            [.creationDate: now, .modificationDate: now], ofItemAtPath: destination.path)
           continuation.resume(returning: destination)
         } catch {
           continuation.resume(throwing: error)
