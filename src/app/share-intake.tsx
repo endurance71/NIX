@@ -17,7 +17,7 @@ import {
 import { VIDEO_TOTAL_MAX_DURATION_MS } from '../lib/videoRecordingLimits';
 
 /** Moves the shared file out of the App Group container into this app's cache. */
-function takeSharedFile(fileName: string): File | null {
+async function takeSharedFile(fileName: string): Promise<File | null> {
   const container = Paths.appleSharedContainers[SHARED_INTAKE_APP_GROUP];
   if (!container) return null;
   const source = new File(container, SHARED_INTAKE_FOLDER, fileName);
@@ -26,7 +26,8 @@ function takeSharedFile(fileName: string): File | null {
   if (!folder.exists) folder.create({ intermediates: true });
   const destination = new File(folder, fileName);
   if (destination.exists) destination.delete();
-  source.move(destination);
+  // `move` is async since SDK 58: the file is not at `destination` until it resolves.
+  await source.move(destination);
   return destination;
 }
 
@@ -106,9 +107,10 @@ export default function ShareIntakeScreen() {
       router.replace('/(tabs)');
     };
     void (async () => {
-      const file = request ? takeSharedFile(request.fileName) : null;
+      // Claimed before the (async) move, so a second run of this effect cannot take it again.
+      if (request) takenFiles.add(request.fileName);
+      const file = request ? await takeSharedFile(request.fileName).catch(() => null) : null;
       if (!request || !file) return fail(t('shareIntake.missing'));
-      takenFiles.add(request.fileName);
       try {
         if (request.kind === 'photo') {
           const size = await imageSize(file.uri);

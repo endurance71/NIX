@@ -133,8 +133,9 @@ async function writeIndexUnlocked(index: MemoriesIndex) {
   const sealed = await sealBytes(index.ownerId, new TextEncoder().encode(JSON.stringify(index)), memoriesIndexAdditionalData(index.ownerId));
   const temporary = new File(directory, 'index.tmp');
   temporary.create({ overwrite: true });
-  temporary.write(sealed);
-  temporary.move(new File(directory, 'index.bin'), { overwrite: true });
+  // Since SDK 58 `write` and `move` are async; an unawaited write left a short index behind.
+  await temporary.write(sealed);
+  await temporary.move(new File(directory, 'index.bin'), { overwrite: true });
 }
 
 function deleteEntryFiles(ownerId: string, id: string) {
@@ -295,7 +296,7 @@ export async function saveStagedMemories(ownerId: string, items: readonly Staged
           reader.close();
           writer.close();
         }
-        temporary.move(new File(directory, `${id}.media`), { overwrite: true });
+        await temporary.move(new File(directory, `${id}.media`), { overwrite: true });
         if (thumbnailBytes) {
           const chunks: Uint8Array[] = [];
           await encryptMemoryChunks({
@@ -310,7 +311,9 @@ export async function saveStagedMemories(ownerId: string, items: readonly Staged
           thumbFile.create({ overwrite: true });
           const handle = thumbFile.open(FileMode.WriteOnly);
           try {
-            for (const chunk of chunks) handle.writeBytes(chunk);
+            // `writeBytes` is async since SDK 58: closing before it finished left an empty file.
+            // react-doctor-disable-next-line react-doctor/async-await-in-loop
+            for (const chunk of chunks) await handle.writeBytes(chunk);
           } finally {
             handle.close();
           }
