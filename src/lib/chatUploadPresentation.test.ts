@@ -102,13 +102,13 @@ describe('chat upload presentation', () => {
       progress: 1,
     });
     expect(
-      selectChatUploadJobs([completed], 'peer', [], { now: 20_000 })
+      selectChatUploadJobs([completed], 'peer', [], { now: 13_999 })
     ).toHaveLength(1);
     expect(
-      selectChatUploadJobs([completed], 'peer', [serverNix('batch-done')], { now: 20_000 })
+      selectChatUploadJobs([completed], 'peer', [serverNix('batch-done')], { now: 13_999 })
     ).toHaveLength(0);
     expect(
-      selectChatUploadJobs([completed], 'peer', [], { now: 50_001 })
+      selectChatUploadJobs([completed], 'peer', [], { now: 14_001 })
     ).toHaveLength(0);
   });
 

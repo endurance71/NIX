@@ -6,8 +6,8 @@ import {
   type RecipientUploadPhase,
   type RecipientUploadPresentation,
 } from './inboxPresentation';
+import { COMPLETED_UPLOAD_VISIBILITY_MS } from './uploadProgress';
 
-const COMPLETED_VISIBILITY_MS = 30_000;
 /**
  * Fallback when a server row has no `client_upload_id`: its `created_at` comes from the server
  * clock, the job's from the device. Tolerate a skewed device clock instead of keeping a
@@ -99,7 +99,7 @@ export function buildRecipientUploadPresentations(
   jobs: DurableUploadJob[],
   {
     now = Date.now(),
-    completedVisibilityMs = COMPLETED_VISIBILITY_MS,
+    completedVisibilityMs = COMPLETED_UPLOAD_VISIBILITY_MS,
   }: {
     now?: number;
     completedVisibilityMs?: number;

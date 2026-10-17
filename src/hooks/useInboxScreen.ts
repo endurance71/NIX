@@ -58,13 +58,13 @@ import { useTextMessageExpiryClock } from './useTextMessageExpiryClock';
 import { useUploadVisibilityClock } from './useUploadVisibilityClock';
 import { isTextMessageExpired } from '../lib/chatTimeline';
 import { useFriendshipOverview } from './useFriendshipBadges';
+import { COMPLETED_UPLOAD_VISIBILITY_MS } from '../lib/uploadProgress';
 
 /** A streak refresh closer than this to the bundle refresh already reflects it. */
 const STREAK_REFRESH_SLACK_MS = 5_000;
 
 /** Keep in sync with useChatScreen CHAT_STALE_TIME_MS. */
 const CHAT_STALE_TIME_MS = 60_000;
-const COMPLETED_UPLOAD_VISIBILITY_MS = 30_000;
 const EMPTY_LIST: never[] = [];
 async function refreshInboxQueries(queryClient: QueryClient, failureMessage: string) {
   try {

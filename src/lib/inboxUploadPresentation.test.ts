@@ -156,14 +156,14 @@ describe('buildRecipientUploadPresentations', () => {
     expect(JSON.stringify(presentation)).not.toContain('Edge Function');
   });
 
-  it('keeps completion for 30 seconds and hides cancelled or expired work', () => {
+  it('keeps completion for 4 seconds and hides cancelled or expired work', () => {
     const completed = job('done', 'completed', {
       progress: 1,
       updatedAt: 2_000,
       finishedAt: 2_000,
     });
-    expect(buildRecipientUploadPresentations([completed], { now: 31_999 }).has('friend-1')).toBe(true);
-    expect(buildRecipientUploadPresentations([completed], { now: 32_001 }).has('friend-1')).toBe(false);
+    expect(buildRecipientUploadPresentations([completed], { now: 5_999 }).has('friend-1')).toBe(true);
+    expect(buildRecipientUploadPresentations([completed], { now: 6_001 }).has('friend-1')).toBe(false);
     expect(buildRecipientUploadPresentations([
       job('cancelled', 'cancelled'),
       job('expired', 'expired'),

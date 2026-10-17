@@ -1,10 +1,10 @@
 import type { ChatNixEvent } from '../services/nixService';
 import type { DurableUploadJob, UploadJobState } from '../types/uploadQueue';
 import type { ChatMediaAnchor } from './chatTimeline';
+import { COMPLETED_UPLOAD_VISIBILITY_MS } from './uploadProgress';
 
 export type ChatUploadAction = 'retry' | 'resume' | 'cancel';
 
-const COMPLETED_VISIBILITY_MS = 30_000;
 
 const HIDDEN_STATES = new Set<UploadJobState>(['cancelled', 'expired']);
 const PAUSABLE_STATES = new Set<UploadJobState>([
@@ -29,7 +29,7 @@ export function selectChatUploadJobs(
   serverNixes: readonly ChatNixEvent[],
   {
     now = Date.now(),
-    completedVisibilityMs = COMPLETED_VISIBILITY_MS,
+    completedVisibilityMs = COMPLETED_UPLOAD_VISIBILITY_MS,
   }: {
     now?: number;
     completedVisibilityMs?: number;

@@ -8,6 +8,11 @@ import type { DurableUploadJob, UploadJobState } from '../types/uploadQueue';
  * confirming (moderation, no measurable progress) 0.95, done 1.
  */
 export const PROCESSING_BAND_END = 0.25;
+/**
+ * How long a finished send keeps its „Wysłano ✓” row (inbox, chat) before the regular delivery
+ * status takes over. A short confirmation, not a status: 30 s read as „stuck on Wysłano”.
+ */
+export const COMPLETED_UPLOAD_VISIBILITY_MS = 4_000;
 export const SENDING_BAND_END = 0.95;
 
 export type UploadProgressBand = 'processing' | 'sending' | 'confirming' | 'done';

@@ -93,6 +93,7 @@ import { useUploadVisibilityClock } from './useUploadVisibilityClock';
 import { useChatTyping } from './useChatTyping';
 import { useNixReactions } from './useNixReactions';
 import { copyTextToClipboard, isClipboardAvailable } from '../lib/clipboard';
+import { COMPLETED_UPLOAD_VISIBILITY_MS } from '../lib/uploadProgress';
 
 function generateClientMessageId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -115,7 +116,6 @@ const CHAT_REPORT_REASON_IDS = ['harassment', 'spam', 'other'] as const satisfie
 
 /** Realtime keeps chat fresh; avoid cold refetch on every focus/re-enter. */
 const CHAT_STALE_TIME_MS = 60_000;
-const COMPLETED_UPLOAD_VISIBILITY_MS = 30_000;
 const RETRY_FEEDBACK_MIN_MS = 900;
 const EMPTY_CHAT_NIXES: ChatNixEvent[] = [];
 const EMPTY_TEXT_MESSAGES: TextMessage[] = [];
