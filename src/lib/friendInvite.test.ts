@@ -3,6 +3,7 @@ import {
   buildFriendInviteTokenLink,
   buildFriendInviteShareLink,
   extractFriendInvitePayload,
+  isFriendInviteLinkPath,
 } from './friendInvite';
 
 describe('friendInvite QR payloads', () => {
@@ -32,5 +33,24 @@ describe('friendInvite QR payloads', () => {
       token: null,
       profileId: 'profile-1',
     });
+  });
+});
+
+describe('isFriendInviteLinkPath', () => {
+  it('matches invite links in every form the router may pass', () => {
+    expect(isFriendInviteLinkPath('nix://friend-invite?token=abc')).toBe(true);
+    expect(isFriendInviteLinkPath('https://nix.shipapp.pl/invite/abc')).toBe(true);
+    expect(isFriendInviteLinkPath('https://nix.damianmotylinski.pl/invite/abc')).toBe(true);
+    expect(isFriendInviteLinkPath('/invite/abc')).toBe(true);
+    expect(isFriendInviteLinkPath('/friend-invite?token=abc')).toBe(true);
+    expect(isFriendInviteLinkPath('friend-invite?profileId=p1')).toBe(true);
+  });
+
+  it('leaves other routes and empty invites to the router', () => {
+    expect(isFriendInviteLinkPath('nix://inbox')).toBe(false);
+    expect(isFriendInviteLinkPath('/inbox')).toBe(false);
+    expect(isFriendInviteLinkPath('/chat/abc')).toBe(false);
+    expect(isFriendInviteLinkPath('nix://friend-invite')).toBe(false);
+    expect(isFriendInviteLinkPath('https://example.com/invite/abc')).toBe(false);
   });
 });

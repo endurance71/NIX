@@ -15,6 +15,23 @@ export function buildFriendInviteShareLink(token: string) {
   return `${FRIEND_INVITE_HTTPS_ORIGIN}/invite/${encodeURIComponent(token)}`;
 }
 
+/**
+ * True for an invite link in any form the router may pass to `redirectSystemPath` (full
+ * `nix://` / `https://` URL or a bare path). `DeepLinkHandler` opens these itself — over the
+ * tabs, after sign-in, with the pending token saved — so the router must not open them too:
+ * that stacked a second invite screen (or „not found” for `/invite/<token>`) under the first.
+ */
+export function isFriendInviteLinkPath(path: string) {
+  let url: string;
+  try {
+    url = path.includes('://') ? path : new URL(path, FRIEND_INVITE_HTTPS_ORIGIN).href;
+  } catch {
+    return false;
+  }
+  const payload = extractFriendInvitePayload(url);
+  return Boolean(payload?.token || payload?.profileId);
+}
+
 export function extractFriendInvitePayload(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;

@@ -39,7 +39,7 @@ import {
 } from '../lib/profileBootstrapSnapshot';
 import { PushNotificationsProvider } from '../context/PushNotificationsProvider';
 import { UploadQueueProvider } from '../context/UploadQueueProvider';
-import { getPendingFriendInviteToken } from '../lib/pendingFriendInvite';
+import { getPendingFriendInviteToken, subscribePendingFriendInvite } from '../lib/pendingFriendInvite';
 import { TextOutboxSync } from '../components/sync/TextOutboxSync';
 import { AppInstallationSync } from '../components/sync/AppInstallationSync';
 import { iosRoadmapFeatures } from '../config/iosRoadmapFeatures';
@@ -612,18 +612,35 @@ function useRootStackVisibility({
   return { appReady, blockingStatus, showStack };
 }
 
+/**
+ * The one place an invite link opens its screen: from the saved token, once the app can show it.
+ * A token opens once per link — later segment changes (before the screen settles and clears it)
+ * must not stack a second invite screen; opening the link again does open it again.
+ */
 function usePendingFriendInviteRedirect(enabled: boolean, segments: string[]) {
+  const [linkCount, setLinkCount] = useState(0);
+  const [openedToken, setOpenedToken] = useState<string | null>(null);
+  useEffect(
+    () =>
+      subscribePendingFriendInvite(() => {
+        setOpenedToken(null);
+        setLinkCount((count) => count + 1);
+      }),
+    [],
+  );
+
   useEffect(() => {
     if (!iosRoadmapFeatures.shareInvites || !enabled) return;
     let cancelled = false;
     void getPendingFriendInviteToken().then((token) => {
-      if (cancelled || !token || segments[0] === 'friend-invite') return;
+      if (cancelled || !token || token === openedToken || segments[0] === 'friend-invite') return;
+      setOpenedToken(token);
       router.push({ pathname: '/friend-invite', params: { token } });
     });
     return () => {
       cancelled = true;
     };
-  }, [enabled, segments]);
+  }, [enabled, linkCount, openedToken, segments]);
 }
 
 /**

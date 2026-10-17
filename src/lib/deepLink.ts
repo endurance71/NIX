@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useLinkingURL } from 'expo-linking';
+import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { supabase } from './supabase';
 import { extractFriendInvitePayload } from './friendInvite';
@@ -43,49 +43,53 @@ async function handleFriendInviteDeepLink(url: string) {
   if (!payload?.token && !payload?.profileId) return false;
   if (payload.token && !iosRoadmapFeatures.shareInvites) return false;
   if (payload.token) {
-    await savePendingFriendInviteToken(payload.token);
     void recordProductEvent('invite_opened', { channel: url.startsWith('https:') ? 'share' : 'deeplink' });
+    // The root layout opens it from the saved token (see `pendingFriendInvite`).
+    await savePendingFriendInviteToken(payload.token);
+    return true;
   }
 
+  // Legacy profile links carry no token to save; open them right away when signed in.
   const { data } = await supabase.auth.getSession();
   if (data.session) {
-    router.push({
-      pathname: '/friend-invite',
-      params: {
-        ...(payload.token ? { token: payload.token } : {}),
-        ...(payload.profileId ? { profileId: payload.profileId } : {}),
-      },
-    });
+    router.push({ pathname: '/friend-invite', params: { profileId: payload.profileId! } });
   }
 
   return true;
 }
 
+/**
+ * Every link event counts: `useLinkingURL` keeps the last URL as state, so opening the same link
+ * again (an invite tapped twice) changed nothing and was ignored.
+ */
 export function DeepLinkHandler() {
-  const linkingUrl = useLinkingURL();
-
   useEffect(() => {
-    if (!linkingUrl) return;
-
     let cancelled = false;
-    void (async () => {
-      try {
-        if (cancelled) return;
-        if (isInboxDeepLink(linkingUrl)) {
-          router.replace('/(tabs)/inbox');
-          return;
+    const handle = (url: string) => {
+      void (async () => {
+        try {
+          if (cancelled) return;
+          if (isInboxDeepLink(url)) {
+            router.replace('/(tabs)/inbox');
+            return;
+          }
+          if (await handleFriendInviteDeepLink(url)) return;
+          await handleAuthDeepLink(url, () => cancelled);
+        } catch {
+          // ignorujemy parsowanie / sesję przy niepoprawnym URL
         }
-        if (await handleFriendInviteDeepLink(linkingUrl)) return;
-        await handleAuthDeepLink(linkingUrl, () => cancelled);
-      } catch {
-        // ignorujemy parsowanie / sesję przy niepoprawnym URL
-      }
-    })();
+      })();
+    };
 
+    void Linking.getInitialURL().then((url) => {
+      if (url) handle(url);
+    });
+    const subscription = Linking.addEventListener('url', ({ url }) => handle(url));
     return () => {
       cancelled = true;
+      subscription.remove();
     };
-  }, [linkingUrl]);
+  }, []);
 
   return null;
 }
