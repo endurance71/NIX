@@ -33,6 +33,7 @@ import { runWithFinally } from '../../lib/runWithFinally';
 import { saveLocalMediaToGallery } from '../../lib/saveMediaToGalleryAction';
 import { paramFirst } from '../../lib/previewRoute';
 import { formatMemoryDate, type MemoryEntry } from '../../lib/memories';
+import { videoContentFit } from '../../lib/mediaPresentation';
 import { moveMemoriesZoomFocus } from '../../lib/memoriesZoom';
 import { resolveAppIconName } from '../../theme/app-icons';
 import { typography } from '../../theme/typography';
@@ -64,7 +65,8 @@ function MemoryVideo({ uri, label }: { uri: string; label: string }) {
     <VideoView
       player={player}
       style={StyleSheet.absoluteFill}
-      contentFit="contain"
+      // Full screen like the NiX viewer (no letterbox bands on a 9:16 clip).
+      contentFit={videoContentFit()}
       nativeControls
       allowsPictureInPicture={false}
       fullscreenOptions={{ enable: false }}
@@ -201,7 +203,7 @@ function MemoryPage({
     <View style={{ width, height }}>
       {photoUri ? <ZoomablePhoto uri={photoUri} width={width} height={height} label={label} /> : null}
       {isVideo && posterUri && !videoUri ? (
-        <Image source={{ uri: posterUri }} style={StyleSheet.absoluteFill} contentFit="contain" />
+        <Image source={{ uri: posterUri }} style={StyleSheet.absoluteFill} contentFit={videoContentFit()} />
       ) : null}
       {videoUri ? <MemoryVideo uri={videoUri} label={label} /> : null}
       {loading ? (
