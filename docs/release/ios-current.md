@@ -22,6 +22,22 @@ stays black for ~6 s before showing (separate task).
 to App Review. The version and the submission are **WAITING_FOR_REVIEW** with build 16. Until App Review decides, publish
 an OTA to `production` only for a critical fix, because the reviewer's app downloads it too.
 
+**Rejected 2026-10-29, Guideline 2.1(a):** "app quit unexpectedly upon launch" on an iPhone 17 Pro Max, iOS 27.0.1,
+internet active. Apple attached no crash log. Not reproduced on 2026-10-30:
+
+- TestFlight build 16 (App Store signed) on an iPhone 16 Pro Max, iOS 27.0.1, after sign-out and delete: launches to
+  sign-in, demo login, camera and messaging work.
+- Ad Hoc export of the same archive on the same iPhone: launches; no NiX crash logs on the device.
+- Release simulator build of `faf3ddd` on a fresh iPhone 17 Pro Max simulator, iOS 27, en-US: launches to sign-in.
+- ASC TestFlight metrics for build 16: 3 installs, 178 sessions, 0 crashes. Xcode Organizer: no crash reports.
+- Ruled out: no OTA after OTA 49; App ID capabilities match the entitlements; no IPv4 literals in the source and ATS
+  allows no arbitrary loads. NAT64 (IPv6-only) was not tested on a device.
+
+**Resubmitted 2026-10-30 09:50 (CET), same build 16:** the reply
+[apple-review-reply-2026-10-30.en.md](apple-review-reply-2026-10-30.en.md) asks Apple for the `.ips` crash log, then
+Update Review and Resubmit to App Review. The version and the submission are **WAITING_FOR_REVIEW** again; the OTA
+freeze above still applies. If Apple rejects again, start from the crash log they attach.
+
 ## Previous candidate — 1.0.13 (15), 2026-10-11
 
 Fixes from the [App Review preflight](APP_REVIEW_PREFLIGHT_2026-10-11.pl.md), step 1. **Runtime 1.0.13**, channel
