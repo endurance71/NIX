@@ -56,8 +56,12 @@ export type WelcomeSetupSummary = { key: WelcomeSetupStep; label: string; done: 
 
 /**
  * After the tour: a few native set-up steps (notifications, camera and microphone, account
- * privacy, Memories), each with an animated symbol, a short why, and native buttons. Every step
- * can be skipped; choices apply right away.
+ * privacy, Memories), each with an animated symbol, a short why, and native buttons. Choices
+ * apply right away.
+ *
+ * Guideline 5.1.1(iv): a permission step only explains. Its one button reads "Continue"; the first
+ * tap always shows the system prompt (there is no "Not Now"), and whatever the answer, the next
+ * tap moves on. Nothing here points to Settings.
  */
 export function WelcomeSetup({
   topInset,
@@ -84,7 +88,9 @@ export function WelcomeSetup({
   });
 
   const [index, setIndex] = useState(0);
-  const [cameraGranted, setCameraGranted] = useState<boolean | null>(null);
+  // canAsk: iOS can still show the camera or microphone prompt (it never shows it twice).
+  const [cameraAccess, setCameraAccess] = useState<{ granted: boolean; canAsk: boolean } | null>(null);
+  const [notificationsAsked, setNotificationsAsked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [privateChoice, setPrivateChoice] = useState<boolean | null>(null);
   const step = STEPS[index];
@@ -95,7 +101,11 @@ export function WelcomeSetup({
     let alive = true;
     void Promise.all([Camera.getCameraPermissionsAsync(), Camera.getMicrophonePermissionsAsync()]).then(
       ([camera, mic]) => {
-        if (alive) setCameraGranted(camera.granted && mic.granted);
+        if (!alive) return;
+        setCameraAccess({
+          granted: camera.granted && mic.granted,
+          canAsk: (!camera.granted && camera.canAskAgain) || (!mic.granted && mic.canAskAgain),
+        });
       },
       () => undefined,
     );
@@ -104,9 +114,12 @@ export function WelcomeSetup({
     };
   }, []);
 
+  const cameraOn = cameraAccess?.granted === true;
+  const notificationsOn = push.state === 'enabled';
+
   const summary = (): WelcomeSetupSummary => [
     { key: 'notifications', label: t('welcome.setup.summary.notifications'), done: push.state === 'enabled' },
-    { key: 'camera', label: t('welcome.setup.summary.camera'), done: cameraGranted === true },
+    { key: 'camera', label: t('welcome.setup.summary.camera'), done: cameraOn },
     {
       key: 'accent',
       label: t('welcome.setup.summary.accent', {
@@ -142,17 +155,14 @@ export function WelcomeSetup({
     }
   };
 
-  const enableNotifications = () =>
+  const askNotifications = () =>
     run(async () => {
-      if (push.state === 'denied') {
-        await push.openSettings();
-        return;
-      }
+      setNotificationsAsked(true);
       await push.enable();
     });
 
   // A granted permission is a success, felt the moment its badge pops in.
-  const grantedNow = (step === 'notifications' && push.state === 'enabled') || (step === 'camera' && cameraGranted === true);
+  const grantedNow = (step === 'notifications' && notificationsOn) || (step === 'camera' && cameraOn);
   // Keyed by step: arriving on a step that was granted earlier is not a new success.
   const grantedRef = useRef({ step, granted: grantedNow });
   useEffect(() => {
@@ -161,11 +171,11 @@ export function WelcomeSetup({
     grantedRef.current = { step, granted: grantedNow };
   }, [grantedNow, step]);
 
-  const allowCamera = () =>
+  const askCamera = () =>
     run(async () => {
       const camera = await Camera.requestCameraPermissionsAsync();
       const mic = await Camera.requestMicrophonePermissionsAsync();
-      setCameraGranted(camera.granted && mic.granted);
+      setCameraAccess({ granted: camera.granted && mic.granted, canAsk: false });
     });
 
   const choosePrivacy = (value: boolean) => {
@@ -184,33 +194,18 @@ export function WelcomeSetup({
     void album.setSavingEnabled(value).catch(() => undefined);
   };
 
-  const notificationsOn = push.state === 'enabled';
-
-  let primaryLabel = t('welcome.next');
+  const primaryLabel = step === 'memories' ? t('welcome.setup.finish') : t('welcome.next');
   let primaryAction: () => void = next;
   // Already on: the step says so and waits for Continue; it never moves on by itself.
   let alreadyOn = false;
   if (step === 'notifications') {
-    if (notificationsOn) {
-      alreadyOn = true;
-    } else if (push.state === 'denied') {
-      primaryLabel = t('welcome.setup.openSettings');
-      primaryAction = () => void enableNotifications();
-    } else {
-      primaryLabel = t('welcome.setup.notifications.action');
-      primaryAction = () => void enableNotifications();
-    }
+    alreadyOn = notificationsOn;
+    const canAsk = push.state !== 'denied' && push.state !== 'unavailable';
+    if (!notificationsOn && !notificationsAsked && canAsk) primaryAction = () => void askNotifications();
   } else if (step === 'camera') {
-    if (cameraGranted) {
-      alreadyOn = true;
-    } else {
-      primaryLabel = t('welcome.setup.camera.action');
-      primaryAction = () => void allowCamera();
-    }
-  } else if (step === 'memories') {
-    primaryLabel = t('welcome.setup.finish');
+    alreadyOn = cameraOn;
+    if (!cameraOn && (cameraAccess?.canAsk ?? true)) primaryAction = () => void askCamera();
   }
-  const showLater = (step === 'notifications' || step === 'camera') && !alreadyOn;
 
   return (
     <View style={[StyleSheet.absoluteFill, { paddingTop: topInset + 14, paddingBottom: bottomInset + 16 }]}>
@@ -299,13 +294,6 @@ export function WelcomeSetup({
                   frame({ maxWidth: Infinity, minHeight: 30 }),
                 ]}>
                 {primaryLabel}
-              </SwiftText>
-            </Button>
-            <Button
-              onPress={next}
-              modifiers={[buttonStyle('borderless'), tint(ink.cinemaSecondaryLabel), frame({ minHeight: 44 })]}>
-              <SwiftText modifiers={[font({ design: 'rounded', textStyle: 'body' }), foregroundStyle(ink.cinemaSecondaryLabel)]}>
-                {showLater ? t('welcome.setup.later') : ' '}
               </SwiftText>
             </Button>
           </VStack>
