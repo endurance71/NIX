@@ -4,7 +4,32 @@
 > Dated sprint plans and audit snapshots are historical evidence and must link
 > here instead of presenting their old binary state as current.
 
-## App Review candidate — 1.0.13 (16), 2026-10-15
+## App Review candidate — 1.0.13 (17), 2026-11-11
+
+**Rejected 2026-11-11, Guideline 5.1.1(iv)** (build 16, iPhone 17 Pro Max, iOS 27.0.1): the welcome step "Camera and
+microphone" asked with "Allow Access" and offered "Not Now", and after "Don't Allow" the camera tab showed a full-screen
+"Open Settings" button. Apple attached two screenshots of exactly these screens.
+
+Fix `f7e5c13` (`fix/permission-priming`, from `main` at `ca9b1e4`): every screen shown before a system prompt has one
+"Continue" button that always leads to the prompt; no "Not Now" on the welcome camera and notification steps; after a
+denial the camera tab and QR scanner only explain where access can be turned on, with no Settings button; the
+notification rationale alert has only "Continue", and the Settings alert appears only when notifications were already
+off in iOS. Settings links stay only in alerts the user triggers by using a blocked feature (microphone, voice message,
+avatar, save to Photos).
+
+Version bump `8e27174`. Local Release Archive `~/.nix-ops/release-1.0.13-17/` (ARCHIVE SUCCEEDED; 4 extensions, same as
+build 16; only the `processing` background mode), uploaded with `xcodebuild -exportArchive` and the API key. Build id
+`a169e280-bd97-4cf1-9ccd-64a666be16a2`: VALID, selected for version 1.0.13. Checks: typecheck, lint, 1159 tests, Knip,
+`check:ios-config`, `check:release-env`. Signed Release simulator build on a fresh iPhone 17 Pro Max (iOS 27, light and
+dark): welcome notification and camera steps show only "Continue", the system prompts follow, "Don't Allow" moves on
+without any Settings prompt, and the denied camera tab shows text only.
+
+**Resubmitted 2026-11-11 11:50 (CET), build 17:** reply
+[apple-review-reply-2026-11-11.en.md](apple-review-reply-2026-11-11.en.md), then Update Review and Resubmit to App
+Review. The version and the submission are **WAITING_FOR_REVIEW**. Until App Review decides, publish an OTA to
+`production` only for a critical fix. Branch `expo-58` still needs this fix before 1.1.0.
+
+## Previous candidate — 1.0.13 (16), 2026-10-15
 
 Same code as build 15 plus OTA 49 (`main` at `1359eab`), with the JS embedded so App Review sees it on the first
 launch. Version bump `faf3ddd`. Local Release Archive: `~/.nix-ops/release-1.0.13-16/` (ARCHIVE SUCCEEDED; 4
