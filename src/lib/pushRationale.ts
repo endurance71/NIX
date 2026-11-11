@@ -2,8 +2,9 @@ export type PushRationaleSource = 'onboarding' | 'after_send';
 
 /**
  * docs/push-notifications.md: one rationale after onboarding, and once more after the first
- * successful send if the user chose „Nie teraz” before (NOTIF-12). The caller has already excluded
- * enabled/denied/unavailable states, so an earlier offer that left push disabled means „Nie teraz”.
+ * successful send if push is still off (NOTIF-12). Since App Review 5.1.1(iv) the rationale has a
+ * single „Dalej” that always leads to the system prompt, so the second offer only appears when that
+ * prompt never ran. The caller has already excluded enabled/denied/unavailable states.
  * Returns the flags to persist before showing, or null when nothing should be shown.
  */
 export function decidePushRationale(

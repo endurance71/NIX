@@ -294,10 +294,14 @@ export function PushNotificationsProvider({
     if (source === 'onboarding' && !canPromptPushRef.current) return;
     await markPushPromptOffers(userId, offers);
     trackEvent('push_rationale_shown', { source });
-    Alert.alert(t('push.rationaleTitle'), t('push.rationaleBody'), [
-      { text: t('push.notNow'), style: 'cancel' },
-      { text: t('push.enableAction'), onPress: () => void enable() },
-    ]);
+    // App Review 5.1.1(iv): the message only explains; its single "Continue" always leads to the
+    // system prompt, with no "Not Now" to put the request off.
+    Alert.alert(
+      t('push.rationaleTitle'),
+      t('push.rationaleBody'),
+      [{ text: t('push.enableAction'), onPress: () => void enable() }],
+      { cancelable: false }
+    );
   }, [busy, enable, state, t, userId]);
 
   const offerAfterSuccessfulSend = useCallback(async () => {

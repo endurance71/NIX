@@ -149,6 +149,8 @@ export function WelcomeSetup({
 
   const enableNotifications = () =>
     run(async () => {
+      // A busy provider would return without showing the prompt; the step must not skip it.
+      if (push.busy) return;
       try {
         await push.enable();
       } finally {

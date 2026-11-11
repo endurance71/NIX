@@ -34,9 +34,10 @@ type SaveRemoteArgs = {
 async function withWritePermission(run: () => Promise<void>, source: SaveToGallerySource, extra: Record<string, unknown>) {
   const permission = await ensureWritePermission();
   if (permission !== 'granted') {
-    // NOTIF-17: denied and blocked get the same shared alert (iOS will not show the prompt again).
     trackEvent(`${source}_save_to_gallery`, { ...extra, outcome: permission });
-    showPermissionDeniedAlert('saveToPhotos');
+    // App Review 5.1.1(iv): a "Don't Allow" just given is respected. The Settings alert (NOTIF-17)
+    // only answers a later, deliberate attempt while access is already blocked.
+    if (permission === 'blocked') showPermissionDeniedAlert('saveToPhotos');
     return false;
   }
 

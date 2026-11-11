@@ -111,7 +111,10 @@ describe('saveLocalMediaToGallery', () => {
     expect(releaseBakedOverlayUris).toHaveBeenCalledWith(['file:///temp-first.mp4']);
   });
 
-  it.each(['denied', 'blocked'])('shows the shared permission alert when access is %s', async (permission) => {
+  it.each([
+    ['denied', false],
+    ['blocked', true],
+  ])('when access is %s, shows the Settings alert: %s', async (permission, alerts) => {
     ensureWritePermission.mockResolvedValue(permission);
     const { saveLocalMediaToGallery } = await import('./saveMediaToGalleryAction');
 
@@ -125,7 +128,8 @@ describe('saveLocalMediaToGallery', () => {
       })
     ).resolves.toBe(false);
 
-    expect(showPermissionDeniedAlert).toHaveBeenCalledWith('saveToPhotos');
+    if (alerts) expect(showPermissionDeniedAlert).toHaveBeenCalledWith('saveToPhotos');
+    else expect(showPermissionDeniedAlert).not.toHaveBeenCalled();
     expect(bakeMediaOverlays).not.toHaveBeenCalled();
     expect(saveLocalUrisToLibrary).not.toHaveBeenCalled();
   });

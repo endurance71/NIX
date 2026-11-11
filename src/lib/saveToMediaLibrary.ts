@@ -1,7 +1,9 @@
-import { Asset, requestPermissionsAsync } from 'expo-media-library';
+import { Asset, getPermissionsAsync, requestPermissionsAsync } from 'expo-media-library';
+import { requestPermissionRespectingRefusal } from './permissionRequest';
 import * as FileSystem from 'expo-file-system/legacy';
 import NativeBackgroundUploader from '../../modules/nix-background-uploader/src';
 
+/** `denied`: just refused in the system prompt; `blocked`: refused before this attempt. */
 export type MediaLibraryWritePermission = 'granted' | 'denied' | 'blocked';
 
 const SAVE_CACHE_DIR = `${FileSystem.cacheDirectory ?? ''}nix-save-to-library/`;
@@ -23,14 +25,11 @@ function extensionFromHintOrUri(uri: string, extHint?: string): string {
 }
 
 export async function ensureWritePermission(): Promise<MediaLibraryWritePermission> {
-  const response = await requestPermissionsAsync(true);
-  if (response.granted || response.status === 'granted') {
-    return 'granted';
-  }
-  if (response.canAskAgain === false) {
-    return 'blocked';
-  }
-  return 'denied';
+  const outcome = await requestPermissionRespectingRefusal(
+    () => getPermissionsAsync(true),
+    () => requestPermissionsAsync(true)
+  );
+  return outcome === 'refused' ? 'denied' : outcome;
 }
 
 export async function saveLocalUrisToLibrary(uris: string[]): Promise<void> {
