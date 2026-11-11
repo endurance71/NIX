@@ -1,4 +1,3 @@
-import { performCameraPermissionRequest } from '../lib/cameraPermissions';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from 'react';
 import type { LayoutChangeEvent, ViewInstance, ViewStyle } from 'react-native';
 import { AccessibilityInfo, Alert, AppState, Linking } from 'react-native';
@@ -248,10 +247,10 @@ export function useCameraScreen(): CameraScreenViewModel {
     });
     return () => subscription.remove();
   }, [getCameraPermission, getMicPermission]);
+  // Only reachable before the first answer: after "Don't Allow" the camera tab shows no button.
   const handleCameraPermission = async () => {
-    await performCameraPermissionRequest(permission, {
-      request: requestPermission, openSettings: () => Linking.openSettings(),
-    });
+    if (permission?.granted || permission?.canAskAgain === false) return;
+    await requestPermission();
   };
   const [cameraUi, dispatchCameraUi] = useReducer(cameraUiReducer, initialCameraUiState);
   const {

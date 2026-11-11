@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Linking,
   StyleSheet,
   View,
   useWindowDimensions,
@@ -222,12 +221,10 @@ function ScannerPermissionGate({
         <NativeSectionCard
           title={t('camera.qrPermissionTitle')}
           subtitle={canAskAgain ? t('camera.qrPermissionBody') : t('camera.qrPermissionDeniedBody')}>
-          <Button
-            size="large"
-            fullWidth
-            title={canAskAgain ? t('camera.grantAccess') : t('camera.openSettings')}
-            onPress={canAskAgain ? () => void requestPermission() : () => void Linking.openSettings()}
-          />
+          {/* 5.1.1(iv): "Continue" leads to the system prompt; after "Don't Allow", no Settings button. */}
+          {canAskAgain ? (
+            <Button size="large" fullWidth title={t('permissions.continue')} onPress={() => void requestPermission()} />
+          ) : null}
         </NativeSectionCard>
       )}
     </View>

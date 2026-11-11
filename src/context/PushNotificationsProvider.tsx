@@ -236,13 +236,16 @@ export function PushNotificationsProvider({
 
   const enable = useCallback(async () => {
     if (busy || !userId) return;
+    // Guideline 5.1.1(iv): right after "Don't Allow" the answer stands. Settings is offered only
+    // when notifications were already off in iOS and the user turns them on again here.
+    const alreadyDenied = state === 'denied';
     await runWithBusyState(setBusy, async () => {
       try {
         const permission = await requestPushPermission();
         trackEvent('push_permission_result', { status: permission });
         if (permission === 'denied') {
           setState('denied');
-          showSettingsAlert();
+          if (alreadyDenied) showSettingsAlert();
           return;
         }
         if (permission !== 'granted') {
@@ -260,7 +263,7 @@ export function PushNotificationsProvider({
         await refresh();
       }
     });
-  }, [busy, refresh, showSettingsAlert, t, userId]);
+  }, [busy, refresh, showSettingsAlert, state, t, userId]);
 
   const disable = useCallback(async () => {
     if (busy || !userId) return;
@@ -290,9 +293,9 @@ export function PushNotificationsProvider({
     if (source === 'onboarding' && !canPromptPushRef.current) return;
     await markPushPromptOffers(userId, offers);
     trackEvent('push_rationale_shown', { source });
+    // 5.1.1(iv): the explanation always leads to the system prompt; no "Not Now".
     Alert.alert(t('push.rationaleTitle'), t('push.rationaleBody'), [
-      { text: t('push.notNow'), style: 'cancel' },
-      { text: t('push.enableAction'), onPress: () => void enable() },
+      { text: t('permissions.continue'), onPress: () => void enable() },
     ]);
   }, [busy, enable, state, t, userId]);
 

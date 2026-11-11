@@ -55,6 +55,11 @@ export function CameraInitializingPlaceholder({
   );
 }
 
+/**
+ * Guideline 5.1.1(iv): before the system prompt the button only says "Continue" and always leads
+ * to it. After "Don't Allow" the screen just says where access can be turned on; it never sends
+ * the user to Settings.
+ */
 export function CameraPermissionDeniedPlaceholder({
   onRequestPermission,
   canAskAgain,
@@ -68,11 +73,9 @@ export function CameraPermissionDeniedPlaceholder({
   return (
     <PermissionShell styles={styles}>
       <Text style={styles.permissionText}>{t(canAskAgain ? 'camera.permissionRequired' : 'camera.permissionBlocked')}</Text>
-      <Button
-        title={t(canAskAgain ? 'camera.grantPermission' : 'camera.openSettings')}
-        onPress={onRequestPermission}
-        size="large"
-      />
+      {canAskAgain ? (
+        <Button title={t('permissions.continue')} onPress={onRequestPermission} size="large" />
+      ) : null}
     </PermissionShell>
   );
 }
