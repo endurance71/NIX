@@ -90,7 +90,8 @@ export function WelcomeSetup({
   const [index, setIndex] = useState(0);
   // canAsk: iOS can still show the camera or microphone prompt (it never shows it twice).
   const [cameraAccess, setCameraAccess] = useState<{ granted: boolean; canAsk: boolean } | null>(null);
-  const [notificationsAsked, setNotificationsAsked] = useState(false);
+  // Read only in handlers: once asked, the next tap moves on whatever the answer was.
+  const notificationsAskedRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [privateChoice, setPrivateChoice] = useState<boolean | null>(null);
   const step = STEPS[index];
@@ -157,7 +158,7 @@ export function WelcomeSetup({
 
   const askNotifications = () =>
     run(async () => {
-      setNotificationsAsked(true);
+      notificationsAskedRef.current = true;
       await push.enable();
     });
 
@@ -201,7 +202,12 @@ export function WelcomeSetup({
   if (step === 'notifications') {
     alreadyOn = notificationsOn;
     const canAsk = push.state !== 'denied' && push.state !== 'unavailable';
-    if (!notificationsOn && !notificationsAsked && canAsk) primaryAction = () => void askNotifications();
+    if (!notificationsOn && canAsk) {
+      primaryAction = () => {
+        if (notificationsAskedRef.current) next();
+        else void askNotifications();
+      };
+    }
   } else if (step === 'camera') {
     alreadyOn = cameraOn;
     if (!cameraOn && (cameraAccess?.canAsk ?? true)) primaryAction = () => void askCamera();
