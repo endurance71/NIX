@@ -236,13 +236,17 @@ export function PushNotificationsProvider({
 
   const enable = useCallback(async () => {
     if (busy || !userId) return;
+    // App Review 5.1.1(iv): a "Don't Allow" just answered in the system prompt is respected,
+    // never followed by a push to Settings. Only a later, deliberate tap on an already denied
+    // switch explains where to turn it back on.
+    const deniedBefore = state === 'denied';
     await runWithBusyState(setBusy, async () => {
       try {
         const permission = await requestPushPermission();
         trackEvent('push_permission_result', { status: permission });
         if (permission === 'denied') {
           setState('denied');
-          showSettingsAlert();
+          if (deniedBefore) showSettingsAlert();
           return;
         }
         if (permission !== 'granted') {
@@ -260,7 +264,7 @@ export function PushNotificationsProvider({
         await refresh();
       }
     });
-  }, [busy, refresh, showSettingsAlert, t, userId]);
+  }, [busy, refresh, showSettingsAlert, state, t, userId]);
 
   const disable = useCallback(async () => {
     if (busy || !userId) return;
@@ -290,10 +294,14 @@ export function PushNotificationsProvider({
     if (source === 'onboarding' && !canPromptPushRef.current) return;
     await markPushPromptOffers(userId, offers);
     trackEvent('push_rationale_shown', { source });
-    Alert.alert(t('push.rationaleTitle'), t('push.rationaleBody'), [
-      { text: t('push.notNow'), style: 'cancel' },
-      { text: t('push.enableAction'), onPress: () => void enable() },
-    ]);
+    // App Review 5.1.1(iv): the message only explains; its single "Continue" always leads to the
+    // system prompt, with no "Not Now" to put the request off.
+    Alert.alert(
+      t('push.rationaleTitle'),
+      t('push.rationaleBody'),
+      [{ text: t('push.enableAction'), onPress: () => void enable() }],
+      { cancelable: false }
+    );
   }, [busy, enable, state, t, userId]);
 
   const offerAfterSuccessfulSend = useCallback(async () => {

@@ -15,6 +15,7 @@ import {
   uploadProfileAvatarFromUri,
 } from '../services/avatarService';
 import { showPermissionDeniedAlert } from './permissionAlert';
+import { requestPermissionRespectingRefusal } from './permissionRequest';
 import { notifyDomainError, notifyError, notifyInfo, notifySuccess } from '../lib/appNotify';
 import i18n from '../lib/i18n';
 import { upsertCapturePolicyForFriend, type CapturePolicy } from '../services/capturePolicyService';
@@ -50,10 +51,14 @@ export async function pickProfileAvatarPhoto(
   source: AvatarPhotoSource = 'library'
 ): Promise<void> {
   const permission = source === 'camera'
-    ? await ImagePicker.requestCameraPermissionsAsync()
-    : await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permission.granted) {
-    showPermissionDeniedAlert(source === 'camera' ? 'avatarCamera' : 'avatarLibrary');
+    ? await requestPermissionRespectingRefusal(ImagePicker.getCameraPermissionsAsync, ImagePicker.requestCameraPermissionsAsync)
+    : await requestPermissionRespectingRefusal(
+        ImagePicker.getMediaLibraryPermissionsAsync,
+        ImagePicker.requestMediaLibraryPermissionsAsync
+      );
+  if (permission !== 'granted') {
+    // App Review 5.1.1(iv): only an earlier refusal gets the Settings alert, never a fresh one.
+    if (permission === 'blocked') showPermissionDeniedAlert(source === 'camera' ? 'avatarCamera' : 'avatarLibrary');
     return;
   }
 

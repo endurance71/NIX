@@ -38,6 +38,19 @@ internet active. Apple attached no crash log. Not reproduced on 2026-10-30:
 Update Review and Resubmit to App Review. The version and the submission are **WAITING_FOR_REVIEW** again; the OTA
 freeze above still applies. If Apple rejects again, start from the crash log they attach.
 
+**Rejected 2026-11-11, Guideline 5.1.1(iv)** (iPhone 17 Pro Max, build 16; the 2.1(a) crash was not raised again):
+the app steered users towards granting camera and microphone access. Apple listed three things: a redirect to
+Settings right after "Don't Allow", an "Allow" button on the custom message before the system prompt (use
+"Continue" or "Next"), and a "Not Now" button on that message that delays the prompt.
+
+Fix on branch `fix/app-review-5-1-1-permissions` (JS only): every pre-permission button reads "Continue" / "Dalej",
+the welcome set-up has no "Not Now" and moves on after the system prompt whatever the answer, a fresh "Don't Allow"
+for notifications, photos or the profile camera no longer opens the Settings alert (it answers only a later attempt
+while access is already blocked), the in-app notification rationale has a single "Continue" and no "Not Now", and on
+the camera and QR screens Settings is only a low-key link after a refusal. Reply draft: [apple-review-reply-2026-11-11.en.md](apple-review-reply-2026-11-11.en.md). App
+Review must see the fix on first launch, so it ships as a new build with the JS embedded (build 17, local Xcode
+Archive), not as an OTA.
+
 ## Previous candidate — 1.0.13 (15), 2026-10-11
 
 Fixes from the [App Review preflight](APP_REVIEW_PREFLIGHT_2026-10-11.pl.md), step 1. **Runtime 1.0.13**, channel

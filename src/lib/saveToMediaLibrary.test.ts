@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { requestPermissionsAsync, assetCreate, downloadAsync, makeDirectoryAsync, deleteAsync } = vi.hoisted(() => ({
+const { getPermissionsAsync, requestPermissionsAsync, assetCreate, downloadAsync, makeDirectoryAsync, deleteAsync } = vi.hoisted(() => ({
+  getPermissionsAsync: vi.fn(),
   requestPermissionsAsync: vi.fn(),
   assetCreate: vi.fn(),
   downloadAsync: vi.fn(),
@@ -10,6 +11,7 @@ const { requestPermissionsAsync, assetCreate, downloadAsync, makeDirectoryAsync,
 
 vi.mock('expo-media-library', () => ({
   Asset: { create: assetCreate },
+  getPermissionsAsync,
   requestPermissionsAsync,
 }));
 vi.mock('../../modules/nix-background-uploader/src', () => ({ default: { savePhotoToLibrary: vi.fn().mockResolvedValue(undefined) } }));
@@ -29,6 +31,8 @@ describe('saveToMediaLibrary', () => {
   beforeEach(async () => {
     vi.resetModules();
     requestPermissionsAsync.mockReset();
+    getPermissionsAsync.mockReset();
+    getPermissionsAsync.mockResolvedValue({ granted: false, status: 'undetermined', canAskAgain: true });
     assetCreate.mockReset();
     downloadAsync.mockReset();
     makeDirectoryAsync.mockReset();
@@ -48,9 +52,15 @@ describe('saveToMediaLibrary', () => {
     expect(requestPermissionsAsync).toHaveBeenCalledWith(true);
   });
 
-  it('ensureWritePermission returns blocked when cannot ask again', async () => {
-    requestPermissionsAsync.mockResolvedValue({ granted: false, status: 'denied', canAskAgain: false });
+  it('ensureWritePermission returns blocked without a prompt when access was refused earlier', async () => {
+    getPermissionsAsync.mockResolvedValue({ granted: false, status: 'denied', canAskAgain: false });
     await expect(ensureWritePermission()).resolves.toBe('blocked');
+    expect(requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it('ensureWritePermission returns denied for a fresh refusal in the prompt', async () => {
+    requestPermissionsAsync.mockResolvedValue({ granted: false, status: 'denied', canAskAgain: false });
+    await expect(ensureWritePermission()).resolves.toBe('denied');
   });
 
   it('ensureWritePermission returns denied when can ask again', async () => {

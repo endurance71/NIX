@@ -142,13 +142,20 @@ export function WelcomeSetup({
     }
   };
 
+  // App Review 5.1.1(iv): the step explains, its only button leads straight to the system
+  // prompt, and whatever the answer the next tap moves on. No "Not Now", no trip to Settings.
+  const [notificationsAsked, setNotificationsAsked] = useState(false);
+  const [cameraAsked, setCameraAsked] = useState(false);
+
   const enableNotifications = () =>
     run(async () => {
-      if (push.state === 'denied') {
-        await push.openSettings();
-        return;
+      // A busy provider would return without showing the prompt; the step must not skip it.
+      if (push.busy) return;
+      try {
+        await push.enable();
+      } finally {
+        setNotificationsAsked(true);
       }
-      await push.enable();
     });
 
   // A granted permission is a success, felt the moment its badge pops in.
@@ -163,9 +170,13 @@ export function WelcomeSetup({
 
   const allowCamera = () =>
     run(async () => {
-      const camera = await Camera.requestCameraPermissionsAsync();
-      const mic = await Camera.requestMicrophonePermissionsAsync();
-      setCameraGranted(camera.granted && mic.granted);
+      try {
+        const camera = await Camera.requestCameraPermissionsAsync();
+        const mic = await Camera.requestMicrophonePermissionsAsync();
+        setCameraGranted(camera.granted && mic.granted);
+      } finally {
+        setCameraAsked(true);
+      }
     });
 
   const choosePrivacy = (value: boolean) => {
@@ -193,24 +204,20 @@ export function WelcomeSetup({
   if (step === 'notifications') {
     if (notificationsOn) {
       alreadyOn = true;
-    } else if (push.state === 'denied') {
-      primaryLabel = t('welcome.setup.openSettings');
-      primaryAction = () => void enableNotifications();
-    } else {
+    } else if (push.state !== 'denied' && !notificationsAsked) {
       primaryLabel = t('welcome.setup.notifications.action');
       primaryAction = () => void enableNotifications();
     }
   } else if (step === 'camera') {
     if (cameraGranted) {
       alreadyOn = true;
-    } else {
+    } else if (!cameraAsked) {
       primaryLabel = t('welcome.setup.camera.action');
       primaryAction = () => void allowCamera();
     }
   } else if (step === 'memories') {
     primaryLabel = t('welcome.setup.finish');
   }
-  const showLater = (step === 'notifications' || step === 'camera') && !alreadyOn;
 
   return (
     <View style={[StyleSheet.absoluteFill, { paddingTop: topInset + 14, paddingBottom: bottomInset + 16 }]}>
@@ -301,13 +308,8 @@ export function WelcomeSetup({
                 {primaryLabel}
               </SwiftText>
             </Button>
-            <Button
-              onPress={next}
-              modifiers={[buttonStyle('borderless'), tint(ink.cinemaSecondaryLabel), frame({ minHeight: 44 })]}>
-              <SwiftText modifiers={[font({ design: 'rounded', textStyle: 'body' }), foregroundStyle(ink.cinemaSecondaryLabel)]}>
-                {showLater ? t('welcome.setup.later') : ' '}
-              </SwiftText>
-            </Button>
+            {/* Keeps the primary button where it was; there is deliberately no "Not Now". */}
+            <SwiftText modifiers={[frame({ minHeight: 44 })]}> </SwiftText>
           </VStack>
         </Host>
       </View>
