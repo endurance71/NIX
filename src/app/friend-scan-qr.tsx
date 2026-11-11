@@ -226,6 +226,7 @@ function ScannerPermissionGate({
             size="large"
             fullWidth
             title={canAskAgain ? t('camera.grantAccess') : t('camera.openSettings')}
+            variant={canAskAgain ? 'primary' : 'tertiary'}
             onPress={canAskAgain ? () => void requestPermission() : () => void Linking.openSettings()}
           />
         </NativeSectionCard>

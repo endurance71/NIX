@@ -68,10 +68,13 @@ export function CameraPermissionDeniedPlaceholder({
   return (
     <PermissionShell styles={styles}>
       <Text style={styles.permissionText}>{t(canAskAgain ? 'camera.permissionRequired' : 'camera.permissionBlocked')}</Text>
+      {/* App Review 5.1.1(iv): before the prompt the button only says "Continue"; after a
+          refusal Settings is an optional, low-key link, never the main action. */}
       <Button
         title={t(canAskAgain ? 'camera.grantPermission' : 'camera.openSettings')}
         onPress={onRequestPermission}
-        size="large"
+        variant={canAskAgain ? 'primary' : 'tertiary'}
+        size={canAskAgain ? 'large' : 'regular'}
       />
     </PermissionShell>
   );
